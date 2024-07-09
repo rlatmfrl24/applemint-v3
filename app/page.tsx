@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import AuthButton from "../components/AuthButton";
 import { createClient } from "@/utils/supabase/server";
+import { ModeToggle } from "@/components/ThemeToggleButton";
 
 export default async function Index() {
   const supabase = createClient();
@@ -18,6 +19,7 @@ export default async function Index() {
       <nav className="w-full flex justify-center border-b border-b-foreground/10 h-16">
         <div className="w-full container flex justify-between items-center p-3 text-sm ">
           <AuthButton />
+          <ModeToggle />
         </div>
       </nav>
 
