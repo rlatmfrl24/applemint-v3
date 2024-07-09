@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 
 import AuthButton from "../components/AuthButton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default async function Index() {
   const supabase = createClient();
@@ -30,6 +30,12 @@ export default async function Index() {
             <TabsTrigger value="new">New Threads</TabsTrigger>
             <TabsTrigger value="quick">Quick List</TabsTrigger>
           </TabsList>
+          <TabsContent value="new">
+            <h1>New Threads</h1>
+          </TabsContent>
+          <TabsContent value="quick">
+            <h1>Quick List</h1>
+          </TabsContent>
         </Tabs>
       </div>
     </div>
