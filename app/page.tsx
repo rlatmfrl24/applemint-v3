@@ -23,7 +23,11 @@ export default async function Index() {
         </div>
       </nav>
 
-      <div className="flex-1 flex flex-col container px-3">container</div>
+      <div className="flex-1 flex flex-col container px-3">
+        <p>TEST</p>
+        <p className="lead">TEST</p>
+        <p className="muted">TEST</p>
+      </div>
     </div>
   );
 }
