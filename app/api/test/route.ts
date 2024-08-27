@@ -1,4 +1,5 @@
 import { Agent, fetch } from "undici";
+import * as cheerio from "cheerio";
 
 export async function GET(request: Request) {
   // The `/api` route is required for the server-side auth flow implemented
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
     }),
   });
   const text = await response.text();
-  console.log(text);
+  // console.log(text);
 
   return new Response("Hello, world!", {
     headers: {
