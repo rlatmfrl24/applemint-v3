@@ -7,12 +7,6 @@ export async function crawlBattlepage() {
   const pageSize = 5;
   const targetList: string[] = [];
 
-  const supabase = createClient();
-
-  let { data: ignore, error } = await supabase.from("ignore").select("*");
-
-  console.log(ignore, error);
-
   //Get Target URL List
   Array.from({ length: pageSize }, (_, i) => {
     targetList.push(`${baseUrl}/??=Board.Humor.Table&page=${i + 1}`);
@@ -33,8 +27,7 @@ export async function crawlBattlepage() {
 
       const itemList = $(".ListTable div").map((i, el) => {
         return {
-          url:
-            baseUrl +
+          url: baseUrl +
             ($(el).find("a").attr("href") as string).replace(/&page=\d+/, ""),
           title: $(el).find(".bp_subject").attr("title"),
           description: "",
@@ -43,7 +36,7 @@ export async function crawlBattlepage() {
       });
 
       return itemList.get();
-    })
+    }),
   );
 
   return detectedList.flat();
