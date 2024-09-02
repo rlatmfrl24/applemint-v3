@@ -5,16 +5,21 @@
 // Setup type definitions for built-in Supabase Runtime APIs
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-console.log("Hello from Functions!");
+console.log("Called crawl-insagirl");
 
 Deno.serve(async (req) => {
-  const { name } = await req.json();
-  const data = {
-    message: `Hello ${name}!`,
-  };
+  const response = await fetch(
+    `https://mint-v3-soulkey.vercel.app/api/crawl?target=insagirl`,
+  );
+  const json = await response.json();
+  console.log(json);
+  // const { name } = await req.json();
+  // const data = {
+  //   message: `Hello ${name}!`,
+  // };
 
   return new Response(
-    JSON.stringify(data),
+    JSON.stringify(json),
     { headers: { "Content-Type": "application/json" } },
   );
 });
