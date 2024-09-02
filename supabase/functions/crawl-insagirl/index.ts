@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
       `https://mint-v3-soulkey.netlify.app/api/crawl?target=insagirl`,
     );
     const json = await response.json();
-    // console.log(json);
+    console.log(json);
 
     const rawList = json as CrawlItemType[];
 
