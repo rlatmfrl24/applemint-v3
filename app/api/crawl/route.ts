@@ -2,13 +2,6 @@ import { NextRequest } from "next/server";
 import { crawlInsagirl } from "./insagirl";
 import { crawlBattlepage } from "./battlepage";
 
-export interface CrawlItemType {
-  url: string;
-  title: string;
-  description: string;
-  host: string;
-}
-
 export async function GET(request: NextRequest) {
   const queries = request.nextUrl.searchParams;
   const target = queries.get("target");
