@@ -20,8 +20,6 @@ Deno.serve(async (req) => {
       `https://mint-v3-soulkey.netlify.app/api/crawl?target=insagirl`,
     );
     const json = await response.json();
-    console.log(json);
-
     const rawList = json as CrawlItemType[];
 
     const supabase = createClient(
@@ -34,11 +32,11 @@ Deno.serve(async (req) => {
       },
     );
 
-    const { data, error } = await supabase.from("ignore").select("*");
+    const { ignoreList, error } = await supabase.from("ignore").select("*");
 
     const filtered = rawList.filter((item) => {
       // if item's url contains any of the ignore list, then filter it out
-      return !data?.some((ignore: { value: string }) =>
+      return !ignoreList?.some((ignore: { value: string }) =>
         item.url.includes(ignore.value)
       );
     });
@@ -47,8 +45,40 @@ Deno.serve(async (req) => {
       throw error;
     }
 
+    // remove items that are already in the database
+    const { data: existingData, error: existingError } = await supabase.from(
+      "crawl-history",
+    ).select("*").eq("crawl_source", "insagirl").limit(1000);
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    const existingUrls = existingData?.map((item: { url: string }) =>
+      item.url
+    ) ??
+      [];
+    const newRows = filtered.filter((item) => !existingUrls.includes(item.url));
+
+    // add crawl-history to the database
+    const { error: insertError } = await supabase.from("crawl-history")
+      .insert(
+        newRows.map((item) => ({
+          url: item.url,
+          crawl_source: "insagirl",
+          host: item.host,
+        })),
+      );
+
+    if (insertError) {
+      throw insertError;
+    }
+
     return new Response(
-      JSON.stringify(filtered),
+      JSON.stringify({
+        message: "Crawl successful",
+        insertedCount: newRows?.length,
+      }),
       { headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {
