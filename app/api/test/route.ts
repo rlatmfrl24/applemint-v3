@@ -1,5 +1,6 @@
 import { Agent, fetch } from "undici";
 import * as cheerio from "cheerio";
+import { createClient } from "@/utils/supabase/server";
 
 export async function GET(request: Request) {
   // The `/api` route is required for the server-side auth flow implemented
@@ -8,15 +9,17 @@ export async function GET(request: Request) {
 
   console.log("GET /api");
 
-  const response = await fetch("https://v12.battlepage.com", {
-    dispatcher: new Agent({
-      connect: {
-        rejectUnauthorized: false,
-      },
-    }),
-  });
-  const text = await response.text();
-  // console.log(text);
+  const supabase = createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return new Response("Unauthorized", {
+      status: 401,
+    });
+  }
 
   return new Response("Hello, world!", {
     headers: {

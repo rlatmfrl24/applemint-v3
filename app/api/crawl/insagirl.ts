@@ -1,5 +1,5 @@
+import { CrawlItemType } from "@/lib/typeDefs";
 import * as linkify from "linkifyjs";
-import { CrawlItemType } from "./route";
 
 export async function crawlInsagirl() {
   const target = [
@@ -32,22 +32,22 @@ export async function crawlInsagirl() {
               url: url.href,
               title: trimmedText ? trimmedText : url.href,
               description: "",
-              host: url.value,
+              host: new URL(url.href).host,
             } as CrawlItemType;
           });
 
           list.push(...processed);
         });
-    })
+    }),
   );
 
   // remove duplicate items by url
   const uniqueList = list.filter(
     (item, index, self) =>
       index ===
-      self.findIndex((t) => {
-        return t.url === item.url;
-      })
+        self.findIndex((t) => {
+          return t.url === item.url;
+        }),
   );
 
   return uniqueList;

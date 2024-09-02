@@ -4,24 +4,56 @@
 
 // Setup type definitions for built-in Supabase Runtime APIs
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 console.log("Called crawl-insagirl");
+interface CrawlItemType {
+  url: string;
+  title: string;
+  description: string;
+  host: string;
+}
 
 Deno.serve(async (req) => {
-  const response = await fetch(
-    `https://mint-v3-soulkey.vercel.app/api/crawl?target=insagirl`,
-  );
-  const json = await response.json();
-  console.log(json);
-  // const { name } = await req.json();
-  // const data = {
-  //   message: `Hello ${name}!`,
-  // };
+  try {
+    const response = await fetch(
+      `https://mint-v3-soulkey.netlify.app/api/crawl?target=insagirl`,
+    );
+    const json = await response.json();
+    // console.log(json);
 
-  return new Response(
-    JSON.stringify(json),
-    { headers: { "Content-Type": "application/json" } },
-  );
+    const rawList = json as CrawlItemType[];
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      {
+        global: {
+          headers: { Authorization: req.headers.get("Authorization")! },
+        },
+      },
+    );
+
+    const { data, error } = await supabase.from("ignore").select("*");
+
+    const filtered = rawList.filter((item) => {
+      // if item's url contains any of the ignore list, then filter it out
+      return !data?.some((ignore: { value: string }) =>
+        item.url.includes(ignore.value)
+      );
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return new Response(
+      JSON.stringify(filtered),
+      { headers: { "Content-Type": "application/json" } },
+    );
+  } catch (err) {
+    return new Response(String(err?.message ?? err), { status: 500 });
+  }
 });
 
 /* To invoke locally:
