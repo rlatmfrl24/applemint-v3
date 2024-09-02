@@ -32,7 +32,7 @@ export async function crawlInsagirl() {
               url: url.href,
               title: trimmedText ? trimmedText : url.href,
               description: "",
-              host: new URL(url.href).host,
+              host: new URL(url.href).hostname,
             } as CrawlItemType;
           });
 
