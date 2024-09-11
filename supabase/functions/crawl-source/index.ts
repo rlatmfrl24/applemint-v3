@@ -6,18 +6,42 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-console.log("Called crawl-insagirl");
+console.log("Called crawl-source");
 interface CrawlItemType {
   url: string;
   title: string;
   description: string;
   host: string;
+  type: string;
+}
+
+function defineType(value: string, filterList: {
+  value: string;
+  method: string;
+}[]) {
+  const targetMethod = filterList.find((filter) => {
+    return value.includes(filter.value);
+  })?.method;
+
+  if (targetMethod) {
+    return targetMethod;
+  }
+
+  return "normal";
 }
 
 Deno.serve(async (req) => {
+  // get target from query parameter
+  const url = new URL(req.url);
+  const target = url.searchParams.get("target");
+
+  if (!target) {
+    return new Response("Target is required", { status: 400 });
+  }
+
   try {
     const response = await fetch(
-      `https://mint-v3-soulkey.netlify.app/api/crawl?target=insagirl`,
+      `https://mint-v3-soulkey.netlify.app/api/crawl?target=${target}`,
     );
     const json = await response.json();
     const rawList = json as CrawlItemType[];
@@ -32,13 +56,18 @@ Deno.serve(async (req) => {
       },
     );
 
-    const { ignoreList, error } = await supabase.from("ignore").select("*");
+    const { data: filterList, error } = await supabase.from("filter-keyword")
+      .select(
+        "*",
+      );
 
     const filtered = rawList.filter((item) => {
       // if item's url contains any of the ignore list, then filter it out
-      return !ignoreList?.some((ignore: { value: string }) =>
-        item.url.includes(ignore.value)
-      );
+      return !filterList
+        ?.filter((keyword: { method: string }) => (keyword.method === "ignore"))
+        .some((ignore: { value: string }) => {
+          return item.url.includes(ignore.value);
+        });
     });
 
     if (error) {
@@ -48,7 +77,9 @@ Deno.serve(async (req) => {
     // remove items that are already in the database
     const { data: existingData, error: existingError } = await supabase.from(
       "crawl-history",
-    ).select("*").eq("crawl_source", "insagirl").limit(1000);
+    ).select("*")
+      .order("created_at", { ascending: false })
+      .eq("crawl_source", target).limit(1000);
 
     if (existingError) {
       throw existingError;
@@ -65,13 +96,28 @@ Deno.serve(async (req) => {
       .insert(
         newRows.map((item) => ({
           url: item.url,
-          crawl_source: "insagirl",
+          crawl_source: target,
           host: item.host,
         })),
       );
 
     if (insertError) {
       throw insertError;
+    }
+
+    const { error: insertNewError } = await supabase.from("new-threads")
+      .insert(
+        newRows.map((item) => ({
+          url: item.url,
+          title: item.title,
+          description: item.description,
+          host: /https?:\/\/([^/]+)/.exec(item.url)?.[1],
+          type: defineType(item.url, filterList),
+        })),
+      );
+
+    if (insertNewError) {
+      throw insertNewError;
     }
 
     return new Response(
@@ -85,15 +131,3 @@ Deno.serve(async (req) => {
     return new Response(String(err?.message ?? err), { status: 500 });
   }
 });
-
-/* To invoke locally:
-
-  1. Run `supabase start` (see: https://supabase.com/docs/reference/cli/supabase-start)
-  2. Make an HTTP request:
-
-  curl -i --location --request POST 'http://127.0.0.1:54321/functions/v1/crawl-insagirl' \
-    --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0' \
-    --header 'Content-Type: application/json' \
-    --data '{"name":"Functions"}'
-
-*/
