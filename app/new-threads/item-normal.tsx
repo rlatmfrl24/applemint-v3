@@ -9,6 +9,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { ThreadItemType } from "@/lib/typeDefs";
+import { createClient } from "@/utils/supabase/client";
 
 export const ThreadItem = ({ thread }: { thread: ThreadItemType }) => {
   return (
