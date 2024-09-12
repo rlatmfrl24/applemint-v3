@@ -12,13 +12,15 @@ export const ThreadItem = ({ thread }: { thread: ThreadItemType }) => {
   return (
     <Card
       key={thread.id}
-      className="cursor-pointer max-w-full"
-      //   onClick={() => {
-      //     window.open(thread.url, "_blank");
-      //   }}
+      className="cursor-pointer max-w-full w-full"
+      onClick={() => {
+        window.open(thread.url, "_blank");
+      }}
     >
-      <CardHeader>
-        <CardTitle>{thread.title}</CardTitle>
+      <CardHeader className="max-w-full">
+        <CardTitle className="max-w-full w-full text-ellipsis overflow-hidden">
+          {thread.title}
+        </CardTitle>
         <CardDescription>{thread.url}</CardDescription>
       </CardHeader>
     </Card>
