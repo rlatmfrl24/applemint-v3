@@ -1,10 +1,12 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
+  CardFooter,
 } from "@/components/ui/card";
 import { ThreadItemType } from "@/lib/typeDefs";
 
@@ -23,6 +25,17 @@ export const ThreadItem = ({ thread }: { thread: ThreadItemType }) => {
         </CardTitle>
         <CardDescription>{thread.url}</CardDescription>
       </CardHeader>
+      <CardFooter>
+        <Button
+          size={`sm`}
+          onClick={(e) => {
+            e.stopPropagation();
+            console.log("Remove button clicked");
+          }}
+        >
+          Remove
+        </Button>
+      </CardFooter>
     </Card>
   );
 };
