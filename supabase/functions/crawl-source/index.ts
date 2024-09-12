@@ -15,6 +15,14 @@ interface CrawlItemType {
   type: string;
 }
 
+function getYoutubeId(url: string) {
+  // get youtube video id from short url
+  const regExp =
+    /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|shorts\/)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return match && match[2].length === 11 ? match[2] : null;
+}
+
 function defineType(value: string, filterList: {
   value: string;
   method: string;
@@ -23,9 +31,10 @@ function defineType(value: string, filterList: {
     return value.includes(filter.value);
   })?.method;
 
+  // if the url is not a youtube video, then it should be normal
   if (
     targetMethod === "youtube" &&
-    !value.includes("watch?v=")
+    getYoutubeId(value) === null
   ) {
     return "normal";
   }

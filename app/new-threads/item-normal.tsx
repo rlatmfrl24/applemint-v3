@@ -12,7 +12,7 @@ export const ThreadItem = ({ thread }: { thread: ThreadItemType }) => {
   return (
     <Card
       key={thread.id}
-      className="cursor-pointer max-w-full w-full"
+      className="cursor-pointer max-w-full w-full dark:hover:bg-zinc-800 hover:bg-zinc-100 transition-colors duration-200"
       onClick={() => {
         window.open(thread.url, "_blank");
       }}
