@@ -1,8 +1,10 @@
 "use client";
 import { Button } from "@/components/ui/button";
-import { ThreadItem } from "./item";
+import { ThreadItem } from "./item-normal";
 import { ThreadItemType } from "@/lib/typeDefs";
 import { useState } from "react";
+import { NormalThreads } from "./list-normal";
+import { YoutubeThreads } from "./list-youtube";
 
 export const NewThreadsList = ({
   threadItems,
@@ -36,25 +38,30 @@ export const NewThreadsList = ({
           Youtube
         </Button>
       </div>
-      <div className="flex-1 flex flex-col gap-2 overflow-auto">
-        {threadItems
-          ?.filter((thread) => {
-            switch (selectedType) {
-              case "normal":
-                return (
-                  thread.type === "normal" ||
-                  thread.type === "battlepage" ||
-                  thread.type === "fmkorea"
-                );
-              case "image":
-                return thread.type === "media";
-              case "youtube":
-                return thread.type === selectedType;
-            }
-          })
-          .map((thread) => (
-            <ThreadItem key={thread.id} thread={thread} />
-          ))}
+      <div className="flex-1 overflow-auto">
+        {
+          {
+            normal: (
+              <NormalThreads
+                threadItems={threadItems.filter((thread) => {
+                  return (
+                    thread.type === "normal" ||
+                    thread.type === "battlepage" ||
+                    thread.type === "fmkorea"
+                  );
+                })}
+              />
+            ),
+            image: <div>Image</div>,
+            youtube: (
+              <YoutubeThreads
+                threadItems={threadItems.filter((thread) => {
+                  return thread.type === "youtube";
+                })}
+              />
+            ),
+          }[selectedType]
+        }
       </div>
     </div>
   );

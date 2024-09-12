@@ -23,6 +23,13 @@ function defineType(value: string, filterList: {
     return value.includes(filter.value);
   })?.method;
 
+  if (
+    targetMethod === "youtube" &&
+    !value.includes("watch?v=")
+  ) {
+    return "normal";
+  }
+
   if (targetMethod) {
     return targetMethod;
   }

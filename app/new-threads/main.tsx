@@ -1,8 +1,6 @@
 import { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/server";
-import { ThreadItem } from "./item";
-import { Button } from "@/components/ui/button";
-import { NewThreadsList } from "./list";
+import { NewThreadsList } from "./container";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const NewThreads = async () => {
