@@ -3,6 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 
 import AuthButton from "../components/AuthButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { NewThreads } from "./new-threads/list";
 
 export default async function Index() {
   const supabase = createClient();
@@ -24,17 +25,17 @@ export default async function Index() {
         </div>
       </nav>
 
-      <div className="flex-1 flex flex-col container px-3 border m-3 p-3 rounded-xl">
-        <Tabs defaultValue="new">
-          <TabsList>
+      <div className="flex-1 flex flex-col container px-3 m-3 p-3">
+        <Tabs defaultValue="new" className="flex-auto h-0 flex flex-col">
+          <TabsList className="w-fit">
             <TabsTrigger value="new">New Threads</TabsTrigger>
             <TabsTrigger value="quick">Quick List</TabsTrigger>
           </TabsList>
-          <TabsContent value="new">
-            <h1>New Threads</h1>
+          <TabsContent value="new" className="max-h-full pb-9 flex">
+            <NewThreads />
           </TabsContent>
           <TabsContent value="quick">
-            <h1>Quick List</h1>
+            <h2>Quick List</h2>
           </TabsContent>
         </Tabs>
       </div>
