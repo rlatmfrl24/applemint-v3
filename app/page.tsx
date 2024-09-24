@@ -30,12 +30,16 @@ export default async function Index() {
           <TabsList className="w-fit">
             <TabsTrigger value="new">New Threads</TabsTrigger>
             <TabsTrigger value="quick">Quick List</TabsTrigger>
+            <TabsTrigger value="trash">Trash</TabsTrigger>
           </TabsList>
           <TabsContent value="new" className="flex-auto h-0">
             <NewThreads />
           </TabsContent>
           <TabsContent value="quick">
             <h2>Quick List</h2>
+          </TabsContent>
+          <TabsContent value="trash">
+            <h2>Trash</h2>
           </TabsContent>
         </Tabs>
       </div>

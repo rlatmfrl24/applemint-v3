@@ -6,7 +6,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 export const NewThreads = async () => {
   const supabase = createClient();
 
-  const { data, error } = await supabase.from("new-threads").select();
+  const { data, error } = await supabase
+    .from("new-threads")
+    .select()
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
   const threadItems = data as ThreadItemType[];
 
   if (error) {

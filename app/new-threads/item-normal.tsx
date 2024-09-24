@@ -1,5 +1,3 @@
-"use client";
-
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,6 +10,37 @@ import { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
 
 export const ThreadItem = ({ thread }: { thread: ThreadItemType }) => {
+  const removeThread = async (id: string) => {
+    const supabase = createClient();
+    const { error: DeleteError } = await supabase
+      .from("new-threads")
+      .delete()
+      .eq("id", parseInt(id));
+    if (DeleteError) {
+      console.error("🚀 ~ removeThread ~ error", DeleteError);
+      return;
+    }
+
+    const { data, error: TrashInsertError } = await supabase
+      .from("trash")
+      .insert([
+        {
+          type: thread.type,
+          url: thread.url,
+          title: thread.title,
+          description: thread.description,
+          host: thread.host,
+        },
+      ]);
+
+    if (TrashInsertError) {
+      console.error("🚀 ~ removeThread ~ error", TrashInsertError);
+      return;
+    }
+
+    console.log("🚀 ~ removeThread ~ data", data);
+  };
+
   return (
     <Card
       key={thread.id}
@@ -29,9 +58,9 @@ export const ThreadItem = ({ thread }: { thread: ThreadItemType }) => {
       <CardFooter>
         <Button
           size={`sm`}
-          onClick={(e) => {
+          onClick={async (e) => {
             e.stopPropagation();
-            console.log("Remove button clicked");
+            await removeThread(thread.id);
           }}
         >
           Remove

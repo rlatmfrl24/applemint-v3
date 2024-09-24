@@ -1,10 +1,11 @@
 "use client";
+
 import { Button } from "@/components/ui/button";
-import { ThreadItem } from "./item-normal";
 import { ThreadItemType } from "@/lib/typeDefs";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NormalThreads } from "./list-normal";
 import { YoutubeThreads } from "./list-youtube";
+import { createClient } from "@/utils/supabase/client";
 
 export const NewThreadsList = ({
   threadItems,
@@ -12,6 +13,27 @@ export const NewThreadsList = ({
   threadItems: ThreadItemType[];
 }) => {
   const [selectedType, setSelectedType] = useState("normal");
+  const [currentThreadItems, setCurrentThreadItems] = useState(threadItems);
+  const supabase = createClient();
+
+  useEffect(() => {
+    const channels = supabase
+      .channel("custom-delete-channel")
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "new-threads" },
+        (payload) => {
+          console.log("Change received!", payload);
+          setCurrentThreadItems((prev) =>
+            prev.filter((thread) => thread.id !== payload.old.id)
+          );
+        }
+      )
+      .subscribe();
+    return () => {
+      channels.unsubscribe();
+    };
+  }, [supabase]);
 
   return (
     <div className="h-full  flex flex-col">
@@ -43,7 +65,7 @@ export const NewThreadsList = ({
           {
             normal: (
               <NormalThreads
-                threadItems={threadItems.filter((thread) => {
+                threadItems={currentThreadItems.filter((thread) => {
                   return (
                     thread.type === "normal" ||
                     thread.type === "battlepage" ||
@@ -55,7 +77,7 @@ export const NewThreadsList = ({
             image: <div>Image</div>,
             youtube: (
               <YoutubeThreads
-                threadItems={threadItems.filter((thread) => {
+                threadItems={currentThreadItems.filter((thread) => {
                   return thread.type === "youtube";
                 })}
               />
