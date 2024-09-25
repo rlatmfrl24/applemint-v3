@@ -4,3 +4,12 @@ export interface CrawlItemType {
     description: string;
     host: string;
 }
+
+export interface ThreadItemType {
+    id: string;
+    type: string;
+    url: string;
+    title: string;
+    description: string;
+    host: string;
+}

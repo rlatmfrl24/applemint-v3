@@ -30,9 +30,9 @@ export async function crawlInsagirl() {
 
             return {
               url: url.href,
-              title: trimmedText ? trimmedText : url.href,
+              title: trimmedText ? trimmedText : "",
               description: "",
-              host: new URL(url.href).hostname,
+              host: /https?:\/\/([^/]+)/.exec(url.href)?.[1],
             } as CrawlItemType;
           });
 
