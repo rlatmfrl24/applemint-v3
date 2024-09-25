@@ -47,7 +47,7 @@ export const YoutubeItem = ({ thread }: { thread: ThreadItemType }) => {
             <div className="w-full h-56">Empty</div>
           )}
         </CardTitle>
-        <CardDescription className="whitespace-nowrap text-ellipsis overflow-hidden">
+        <CardDescription className="whitespace-nowrap text-ellipsis overflow-hidden max-w-full">
           {thread.url}
         </CardDescription>
       </CardHeader>

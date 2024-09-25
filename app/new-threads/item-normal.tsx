@@ -61,7 +61,9 @@ export const ThreadItem = ({ thread }: { thread: ThreadItemType }) => {
           <CardTitle className="max-w-full w-full text-ellipsis overflow-hidden">
             {thread.title}
           </CardTitle>
-          <CardDescription>{thread.url}</CardDescription>
+          <CardDescription className="max-w-full w-full text-ellipsis overflow-hidden">
+            {thread.url}
+          </CardDescription>
         </CardHeader>
         <CardFooter>
           <Button

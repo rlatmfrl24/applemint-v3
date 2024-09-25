@@ -6,13 +6,15 @@ import { useEffect, useState } from "react";
 import { NormalThreads } from "./list-normal";
 import { YoutubeThreads } from "./list-youtube";
 import { createClient } from "@/utils/supabase/client";
+import { useNewThreadsStore } from "@/store/new-threads.store";
 
 export const NewThreadsList = ({
   threadItems,
 }: {
   threadItems: ThreadItemType[];
 }) => {
-  const [selectedType, setSelectedType] = useState("normal");
+  const store = useNewThreadsStore();
+  // const [selectedType, setSelectedType] = useState("normal");
   const [currentThreadItems, setCurrentThreadItems] = useState(threadItems);
   const supabase = createClient();
 
@@ -37,29 +39,6 @@ export const NewThreadsList = ({
 
   return (
     <div className="h-full  flex flex-col">
-      <div className="flex items-center mb-3 gap-2">
-        <Button
-          size={`sm`}
-          variant={selectedType === "normal" ? `default` : `ghost`}
-          onClick={() => setSelectedType("normal")}
-        >
-          Normal
-        </Button>
-        <Button
-          size={`sm`}
-          variant={selectedType === "image" ? `default` : `ghost`}
-          onClick={() => setSelectedType("image")}
-        >
-          Image
-        </Button>
-        <Button
-          size={`sm`}
-          variant={selectedType === "youtube" ? `default` : `ghost`}
-          onClick={() => setSelectedType("youtube")}
-        >
-          Youtube
-        </Button>
-      </div>
       <div className="flex-1 overflow-auto">
         {
           {
@@ -74,7 +53,7 @@ export const NewThreadsList = ({
                 })}
               />
             ),
-            image: <div>Image</div>,
+            media: <div>Image</div>,
             youtube: (
               <YoutubeThreads
                 threadItems={currentThreadItems.filter((thread) => {
@@ -82,7 +61,7 @@ export const NewThreadsList = ({
                 })}
               />
             ),
-          }[selectedType]
+          }[store.selectedThreadType]
         }
       </div>
     </div>
