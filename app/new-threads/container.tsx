@@ -18,7 +18,7 @@ export const NewThreadsList = ({
 
   useEffect(() => {
     const channels = supabase
-      .channel("custom-delete-channel")
+      .channel("new-threads-delete-channel")
       .on(
         "postgres_changes",
         { event: "DELETE", schema: "public", table: "new-threads" },

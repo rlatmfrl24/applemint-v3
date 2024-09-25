@@ -1,5 +1,6 @@
 import { ThreadItemType } from "@/lib/typeDefs";
 import { ThreadItem } from "./item-normal";
+import { AnimatePresence } from "framer-motion";
 
 export const NormalThreads = ({
   threadItems,
@@ -8,9 +9,11 @@ export const NormalThreads = ({
 }) => {
   return (
     <div className="flex flex-col gap-2">
-      {threadItems.map((thread) => (
-        <ThreadItem key={thread.id} thread={thread} />
-      ))}
+      <AnimatePresence>
+        {threadItems.map((thread) => (
+          <ThreadItem key={thread.id} thread={thread} />
+        ))}
+      </AnimatePresence>
     </div>
   );
 };
