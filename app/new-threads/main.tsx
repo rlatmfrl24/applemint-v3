@@ -7,6 +7,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useNewThreadsStore } from "@/store/new-threads.store";
 import { NormalThreads } from "./list-normal";
 import { YoutubeThreads } from "./list-youtube";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
+import { MediaThreads } from "./list-media";
 
 export const NewThreads = () => {
   const supabase = createClient();
@@ -52,10 +54,10 @@ export const NewThreads = () => {
   }, [supabase]);
 
   return (
-    <div className="max-h-full h-full flex flex-col">
+    <div className="max-h-full h-full flex flex-col border-t border-t-black dark:border-t-white">
       {!isLoading ? (
         <div className="h-full flex flex-col">
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto pt-2">
             {
               {
                 normal: (
@@ -69,7 +71,13 @@ export const NewThreads = () => {
                     })}
                   />
                 ),
-                media: <div>Image</div>,
+                media: (
+                  <MediaThreads
+                    threadItems={threadStore.threadItems.filter((thread) => {
+                      return thread.type === "media";
+                    })}
+                  />
+                ),
                 youtube: (
                   <YoutubeThreads
                     threadItems={threadStore.threadItems.filter((thread) => {
@@ -82,12 +90,28 @@ export const NewThreads = () => {
           </div>
         </div>
       ) : (
-        <div className="space-y-2">
-          <Skeleton className="h-[125px] w-[250px] rounded-xl" />
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-[250px]" />
-            <Skeleton className="h-4 w-[200px]" />
-          </div>
+        <div className="space-y-2 pt-4">
+          <Card>
+            <CardContent className="space-y-2 mt-6">
+              <Skeleton className="h-5 w-[250px] rounded-xl" />
+              <Skeleton className="h-4 w-[250px]" />
+              <Skeleton className="h-4 w-[200px]" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="space-y-2 mt-6">
+              <Skeleton className="h-5 w-[250px] rounded-xl" />
+              <Skeleton className="h-4 w-[250px]" />
+              <Skeleton className="h-4 w-[200px]" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="space-y-2 mt-6">
+              <Skeleton className="h-5 w-[250px] rounded-xl" />
+              <Skeleton className="h-4 w-[250px]" />
+              <Skeleton className="h-4 w-[200px]" />
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>
