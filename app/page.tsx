@@ -28,7 +28,7 @@ export default async function Index() {
 
       <div className="flex-1 flex flex-col container p-3">
         <Tabs defaultValue="new" className="flex-auto h-0 flex flex-col">
-          <div className="flex items-center gap-4">
+          <div className="flex sm:items-center gap-4 sm:flex-row flex-col">
             <TabsList className="w-fit">
               <TabsTrigger value="new">New Threads</TabsTrigger>
               <TabsTrigger value="quick">Quick List</TabsTrigger>
