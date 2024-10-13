@@ -53,6 +53,7 @@ export const MediaItem = ({ thread }: { thread: ThreadItemType }) => {
     if (url.includes("imgur")) {
       if (url.includes("/a/")) {
         const albumId = url.split("/a/")[1];
+        console.log("🚀 ~ images ~ albumId", albumId);
         const response = await fetch(
           `https://api.imgur.com/3/album/${albumId}/images`,
           {
