@@ -20,7 +20,7 @@ export default async function AuthButton() {
 
   return (
     <div className="flex items-center gap-3">
-      <p>{user?.email}</p>
+      <p className="invisible w-0 sm:visible sm:w-fit">{user?.email}</p>
       <ModeToggle />
       <form action={signOut}>
         <Button>Logout</Button>
