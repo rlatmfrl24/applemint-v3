@@ -3,7 +3,7 @@
 import { ThreadItemType } from "@/lib/typeDefs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/utils/supabase/client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNewThreadsStore } from "@/store/new-threads.store";
 import { NormalThreads } from "./list-normal";
 import { YoutubeThreads } from "./list-youtube";
@@ -15,6 +15,25 @@ export const NewThreads = () => {
   const threadStore = useNewThreadsStore();
   const [isLoading, setIsLoading] = useState(false);
 
+  const currentThreadItems = useMemo(() => {
+    return threadStore.threadItems.filter((thread) => {
+      switch (threadStore.selectedThreadType) {
+        case "normal":
+          return (
+            thread.type === "normal" ||
+            thread.type === "battlepage" ||
+            thread.type === "fmkorea"
+          );
+        case "media":
+          return thread.type === "media";
+        case "youtube":
+          return thread.type === "youtube";
+        default:
+          return true;
+      }
+    });
+  }, [threadStore.threadItems, threadStore.selectedThreadType]);
+
   const getThreads = useCallback(async () => {
     setIsLoading(true);
     const { data, error } = await supabase
@@ -23,6 +42,8 @@ export const NewThreads = () => {
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
     const threadItems = data as ThreadItemType[];
+
+    console.log("🚀 ~ getThreads ~ threadItems", threadItems.length);
 
     if (error) {
       console.error(error);
@@ -54,7 +75,10 @@ export const NewThreads = () => {
   }, [supabase]);
 
   return (
-    <div className="max-h-full h-full flex flex-col border-t border-t-black dark:border-t-white">
+    <div className="max-h-full h-[calc(100%-48px)] flex flex-col ">
+      <div className="w-full border-b border-b-black dark:border-b-white">
+        <h2>{`Items: ${currentThreadItems.length}`}</h2>
+      </div>
       {!isLoading ? (
         <div className="h-full flex flex-col">
           <div className="flex-1 overflow-auto pt-2">

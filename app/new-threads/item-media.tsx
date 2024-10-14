@@ -1,16 +1,18 @@
+import Image from "next/image";
+import { useCallback, useEffect, useState } from "react";
+
 import {
   Card,
-  CardHeader,
-  CardTitle,
+  CardContent,
   CardDescription,
   CardFooter,
-  CardContent,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import { ThreadItemType } from "@/lib/typeDefs";
-import { motion } from "framer-motion";
-import { useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 export const MediaItem = ({ thread }: { thread: ThreadItemType }) => {
   const [isDeleting, setIsDeleting] = useState(false);
@@ -49,39 +51,20 @@ export const MediaItem = ({ thread }: { thread: ThreadItemType }) => {
     setIsDeleting(false);
   };
 
-  const images = async (url: string) => {
-    if (url.includes("imgur")) {
-      if (url.includes("/a/")) {
-        const albumId = url.split("/a/")[1];
-        console.log("🚀 ~ images ~ albumId", albumId);
-        const response = await fetch(
-          `https://api.imgur.com/3/album/${albumId}/images`,
-          {
-            headers: {
-              Authorization: `Client-ID ${process.env.NEXT_PUBLIC_IMGUR_CLIENT_ID}`,
-            },
-          }
-        );
-        const data = await response.json();
-        const images = data.data.images.map((image: any) => image.link);
-        return images;
-      } else {
-        return [url.replace("imgur.com", "i.imgur.com")];
-      }
-    } else {
-      return [url];
-    }
-  };
-
   return (
     <Card
       key={thread.id}
       className="cursor-pointer max-w-full w-full h-full flex flex-col dark:hover:bg-zinc-800 hover:bg-zinc-100 transition-colors duration-200"
       onClick={async () => {
         try {
-          const a = await images(thread.url);
-          console.log("🚀 ~ images ~ images:", a);
+          // const a = await getImagesFromAPI(thread.url);
+          // console.log("🚀 ~ images ~ images:", a);
+          console.log(
+            "🚀 ~ images ~ hash:",
+            thread.url.split("/")[thread.url.split("/").length - 1]
+          );
         } catch (error) {
+          console.error("🚀 ~ images ~ error", error);
           window.open(thread.url, "_blank");
         }
       }}
@@ -94,6 +77,18 @@ export const MediaItem = ({ thread }: { thread: ThreadItemType }) => {
           {thread.url}
         </CardDescription>
       </CardHeader>
+      <CardFooter>
+        <Button
+          size={"sm"}
+          onClick={async () => {
+            setIsDeleting(true);
+            await removeThread(thread.id);
+            setIsDeleting(false);
+          }}
+        >
+          {isDeleting ? <Loader2 className="animate-spin" /> : "Delete"}
+        </Button>
+      </CardFooter>
     </Card>
   );
 };

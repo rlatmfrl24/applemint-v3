@@ -1,12 +1,17 @@
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { ThreadItemType } from "@/lib/typeDefs";
+import { createClient } from "@/utils/supabase/client";
+import { Loader2 } from "lucide-react";
 import Image from "next/image";
+import { useState } from "react";
 
 function getYoutubeId(url: string) {
   // get youtube video id from short url
@@ -17,6 +22,37 @@ function getYoutubeId(url: string) {
 }
 
 export const YoutubeItem = ({ thread }: { thread: ThreadItemType }) => {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const removeThread = async (id: string) => {
+    setIsDeleting(true);
+    const supabase = createClient();
+    const { error: DeleteError } = await supabase
+      .from("new-threads")
+      .delete()
+      .eq("id", parseInt(id));
+    if (DeleteError) {
+      console.error("🚀 ~ removeThread ~ error", DeleteError);
+      return;
+    }
+    const { data, error: TrashInsertError } = await supabase
+      .from("trash")
+      .insert([
+        {
+          type: thread.type,
+          url: thread.url,
+          title: thread.title,
+          description: thread.description,
+          host: thread.host,
+        },
+      ]);
+    if (TrashInsertError) {
+      console.error("🚀 ~ removeThread ~ error", TrashInsertError);
+      return;
+    }
+    console.log("🚀 ~ removeThread ~ data", data);
+    setIsDeleting(false);
+  };
+
   return (
     <Card
       key={thread.id}
@@ -51,6 +87,19 @@ export const YoutubeItem = ({ thread }: { thread: ThreadItemType }) => {
           {thread.url}
         </CardDescription>
       </CardHeader>
+      <CardFooter>
+        <Button
+          size={"sm"}
+          onClick={async (e) => {
+            e.stopPropagation();
+            setIsDeleting(true);
+            await removeThread(thread.id);
+            setIsDeleting(false);
+          }}
+        >
+          {isDeleting ? <Loader2 className="animate-spin" /> : "Delete"}
+        </Button>
+      </CardFooter>
     </Card>
   );
 };
