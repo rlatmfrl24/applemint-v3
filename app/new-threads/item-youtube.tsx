@@ -1,7 +1,10 @@
+import { Loader2 } from "lucide-react";
+import Image from "next/image";
+import { useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardFooter,
   CardHeader,
@@ -9,9 +12,6 @@ import {
 } from "@/components/ui/card";
 import { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
-import { Loader2 } from "lucide-react";
-import Image from "next/image";
-import { useState } from "react";
 
 function getYoutubeId(url: string) {
   // get youtube video id from short url
