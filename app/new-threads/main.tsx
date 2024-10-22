@@ -75,13 +75,13 @@ export const NewThreads = () => {
   }, [supabase]);
 
   return (
-    <div className="max-h-full h-[calc(100%-48px)] flex flex-col ">
+    <div className="w-full flex flex-col flex-1">
       <div className="w-full border-b border-b-black dark:border-b-white">
         <h2>{`Items: ${currentThreadItems.length}`}</h2>
       </div>
       {!isLoading ? (
-        <div className="h-full flex flex-col">
-          <div className="flex-1 overflow-auto pt-2">
+        <div className="flex flex-col flex-1 basis-0 overflow-auto">
+          <div className="flex-1 pt-2">
             {
               {
                 normal: (

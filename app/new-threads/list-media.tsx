@@ -33,12 +33,24 @@ export const MediaThreads = ({
   threadItems: ThreadItemType[];
 }) => {
   return (
-    <div className="space-y-2">
-      <div className="flex flex-col gap-2 md:grid md:grid-cols-2 lg:grid-cols-4">
+    <div className="flex gap-2 max-w-full relative">
+      <div className="flex flex-col gap-2 flex-1 w-1/2">
         {threadItems.map((thread) => (
           <MediaItem key={thread.id} thread={thread} />
         ))}
       </div>
+      <div className="flex-1 sticky top-0">ATREST</div>
     </div>
+  );
+};
+
+const ImgurEmbed = ({ url }: { url: string }) => {
+  return (
+    <>
+      <script async src="//s.imgur.com/min/embed.js"></script>
+      <blockquote className="imgur-embed-pub" lang="en" data-id="a/nR4Vc">
+        <a href="//imgur.com/nR4Vc">this show was ahead of its time</a>
+      </blockquote>
+    </>
   );
 };

@@ -29,18 +29,16 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <main className="min-h-screen flex flex-col items-center">
-            <div className="flex-1 w-full flex flex-col items-center">
-              <nav className="w-full flex justify-center border-b border-b-foreground/10">
-                <div className="w-full container flex justify-between items-center p-3 gap-2">
-                  <div className="flex gap-10">
-                    <h1>Applemint</h1>
-                    <NavMenu />
-                  </div>
-                  <AuthButton />
+            <nav className="w-full flex justify-center border-b border-b-foreground/10">
+              <div className="w-full container flex justify-between items-center p-3 gap-2">
+                <div className="flex gap-10">
+                  <h1>Applemint</h1>
+                  <NavMenu />
                 </div>
-              </nav>
-              {children}
-            </div>
+                <AuthButton />
+              </div>
+            </nav>
+            {children}
           </main>
         </ThemeProvider>
       </body>
