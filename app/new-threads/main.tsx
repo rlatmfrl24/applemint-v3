@@ -80,7 +80,7 @@ export const NewThreads = () => {
         <h2>{`Items: ${currentThreadItems.length}`}</h2>
       </div>
       {!isLoading ? (
-        <div className="flex flex-col flex-1 basis-0 overflow-auto">
+        <div className="flex flex-col flex-1 basis-0 overflow-auto relative">
           <div className="flex-1 pt-2">
             {
               {

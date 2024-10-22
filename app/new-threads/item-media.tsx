@@ -14,7 +14,13 @@ import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
-export const MediaItem = ({ thread }: { thread: ThreadItemType }) => {
+export const MediaItem = ({
+  thread,
+  onClick,
+}: {
+  thread: ThreadItemType;
+  onClick: (url: ThreadItemType) => void;
+}) => {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const removeThread = async (id: string) => {
@@ -55,19 +61,7 @@ export const MediaItem = ({ thread }: { thread: ThreadItemType }) => {
     <Card
       key={thread.id}
       className="cursor-pointer max-w-full w-full h-full flex flex-col dark:hover:bg-zinc-800 hover:bg-zinc-100 transition-colors duration-200"
-      onClick={async () => {
-        try {
-          // const a = await getImagesFromAPI(thread.url);
-          // console.log("🚀 ~ images ~ images:", a);
-          console.log(
-            "🚀 ~ images ~ hash:",
-            thread.url.split("/")[thread.url.split("/").length - 1]
-          );
-        } catch (error) {
-          console.error("🚀 ~ images ~ error", error);
-          window.open(thread.url, "_blank");
-        }
-      }}
+      onClick={() => onClick(thread)}
     >
       <CardHeader>
         <CardTitle className="max-w-full w-full text-ellipsis overflow-hidden whitespace-nowrap">
