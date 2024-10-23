@@ -1,18 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 
-import AuthButton from "../components/AuthButton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NewThreads } from "./new-threads/main";
 import { ThreadsSelector } from "./new-threads/threads-selector";
-import {
-  NavigationMenu,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-} from "@/components/ui/navigation-menu";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
 
 export default async function Index() {
   const supabase = createClient();

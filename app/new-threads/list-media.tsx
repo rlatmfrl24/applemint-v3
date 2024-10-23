@@ -1,8 +1,6 @@
 import { MediaItemType, ThreadItemType } from "@/lib/typeDefs";
 import { MediaItem } from "./item-media";
-import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
-import { get } from "http";
 import {
   Card,
   CardContent,
@@ -12,30 +10,53 @@ import {
 } from "@/components/ui/card";
 import Image from "next/image";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-async function getThumbnail(url: string) {
+async function getMediaData(item: ThreadItemType) {
   // case 1: direct image url
-  if (url.match(/\.(jpeg|jpg|gif|png)$/) != null) {
-    return url;
+  if (item.url.match(/\.(jpeg|jpg|gif|png)$/) != null) {
+    return [item.url];
   }
 
   // case 2: direct video url
-  if (url.match(/\.(mp4|webm)$/) != null) {
-    return null;
+  if (item.url.match(/\.(mp4|webm)$/) != null) {
+    return [item.url];
   }
 
   // case 3: imgur album
-  if (url.match(/imgur.com\/a\//) != null) {
-    const albumId = url.split("/")[url.split("/").length - 1];
-    return `https://imgur.com/a/${albumId}/cover`;
+  if (item.url.match(/imgur.com\/a\//) != null) {
+    const albumId = item.url.split("/")[item.url.split("/").length - 1];
+
+    const response = await fetch(`https://api.imgur.com/3/album/${albumId}`, {
+      headers: {
+        Authorization: `Client-ID ${process.env.NEXT_PUBLIC_IMGUR_CLIENT_ID}`,
+      },
+    });
+
+    const data = await response.json();
+
+    console.log("🚀 ~ getMediaData ~ data", data);
+    return data.data.images.map((img: any) => img.link);
   }
 
   // case 4: imgur image
-  if (url.match(/imgur.com\/[^/]+$/) != null) {
-    return null;
+  if (item.url.match(/imgur.com\/[^/]+$/) != null) {
+    const imageId = item.url.split("/")[item.url.split("/").length - 1];
+
+    const response = await fetch(`https://api.imgur.com/3/image/${imageId}`, {
+      headers: {
+        Authorization: `Client-ID ${process.env.NEXT_PUBLIC_IMGUR_CLIENT_ID}`,
+      },
+    });
+
+    const data = await response.json();
+
+    console.log("🚀 ~ getMediaData ~ data", data);
+    return [data.data.link];
   }
 
   // case 5: etc
+  return [];
 }
 
 export const MediaThreads = ({
@@ -43,61 +64,20 @@ export const MediaThreads = ({
 }: {
   threadItems: ThreadItemType[];
 }) => {
-  async function getMediaData(item: ThreadItemType) {
-    // case 1: direct image url
-    if (item.url.match(/\.(jpeg|jpg|gif|png)$/) != null) {
-      return [item.url];
-    }
-
-    // case 2: direct video url
-    if (item.url.match(/\.(mp4|webm)$/) != null) {
-      return [item.url];
-    }
-
-    // case 3: imgur album
-    if (item.url.match(/imgur.com\/a\//) != null) {
-      const albumId = item.url.split("/")[item.url.split("/").length - 1];
-
-      const response = await fetch(`https://api.imgur.com/3/album/${albumId}`, {
-        headers: {
-          Authorization: `Client-ID ${process.env.NEXT_PUBLIC_IMGUR_CLIENT_ID}`,
-        },
-      });
-
-      const data = await response.json();
-
-      console.log("🚀 ~ getMediaData ~ data", data);
-      return data.data.images.map((img: any) => img.link);
-    }
-
-    // case 4: imgur image
-    if (item.url.match(/imgur.com\/[^/]+$/) != null) {
-      const imageId = item.url.split("/")[item.url.split("/").length - 1];
-
-      const response = await fetch(`https://api.imgur.com/3/image/${imageId}`, {
-        headers: {
-          Authorization: `Client-ID ${process.env.NEXT_PUBLIC_IMGUR_CLIENT_ID}`,
-        },
-      });
-
-      const data = await response.json();
-
-      console.log("🚀 ~ getMediaData ~ data", data);
-      return [data.data.link];
-    }
-
-    // case 5: etc
-    return null;
-  }
-
   const [items, setItems] = useState<MediaItemType[]>(
     threadItems as MediaItemType[]
   );
   const [selectedItem, setSelectedItem] = useState<MediaItemType | null>(null);
 
   useEffect(() => {
-    console.log("🚀 ~ MediaThreads ~ items", selectedItem);
-  }, [selectedItem]);
+    setItems(
+      threadItems.map((item) => {
+        const hasMediaItem = items.find((i) => i.id === item.id);
+        if (hasMediaItem) return hasMediaItem;
+        else return item;
+      }) as MediaItemType[]
+    );
+  }, [threadItems]);
 
   return (
     <div className="flex gap-2 max-w-full">
@@ -109,12 +89,16 @@ export const MediaThreads = ({
             onClick={async (item) => {
               const selectedMedia = items.find((i) => i.id === item.id);
 
-              if (selectedMedia && selectedMedia.media) {
+              if (
+                selectedMedia &&
+                selectedMedia.media &&
+                selectedMedia.media.length > 0
+              ) {
                 setSelectedItem(selectedMedia);
               } else {
                 const media = await getMediaData(item);
 
-                if (!media) {
+                if (!media || media.length === 0) {
                   // open new tab
                   window.open(item.url, "_blank");
                 }
@@ -140,48 +124,65 @@ export const MediaThreads = ({
         ))}
       </div>
       <div className="flex-1 h-fit sticky top-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>{selectedItem?.title}</CardTitle>
-            <CardDescription>{selectedItem?.url}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {selectedItem?.media?.map((media) => {
-              // media is image
-              if (media.match(/\.(jpeg|jpg|gif|png)$/) != null) {
-                return (
-                  <AspectRatio ratio={16 / 9}>
-                    <Image
-                      key={media}
-                      src={media}
-                      alt=""
-                      width={0}
-                      height={0}
-                      sizes="100vw"
-                      className="object-contain rounded-md w-full h-full"
-                    />
-                  </AspectRatio>
-                );
-              }
-              // media is video
-              if (media.match(/\.(mp4|webm)$/) != null) {
-                return (
-                  <AspectRatio ratio={16 / 9}>
-                    <video
-                      key={media}
-                      src={media}
-                      controls
-                      width={0}
-                      height={0}
-                      className="object-contain rounded-md w-full h-full"
-                    />
-                  </AspectRatio>
-                );
-              }
-            })}
-          </CardContent>
-        </Card>
+        <PinnedMedia item={selectedItem} />
       </div>
     </div>
+  );
+};
+
+const PinnedMedia = ({ item }: { item: MediaItemType | null }) => {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{item ? item.title : "No Item Selected"}</CardTitle>
+        <CardDescription>{item?.url}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <AspectRatio ratio={16 / 9}>
+          {item?.media?.map((media) => {
+            // media is image
+            if (media.match(/\.(jpeg|jpg|gif|png)$/) != null) {
+              return (
+                <Image
+                  key={media}
+                  src={media}
+                  alt=""
+                  width={0}
+                  height={0}
+                  sizes="100vw"
+                  data-loaded="false"
+                  onLoad={(event) => {
+                    event.currentTarget.setAttribute("data-loaded", "true");
+                  }}
+                  className="object-contain rounded-md w-full h-full data-[loaded=false]:animate-pulse data-[loaded=false]:bg-gray-100/10"
+                />
+              );
+            }
+            // media is video
+            if (media.match(/\.(mp4|webm)$/) != null) {
+              return (
+                <video
+                  key={media}
+                  src={media}
+                  controls
+                  width={0}
+                  height={0}
+                  className="object-contain rounded-md w-full h-full"
+                />
+              );
+            }
+          })}
+          {(item?.media?.length === 0 || item === null) && (
+            <Alert className="h-full">
+              <AlertTitle>No Media</AlertTitle>
+              <AlertDescription>
+                Please select an item to view media or open the link in a new
+                tab.
+              </AlertDescription>
+            </Alert>
+          )}
+        </AspectRatio>
+      </CardContent>
+    </Card>
   );
 };

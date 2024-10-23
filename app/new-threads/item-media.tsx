@@ -74,7 +74,8 @@ export const MediaItem = ({
       <CardFooter>
         <Button
           size={"sm"}
-          onClick={async () => {
+          onClick={async (e) => {
+            e.stopPropagation();
             setIsDeleting(true);
             await removeThread(thread.id);
             setIsDeleting(false);
