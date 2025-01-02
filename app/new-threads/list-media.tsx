@@ -26,13 +26,7 @@ async function getMediaData(item: ThreadItemType) {
   // case 3: imgur album
   if (item.url.match(/imgur.com\/a\//) != null) {
     const albumId = item.url.split("/")[item.url.split("/").length - 1];
-
-    const response = await fetch(`https://api.imgur.com/3/album/${albumId}`, {
-      headers: {
-        Authorization: `Client-ID ${process.env.NEXT_PUBLIC_IMGUR_CLIENT_ID}`,
-      },
-    });
-
+    const response = await fetch(`/api/imgur?type=album&id=${albumId}`);
     const data = await response.json();
 
     console.log("🚀 ~ getMediaData ~ data", data);
@@ -42,13 +36,7 @@ async function getMediaData(item: ThreadItemType) {
   // case 4: imgur image
   if (item.url.match(/imgur.com\/[^/]+$/) != null) {
     const imageId = item.url.split("/")[item.url.split("/").length - 1];
-
-    const response = await fetch(`https://api.imgur.com/3/image/${imageId}`, {
-      headers: {
-        Authorization: `Client-ID ${process.env.NEXT_PUBLIC_IMGUR_CLIENT_ID}`,
-      },
-    });
-
+    const response = await fetch(`/api/imgur?type=normal&id=${imageId}`);
     const data = await response.json();
 
     console.log("🚀 ~ getMediaData ~ data", data);
@@ -89,6 +77,8 @@ export const MediaThreads = ({
             onClick={async (item) => {
               const selectedMedia = items.find((i) => i.id === item.id);
 
+              console.log("🚀 ~ selectedMedia", selectedMedia);
+
               if (
                 selectedMedia &&
                 selectedMedia.media &&
@@ -98,7 +88,7 @@ export const MediaThreads = ({
               } else {
                 const media = await getMediaData(item);
 
-                if (!media || media.length === 0) {
+                if (!media) {
                   // open new tab
                   window.open(item.url, "_blank");
                 }
