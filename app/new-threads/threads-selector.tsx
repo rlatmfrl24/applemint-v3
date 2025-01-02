@@ -7,7 +7,7 @@ export const ThreadsSelector = () => {
   const store = useNewThreadsStore();
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 mb-4">
       <Button
         size={`sm`}
         variant={store.selectedThreadType === "normal" ? "default" : "ghost"}

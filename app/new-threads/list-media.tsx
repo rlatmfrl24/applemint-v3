@@ -68,8 +68,8 @@ export const MediaThreads = ({
   }, [threadItems]);
 
   return (
-    <div className="flex gap-2 max-w-full">
-      <div className="flex flex-col gap-2 flex-1 w-1/2">
+    <div className="flex gap-2 max-w-full md:flex-row flex-col-reverse">
+      <div className="flex flex-col gap-2 flex-1 w-full md:w-1/2">
         {items.map((thread) => (
           <MediaItem
             key={thread.id}
@@ -78,6 +78,13 @@ export const MediaThreads = ({
               const selectedMedia = items.find((i) => i.id === item.id);
 
               console.log("🚀 ~ selectedMedia", selectedMedia);
+
+              const isMediumScreen = window.matchMedia("(min-width: 768px)");
+
+              if (!isMediumScreen.matches) {
+                window.open(item.url, "_blank");
+                return;
+              }
 
               if (
                 selectedMedia &&
@@ -113,7 +120,7 @@ export const MediaThreads = ({
           />
         ))}
       </div>
-      <div className="flex-1 h-fit sticky top-2">
+      <div className="flex-1 h-fit sticky top-2 hidden md:block">
         <PinnedMedia item={selectedItem} />
       </div>
     </div>
