@@ -32,7 +32,7 @@ export default function RootLayout({
             <nav className="w-full flex justify-center border-b border-b-foreground/10">
               <div className="w-full container flex justify-between items-center p-3 gap-2">
                 <div className="flex gap-10">
-                  <h1>Applemint</h1>
+                  <h1 className="hidden md:flex">Applemint</h1>
                   <NavMenu />
                 </div>
                 <AuthButton />
