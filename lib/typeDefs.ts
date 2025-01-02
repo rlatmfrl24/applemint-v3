@@ -13,3 +13,7 @@ export interface ThreadItemType {
     description: string;
     host: string;
 }
+
+export interface MediaItemType extends ThreadItemType {
+    media: string[] | null;
+}
