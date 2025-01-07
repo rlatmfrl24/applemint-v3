@@ -1,38 +1,21 @@
 "use client";
 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ThreadItemType } from "@/lib/typeDefs";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useNewThreadsStore } from "@/store/new-threads.store";
 import { createClient } from "@/utils/supabase/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNewThreadsStore } from "@/store/new-threads.store";
 import { NormalThreads } from "./list-normal";
-import { YoutubeThreads } from "./list-youtube";
-import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { MediaThreads } from "./list-media";
+import { YoutubeThreads } from "./list-youtube";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
-export const NewThreads = () => {
+export function NewThreads() {
   const supabase = createClient();
   const threadStore = useNewThreadsStore();
+  const [currentThreadType, setCurrentThreadType] = useState("normal");
   const [isLoading, setIsLoading] = useState(false);
-
-  const currentThreadItems = useMemo(() => {
-    return threadStore.threadItems.filter((thread) => {
-      switch (threadStore.selectedThreadType) {
-        case "normal":
-          return (
-            thread.type === "normal" ||
-            thread.type === "battlepage" ||
-            thread.type === "fmkorea"
-          );
-        case "media":
-          return thread.type === "media";
-        case "youtube":
-          return thread.type === "youtube";
-        default:
-          return true;
-      }
-    });
-  }, [threadStore.threadItems, threadStore.selectedThreadType]);
 
   const getThreads = useCallback(async () => {
     setIsLoading(true);
@@ -75,69 +58,95 @@ export const NewThreads = () => {
   }, [supabase]);
 
   return (
-    <div className="w-full flex flex-col flex-1">
-      <div className="w-full border-b border-b-black dark:border-b-white">
-        <h2>{`Items: ${currentThreadItems.length}`}</h2>
-      </div>
-      {!isLoading ? (
-        <div className="flex flex-col flex-1 basis-0 overflow-auto relative">
-          <div className="flex-1 pt-2">
-            {
-              {
-                normal: (
-                  <NormalThreads
-                    threadItems={threadStore.threadItems.filter((thread) => {
-                      return (
-                        thread.type === "normal" ||
-                        thread.type === "battlepage" ||
-                        thread.type === "fmkorea"
-                      );
-                    })}
-                  />
-                ),
-                media: (
-                  <MediaThreads
-                    threadItems={threadStore.threadItems.filter((thread) => {
-                      return thread.type === "media";
-                    })}
-                  />
-                ),
-                youtube: (
-                  <YoutubeThreads
-                    threadItems={threadStore.threadItems.filter((thread) => {
-                      return thread.type === "youtube";
-                    })}
-                  />
-                ),
-              }[threadStore.selectedThreadType]
-            }
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-2 pt-4">
-          <Card>
-            <CardContent className="space-y-2 mt-6">
-              <Skeleton className="h-5 w-[250px] rounded-xl" />
-              <Skeleton className="h-4 w-[250px]" />
-              <Skeleton className="h-4 w-[200px]" />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="space-y-2 mt-6">
-              <Skeleton className="h-5 w-[250px] rounded-xl" />
-              <Skeleton className="h-4 w-[250px]" />
-              <Skeleton className="h-4 w-[200px]" />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="space-y-2 mt-6">
-              <Skeleton className="h-5 w-[250px] rounded-xl" />
-              <Skeleton className="h-4 w-[250px]" />
-              <Skeleton className="h-4 w-[200px]" />
-            </CardContent>
-          </Card>
-        </div>
-      )}
+    <>
+      <h5 className="self-start">{`Items: ${
+        threadStore.threadItems.filter((thread) => {
+          switch (currentThreadType) {
+            case "normal":
+              return (
+                thread.type === "normal" ||
+                thread.type === "battlepage" ||
+                thread.type === "fmkorea"
+              );
+            case "media":
+              return thread.type === "media";
+            case "youtube":
+              return thread.type === "youtube";
+            default:
+              return false;
+          }
+        }).length
+      }`}</h5>
+      <Tabs
+        defaultValue={currentThreadType}
+        className="w-full"
+        onValueChange={(value) => {
+          console.log("🚀 ~ Threads ~ value:", value);
+          setCurrentThreadType(value);
+        }}
+      >
+        <TabsList className="grid grid-cols-3 gap-2 w-full">
+          <TabsTrigger value="normal">Normal</TabsTrigger>
+          <TabsTrigger value="media">Media</TabsTrigger>
+          <TabsTrigger value="youtube">Youtube</TabsTrigger>
+        </TabsList>
+        <TabsContent value="normal">
+          {isLoading && <ThreadsLoading />}
+          <NormalThreads
+            threadItems={threadStore.threadItems.filter((thread) => {
+              return (
+                thread.type === "normal" ||
+                thread.type === "battlepage" ||
+                thread.type === "fmkorea"
+              );
+            })}
+          />
+        </TabsContent>
+        <TabsContent value="media">
+          {isLoading && <ThreadsLoading />}
+          <MediaThreads
+            threadItems={threadStore.threadItems.filter(
+              (thread) => thread.type === "media"
+            )}
+          />
+        </TabsContent>
+        <TabsContent value="youtube">
+          {isLoading && <ThreadsLoading />}
+          <YoutubeThreads
+            threadItems={threadStore.threadItems.filter(
+              (thread) => thread.type === "youtube"
+            )}
+          />
+        </TabsContent>
+      </Tabs>
+    </>
+  );
+}
+
+const ThreadsLoading = () => {
+  return (
+    <div className="space-y-2 pt-4">
+      <Card>
+        <CardContent className="space-y-2 mt-2">
+          <Skeleton className="h-5 w-[250px] rounded-xl" />
+          <Skeleton className="h-4 w-[250px]" />
+          <Skeleton className="h-4 w-[200px]" />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="space-y-2 mt-6">
+          <Skeleton className="h-5 w-[250px] rounded-xl" />
+          <Skeleton className="h-4 w-[250px]" />
+          <Skeleton className="h-4 w-[200px]" />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="space-y-2 mt-6">
+          <Skeleton className="h-5 w-[250px] rounded-xl" />
+          <Skeleton className="h-4 w-[250px]" />
+          <Skeleton className="h-4 w-[200px]" />
+        </CardContent>
+      </Card>
     </div>
   );
 };
