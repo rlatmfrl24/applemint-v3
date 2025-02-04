@@ -91,32 +91,41 @@ export function NewThreads() {
           <TabsTrigger value="youtube">Youtube</TabsTrigger>
         </TabsList>
         <TabsContent value="normal">
-          {isLoading && <ThreadsLoading />}
-          <NormalThreads
-            threadItems={threadStore.threadItems.filter((thread) => {
-              return (
-                thread.type === "normal" ||
-                thread.type === "battlepage" ||
-                thread.type === "fmkorea"
-              );
-            })}
-          />
+          {isLoading ? (
+            <ThreadsLoading />
+          ) : (
+            <NormalThreads
+              threadItems={threadStore.threadItems.filter((thread) => {
+                return (
+                  thread.type === "normal" ||
+                  thread.type === "battlepage" ||
+                  thread.type === "fmkorea"
+                );
+              })}
+            />
+          )}
         </TabsContent>
         <TabsContent value="media">
-          {isLoading && <ThreadsLoading />}
-          <MediaThreads
-            threadItems={threadStore.threadItems.filter(
-              (thread) => thread.type === "media"
-            )}
-          />
+          {isLoading ? (
+            <ThreadsLoading />
+          ) : (
+            <MediaThreads
+              threadItems={threadStore.threadItems.filter(
+                (thread) => thread.type === "media"
+              )}
+            />
+          )}
         </TabsContent>
         <TabsContent value="youtube">
-          {isLoading && <ThreadsLoading />}
-          <YoutubeThreads
-            threadItems={threadStore.threadItems.filter(
-              (thread) => thread.type === "youtube"
-            )}
-          />
+          {isLoading ? (
+            <ThreadsLoading />
+          ) : (
+            <YoutubeThreads
+              threadItems={threadStore.threadItems.filter(
+                (thread) => thread.type === "youtube"
+              )}
+            />
+          )}
         </TabsContent>
       </Tabs>
     </>
@@ -125,9 +134,9 @@ export function NewThreads() {
 
 const ThreadsLoading = () => {
   return (
-    <div className="space-y-2 pt-4">
+    <div className="space-y-2 pt-2">
       <Card>
-        <CardContent className="space-y-2 mt-2">
+        <CardContent className="space-y-2 mt-6">
           <Skeleton className="h-5 w-[250px] rounded-xl" />
           <Skeleton className="h-4 w-[250px]" />
           <Skeleton className="h-4 w-[200px]" />

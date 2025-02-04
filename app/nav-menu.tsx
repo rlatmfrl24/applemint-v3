@@ -22,14 +22,22 @@ const MenuList = [
   {
     name: "Main",
     href: "/",
+    type: "internal",
   },
   {
     name: "Quick",
     href: "/quick",
+    type: "internal",
   },
   {
     name: "Trash",
     href: "/trash",
+    type: "internal",
+  },
+  {
+    name: "Raindrop",
+    href: "https://app.raindrop.io/my/0",
+    type: "external",
   },
 ];
 
@@ -41,9 +49,15 @@ export const NavMenu = () => {
       <NavigationMenuList>
         {MenuList.map((item) => (
           <NavigationMenuItem key={item.href}>
-            <Link href={item.href} legacyBehavior passHref>
+            <Link
+              href={item.href}
+              passHref
+              target={item.type === "external" ? "_blank" : ""}
+            >
               <Button variant={pathname === item.href ? "secondary" : "ghost"}>
-                <NavigationMenuLink>{item.name}</NavigationMenuLink>
+                <NavigationMenuLink>
+                  {item.name} {item.type === "external" ? " ↗" : ""}
+                </NavigationMenuLink>
               </Button>
             </Link>
           </NavigationMenuItem>
