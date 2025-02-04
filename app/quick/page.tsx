@@ -1,8 +1,9 @@
 "use client";
 
-import { ThreadItem } from "@/components/ThreadItem";
+import { DefaultThreadItem } from "@/components/ThreadItem";
 import { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
+import { AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 
 export default function QuickThread() {
@@ -36,20 +37,22 @@ export default function QuickThread() {
         quickThreads?.length ?? 0
       }`}</h5>
       <div className="flex flex-col gap-2">
-        {quickThreads?.map((thread) => (
-          <ThreadItem
-            key={thread.id}
-            thread={thread}
-            threadName="quick-save"
-            onDeleted={() => {
-              setQuickThreads((prev) =>
-                prev
-                  ? prev.filter((prevThread) => prevThread.id !== thread.id)
-                  : null
-              );
-            }}
-          />
-        ))}
+        <AnimatePresence>
+          {quickThreads?.map((thread) => (
+            <DefaultThreadItem
+              key={thread.id}
+              thread={thread}
+              threadName="quick-save"
+              onDeleted={() => {
+                setQuickThreads((prev) =>
+                  prev
+                    ? prev.filter((prevThread) => prevThread.id !== thread.id)
+                    : null
+                );
+              }}
+            />
+          ))}
+        </AnimatePresence>
       </div>
     </div>
   );

@@ -12,16 +12,18 @@ import {
 import { Button } from "./ui/button";
 import { Loader2 } from "lucide-react";
 
-export const ThreadItem = ({
+export const DefaultThreadItem = ({
   thread,
   threadName,
   extraButtons,
   onDeleted,
+  primaryButtonLabel,
 }: {
   thread: ThreadItemType;
   threadName: string;
   extraButtons?: React.ReactNode;
   onDeleted?: () => void;
+  primaryButtonLabel?: string;
 }) => {
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -83,7 +85,11 @@ export const ThreadItem = ({
               onDeleted && onDeleted();
             }}
           >
-            {!isDeleting ? "Remove" : <Loader2 className="animate-spin" />}
+            {!isDeleting ? (
+              primaryButtonLabel || "Delete"
+            ) : (
+              <Loader2 className="animate-spin" />
+            )}
           </Button>
           <div>{extraButtons}</div>
         </CardFooter>
