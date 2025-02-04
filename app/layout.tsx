@@ -1,18 +1,8 @@
 import "./globals.css";
 import { GeistSans } from "geist/font/sans";
 import { ThemeProvider } from "@/components/theme-provider";
-import AuthButton from "@/components/AuthButton";
+import AuthButton from "@/app/AuthButton";
 import { MainDrawer, NavMenu } from "./nav-menu";
-import { MenuIcon } from "lucide-react";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
-import { Button } from "@/components/ui/button";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -24,7 +14,7 @@ export const metadata = {
   description: "Trends Tracker with Supabase",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
