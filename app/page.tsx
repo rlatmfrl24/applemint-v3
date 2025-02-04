@@ -1,21 +1,12 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/utils/supabase/server";
+import { Suspense } from "react";
 import { NewThreads } from "./new-threads/main";
 
 export default async function Index() {
-  // const supabase = createClient();
-
-  // const {
-  //   data: { user },
-  // } = await supabase.auth.getUser();
-
-  // if (!user) {
-  //   return redirect("/login");
-  // }
-
   return (
-    <div className="flex-1 w-full flex flex-col items-center container p-3">
-      <NewThreads />
-    </div>
+    <Suspense fallback={<div>Loading...</div>}>
+      <div className="flex-1 w-full flex flex-col items-center container p-3">
+        <NewThreads />
+      </div>
+    </Suspense>
   );
 }

@@ -2,6 +2,7 @@
 
 import { DefaultThreadItem } from "@/components/ThreadItem";
 import { ThreadItemType } from "@/lib/typeDefs";
+import { useUserStore } from "@/store/user.store";
 import { createClient } from "@/utils/supabase/client";
 import { AnimatePresence } from "framer-motion";
 import { redirect, useRouter } from "next/navigation";
@@ -10,6 +11,7 @@ import { useEffect, useState } from "react";
 export default function QuickThread() {
   const supabase = createClient();
   const router = useRouter();
+  const userStore = useUserStore();
 
   const [quickThreads, setQuickThreads] = useState<ThreadItemType[] | null>(
     null
@@ -17,18 +19,20 @@ export default function QuickThread() {
 
   useEffect(() => {
     //if user is not logged in, redirect to login page
-    const isUserLoggedIn = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      console.log("🚀 ~ isUserLoggedIn ~ user", user);
-      if (!user) {
-        router.push("/login");
-      }
-    };
-    isUserLoggedIn();
-  }, [supabase]);
+    // const isUserLoggedIn = async () => {
+    //   const {
+    //     data: { user },
+    //   } = await supabase.auth.getUser();
+    //   console.log("🚀 ~ isUserLoggedIn ~ user", user);
+    //   if (!user) {
+    //     router.push("/login");
+    //   }
+    // };
+    // isUserLoggedIn();
+    if (!userStore.isUserLoggedIn) {
+      redirect("/login");
+    }
+  }, []);
 
   useEffect(() => {
     const fetchQuickThreads = async () => {

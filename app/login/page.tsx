@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/client";
 import { redirect } from "next/navigation";
 import { SubmitButton } from "./submit-button";
 import { useUserStore } from "@/store/user.store";
+import { useCallback } from "react";
 
 export default function Login({
   searchParams,
@@ -12,25 +13,48 @@ export default function Login({
 }) {
   const userStore = useUserStore();
 
-  const signIn = async (formData: FormData) => {
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
+  // const signIn = async (formData: FormData) => {
+  //   const email = formData.get("email") as string;
+  //   const password = formData.get("password") as string;
+
+  //   const { error } = await supabase.auth.signInWithPassword({
+  //     email,
+  //     password,
+  //   });
+
+  //   if (error) {
+  //     return redirect("/login?message=Could not authenticate user");
+  //   }
+
+  //   userStore.setIsUserLoggedIn(true);
+  //   userStore.setUser({ email });
+
+  //   return redirect("/");
+  // };
+
+  const signIn = useCallback(async () => {
     const supabase = createClient();
+    const email = document.querySelector(
+      "input[name=email]"
+    ) as HTMLInputElement;
+    const password = document.querySelector(
+      "input[name=password]"
+    ) as HTMLInputElement;
 
     const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+      email: email.value,
+      password: password.value,
     });
 
     if (error) {
-      return redirect("/login?message=Could not authenticate user");
+      return redirect(`/login?message=${error.message}`);
     }
 
     userStore.setIsUserLoggedIn(true);
-    userStore.setUser({ email });
+    userStore.setUser({ email: email.value });
 
     return redirect("/");
-  };
+  }, [userStore]);
 
   return (
     <div className="flex-1 flex flex-col w-full px-8 sm:max-w-md justify-center gap-2">

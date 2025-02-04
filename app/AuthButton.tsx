@@ -4,13 +4,26 @@ import { Button } from "../components/ui/button";
 import { ModeToggle } from "../components/ThemeToggleButton";
 import { createClient } from "@/utils/supabase/client";
 import { useUserStore } from "@/store/user.store";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function AuthButton() {
   const supabase = createClient();
   const userStore = useUserStore();
   const router = useRouter();
+
+  useEffect(() => {
+    // get user from supabase then set it to the store
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        userStore.setUser(user);
+        userStore.setIsUserLoggedIn(true);
+      } else {
+        userStore.setUser(null);
+        userStore.setIsUserLoggedIn(false);
+      }
+    });
+  }, []);
 
   const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
