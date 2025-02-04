@@ -59,7 +59,7 @@ export function NewThreads() {
 
   return (
     <>
-      <h5 className="self-start">{`Items: ${
+      <h5 className="self-start m-2">{`Items: ${
         threadStore.threadItems.filter((thread) => {
           switch (currentThreadType) {
             case "normal":

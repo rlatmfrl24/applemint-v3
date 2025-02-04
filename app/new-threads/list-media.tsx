@@ -76,9 +76,7 @@ export const MediaThreads = ({
             thread={thread}
             onClick={async (item) => {
               const selectedMedia = items.find((i) => i.id === item.id);
-
               console.log("🚀 ~ selectedMedia", selectedMedia);
-
               const isMediumScreen = window.matchMedia("(min-width: 768px)");
 
               if (!isMediumScreen.matches) {
