@@ -27,6 +27,10 @@ const MenuList = [
     name: "Quick",
     href: "/quick",
   },
+  {
+    name: "Trash",
+    href: "/trash",
+  },
 ];
 
 export const NavMenu = () => {

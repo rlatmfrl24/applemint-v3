@@ -17,13 +17,13 @@ export const DefaultThreadItem = ({
   threadName,
   extraButtons,
   onDeleted,
-  primaryButtonLabel,
+  disablePrimaryAction,
 }: {
   thread: ThreadItemType;
   threadName: string;
   extraButtons?: React.ReactNode;
   onDeleted?: () => void;
-  primaryButtonLabel?: string;
+  disablePrimaryAction?: boolean;
 }) => {
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -74,23 +74,21 @@ export const DefaultThreadItem = ({
           </CardDescription>
         </CardHeader>
         <CardFooter className="flex gap-2 items-center justify-between">
-          <Button
-            size={`sm`}
-            onClick={async (e) => {
-              e.stopPropagation();
-              // await removeThread(thread.id);
-              setIsDeleting(true);
-              await moveThread(thread.id, threadName, "trash");
-              setIsDeleting(false);
-              onDeleted && onDeleted();
-            }}
-          >
-            {!isDeleting ? (
-              primaryButtonLabel || "Delete"
-            ) : (
-              <Loader2 className="animate-spin" />
-            )}
-          </Button>
+          {disablePrimaryAction ? null : (
+            <Button
+              size={`sm`}
+              onClick={async (e) => {
+                e.stopPropagation();
+                // await removeThread(thread.id);
+                setIsDeleting(true);
+                await moveThread(thread.id, threadName, "trash");
+                setIsDeleting(false);
+                onDeleted && onDeleted();
+              }}
+            >
+              {!isDeleting ? "Delete" : <Loader2 className="animate-spin" />}
+            </Button>
+          )}
           <div>{extraButtons}</div>
         </CardFooter>
       </Card>
