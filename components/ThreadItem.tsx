@@ -11,48 +11,39 @@ import {
 } from "./ui/card";
 import { Button } from "./ui/button";
 import { Loader2 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 export const DefaultThreadItem = ({
   thread,
   threadName,
   extraButtons,
-  onDeleted,
   disablePrimaryAction,
 }: {
   thread: ThreadItemType;
   threadName: string;
   extraButtons?: React.ReactNode;
-  onDeleted?: () => void;
   disablePrimaryAction?: boolean;
 }) => {
-  const [isDeleting, setIsDeleting] = useState(false);
+  const queryClient = useQueryClient();
 
-  async function moveThread(id: string, from: string, to: string) {
-    const supabase = createClient();
-    const { error: DeleteError } = await supabase
-      .from(from)
-      .delete()
-      .eq("id", parseInt(id));
-    if (DeleteError) {
-      console.error("🚀 ~ removeThread ~ error", DeleteError);
-      return;
-    }
-
-    const { data, error: moveError } = await supabase.from(to).insert([
-      {
-        type: thread.type,
-        url: thread.url,
-        title: thread.title,
-        description: thread.description,
-        host: thread.host,
-      },
-    ]);
-
-    if (moveError) {
-      console.error("🚀 ~ removeThread ~ error", moveError);
-      return;
-    }
-  }
+  const removeThread = useMutation({
+    mutationFn: async (id: string) => {
+      const supabase = createClient();
+      const { error: DeleteError } = await supabase
+        .from(threadName)
+        .delete()
+        .eq("id", parseInt(id));
+      if (DeleteError) {
+        console.error("🚀 ~ removeThread ~ error", DeleteError);
+        return;
+      }
+    },
+    onSettled: async () => {
+      return await queryClient.invalidateQueries({
+        queryKey: [threadName],
+      });
+    },
+  });
 
   return (
     <motion.div exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}>
@@ -79,16 +70,14 @@ export const DefaultThreadItem = ({
               size={`sm`}
               onClick={async (e) => {
                 e.stopPropagation();
-                console.log("🚀 ~ DefaultThreadItem ~ thread", thread);
-
-                // await removeThread(thread.id);
-                setIsDeleting(true);
-                await moveThread(thread.id, threadName, "trash");
-                setIsDeleting(false);
-                onDeleted && onDeleted();
+                removeThread.mutate(thread.id);
               }}
             >
-              {!isDeleting ? "Delete" : <Loader2 className="animate-spin" />}
+              {!removeThread.isPending ? (
+                "Delete"
+              ) : (
+                <Loader2 className="animate-spin" />
+              )}
             </Button>
           )}
           <div className="flex gap-2">

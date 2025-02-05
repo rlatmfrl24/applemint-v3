@@ -4,15 +4,33 @@ import { DefaultThreadItem } from "@/components/ThreadItem";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/utils/supabase/client";
 import { useState } from "react";
-import { useNewThreadsStore } from "@/store/new-threads.store";
+import { useQuery } from "@tanstack/react-query";
+import { ThreadLoading } from "@/components/ThreadLoading";
 
-export const NormalThreads = ({
-  threadItems,
-}: {
-  threadItems: ThreadItemType[];
-}) => {
+export const NormalThreads = () => {
   const supabase = createClient();
-  const threadStore = useNewThreadsStore();
+
+  const {
+    data: normalThreads,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["new-threads"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("new-threads")
+        .select()
+        .or("type.eq.normal,type.eq.fmkorea,type.eq.battlepage")
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false });
+
+      if (error) {
+        console.error(error);
+      }
+
+      return data as ThreadItemType[];
+    },
+  });
 
   const QuickSaveButton = ({ thread }: { thread: ThreadItemType }) => {
     const [isMoving, setIsMoving] = useState(false);
@@ -62,7 +80,8 @@ export const NormalThreads = ({
   return (
     <div className="flex flex-col gap-2">
       <AnimatePresence>
-        {threadItems.map((thread) => (
+        {isLoading && <ThreadLoading />}
+        {normalThreads?.map((thread) => (
           <DefaultThreadItem
             key={thread.id}
             thread={thread}
@@ -72,10 +91,6 @@ export const NormalThreads = ({
                 <QuickSaveButton thread={thread} />
               </div>
             }
-            onDeleted={() => {
-              console.log("Deleted");
-              threadStore.removeThread(thread.id);
-            }}
           />
         ))}
       </AnimatePresence>

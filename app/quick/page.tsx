@@ -10,7 +10,6 @@ import { useEffect, useState } from "react";
 
 export default function QuickThread() {
   const supabase = createClient();
-  const router = useRouter();
   const userStore = useUserStore();
 
   const [quickThreads, setQuickThreads] = useState<ThreadItemType[] | null>(
@@ -55,13 +54,6 @@ export default function QuickThread() {
               key={thread.id}
               thread={thread}
               threadName="quick-save"
-              onDeleted={() => {
-                setQuickThreads((prev) =>
-                  prev
-                    ? prev.filter((prevThread) => prevThread.id !== thread.id)
-                    : null
-                );
-              }}
             />
           ))}
         </AnimatePresence>
