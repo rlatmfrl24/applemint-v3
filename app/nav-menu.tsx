@@ -14,25 +14,23 @@ import {
 import {
   NavigationMenu,
   NavigationMenuItem,
-  NavigationMenuLink,
   NavigationMenuList,
 } from "@/components/ui/navigation-menu";
-import { useUserStore } from "@/store/user.store";
 
 const MenuList = [
   {
     name: "Main",
-    href: "/",
+    href: "/main",
     type: "internal",
   },
   {
     name: "Quick",
-    href: "/quick",
+    href: "/main/quick",
     type: "internal",
   },
   {
     name: "Trash",
-    href: "/trash",
+    href: "/main/trash",
     type: "internal",
   },
   {

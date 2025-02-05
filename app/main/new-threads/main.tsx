@@ -32,18 +32,10 @@ export function NewThreads() {
             <NormalThreads />
           </TabsContent>
           <TabsContent value="media">
-            <MediaThreads
-              threadItems={threadStore.threadItems.filter(
-                (thread) => thread.type === "media"
-              )}
-            />
+            <MediaThreads />
           </TabsContent>
           <TabsContent value="youtube">
-            <YoutubeThreads
-              threadItems={threadStore.threadItems.filter(
-                (thread) => thread.type === "youtube"
-              )}
-            />
+            <YoutubeThreads />
           </TabsContent>
         </Tabs>
       </QueryClientProvider>

@@ -34,7 +34,7 @@ export default function Login({
     userStore.setIsUserLoggedIn(true);
     userStore.setUser({ email: email.value });
 
-    return redirect("/");
+    return redirect("/main");
   }, [userStore]);
 
   return (
