@@ -3,7 +3,6 @@
 import { createClient } from "@/utils/supabase/client";
 import { redirect } from "next/navigation";
 import { SubmitButton } from "./submit-button";
-import { useUserStore } from "@/store/user.store";
 import { useCallback } from "react";
 
 export default function Login({
@@ -11,8 +10,6 @@ export default function Login({
 }: {
   searchParams: { message: string };
 }) {
-  const userStore = useUserStore();
-
   const signIn = useCallback(async () => {
     const supabase = createClient();
     const email = document.querySelector(
@@ -30,12 +27,8 @@ export default function Login({
     if (error) {
       return redirect(`/login?message=${error.message}`);
     }
-
-    userStore.setIsUserLoggedIn(true);
-    userStore.setUser({ email: email.value });
-
     return redirect("/main");
-  }, [userStore]);
+  }, []);
 
   return (
     <div className="flex-1 flex flex-col w-full px-8 sm:max-w-md justify-center gap-2">

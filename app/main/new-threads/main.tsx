@@ -1,14 +1,12 @@
 "use client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useNewThreadsStore } from "@/store/new-threads.store";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { NormalThreads } from "./list-normal";
 import { MediaThreads } from "./list-media";
 import { YoutubeThreads } from "./list-youtube";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 export function NewThreads() {
-  const threadStore = useNewThreadsStore();
   const queryClient = new QueryClient();
   const [currentThreadType, setCurrentThreadType] = useState("normal");
 

@@ -1,11 +1,23 @@
+import { createClient } from "@/utils/supabase/server";
 import AuthButton from "../login/auth-button";
 import { MainDrawer, NavMenu } from "../nav-menu";
+import { redirect } from "next/navigation";
 
-export default function MainLayout({
+export default async function MainLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const supabase = createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
   return (
     <>
       <nav className="w-full flex justify-center border-b border-b-foreground/10">
@@ -18,7 +30,9 @@ export default function MainLayout({
           <AuthButton />
         </div>
       </nav>
-      {children}
+      <div className="flex-1 w-full flex flex-col items-center container p-3">
+        {children}
+      </div>
     </>
   );
 }
