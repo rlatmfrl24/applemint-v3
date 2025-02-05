@@ -13,6 +13,8 @@ import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 async function getMediaData(item: ThreadItemType) {
+  //TODO: implement this function
+
   // case 1: direct image url
   if (item.url.match(/\.(jpeg|jpg|gif|png)$/) != null) {
     return [item.url];

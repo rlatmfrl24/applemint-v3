@@ -9,6 +9,8 @@ import { redirect, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 export default function QuickThread() {
+  //TODO: implement this function
+
   const supabase = createClient();
   const userStore = useUserStore();
 

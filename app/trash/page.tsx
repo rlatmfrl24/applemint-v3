@@ -8,6 +8,8 @@ import { AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 
 export default function TrashThread() {
+  //TODO: implement this function
+
   const supabase = createClient();
   const [trashThreads, setTrashThreads] = useState<ThreadItemType[] | null>(
     null

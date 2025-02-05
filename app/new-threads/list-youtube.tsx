@@ -6,6 +6,8 @@ export const YoutubeThreads = ({
 }: {
   threadItems: ThreadItemType[];
 }) => {
+  //TODO: implement this function
+
   return (
     <div className="flex flex-col gap-2 md:grid md:grid-cols-2 lg:grid-cols-3">
       {threadItems.map((thread) => (
