@@ -13,25 +13,6 @@ export default function Login({
 }) {
   const userStore = useUserStore();
 
-  // const signIn = async (formData: FormData) => {
-  //   const email = formData.get("email") as string;
-  //   const password = formData.get("password") as string;
-
-  //   const { error } = await supabase.auth.signInWithPassword({
-  //     email,
-  //     password,
-  //   });
-
-  //   if (error) {
-  //     return redirect("/login?message=Could not authenticate user");
-  //   }
-
-  //   userStore.setIsUserLoggedIn(true);
-  //   userStore.setUser({ email });
-
-  //   return redirect("/");
-  // };
-
   const signIn = useCallback(async () => {
     const supabase = createClient();
     const email = document.querySelector(
