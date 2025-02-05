@@ -19,16 +19,6 @@ export default function QuickThread() {
 
   useEffect(() => {
     //if user is not logged in, redirect to login page
-    // const isUserLoggedIn = async () => {
-    //   const {
-    //     data: { user },
-    //   } = await supabase.auth.getUser();
-    //   console.log("🚀 ~ isUserLoggedIn ~ user", user);
-    //   if (!user) {
-    //     router.push("/login");
-    //   }
-    // };
-    // isUserLoggedIn();
     if (!userStore.isUserLoggedIn) {
       redirect("/login");
     }

@@ -10,12 +10,22 @@ import { MediaThreads } from "./list-media";
 import { YoutubeThreads } from "./list-youtube";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useUserStore } from "@/store/user.store";
+import { redirect } from "next/navigation";
 
 export function NewThreads() {
   const supabase = createClient();
   const threadStore = useNewThreadsStore();
+  const userStore = useUserStore();
   const [currentThreadType, setCurrentThreadType] = useState("normal");
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    //if user is not logged in, redirect to login page
+    if (!userStore.isUserLoggedIn) {
+      redirect("/login");
+    }
+  }, []);
 
   const getThreads = useCallback(async () => {
     setIsLoading(true);
@@ -39,27 +49,6 @@ export function NewThreads() {
   useEffect(() => {
     getThreads();
   }, [getThreads]);
-
-  // useEffect(() => {
-  //   try {
-  //     const channels = supabase
-  //       .channel("new-threads-delete-channel")
-  //       .on(
-  //         "postgres_changes",
-  //         { event: "DELETE", schema: "public", table: "new-threads" },
-  //         (payload) => {
-  //           console.log("🚀 ~ useEffect ~ payload:", payload);
-  //           threadStore.removeThread(payload.old.id);
-  //         }
-  //       )
-  //       .subscribe();
-  //     return () => {
-  //       channels.unsubscribe();
-  //     };
-  //   } catch (error) {
-  //     console.error("🚀 ~ useEffect ~ error", error);
-  //   }
-  // }, [supabase]);
 
   return (
     <>
