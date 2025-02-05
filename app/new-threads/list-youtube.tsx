@@ -1,18 +1,42 @@
 import { ThreadItemType } from "@/lib/typeDefs";
 import { YoutubeItem } from "./item-youtube";
+import { createClient } from "@/utils/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { ThreadLoading } from "@/components/thread-loading";
 
-export const YoutubeThreads = ({
-  threadItems,
-}: {
-  threadItems: ThreadItemType[];
-}) => {
-  //TODO: implement this function
+export const YoutubeThreads = () => {
+  const supabase = createClient();
+
+  const {
+    data: youtubeThreads,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["new-threads"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("new-threads")
+        .select()
+        .eq("type", "youtube")
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false });
+
+      if (error) {
+        console.error(error);
+      }
+
+      return data as ThreadItemType[];
+    },
+  });
 
   return (
-    <div className="flex flex-col gap-2 md:grid md:grid-cols-2 lg:grid-cols-3">
-      {threadItems.map((thread) => (
-        <YoutubeItem key={thread.id} thread={thread} />
-      ))}
-    </div>
+    <>
+      {isLoading && <ThreadLoading />}
+      <div className="flex flex-col gap-2 md:grid md:grid-cols-2 lg:grid-cols-3">
+        {youtubeThreads?.map((thread) => (
+          <YoutubeItem key={thread.id} thread={thread} />
+        ))}
+      </div>
+    </>
   );
 };
