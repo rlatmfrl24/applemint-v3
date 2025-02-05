@@ -1,6 +1,6 @@
 "use client";
 
-import { DefaultThreadItem } from "@/components/ThreadItem";
+import { DefaultThreadItem } from "@/components/thread-item";
 import { Button } from "@/components/ui/button";
 import { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";

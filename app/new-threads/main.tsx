@@ -5,8 +5,6 @@ import { useEffect, useState } from "react";
 import { NormalThreads } from "./list-normal";
 import { MediaThreads } from "./list-media";
 import { YoutubeThreads } from "./list-youtube";
-import { useUserStore } from "@/store/user.store";
-import { redirect } from "next/navigation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 export function NewThreads() {

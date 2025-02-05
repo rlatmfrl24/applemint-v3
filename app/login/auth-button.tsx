@@ -1,5 +1,5 @@
 import { Button } from "../../components/ui/button";
-import { ModeToggle } from "../../components/ThemeToggleButton";
+import { ModeToggle } from "../../components/theme-toggle-button";
 import { redirect, useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/server";

@@ -60,7 +60,7 @@ export const MediaItem = ({
   return (
     <Card
       key={thread.id}
-      className="cursor-pointer max-w-full w-full h-full flex flex-col dark:hover:bg-zinc-800 hover:bg-zinc-100 transition-colors duration-200"
+      className="cursor-pointer max-w-full w-full flex flex-col dark:hover:bg-zinc-800 hover:bg-zinc-100 transition-colors duration-200"
       onClick={() => onClick(thread)}
     >
       <CardHeader>

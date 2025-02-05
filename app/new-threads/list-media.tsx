@@ -11,10 +11,10 @@ import {
 import Image from "next/image";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { createClient } from "@/utils/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
 async function getMediaData(item: ThreadItemType) {
-  //TODO: implement this function
-
   // case 1: direct image url
   if (item.url.match(/\.(jpeg|jpg|gif|png)$/) != null) {
     return [item.url];
@@ -49,35 +49,41 @@ async function getMediaData(item: ThreadItemType) {
   return [];
 }
 
-export const MediaThreads = ({
-  threadItems,
-}: {
-  threadItems: ThreadItemType[];
-}) => {
-  const [items, setItems] = useState<MediaItemType[]>(
-    threadItems as MediaItemType[]
-  );
+export const MediaThreads = () => {
   const [selectedItem, setSelectedItem] = useState<MediaItemType | null>(null);
+  const supabase = createClient();
 
-  useEffect(() => {
-    setItems(
-      threadItems.map((item) => {
-        const hasMediaItem = items.find((i) => i.id === item.id);
-        if (hasMediaItem) return hasMediaItem;
-        else return item;
-      }) as MediaItemType[]
-    );
-  }, [threadItems]);
+  const {
+    data: mediaThreads,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["new-threads"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("new-threads")
+        .select()
+        .eq("type", "media")
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false });
+
+      if (error) {
+        console.error(error);
+      }
+
+      return data as MediaItemType[];
+    },
+  });
 
   return (
     <div className="flex gap-2 max-w-full md:flex-row flex-col-reverse">
       <div className="flex flex-col gap-2 flex-1 w-full md:w-1/2">
-        {items.map((thread) => (
+        {mediaThreads?.map((thread) => (
           <MediaItem
             key={thread.id}
             thread={thread}
             onClick={async (item) => {
-              const selectedMedia = items.find((i) => i.id === item.id);
+              const selectedMedia = mediaThreads.find((i) => i.id === item.id);
               console.log("🚀 ~ selectedMedia", selectedMedia);
               const isMediumScreen = window.matchMedia("(min-width: 768px)");
 
@@ -104,17 +110,6 @@ export const MediaThreads = ({
                   ...item,
                   media: media ? media : null,
                 });
-
-                setItems((prev) =>
-                  prev.map((prevItem) =>
-                    prevItem.id === item.id
-                      ? {
-                          ...prevItem,
-                          media: media ? media : null,
-                        }
-                      : prevItem
-                  )
-                );
               }
             }}
           />
