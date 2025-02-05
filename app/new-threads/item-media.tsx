@@ -1,9 +1,5 @@
-import Image from "next/image";
-import { useCallback, useEffect, useState } from "react";
-
 import {
   Card,
-  CardContent,
   CardDescription,
   CardFooter,
   CardHeader,
@@ -13,6 +9,8 @@ import { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 
 export const MediaItem = ({
   thread,
@@ -21,24 +19,21 @@ export const MediaItem = ({
   thread: ThreadItemType;
   onClick: (url: ThreadItemType) => void;
 }) => {
-  const [isDeleting, setIsDeleting] = useState(false);
+  const queryClient = useQueryClient();
+  const supabase = createClient();
 
-  const removeThread = async (id: string) => {
-    setIsDeleting(true);
+  const mediaThreadMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error: DeleteError } = await supabase
+        .from("new-threads")
+        .delete()
+        .eq("id", parseInt(id));
+      if (DeleteError) {
+        console.error("🚀 ~ removeThread ~ error", DeleteError);
+        return;
+      }
 
-    const supabase = createClient();
-    const { error: DeleteError } = await supabase
-      .from("new-threads")
-      .delete()
-      .eq("id", parseInt(id));
-    if (DeleteError) {
-      console.error("🚀 ~ removeThread ~ error", DeleteError);
-      return;
-    }
-
-    const { data, error: TrashInsertError } = await supabase
-      .from("trash")
-      .insert([
+      const { error: TrashInsertError } = await supabase.from("trash").insert([
         {
           type: thread.type,
           url: thread.url,
@@ -48,42 +43,52 @@ export const MediaItem = ({
         },
       ]);
 
-    if (TrashInsertError) {
-      console.error("🚀 ~ removeThread ~ error", TrashInsertError);
-      return;
-    }
-
-    console.log("🚀 ~ removeThread ~ data", data);
-    setIsDeleting(false);
-  };
+      if (TrashInsertError) {
+        console.error("🚀 ~ removeThread ~ error", TrashInsertError);
+        return;
+      }
+    },
+    onSettled: async () => {
+      return await queryClient.invalidateQueries({
+        queryKey: ["new-threads"],
+      });
+    },
+    onError: (error) => {
+      console.error("🚀 ~ mediaThreadMutation ~ error", error);
+    },
+  });
 
   return (
-    <Card
-      key={thread.id}
-      className="cursor-pointer max-w-full w-full flex flex-col dark:hover:bg-zinc-800 hover:bg-zinc-100 transition-colors duration-200"
-      onClick={() => onClick(thread)}
-    >
-      <CardHeader>
-        <CardTitle className="max-w-full w-full text-ellipsis overflow-hidden whitespace-nowrap">
-          {thread.title || "Untitled"}
-        </CardTitle>
-        <CardDescription className="max-w-full w-full text-ellipsis overflow-hidden">
-          {thread.url}
-        </CardDescription>
-      </CardHeader>
-      <CardFooter>
-        <Button
-          size={"sm"}
-          onClick={async (e) => {
-            e.stopPropagation();
-            setIsDeleting(true);
-            await removeThread(thread.id);
-            setIsDeleting(false);
-          }}
-        >
-          {isDeleting ? <Loader2 className="animate-spin" /> : "Delete"}
-        </Button>
-      </CardFooter>
-    </Card>
+    <motion.div exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}>
+      <Card
+        key={thread.id}
+        className="cursor-pointer max-w-full w-full flex flex-col dark:hover:bg-zinc-800 hover:bg-zinc-100 transition-colors duration-200"
+        onClick={() => onClick(thread)}
+      >
+        <CardHeader>
+          <CardTitle className="max-w-full w-full text-ellipsis overflow-hidden whitespace-nowrap">
+            {thread.title || "Untitled"}
+          </CardTitle>
+          <CardDescription className="max-w-full w-full text-ellipsis overflow-hidden">
+            {thread.url}
+          </CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <Button
+            size={"sm"}
+            onClick={async (e) => {
+              e.stopPropagation();
+              mediaThreadMutation.mutate(thread.id);
+            }}
+          >
+            {mediaThreadMutation.isPending ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              "Delete"
+            )}
+          </Button>
+        </CardFooter>
+      </Card>
+    </motion.div>
   );
 };

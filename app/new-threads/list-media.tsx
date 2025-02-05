@@ -13,6 +13,8 @@ import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { createClient } from "@/utils/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { ThreadLoading } from "@/components/thread-loading";
+import { AnimatePresence } from "framer-motion";
 
 async function getMediaData(item: ThreadItemType) {
   // case 1: direct image url
@@ -78,42 +80,47 @@ export const MediaThreads = () => {
   return (
     <div className="flex gap-2 max-w-full md:flex-row flex-col-reverse">
       <div className="flex flex-col gap-2 flex-1 w-full md:w-1/2">
-        {mediaThreads?.map((thread) => (
-          <MediaItem
-            key={thread.id}
-            thread={thread}
-            onClick={async (item) => {
-              const selectedMedia = mediaThreads.find((i) => i.id === item.id);
-              console.log("🚀 ~ selectedMedia", selectedMedia);
-              const isMediumScreen = window.matchMedia("(min-width: 768px)");
+        <AnimatePresence>
+          {isLoading && <ThreadLoading />}
+          {mediaThreads?.map((thread) => (
+            <MediaItem
+              key={thread.id}
+              thread={thread}
+              onClick={async (item) => {
+                const selectedMedia = mediaThreads.find(
+                  (i) => i.id === item.id
+                );
+                console.log("🚀 ~ selectedMedia", selectedMedia);
+                const isMediumScreen = window.matchMedia("(min-width: 768px)");
 
-              if (!isMediumScreen.matches) {
-                window.open(item.url, "_blank");
-                return;
-              }
-
-              if (
-                selectedMedia &&
-                selectedMedia.media &&
-                selectedMedia.media.length > 0
-              ) {
-                setSelectedItem(selectedMedia);
-              } else {
-                const media = await getMediaData(item);
-
-                if (!media) {
-                  // open new tab
+                if (!isMediumScreen.matches) {
                   window.open(item.url, "_blank");
+                  return;
                 }
 
-                setSelectedItem({
-                  ...item,
-                  media: media ? media : null,
-                });
-              }
-            }}
-          />
-        ))}
+                if (
+                  selectedMedia &&
+                  selectedMedia.media &&
+                  selectedMedia.media.length > 0
+                ) {
+                  setSelectedItem(selectedMedia);
+                } else {
+                  const media = await getMediaData(item);
+
+                  if (!media) {
+                    // open new tab
+                    window.open(item.url, "_blank");
+                  }
+
+                  setSelectedItem({
+                    ...item,
+                    media: media ? media : null,
+                  });
+                }
+              }}
+            />
+          ))}
+        </AnimatePresence>
       </div>
       <div className="flex-1 h-fit sticky top-2 hidden md:block">
         <PinnedMedia item={selectedItem} />

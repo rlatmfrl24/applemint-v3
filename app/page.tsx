@@ -10,7 +10,6 @@ export default async function Index() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  console.log("🚀 ~ RootLayout ~ user", user);
 
   if (!user) {
     redirect("/login");

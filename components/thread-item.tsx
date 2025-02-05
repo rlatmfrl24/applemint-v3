@@ -37,6 +37,21 @@ export const DefaultThreadItem = ({
         console.error("🚀 ~ removeThread ~ error", DeleteError);
         return;
       }
+
+      const { error: TrashInsertError } = await supabase.from("trash").insert([
+        {
+          type: thread.type,
+          url: thread.url,
+          title: thread.title,
+          description: thread.description,
+          host: thread.host,
+        },
+      ]);
+
+      if (TrashInsertError) {
+        console.error("🚀 ~ removeThread ~ error", TrashInsertError);
+        return;
+      }
     },
     onSettled: async () => {
       return await queryClient.invalidateQueries({
