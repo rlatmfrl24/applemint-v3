@@ -79,6 +79,8 @@ export const DefaultThreadItem = ({
               size={`sm`}
               onClick={async (e) => {
                 e.stopPropagation();
+                console.log("🚀 ~ DefaultThreadItem ~ thread", thread);
+
                 // await removeThread(thread.id);
                 setIsDeleting(true);
                 await moveThread(thread.id, threadName, "trash");
@@ -89,7 +91,18 @@ export const DefaultThreadItem = ({
               {!isDeleting ? "Delete" : <Loader2 className="animate-spin" />}
             </Button>
           )}
-          <div>{extraButtons}</div>
+          <div className="flex gap-2">
+            {extraButtons}
+            <Button
+              size={`sm`}
+              variant={`ghost`}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              Go to Raindrop
+            </Button>
+          </div>
         </CardFooter>
       </Card>
     </motion.div>

@@ -40,22 +40,26 @@ export function NewThreads() {
     getThreads();
   }, [getThreads]);
 
-  useEffect(() => {
-    const channels = supabase
-      .channel("new-threads-delete-channel")
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "new-threads" },
-        (payload) => {
-          console.log("🚀 ~ useEffect ~ payload:", payload);
-          threadStore.removeThread(payload.old.id);
-        }
-      )
-      .subscribe();
-    return () => {
-      channels.unsubscribe();
-    };
-  }, [supabase]);
+  // useEffect(() => {
+  //   try {
+  //     const channels = supabase
+  //       .channel("new-threads-delete-channel")
+  //       .on(
+  //         "postgres_changes",
+  //         { event: "DELETE", schema: "public", table: "new-threads" },
+  //         (payload) => {
+  //           console.log("🚀 ~ useEffect ~ payload:", payload);
+  //           threadStore.removeThread(payload.old.id);
+  //         }
+  //       )
+  //       .subscribe();
+  //     return () => {
+  //       channels.unsubscribe();
+  //     };
+  //   } catch (error) {
+  //     console.error("🚀 ~ useEffect ~ error", error);
+  //   }
+  // }, [supabase]);
 
   return (
     <>

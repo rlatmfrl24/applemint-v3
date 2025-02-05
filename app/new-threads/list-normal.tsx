@@ -4,6 +4,7 @@ import { DefaultThreadItem } from "@/components/ThreadItem";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/utils/supabase/client";
 import { useState } from "react";
+import { useNewThreadsStore } from "@/store/new-threads.store";
 
 export const NormalThreads = ({
   threadItems,
@@ -11,6 +12,7 @@ export const NormalThreads = ({
   threadItems: ThreadItemType[];
 }) => {
   const supabase = createClient();
+  const threadStore = useNewThreadsStore();
 
   const QuickSaveButton = ({ thread }: { thread: ThreadItemType }) => {
     const [isMoving, setIsMoving] = useState(false);
@@ -70,6 +72,10 @@ export const NormalThreads = ({
                 <QuickSaveButton thread={thread} />
               </div>
             }
+            onDeleted={() => {
+              console.log("Deleted");
+              threadStore.removeThread(thread.id);
+            }}
           />
         ))}
       </AnimatePresence>
