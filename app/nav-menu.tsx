@@ -17,35 +17,61 @@ import {
   NavigationMenuLink,
   NavigationMenuList,
 } from "@/components/ui/navigation-menu";
+import { useUserStore } from "@/store/user.store";
 
 const MenuList = [
   {
     name: "Main",
     href: "/",
+    type: "internal",
   },
   {
     name: "Quick",
     href: "/quick",
+    type: "internal",
+  },
+  {
+    name: "Trash",
+    href: "/trash",
+    type: "internal",
+  },
+  {
+    name: "Raindrop",
+    href: "https://app.raindrop.io/my/0",
+    type: "external",
   },
 ];
 
 export const NavMenu = () => {
   const pathname = usePathname() ?? "/";
+  const isUserLoggedIn = useUserStore().isUserLoggedIn;
 
   return (
-    <NavigationMenu className="w-fit hidden md:flex">
-      <NavigationMenuList>
-        {MenuList.map((item) => (
-          <NavigationMenuItem key={item.href}>
-            <Link href={item.href} legacyBehavior passHref>
-              <Button variant={pathname === item.href ? "secondary" : "ghost"}>
-                <NavigationMenuLink>{item.name}</NavigationMenuLink>
-              </Button>
-            </Link>
-          </NavigationMenuItem>
-        ))}
-      </NavigationMenuList>
-    </NavigationMenu>
+    <>
+      {isUserLoggedIn && (
+        <NavigationMenu className="w-fit hidden md:flex">
+          <NavigationMenuList>
+            {MenuList.map((item) => (
+              <NavigationMenuItem key={item.href}>
+                <Link
+                  href={item.href}
+                  passHref
+                  target={item.type === "external" ? "_blank" : ""}
+                >
+                  <Button
+                    variant={pathname === item.href ? "secondary" : "ghost"}
+                  >
+                    <NavigationMenuLink>
+                      {item.name} {item.type === "external" ? " ↗" : ""}
+                    </NavigationMenuLink>
+                  </Button>
+                </Link>
+              </NavigationMenuItem>
+            ))}
+          </NavigationMenuList>
+        </NavigationMenu>
+      )}
+    </>
   );
 };
 
