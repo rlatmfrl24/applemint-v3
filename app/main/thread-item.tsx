@@ -19,6 +19,18 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+} from "@/components/ui/form";
+import { Badge } from "@/components/ui/badge";
 
 export const DefaultThreadItem = ({
   thread,
@@ -105,28 +117,134 @@ export const DefaultThreadItem = ({
           )}
           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
             {extraButtons}
-            {!disablePrimaryAction && (
-              <>
-                <Sheet>
-                  <SheetTrigger>
-                    <Button size={`sm`} variant={`ghost`}>
-                      Go to Raindrop
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent>
-                    <SheetHeader>
-                      <SheetTitle>Add Raindrop</SheetTitle>
-                    </SheetHeader>
-                    <div>
-                      <Input />
-                    </div>
-                  </SheetContent>
-                </Sheet>
-              </>
-            )}
+            {!disablePrimaryAction && <RaindropSheet thread={thread} />}
           </div>
         </CardFooter>
       </Card>
     </motion.div>
+  );
+};
+
+const formSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  url: z.string(),
+  tags: z.array(z.string()),
+});
+
+const RaindropSheet = ({ thread }: { thread: ThreadItemType }) => {
+  const form = useForm<z.infer<typeof formSchema>>({
+    defaultValues: {
+      title: thread.title,
+      description: thread.description,
+      url: thread.url,
+      tags: [],
+    },
+  });
+
+  function onSubmit(data: z.infer<typeof formSchema>) {
+    console.log("🚀 ~ data", data);
+  }
+
+  return (
+    <Sheet>
+      <SheetTrigger>
+        <Button size={`sm`} variant={`ghost`}>
+          Go to Raindrop
+        </Button>
+      </SheetTrigger>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>Add Raindrop</SheetTitle>
+        </SheetHeader>
+        <Form {...form}>
+          <form
+            className="mt-2 flex flex-col gap-2"
+            onSubmit={form.handleSubmit(onSubmit)}
+          >
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Title</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>URL</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea {...field} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="tags"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tags</FormLabel>
+                  <div className="flex gap-2 flex-wrap">
+                    {form.getValues().tags.map((tag, index) => (
+                      <Badge
+                        key={index}
+                        className="cursor-pointer select-none"
+                        onClick={() => {
+                          form.setValue(
+                            "tags",
+                            form.getValues().tags.filter((t) => t !== tag)
+                          );
+                        }}
+                      >
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                  <Input
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (e.currentTarget.value === "") return;
+                        if (
+                          form.getValues().tags.includes(e.currentTarget.value)
+                        )
+                          return;
+
+                        form.setValue("tags", [
+                          ...form.getValues().tags,
+                          e.currentTarget.value,
+                        ]);
+                        e.currentTarget.value = "";
+                      }
+                    }}
+                  />
+                </FormItem>
+              )}
+            />
+            <Button type="submit">Save</Button>
+          </form>
+        </Form>
+      </SheetContent>
+    </Sheet>
   );
 };
