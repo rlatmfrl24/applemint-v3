@@ -82,6 +82,7 @@ export const DefaultThreadItem = ({
           {disablePrimaryAction ? null : (
             <Button
               size={`sm`}
+              disabled={removeThread.isPending}
               onClick={async (e) => {
                 e.stopPropagation();
                 removeThread.mutate(thread.id);
@@ -96,15 +97,17 @@ export const DefaultThreadItem = ({
           )}
           <div className="flex gap-2">
             {extraButtons}
-            <Button
-              size={`sm`}
-              variant={`ghost`}
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-            >
-              Go to Raindrop
-            </Button>
+            {!disablePrimaryAction && (
+              <Button
+                size={`sm`}
+                variant={`ghost`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+              >
+                Go to Raindrop
+              </Button>
+            )}
           </div>
         </CardFooter>
       </Card>

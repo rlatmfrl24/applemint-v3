@@ -6,7 +6,9 @@ import { createClient } from "@/utils/supabase/client";
 import {
   QueryClient,
   QueryClientProvider,
+  useMutation,
   useQuery,
+  useQueryClient,
 } from "@tanstack/react-query";
 import { AnimatePresence } from "framer-motion";
 import { DefaultThreadItem } from "../thread-item";
@@ -43,14 +45,49 @@ function TrashThread() {
   });
 
   const RestoreButton = ({ thread }: { thread: ThreadItemType }) => {
+    const queryClient = useQueryClient();
+    const restoreMutation = useMutation({
+      mutationFn: async () => {
+        const { error: DeleteError } = await supabase
+          .from("trash")
+          .delete()
+          .eq("id", thread.id);
+        if (DeleteError) {
+          console.error("🚀 ~ removeThread ~ error", DeleteError);
+          return;
+        }
+        const { data, error } = await supabase.from("new-threads").insert([
+          {
+            type: thread.type,
+            url: thread.url,
+            title: thread.title,
+            description: thread.description,
+            host: thread.host,
+          },
+        ]);
+
+        if (error) {
+          console.error("🚀 ~ quickSaveMutation ~ error", error);
+          return;
+        }
+      },
+      onSettled: async () => {
+        return await queryClient.invalidateQueries({
+          queryKey: ["trash"],
+        });
+      },
+    });
+
     return (
       <Button
         size={`sm`}
+        disabled={restoreMutation.isPending}
         onClick={async (e) => {
           e.stopPropagation();
+          restoreMutation.mutate();
         }}
       >
-        Restore
+        {restoreMutation.isPending ? "Restoring..." : "Restore"}
       </Button>
     );
   };
@@ -65,6 +102,8 @@ function TrashThread() {
               key={thread.id}
               thread={thread}
               threadName="trash"
+              disablePrimaryAction
+              extraButtons={<RestoreButton thread={thread} />}
             />
           ))}
         </AnimatePresence>
