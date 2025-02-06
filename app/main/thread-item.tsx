@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +40,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { useCallback, useEffect, useState } from "react";
 
 export const DefaultThreadItem = ({
   thread,
@@ -138,17 +145,31 @@ export const DefaultThreadItem = ({
 const formSchema = z.object({
   title: z.string(),
   description: z.string(),
-  collection: z.string(),
+  collection: z.nullable(z.object({ id: z.string(), title: z.string() })),
   url: z.string().url(),
   tags: z.array(z.string()),
 });
 
 const RaindropSheet = ({ thread }: { thread: ThreadItemType }) => {
+  const queryClient = useQueryClient();
+
+  const [selectedCollection, setSelectedCollection] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+
+  useEffect(() => {
+    console.log("🚀 ~ selectedCollection", selectedCollection);
+  }, [selectedCollection]);
+
   const fetchCollections = async () => {
     console.log("fetching collections");
     try {
       const response = await fetch("/api/raindrop/collection");
       const data = await response.json();
+      queryClient.invalidateQueries({
+        queryKey: ["raindrop-tags"],
+      });
       return data as { id: string; title: string; count: number }[];
     } catch (error) {
       console.error("Error fetching collections:", error);
@@ -157,10 +178,11 @@ const RaindropSheet = ({ thread }: { thread: ThreadItemType }) => {
   };
 
   const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       title: thread.title,
       description: thread.description,
-      collection: "",
+      collection: null,
       url: thread.url,
       tags: [],
     },
@@ -238,13 +260,21 @@ const RaindropSheet = ({ thread }: { thread: ThreadItemType }) => {
                 return (
                   <FormItem>
                     <FormLabel>Collection</FormLabel>
-                    <Select onValueChange={field.onChange}>
+                    <Select
+                      onValueChange={(value) => {
+                        form.setValue(
+                          "collection",
+                          collections?.find((c) => c.title === value) ?? null
+                        );
+                        setSelectedCollection(
+                          collections?.find((c) => c.title === value) ?? null
+                        );
+                      }}
+                      defaultValue={field.value?.title}
+                    >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue
-                            placeholder="Select Collection"
-                            defaultValue={field.value}
-                          />
+                          <SelectValue placeholder="Select Collection" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -261,50 +291,57 @@ const RaindropSheet = ({ thread }: { thread: ThreadItemType }) => {
                 );
               }}
             />
+            {form.getValues().collection && (
+              <FormField
+                control={form.control}
+                name="tags"
+                render={({ field }) => {
+                  //TODO: make fetchTags function
 
-            <FormField
-              control={form.control}
-              name="tags"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tags</FormLabel>
-                  <Input
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        if (e.currentTarget.value === "") return;
-                        if (
-                          form.getValues().tags.includes(e.currentTarget.value)
-                        )
-                          return;
+                  return (
+                    <FormItem>
+                      <FormLabel>Tags</FormLabel>
+                      <Input
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (e.currentTarget.value === "") return;
+                            if (
+                              form
+                                .getValues()
+                                .tags.includes(e.currentTarget.value)
+                            )
+                              return;
 
-                        form.setValue("tags", [
-                          ...form.getValues().tags,
-                          e.currentTarget.value,
-                        ]);
-                        e.currentTarget.value = "";
-                      }
-                    }}
-                  />
-                  <div className="flex gap-2 flex-wrap">
-                    {form.getValues().tags.map((tag, index) => (
-                      <Badge
-                        key={index}
-                        className="cursor-pointer select-none"
-                        onClick={() => {
-                          form.setValue(
-                            "tags",
-                            form.getValues().tags.filter((t) => t !== tag)
-                          );
+                            form.setValue("tags", [
+                              ...form.getValues().tags,
+                              e.currentTarget.value,
+                            ]);
+                            e.currentTarget.value = "";
+                          }
                         }}
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </FormItem>
-              )}
-            />
+                      />
+                      <div className="flex gap-2 flex-wrap">
+                        {form.getValues().tags.map((tag, index) => (
+                          <Badge
+                            key={index}
+                            className="cursor-pointer select-none"
+                            onClick={() => {
+                              form.setValue(
+                                "tags",
+                                form.getValues().tags.filter((t) => t !== tag)
+                              );
+                            }}
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </FormItem>
+                  );
+                }}
+              />
+            )}
             <Button type="submit">Save</Button>
           </form>
         </Form>
