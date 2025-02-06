@@ -1,17 +1,16 @@
 import { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { Loader2 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
-} from "./ui/card";
-import { Button } from "./ui/button";
-import { Loader2 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 export const DefaultThreadItem = ({
   thread,

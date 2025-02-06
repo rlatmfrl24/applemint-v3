@@ -13,8 +13,8 @@ import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { createClient } from "@/utils/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { ThreadLoading } from "@/components/thread-loading";
 import { AnimatePresence } from "framer-motion";
+import { ThreadLoading } from "../thread-loading";
 
 async function getMediaData(item: ThreadItemType) {
   // case 1: direct image url
