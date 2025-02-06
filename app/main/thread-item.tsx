@@ -1,8 +1,10 @@
-import { ThreadItemType } from "@/lib/typeDefs";
-import { createClient } from "@/utils/supabase/client";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardDescription,
@@ -10,19 +12,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
 import {
   Form,
   FormControl,
@@ -30,8 +19,26 @@ import {
   FormItem,
   FormLabel,
 } from "@/components/ui/form";
-import { Badge } from "@/components/ui/badge";
-import { useEffect, useMemo } from "react";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
+import { ThreadItemType } from "@/lib/typeDefs";
+import { createClient } from "@/utils/supabase/client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export const DefaultThreadItem = ({
   thread,
@@ -131,15 +138,29 @@ export const DefaultThreadItem = ({
 const formSchema = z.object({
   title: z.string(),
   description: z.string(),
-  url: z.string(),
+  collection: z.string(),
+  url: z.string().url(),
   tags: z.array(z.string()),
 });
 
 const RaindropSheet = ({ thread }: { thread: ThreadItemType }) => {
+  const fetchCollections = async () => {
+    console.log("fetching collections");
+    try {
+      const response = await fetch("/api/raindrop/collection");
+      const data = await response.json();
+      return data as { id: string; title: string; count: number }[];
+    } catch (error) {
+      console.error("Error fetching collections:", error);
+      return [];
+    }
+  };
+
   const form = useForm<z.infer<typeof formSchema>>({
     defaultValues: {
       title: thread.title,
       description: thread.description,
+      collection: "",
       url: thread.url,
       tags: [],
     },
@@ -151,7 +172,7 @@ const RaindropSheet = ({ thread }: { thread: ThreadItemType }) => {
 
   return (
     <Sheet>
-      <SheetTrigger>
+      <SheetTrigger asChild>
         <Button size={`sm`} variant={`ghost`}>
           Go to Raindrop
         </Button>
@@ -203,26 +224,50 @@ const RaindropSheet = ({ thread }: { thread: ThreadItemType }) => {
             />
             <FormField
               control={form.control}
+              name="collection"
+              render={({ field }) => {
+                const {
+                  data: collections,
+                  isLoading,
+                  error,
+                } = useQuery({
+                  queryKey: ["raindrop-collections"],
+                  queryFn: fetchCollections,
+                });
+
+                return (
+                  <FormItem>
+                    <FormLabel>Collection</FormLabel>
+                    <Select onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder="Select Collection"
+                            defaultValue={field.value}
+                          />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectGroup>
+                          {collections?.map((collection, index) => (
+                            <SelectItem key={index} value={collection.title}>
+                              {collection.title}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                );
+              }}
+            />
+
+            <FormField
+              control={form.control}
               name="tags"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tags</FormLabel>
-                  <div className="flex gap-2 flex-wrap">
-                    {form.getValues().tags.map((tag, index) => (
-                      <Badge
-                        key={index}
-                        className="cursor-pointer select-none"
-                        onClick={() => {
-                          form.setValue(
-                            "tags",
-                            form.getValues().tags.filter((t) => t !== tag)
-                          );
-                        }}
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
                   <Input
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
@@ -241,6 +286,22 @@ const RaindropSheet = ({ thread }: { thread: ThreadItemType }) => {
                       }
                     }}
                   />
+                  <div className="flex gap-2 flex-wrap">
+                    {form.getValues().tags.map((tag, index) => (
+                      <Badge
+                        key={index}
+                        className="cursor-pointer select-none"
+                        onClick={() => {
+                          form.setValue(
+                            "tags",
+                            form.getValues().tags.filter((t) => t !== tag)
+                          );
+                        }}
+                      >
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
                 </FormItem>
               )}
             />

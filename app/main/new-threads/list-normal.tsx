@@ -12,21 +12,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 export const NormalThreads = () => {
-  useEffect(() => {
-    // get collections from api
-    const fetchCollections = async () => {
-      try {
-        const response = await fetch("/api/raindrop/collection");
-        const data = await response.json();
-        console.log(data);
-      } catch (error) {
-        console.error("Error fetching collections:", error);
-      }
-    };
+  const fetchCollections = useCallback(async () => {
+    try {
+      const response = await fetch("/api/raindrop/collection");
+      const data = await response.json();
+      console.log(data);
+    } catch (error) {
+      console.error("Error fetching collections:", error);
+    }
+  }, []);
 
+  useEffect(() => {
     fetchCollections();
   }, []);
 
