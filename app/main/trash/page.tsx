@@ -93,21 +93,19 @@ function TrashThread() {
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex flex-col gap-2">
-        {isLoading && <ThreadLoading />}
-        <AnimatePresence>
-          {data?.map((thread) => (
-            <DefaultThreadItem
-              key={thread.id}
-              thread={thread}
-              threadName="trash"
-              disablePrimaryAction
-              extraButtons={<RestoreButton thread={thread} />}
-            />
-          ))}
-        </AnimatePresence>
-      </div>
+    <div className="flex flex-col gap-2 w-full">
+      {isLoading && <ThreadLoading />}
+      <AnimatePresence>
+        {data?.map((thread) => (
+          <DefaultThreadItem
+            key={thread.id}
+            thread={thread}
+            threadName="trash"
+            disablePrimaryAction
+            extraButtons={<RestoreButton thread={thread} />}
+          />
+        ))}
+      </AnimatePresence>
     </div>
   );
 }
