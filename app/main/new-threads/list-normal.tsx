@@ -5,6 +5,13 @@ import { createClient } from "@/utils/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DefaultThreadItem } from "../thread-item";
 import { ThreadLoading } from "../thread-loading";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 export const NormalThreads = () => {
   const supabase = createClient();
@@ -86,6 +93,44 @@ export const NormalThreads = () => {
     <div className="flex flex-col gap-2">
       <AnimatePresence>
         {isLoading && <ThreadLoading />}
+        <Card>
+          <CardHeader>
+            <CardDescription>
+              <div className="flex">
+                <div className="flex-1 text-center">
+                  <h5>Battlepage</h5>
+                  <span className="font-bold text-2xl text-black dark:text-white md:text-5xl">
+                    {
+                      normalThreads?.filter(
+                        (thread) => thread.type === "battlepage"
+                      ).length
+                    }
+                  </span>
+                </div>
+                <div className="flex-1 text-center">
+                  <h5>Fmkorea</h5>
+                  <span className="font-bold text-2xl text-black dark:text-white md:text-5xl">
+                    {
+                      normalThreads?.filter(
+                        (thread) => thread.type === "fmkorea"
+                      ).length
+                    }
+                  </span>
+                </div>
+                <div className="flex-1 text-center">
+                  <h5>ETC</h5>
+                  <span className="font-bold text-2xl text-black dark:text-white md:text-5xl">
+                    {
+                      normalThreads?.filter(
+                        (thread) => thread.type === "normal"
+                      ).length
+                    }
+                  </span>
+                </div>
+              </div>
+            </CardDescription>
+          </CardHeader>
+        </Card>
         {normalThreads?.map((thread) => (
           <DefaultThreadItem
             key={thread.id}

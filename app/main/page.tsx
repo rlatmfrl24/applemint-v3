@@ -18,7 +18,6 @@ export default function MainPage() {
           defaultValue={currentThreadType}
           className="w-full"
           onValueChange={(value) => {
-            console.log("🚀 ~ Threads ~ value:", value);
             setCurrentThreadType(value);
           }}
         >
