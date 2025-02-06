@@ -31,6 +31,7 @@ import {
   FormLabel,
 } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
+import { useEffect, useMemo } from "react";
 
 export const DefaultThreadItem = ({
   thread,
@@ -80,9 +81,11 @@ export const DefaultThreadItem = ({
   });
 
   return (
-    <motion.div exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}>
+    <motion.div
+      key={thread.id}
+      exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}
+    >
       <Card
-        key={thread.id}
         className="cursor-pointer max-w-full w-full
           hover:bg-zinc-200 dark:hover:bg-zinc-900
            transition-colors duration-200"

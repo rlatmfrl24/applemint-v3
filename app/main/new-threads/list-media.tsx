@@ -60,7 +60,7 @@ export const MediaThreads = () => {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["new-threads"],
+    queryKey: ["new-threads", "media"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("new-threads")
@@ -80,13 +80,13 @@ export const MediaThreads = () => {
   return (
     <div className="flex gap-2 max-w-full md:flex-row flex-col-reverse">
       <div className="flex flex-col gap-2 flex-1 w-full md:w-1/2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Items: {mediaThreads?.length}</CardTitle>
+          </CardHeader>
+        </Card>
+        {isLoading && <ThreadLoading />}
         <AnimatePresence>
-          <Card>
-            <CardHeader>
-              <CardTitle>Items: {mediaThreads?.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          {isLoading && <ThreadLoading />}
           {mediaThreads?.map((thread) => (
             <MediaItem
               key={thread.id}

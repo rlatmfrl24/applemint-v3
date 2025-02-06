@@ -12,8 +12,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useEffect, useMemo } from "react";
 
 export const NormalThreads = () => {
+  useEffect(() => {
+    // get collections from api
+    const fetchCollections = async () => {
+      try {
+        const response = await fetch("/api/raindrop/collection");
+        const data = await response.json();
+        console.log(data);
+      } catch (error) {
+        console.error("Error fetching collections:", error);
+      }
+    };
+
+    fetchCollections();
+  }, []);
+
   const supabase = createClient();
 
   const {
@@ -91,46 +107,42 @@ export const NormalThreads = () => {
 
   return (
     <div className="flex flex-col gap-2">
+      <Card>
+        <CardHeader>
+          <div className="flex">
+            <div className="flex-1 text-center">
+              <h5>Battlepage</h5>
+              <span className="font-bold text-2xl md:text-5xl">
+                {
+                  normalThreads?.filter(
+                    (thread) => thread.type === "battlepage"
+                  ).length
+                }
+              </span>
+            </div>
+            <div className="flex-1 text-center">
+              <h5>Fmkorea</h5>
+              <span className="font-bold text-2xl md:text-5xl">
+                {
+                  normalThreads?.filter((thread) => thread.type === "fmkorea")
+                    .length
+                }
+              </span>
+            </div>
+            <div className="flex-1 text-center">
+              <h5>ETC</h5>
+              <span className="font-bold text-2xl md:text-5xl">
+                {
+                  normalThreads?.filter((thread) => thread.type === "normal")
+                    .length
+                }
+              </span>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+      {isLoading && <ThreadLoading />}
       <AnimatePresence>
-        <Card>
-          <CardHeader>
-            <CardDescription>
-              <div className="flex">
-                <div className="flex-1 text-center">
-                  <h5>Battlepage</h5>
-                  <span className="font-bold text-2xl text-black dark:text-white md:text-5xl">
-                    {
-                      normalThreads?.filter(
-                        (thread) => thread.type === "battlepage"
-                      ).length
-                    }
-                  </span>
-                </div>
-                <div className="flex-1 text-center">
-                  <h5>Fmkorea</h5>
-                  <span className="font-bold text-2xl text-black dark:text-white md:text-5xl">
-                    {
-                      normalThreads?.filter(
-                        (thread) => thread.type === "fmkorea"
-                      ).length
-                    }
-                  </span>
-                </div>
-                <div className="flex-1 text-center">
-                  <h5>ETC</h5>
-                  <span className="font-bold text-2xl text-black dark:text-white md:text-5xl">
-                    {
-                      normalThreads?.filter(
-                        (thread) => thread.type === "normal"
-                      ).length
-                    }
-                  </span>
-                </div>
-              </div>
-            </CardDescription>
-          </CardHeader>
-        </Card>
-        {isLoading && <ThreadLoading />}
         {normalThreads?.map((thread) => (
           <DefaultThreadItem
             key={thread.id}

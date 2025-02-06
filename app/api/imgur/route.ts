@@ -55,8 +55,6 @@ export async function GET(request: NextRequest) {
 
         const data = await response.json();
 
-        console.log("🚀 ~ GET ~ data", data);
-
         return new Response(JSON.stringify(data), {
             status: 200,
         });
