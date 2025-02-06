@@ -1,11 +1,11 @@
 import { ThreadItemType } from "@/lib/typeDefs";
 import { AnimatePresence } from "framer-motion";
-import { DefaultThreadItem } from "@/components/thread-item";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/utils/supabase/client";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ThreadLoading } from "@/components/thread-loading";
+import { DefaultThreadItem } from "../thread-item";
+import { ThreadLoading } from "../thread-loading";
 
 export const NormalThreads = () => {
   const supabase = createClient();
