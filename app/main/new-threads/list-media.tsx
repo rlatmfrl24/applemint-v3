@@ -81,6 +81,11 @@ export const MediaThreads = () => {
     <div className="flex gap-2 max-w-full md:flex-row flex-col-reverse">
       <div className="flex flex-col gap-2 flex-1 w-full md:w-1/2">
         <AnimatePresence>
+          <Card>
+            <CardHeader>
+              <CardTitle>Items: {mediaThreads?.length}</CardTitle>
+            </CardHeader>
+          </Card>
           {isLoading && <ThreadLoading />}
           {mediaThreads?.map((thread) => (
             <MediaItem
@@ -134,7 +139,11 @@ const PinnedMedia = ({ item }: { item: MediaItemType | null }) => {
     <Card>
       <CardHeader>
         <CardTitle>{item ? item.title : "No Item Selected"}</CardTitle>
-        <CardDescription>{item?.url}</CardDescription>
+        <CardDescription>
+          {item?.url
+            ? item.url
+            : "Please select an item to view media or open the link in a new tab."}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <AspectRatio ratio={16 / 9}>
@@ -172,13 +181,7 @@ const PinnedMedia = ({ item }: { item: MediaItemType | null }) => {
             }
           })}
           {(item?.media?.length === 0 || item === null) && (
-            <Alert className="h-full">
-              <AlertTitle>No Media</AlertTitle>
-              <AlertDescription>
-                Please select an item to view media or open the link in a new
-                tab.
-              </AlertDescription>
-            </Alert>
+            <Alert className="h-full"></Alert>
           )}
         </AspectRatio>
       </CardContent>
