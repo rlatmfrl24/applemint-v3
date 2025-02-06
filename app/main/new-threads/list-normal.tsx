@@ -92,7 +92,6 @@ export const NormalThreads = () => {
   return (
     <div className="flex flex-col gap-2">
       <AnimatePresence>
-        {isLoading && <ThreadLoading />}
         <Card>
           <CardHeader>
             <CardDescription>
@@ -131,6 +130,7 @@ export const NormalThreads = () => {
             </CardDescription>
           </CardHeader>
         </Card>
+        {isLoading && <ThreadLoading />}
         {normalThreads?.map((thread) => (
           <DefaultThreadItem
             key={thread.id}

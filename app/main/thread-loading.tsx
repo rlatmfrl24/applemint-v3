@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export const ThreadLoading = () => {
   return (
-    <div className="space-y-2 pt-2">
+    <div className="space-y-2">
       <Card>
         <CardContent className="space-y-2 mt-6">
           <Skeleton className="h-5 w-[250px] rounded-xl" />
