@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 function getYoutubeId(url: string) {
   // get youtube video id from short url
@@ -22,6 +23,39 @@ function getYoutubeId(url: string) {
 }
 
 export const YoutubeItem = ({ thread }: { thread: ThreadItemType }) => {
+  const supabase = createClient();
+  const queryClient = useQueryClient();
+  const youtubeThreadMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error: DeleteError } = await supabase
+        .from("new-threads")
+        .delete()
+        .eq("id", parseInt(id));
+      if (DeleteError) {
+        console.error("🚀 ~ removeThread ~ error", DeleteError);
+        return;
+      }
+      const { error: TrashInsertError } = await supabase.from("trash").insert([
+        {
+          type: thread.type,
+          url: thread.url,
+          title: thread.title,
+          description: thread.description,
+          host: thread.host,
+        },
+      ]);
+      if (TrashInsertError) {
+        console.error("🚀 ~ removeThread ~ error", TrashInsertError);
+        return;
+      }
+    },
+    onSettled: async () => {
+      return await queryClient.invalidateQueries({
+        queryKey: ["new-threads"],
+      });
+    },
+  });
+
   const [isDeleting, setIsDeleting] = useState(false);
   const removeThread = async (id: string) => {
     setIsDeleting(true);
@@ -92,12 +126,14 @@ export const YoutubeItem = ({ thread }: { thread: ThreadItemType }) => {
           size={"sm"}
           onClick={async (e) => {
             e.stopPropagation();
-            setIsDeleting(true);
-            await removeThread(thread.id);
-            setIsDeleting(false);
+            youtubeThreadMutation.mutate(thread.id);
           }}
         >
-          {isDeleting ? <Loader2 className="animate-spin" /> : "Delete"}
+          {youtubeThreadMutation.isPending ? (
+            <Loader2 className="animate-spin" />
+          ) : (
+            "Delete"
+          )}
         </Button>
       </CardFooter>
     </Card>

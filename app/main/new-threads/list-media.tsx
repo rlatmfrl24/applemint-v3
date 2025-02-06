@@ -11,6 +11,10 @@ import {
 import Image from "next/image";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { createClient } from "@/utils/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence } from "framer-motion";
+import { ThreadLoading } from "../thread-loading";
 
 async function getMediaData(item: ThreadItemType) {
   // case 1: direct image url
@@ -47,78 +51,81 @@ async function getMediaData(item: ThreadItemType) {
   return [];
 }
 
-export const MediaThreads = ({
-  threadItems,
-}: {
-  threadItems: ThreadItemType[];
-}) => {
-  const [items, setItems] = useState<MediaItemType[]>(
-    threadItems as MediaItemType[]
-  );
+export const MediaThreads = () => {
   const [selectedItem, setSelectedItem] = useState<MediaItemType | null>(null);
+  const supabase = createClient();
 
-  useEffect(() => {
-    setItems(
-      threadItems.map((item) => {
-        const hasMediaItem = items.find((i) => i.id === item.id);
-        if (hasMediaItem) return hasMediaItem;
-        else return item;
-      }) as MediaItemType[]
-    );
-  }, [threadItems]);
+  const {
+    data: mediaThreads,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["new-threads"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("new-threads")
+        .select()
+        .eq("type", "media")
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false });
+
+      if (error) {
+        console.error(error);
+      }
+
+      return data as MediaItemType[];
+    },
+  });
 
   return (
     <div className="flex gap-2 max-w-full md:flex-row flex-col-reverse">
       <div className="flex flex-col gap-2 flex-1 w-full md:w-1/2">
-        {items.map((thread) => (
-          <MediaItem
-            key={thread.id}
-            thread={thread}
-            onClick={async (item) => {
-              const selectedMedia = items.find((i) => i.id === item.id);
+        <AnimatePresence>
+          <Card>
+            <CardHeader>
+              <CardTitle>Items: {mediaThreads?.length}</CardTitle>
+            </CardHeader>
+          </Card>
+          {isLoading && <ThreadLoading />}
+          {mediaThreads?.map((thread) => (
+            <MediaItem
+              key={thread.id}
+              thread={thread}
+              onClick={async (item) => {
+                const selectedMedia = mediaThreads.find(
+                  (i) => i.id === item.id
+                );
+                console.log("🚀 ~ selectedMedia", selectedMedia);
+                const isMediumScreen = window.matchMedia("(min-width: 768px)");
 
-              console.log("🚀 ~ selectedMedia", selectedMedia);
-
-              const isMediumScreen = window.matchMedia("(min-width: 768px)");
-
-              if (!isMediumScreen.matches) {
-                window.open(item.url, "_blank");
-                return;
-              }
-
-              if (
-                selectedMedia &&
-                selectedMedia.media &&
-                selectedMedia.media.length > 0
-              ) {
-                setSelectedItem(selectedMedia);
-              } else {
-                const media = await getMediaData(item);
-
-                if (!media) {
-                  // open new tab
+                if (!isMediumScreen.matches) {
                   window.open(item.url, "_blank");
+                  return;
                 }
 
-                setSelectedItem({
-                  ...item,
-                  media: media ? media : null,
-                });
+                if (
+                  selectedMedia &&
+                  selectedMedia.media &&
+                  selectedMedia.media.length > 0
+                ) {
+                  setSelectedItem(selectedMedia);
+                } else {
+                  const media = await getMediaData(item);
 
-                setItems((prev) =>
-                  prev.map((prevItem) =>
-                    prevItem.id === item.id
-                      ? {
-                          ...prevItem,
-                          media: media ? media : null,
-                        }
-                      : prevItem
-                  )
-                );
-              }
-            }}
-          />
-        ))}
+                  if (!media) {
+                    // open new tab
+                    window.open(item.url, "_blank");
+                  }
+
+                  setSelectedItem({
+                    ...item,
+                    media: media ? media : null,
+                  });
+                }
+              }}
+            />
+          ))}
+        </AnimatePresence>
       </div>
       <div className="flex-1 h-fit sticky top-2 hidden md:block">
         <PinnedMedia item={selectedItem} />
@@ -132,7 +139,11 @@ const PinnedMedia = ({ item }: { item: MediaItemType | null }) => {
     <Card>
       <CardHeader>
         <CardTitle>{item ? item.title : "No Item Selected"}</CardTitle>
-        <CardDescription>{item?.url}</CardDescription>
+        <CardDescription>
+          {item?.url
+            ? item.url
+            : "Please select an item to view media or open the link in a new tab."}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <AspectRatio ratio={16 / 9}>
@@ -170,13 +181,7 @@ const PinnedMedia = ({ item }: { item: MediaItemType | null }) => {
             }
           })}
           {(item?.media?.length === 0 || item === null) && (
-            <Alert className="h-full">
-              <AlertTitle>No Media</AlertTitle>
-              <AlertDescription>
-                Please select an item to view media or open the link in a new
-                tab.
-              </AlertDescription>
-            </Alert>
+            <Alert className="h-full"></Alert>
           )}
         </AspectRatio>
       </CardContent>

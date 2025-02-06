@@ -1,8 +1,6 @@
-import { GeistSans } from "geist/font/sans";
 import "./globals.css";
+import { GeistSans } from "geist/font/sans";
 import { ThemeProvider } from "@/components/theme-provider";
-import AuthButton from "@/components/AuthButton";
-import { NavMenu } from "./nav-menu";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -14,7 +12,7 @@ export const metadata = {
   description: "Trends Tracker with Supabase",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -28,16 +26,10 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <main className="min-h-screen flex flex-col items-center">
-            <nav className="w-full flex justify-center border-b border-b-foreground/10">
-              <div className="w-full container flex justify-between items-center p-3 gap-2">
-                <div className="flex gap-10">
-                  <h1 className="hidden md:flex">Applemint</h1>
-                  <NavMenu />
-                </div>
-                <AuthButton />
-              </div>
-            </nav>
+          <main
+            data-vaul-drawer-wrapper
+            className="min-h-screen flex flex-col items-center"
+          >
             {children}
           </main>
         </ThemeProvider>
