@@ -14,25 +14,23 @@ import {
 import {
   NavigationMenu,
   NavigationMenuItem,
-  NavigationMenuLink,
   NavigationMenuList,
 } from "@/components/ui/navigation-menu";
-import { useUserStore } from "@/store/user.store";
 
 const MenuList = [
   {
     name: "Main",
-    href: "/",
+    href: "/main",
     type: "internal",
   },
   {
     name: "Quick",
-    href: "/quick",
+    href: "/main/quick",
     type: "internal",
   },
   {
     name: "Trash",
-    href: "/trash",
+    href: "/main/trash",
     type: "internal",
   },
   {
@@ -44,33 +42,30 @@ const MenuList = [
 
 export const NavMenu = () => {
   const pathname = usePathname() ?? "/";
-  const isUserLoggedIn = useUserStore().isUserLoggedIn;
 
   return (
     <>
-      {isUserLoggedIn && (
-        <NavigationMenu className="w-fit hidden md:flex">
-          <NavigationMenuList>
-            {MenuList.map((item) => (
-              <NavigationMenuItem key={item.href}>
-                <Link
-                  href={item.href}
-                  passHref
-                  target={item.type === "external" ? "_blank" : ""}
+      <NavigationMenu className="w-fit hidden md:flex">
+        <NavigationMenuList>
+          {MenuList.map((item) => (
+            <NavigationMenuItem key={item.href}>
+              <Link
+                href={item.href}
+                passHref
+                target={item.type === "external" ? "_blank" : ""}
+              >
+                <Button
+                  variant={pathname === item.href ? "secondary" : "ghost"}
                 >
-                  <Button
-                    variant={pathname === item.href ? "secondary" : "ghost"}
-                  >
-                    <NavigationMenuLink>
-                      {item.name} {item.type === "external" ? " ↗" : ""}
-                    </NavigationMenuLink>
-                  </Button>
-                </Link>
-              </NavigationMenuItem>
-            ))}
-          </NavigationMenuList>
-        </NavigationMenu>
-      )}
+                  {item.name} {item.type === "external" ? " ↗" : ""}
+                  {/* <NavigationMenuLink>
+                  </NavigationMenuLink> */}
+                </Button>
+              </Link>
+            </NavigationMenuItem>
+          ))}
+        </NavigationMenuList>
+      </NavigationMenu>
     </>
   );
 };

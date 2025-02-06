@@ -1,9 +1,5 @@
-import { NewThreads } from "./new-threads/main";
+import { redirect } from "next/navigation";
 
 export default async function Index() {
-  return (
-    <div className="flex-1 w-full flex flex-col items-center container p-3">
-      <NewThreads />
-    </div>
-  );
+  redirect("/main");
 }
