@@ -11,6 +11,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Input } from "@/components/ui/input";
 
 export const DefaultThreadItem = ({
   thread,
@@ -95,18 +103,26 @@ export const DefaultThreadItem = ({
               )}
             </Button>
           )}
-          <div className="flex gap-2">
+          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
             {extraButtons}
             {!disablePrimaryAction && (
-              <Button
-                size={`sm`}
-                variant={`ghost`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                }}
-              >
-                Go to Raindrop
-              </Button>
+              <>
+                <Sheet>
+                  <SheetTrigger>
+                    <Button size={`sm`} variant={`ghost`}>
+                      Go to Raindrop
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent>
+                    <SheetHeader>
+                      <SheetTitle>Add Raindrop</SheetTitle>
+                    </SheetHeader>
+                    <div>
+                      <Input />
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              </>
             )}
           </div>
         </CardFooter>
