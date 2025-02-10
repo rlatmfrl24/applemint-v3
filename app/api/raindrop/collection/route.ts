@@ -1,8 +1,8 @@
-import { NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
     const collectionResponse = await fetch(
-        `https://api.raindrop.io/rest/v1/collections`,
+        "https://api.raindrop.io/rest/v1/collections",
         {
             headers: {
                 Authorization:
@@ -11,13 +11,15 @@ export async function GET(request: NextRequest) {
         },
     );
     const collectionData = await collectionResponse.json();
-    const collections = collectionData.items.map((item: any) => {
-        return {
-            id: item._id,
-            title: item.title,
-            count: item.count,
-        };
-    });
+    const collections = collectionData.items.map(
+        (item: { _id: string; title: string; count: number }) => {
+            return {
+                id: item._id,
+                title: item.title,
+                count: item.count,
+            };
+        },
+    );
 
     return new Response(JSON.stringify(collections), {
         status: 200,

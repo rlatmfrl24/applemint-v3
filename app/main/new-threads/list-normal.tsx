@@ -1,18 +1,12 @@
-import { ThreadItemType } from "@/lib/typeDefs";
+import type { ThreadItemType } from "@/lib/typeDefs";
 import { AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/utils/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DefaultThreadItem } from "../thread-item";
 import { ThreadLoading } from "../thread-loading";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { useCallback, useEffect, useMemo } from "react";
+import { Card, CardHeader } from "@/components/ui/card";
+import { useCallback, useEffect } from "react";
 
 export const NormalThreads = () => {
   const fetchCollections = useCallback(async () => {
@@ -27,7 +21,7 @@ export const NormalThreads = () => {
 
   useEffect(() => {
     fetchCollections();
-  }, []);
+  }, [fetchCollections]);
 
   const supabase = createClient();
 
@@ -91,7 +85,7 @@ export const NormalThreads = () => {
 
     return (
       <Button
-        size={`sm`}
+        size={"sm"}
         variant={"ghost"}
         disabled={quickSaveMutation.isPending}
         onClick={async (e) => {

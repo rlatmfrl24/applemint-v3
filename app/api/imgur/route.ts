@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
-import { NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
     // The `/api` route is required for the server-side auth flow implemented
@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
         return new Response(JSON.stringify(data), {
             status: 200,
         });
-    } else if (type === "album") {
+    }
+    if (type === "album") {
         const response = await fetch(
             `https://api.imgur.com/3/album/${imgurId}`,
             {
