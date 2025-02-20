@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import { QuickSaveButton } from "../quick-save-button";
 
 export const MediaItem = ({
 	thread,
@@ -87,6 +88,7 @@ export const MediaItem = ({
 							"Delete"
 						)}
 					</Button>
+					<QuickSaveButton thread={thread} />
 				</CardFooter>
 			</Card>
 		</motion.div>

@@ -1,11 +1,11 @@
 import type { ThreadItemType } from "@/lib/typeDefs";
 import { AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/button";
 import { createClient } from "@/utils/supabase/client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { DefaultThreadItem } from "../thread-item";
 import { ThreadLoading } from "../thread-loading";
 import { Card, CardHeader } from "@/components/ui/card";
+import { QuickSaveButton } from "../quick-save-button";
 
 export const NormalThreads = () => {
 	const supabase = createClient();
@@ -31,57 +31,6 @@ export const NormalThreads = () => {
 			return data as ThreadItemType[];
 		},
 	});
-
-	const QuickSaveButton = ({ thread }: { thread: ThreadItemType }) => {
-		const queryClient = useQueryClient();
-		const quickSaveMutation = useMutation({
-			mutationFn: async () => {
-				const { error: DeleteError } = await supabase
-					.from("new-threads")
-					.delete()
-					.eq("id", thread.id);
-				if (DeleteError) {
-					console.error("🚀 ~ removeThread ~ error", DeleteError);
-					return;
-				}
-				const { data, error } = await supabase.from("quick-save").insert([
-					{
-						type: thread.type,
-						url: thread.url,
-						title: thread.title,
-						description: thread.description,
-						host: thread.host,
-					},
-				]);
-
-				if (error) {
-					console.error("🚀 ~ quickSaveMutation ~ error", error);
-					return;
-				}
-
-				return data;
-			},
-			onSettled: async () => {
-				return await queryClient.invalidateQueries({
-					queryKey: ["new-threads"],
-				});
-			},
-		});
-
-		return (
-			<Button
-				size={"sm"}
-				variant={"ghost"}
-				disabled={quickSaveMutation.isPending}
-				onClick={async (e) => {
-					e.stopPropagation();
-					quickSaveMutation.mutate();
-				}}
-			>
-				{quickSaveMutation.isPending ? "Saving..." : "Quick Save"}
-			</Button>
-		);
-	};
 
 	return (
 		<div className="flex flex-col gap-2">
