@@ -74,7 +74,7 @@ export const MediaItem = ({
 						{thread.url}
 					</CardDescription>
 				</CardHeader>
-				<CardFooter>
+				<CardFooter className="flex items-center justify-between">
 					<Button
 						size={"sm"}
 						onClick={async (e) => {
