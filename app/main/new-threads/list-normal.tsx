@@ -6,23 +6,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DefaultThreadItem } from "../thread-item";
 import { ThreadLoading } from "../thread-loading";
 import { Card, CardHeader } from "@/components/ui/card";
-import { useCallback, useEffect } from "react";
 
 export const NormalThreads = () => {
-	const fetchCollections = useCallback(async () => {
-		try {
-			const response = await fetch("/api/raindrop/collection");
-			const data = await response.json();
-			console.log(data);
-		} catch (error) {
-			console.error("Error fetching collections:", error);
-		}
-	}, []);
-
-	useEffect(() => {
-		fetchCollections();
-	}, [fetchCollections]);
-
 	const supabase = createClient();
 
 	const {
@@ -36,7 +21,7 @@ export const NormalThreads = () => {
 				.from("new-threads")
 				.select()
 				.or("type.eq.normal,type.eq.fmkorea,type.eq.battlepage")
-				.order("created_at", { ascending: true })
+				.order("created_at", { ascending: false })
 				.order("id", { ascending: false });
 
 			if (error) {
