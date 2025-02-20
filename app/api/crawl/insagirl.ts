@@ -1,4 +1,4 @@
-import { CrawlItemType } from "@/lib/typeDefs";
+import type { CrawlItemType } from "@/lib/typeDefs";
 import * as linkify from "linkifyjs";
 
 export async function crawlInsagirl() {
@@ -7,7 +7,7 @@ export async function crawlInsagirl() {
     "http://insagirl-hrm.appspot.com/json2/2/1/2/",
   ];
 
-  const list: any[] = [];
+  const list: CrawlItemType[] = [];
 
   await Promise.all(
     target.map(async (url) => {

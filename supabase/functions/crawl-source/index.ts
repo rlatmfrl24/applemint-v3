@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
 
   try {
     const response = await fetch(
-      `https://mint-v3-soulkey.netlify.app/api/crawl?target=${target}`,
+      `https://applemint-v3.vercel.app/api/crawl?target=${target}`,
     );
     const json = await response.json();
     const rawList = json as CrawlItemType[];
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       {
         global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
+          headers: { Authorization: req.headers.get("Authorization") ?? "" },
         },
       },
     );

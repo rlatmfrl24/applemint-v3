@@ -41,19 +41,17 @@ const QuickThread = () => {
   });
 
   return (
-    <>
-      <div className="flex flex-col gap-2 w-full">
-        {isLoading && <ThreadLoading />}
-        <AnimatePresence>
-          {data?.map((thread) => (
-            <DefaultThreadItem
-              key={thread.id}
-              thread={thread}
-              threadName="quick-save"
-            />
-          ))}
-        </AnimatePresence>
-      </div>
-    </>
+    <div className="flex flex-col gap-2 w-full">
+      {isLoading && <ThreadLoading />}
+      <AnimatePresence>
+        {data?.map((thread) => (
+          <DefaultThreadItem
+            key={thread.id}
+            thread={thread}
+            threadName="quick-save"
+          />
+        ))}
+      </AnimatePresence>
+    </div>
   );
 };
