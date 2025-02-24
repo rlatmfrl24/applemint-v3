@@ -11,6 +11,7 @@ import {
 import type { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 export const DefaultThreadItem = ({
 	thread,
@@ -80,20 +81,22 @@ export const DefaultThreadItem = ({
 				</CardHeader>
 				<CardFooter className="flex gap-2 items-center justify-between">
 					{disablePrimaryAction ? null : (
-						<Button
-							size={"sm"}
-							disabled={removeThread.isPending}
-							onClick={async (e) => {
-								e.stopPropagation();
-								removeThread.mutate(thread.id);
-							}}
-						>
-							{!removeThread.isPending ? (
-								"Delete"
-							) : (
-								<Loader2 className="animate-spin" />
-							)}
-						</Button>
+						<div className="flex items-center gap-2">
+							<Button
+								size={"sm"}
+								disabled={removeThread.isPending}
+								onClick={async (e) => {
+									e.stopPropagation();
+									removeThread.mutate(thread.id);
+								}}
+							>
+								{!removeThread.isPending ? (
+									"Delete"
+								) : (
+									<Loader2 className="animate-spin" />
+								)}
+							</Button>
+						</div>
 					)}
 					<div
 						className="flex gap-2"
@@ -101,6 +104,17 @@ export const DefaultThreadItem = ({
 						onKeyDown={(e) => e.stopPropagation()}
 					>
 						{extraButtons}
+						<Button
+							size={"sm"}
+							variant={"outline"}
+							onClick={(e) => {
+								e.stopPropagation();
+								navigator.clipboard.writeText(thread.url);
+								toast("Link copied to clipboard");
+							}}
+						>
+							Copy Link
+						</Button>
 					</div>
 				</CardFooter>
 			</Card>
