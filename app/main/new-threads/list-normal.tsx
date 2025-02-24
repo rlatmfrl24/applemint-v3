@@ -20,7 +20,7 @@ export const NormalThreads = () => {
 			const { data, error } = await supabase
 				.from("new-threads")
 				.select()
-				.or("type.eq.normal,type.eq.fmkorea,type.eq.battlepage")
+				.or("type.eq.normal,type.eq.fmkorea,type.eq.battlepage,type.eq.media")
 				.order("created_at", { ascending: false })
 				.order("id", { ascending: false });
 
@@ -52,6 +52,15 @@ export const NormalThreads = () => {
 							<span className="font-bold text-2xl md:text-5xl">
 								{
 									normalThreads?.filter((thread) => thread.type === "fmkorea")
+										.length
+								}
+							</span>
+						</div>
+						<div className="flex-1 text-center">
+							<h5>Media</h5>
+							<span className="font-bold text-2xl md:text-5xl">
+								{
+									normalThreads?.filter((thread) => thread.type === "media")
 										.length
 								}
 							</span>
