@@ -65,16 +65,14 @@ export const DefaultThreadItem = ({
 			exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}
 		>
 			<Card
-				className="cursor-pointer max-w-full w-full
-          hover:bg-zinc-200 dark:hover:bg-zinc-900
-           transition-colors duration-200"
+				className="cursor-pointer max-w-full w-full hover:bg-zinc-200 dark:hover:bg-zinc-900 transition-colors duration-200"
 				onClick={() => {
 					window.open(thread.url, "_blank");
 				}}
 			>
 				<CardHeader className="max-w-full">
 					<CardTitle className="max-w-full w-full text-ellipsis overflow-hidden">
-						{thread.title}
+						{thread.title || "Untitled"}
 					</CardTitle>
 					<CardDescription className="max-w-full w-full text-ellipsis overflow-hidden">
 						{thread.url}

@@ -96,36 +96,38 @@ export const MediaThreads = () => {
 									(i) => i.id === item.id,
 								);
 								console.log("🚀 ~ selectedMedia", selectedMedia);
-								const isMediumScreen = window.matchMedia("(min-width: 768px)");
+								window.open(item.url, "_blank");
 
-								if (!isMediumScreen.matches) {
-									window.open(item.url, "_blank");
-									return;
-								}
+								// const isMediumScreen = window.matchMedia("(min-width: 768px)");
 
-								if (selectedMedia?.media && selectedMedia.media.length > 0) {
-									setSelectedItem(selectedMedia);
-								} else {
-									const media = await getMediaData(item);
+								// if (!isMediumScreen.matches) {
+								// 	window.open(item.url, "_blank");
+								// 	return;
+								// }
 
-									if (!media) {
-										// open new tab
-										window.open(item.url, "_blank");
-									}
+								// if (selectedMedia?.media && selectedMedia.media.length > 0) {
+								// 	setSelectedItem(selectedMedia);
+								// } else {
+								// 	const media = await getMediaData(item);
 
-									setSelectedItem({
-										...item,
-										media: media ? media : null,
-									});
-								}
+								// 	if (!media) {
+								// 		// open new tab
+								// 		window.open(item.url, "_blank");
+								// 	}
+
+								// 	setSelectedItem({
+								// 		...item,
+								// 		media: media ? media : null,
+								// 	});
+								// }
 							}}
 						/>
 					))}
 				</AnimatePresence>
 			</div>
-			<div className="flex-1 h-fit sticky top-2 hidden md:block">
+			{/* <div className="flex-1 h-fit sticky top-2 hidden md:block">
 				<PinnedMedia item={selectedItem} />
-			</div>
+			</div> */}
 		</div>
 	);
 };
