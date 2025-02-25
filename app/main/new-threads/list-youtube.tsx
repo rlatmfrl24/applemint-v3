@@ -3,6 +3,7 @@ import { YoutubeItem } from "./item-youtube";
 import { createClient } from "@/utils/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { ThreadLoading } from "../thread-loading";
+import NoDataBox from "../no-data";
 
 export const YoutubeThreads = () => {
 	const supabase = createClient();
@@ -32,6 +33,7 @@ export const YoutubeThreads = () => {
 	return (
 		<>
 			{isLoading && <ThreadLoading />}
+			{!isLoading && youtubeThreads?.length === 0 && <NoDataBox />}
 			<div className="flex flex-col gap-2 md:grid md:grid-cols-2 lg:grid-cols-3">
 				{youtubeThreads?.map((thread) => (
 					<YoutubeItem key={thread.id} thread={thread} />

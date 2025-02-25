@@ -6,6 +6,7 @@ import { DefaultThreadItem } from "../thread-item";
 import { ThreadLoading } from "../thread-loading";
 import { Card, CardHeader } from "@/components/ui/card";
 import { QuickSaveButton } from "../quick-save-button";
+import NoDataBox from "../no-data";
 
 export const NormalThreads = () => {
 	const supabase = createClient();
@@ -78,6 +79,7 @@ export const NormalThreads = () => {
 				</CardHeader>
 			</Card>
 			{isLoading && <ThreadLoading />}
+			{(!normalThreads || normalThreads.length === 0) && <NoDataBox />}
 			<AnimatePresence>
 				{normalThreads?.map((thread) => (
 					<DefaultThreadItem
