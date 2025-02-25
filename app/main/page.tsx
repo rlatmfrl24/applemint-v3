@@ -21,17 +21,17 @@ export default function MainPage() {
 						setCurrentThreadType(value);
 					}}
 				>
-					<TabsList className="grid grid-cols-2 gap-2 w-full">
+					<TabsList className="grid grid-cols-3 gap-2 w-full">
 						<TabsTrigger value="normal">Normal</TabsTrigger>
-						{/* <TabsTrigger value="media">Media</TabsTrigger> */}
+						<TabsTrigger value="media">Media</TabsTrigger>
 						<TabsTrigger value="youtube">Youtube</TabsTrigger>
 					</TabsList>
 					<TabsContent value="normal">
 						<NormalThreads />
 					</TabsContent>
-					{/* <TabsContent value="media">
-            <MediaThreads />
-          </TabsContent> */}
+					<TabsContent value="media">
+						<MediaThreads />
+					</TabsContent>
 					<TabsContent value="youtube">
 						<YoutubeThreads />
 					</TabsContent>

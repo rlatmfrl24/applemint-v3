@@ -15,5 +15,5 @@ export interface ThreadItemType {
 }
 
 export interface MediaItemType extends ThreadItemType {
-    media: string[] | null;
+    sub_url: string[] | null;
 }

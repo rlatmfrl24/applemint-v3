@@ -5,7 +5,8 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import type { ThreadItemType } from "@/lib/typeDefs";
+import Image from "next/image";
+import type { MediaItemType, ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
@@ -17,7 +18,7 @@ export const MediaItem = ({
 	thread,
 	onClick,
 }: {
-	thread: ThreadItemType;
+	thread: MediaItemType;
 	onClick: (url: ThreadItemType) => void;
 }) => {
 	const queryClient = useQueryClient();
@@ -68,7 +69,18 @@ export const MediaItem = ({
 			>
 				<CardHeader>
 					<CardTitle className="max-w-full w-full text-ellipsis overflow-hidden whitespace-nowrap">
-						{thread.title || "Untitled"}
+						<div className="mb-2">{thread.title || "Untitled"}</div>
+
+						{thread.sub_url && thread.sub_url?.length > 0 && (
+							<Image
+								src={thread.sub_url[0]}
+								alt="thumbnail"
+								width={0}
+								height={0}
+								sizes="100vw"
+								className="w-full h-56 object-cover"
+							/>
+						)}
 					</CardTitle>
 					<CardDescription className="max-w-full w-full text-ellipsis overflow-hidden">
 						{thread.url}
