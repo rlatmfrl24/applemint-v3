@@ -6,6 +6,30 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+const MediaExtensions = [
+  // image, movie
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "bmp",
+  "tiff",
+  "svg",
+  "ico",
+  "mp4",
+  "webm",
+  "mov",
+  "avi",
+  "mkv",
+  "flv",
+  "vob",
+  "ogv",
+  "ogg",
+  "drc",
+  "mng",
+];
+
 console.log("Called crawl-source");
 interface CrawlItemType {
   url: string;
@@ -39,11 +63,75 @@ function defineType(value: string, filterList: {
     return "normal";
   }
 
+  // if the url is a media file, then it should be media
+  if (
+    targetMethod === "media" &&
+    MediaExtensions.some((ext) => value.endsWith(ext))
+  ) {
+    return "media";
+  }
+
   if (targetMethod) {
     return targetMethod;
   }
 
   return "normal";
+}
+
+async function getMediaData(item: CrawlItemType) {
+  // case 1: direct image url
+  if (item.url.match(/\.(jpeg|jpg|gif|png)$/) != null) {
+    return [item.url];
+  }
+
+  // case 2: direct video url
+  if (item.url.match(/\.(mp4|webm)$/) != null) {
+    return [item.url];
+  }
+
+  // case 3: imgur album
+  if (item.url.match(/imgur.com\/a\//) != null) {
+    const albumId = item.url.split("/")[item.url.split("/").length - 1];
+    const response = await fetch(
+      `https://api.imgur.com/3/album/${albumId}`,
+      {
+        headers: {
+          Authorization: `Client-ID ${
+            Deno.env.get("NEXT_PUBLIC_IMGUR_CLIENT_ID")
+          }`,
+        },
+      },
+    );
+
+    const data = await response.json();
+
+    console.log("🚀 ~ getMediaData ~ data", data);
+    return data.data.images.map((img: { link: string }) => img.link);
+  }
+
+  // case 4: imgur image
+  if (item.url.match(/imgur.com\/[^/]+$/) != null) {
+    const imageId = item.url.split("/")[item.url.split("/").length - 1];
+
+    const response = await fetch(
+      `https://api.imgur.com/3/image/${imageId}`,
+      {
+        headers: {
+          Authorization: `Client-ID ${
+            Deno.env.get("NEXT_PUBLIC_IMGUR_CLIENT_ID")
+          }`,
+        },
+      },
+    );
+
+    const data = await response.json();
+
+    console.log("🚀 ~ getMediaData ~ data", data);
+    return [data.data.link];
+  }
+
+  // case 5: etc
+  return [];
 }
 
 Deno.serve(async (req) => {
@@ -121,14 +209,27 @@ Deno.serve(async (req) => {
       throw insertError;
     }
 
+    // pre-process for media items for async actions is all finish
+    const InsertRows = await Promise.all(newRows.map(async (item) => ({
+      url: item.url,
+      title: item.title,
+      description: item.description,
+      host: /https?:\/\/([^/]+)/.exec(item.url)?.[1],
+      type: defineType(item.url, filterList),
+      sub_url: await getMediaData(item),
+    })));
+
+    console.log("🚀 ~ InsertRows", InsertRows);
+
     const { error: insertNewError } = await supabase.from("new-threads")
       .insert(
-        newRows.map((item) => ({
+        InsertRows.map((item) => ({
           url: item.url,
           title: item.title,
           description: item.description,
-          host: /https?:\/\/([^/]+)/.exec(item.url)?.[1],
-          type: defineType(item.url, filterList),
+          host: item.host,
+          type: item.type,
+          sub_url: item.sub_url,
         })),
       );
 
@@ -139,11 +240,12 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         message: "Crawl successful",
-        insertedCount: newRows?.length,
+        insertedCount: InsertRows?.length,
       }),
       { headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {
+    console.error(err);
     return new Response(String(err?.message ?? err), { status: 500 });
   }
 });
