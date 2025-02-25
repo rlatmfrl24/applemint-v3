@@ -6,6 +6,7 @@ import { DefaultThreadItem } from "../thread-item";
 import { ThreadLoading } from "../thread-loading";
 import { Card, CardHeader } from "@/components/ui/card";
 import { QuickSaveButton } from "../quick-save-button";
+import NoDataBox from "../no-data";
 
 export const NormalThreads = () => {
 	const supabase = createClient();
@@ -20,7 +21,7 @@ export const NormalThreads = () => {
 			const { data, error } = await supabase
 				.from("new-threads")
 				.select()
-				.or("type.eq.normal,type.eq.fmkorea,type.eq.battlepage,type.eq.media")
+				.or("type.eq.normal,type.eq.fmkorea,type.eq.battlepage")
 				.order("created_at", { ascending: false })
 				.order("id", { ascending: false });
 
@@ -57,15 +58,6 @@ export const NormalThreads = () => {
 							</span>
 						</div>
 						<div className="flex-1 text-center">
-							<h5>Media</h5>
-							<span className="font-bold text-2xl md:text-5xl">
-								{
-									normalThreads?.filter((thread) => thread.type === "media")
-										.length
-								}
-							</span>
-						</div>
-						<div className="flex-1 text-center">
 							<h5>ETC</h5>
 							<span className="font-bold text-2xl md:text-5xl">
 								{
@@ -78,6 +70,7 @@ export const NormalThreads = () => {
 				</CardHeader>
 			</Card>
 			{isLoading && <ThreadLoading />}
+			{(!normalThreads || normalThreads.length === 0) && <NoDataBox />}
 			<AnimatePresence>
 				{normalThreads?.map((thread) => (
 					<DefaultThreadItem
