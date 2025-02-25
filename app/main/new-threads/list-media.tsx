@@ -32,7 +32,7 @@ export const MediaThreads = () => {
 
 	return (
 		<div className="flex gap-2 max-w-full md:flex-row flex-col-reverse">
-			<div className="flex flex-col gap-2 flex-1 w-full md:w-1/2">
+			<div className="grid grid-cols-3 gap-2 flex-1 w-full md:w-1/2">
 				{isLoading && <ThreadLoading />}
 				<AnimatePresence>
 					{mediaThreads?.map((thread) => (
