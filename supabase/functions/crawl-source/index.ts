@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     const { data: existingData, error: existingError } = await supabase.from(
       "crawl-history",
     ).select("*")
-      .eq("crawl_source", target).limit(5000)
+      .eq("crawl_source", target)
       .order("created_at", { ascending: false });
 
     if (existingError) {
