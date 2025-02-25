@@ -5,7 +5,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import type { ThreadItemType } from "@/lib/typeDefs";
+import type { MediaItemType, ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
@@ -17,7 +17,7 @@ export const MediaItem = ({
 	thread,
 	onClick,
 }: {
-	thread: ThreadItemType;
+	thread: MediaItemType;
 	onClick: (url: ThreadItemType) => void;
 }) => {
 	const queryClient = useQueryClient();
