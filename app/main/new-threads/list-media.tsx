@@ -33,9 +33,9 @@ export const MediaThreads = () => {
 
 	return (
 		<div className="flex gap-2 max-w-full md:flex-row flex-col-reverse">
+			{!isLoading && mediaThreads?.length === 0 && <NoDataBox />}
 			<div className="flex flex-col gap-2 md:grid md:grid-cols-2 lg:grid-cols-3">
 				{isLoading && <ThreadLoading />}
-				{!isLoading && mediaThreads?.length === 0 && <NoDataBox />}
 				<AnimatePresence>
 					{mediaThreads?.map((thread) => (
 						<MediaItem
