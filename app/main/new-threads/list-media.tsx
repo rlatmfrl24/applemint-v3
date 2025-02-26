@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence } from "framer-motion";
 import { ThreadLoading } from "../thread-loading";
+import NoDataBox from "../no-data";
 
 export const MediaThreads = () => {
 	const supabase = createClient();
@@ -32,8 +33,9 @@ export const MediaThreads = () => {
 
 	return (
 		<div className="flex gap-2 max-w-full md:flex-row flex-col-reverse">
-			<div className="grid grid-cols-3 gap-2 flex-1 w-full md:w-1/2">
+			<div className="flex flex-col gap-2 md:grid md:grid-cols-2 lg:grid-cols-3">
 				{isLoading && <ThreadLoading />}
+				{!isLoading && mediaThreads?.length === 0 && <NoDataBox />}
 				<AnimatePresence>
 					{mediaThreads?.map((thread) => (
 						<MediaItem
