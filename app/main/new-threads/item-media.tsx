@@ -70,7 +70,6 @@ export const MediaItem = ({
 				<CardHeader>
 					<CardTitle className="max-w-full w-full text-ellipsis overflow-hidden whitespace-nowrap">
 						<div className="mb-2">{thread.title || "Untitled"}</div>
-
 						{thread.sub_url && thread.sub_url?.length > 0 && (
 							<Image
 								src={thread.sub_url[0]}
