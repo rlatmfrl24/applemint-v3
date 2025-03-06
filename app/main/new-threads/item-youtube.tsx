@@ -13,6 +13,7 @@ import {
 import type { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { QuickSaveButton } from "../quick-save-button";
 
 function getYoutubeId(url: string) {
 	// get youtube video id from short url
@@ -121,7 +122,7 @@ export const YoutubeItem = ({ thread }: { thread: ThreadItemType }) => {
 					{thread.url}
 				</CardDescription>
 			</CardHeader>
-			<CardFooter>
+			<CardFooter className="flex items-center justify-between">
 				<Button
 					size={"sm"}
 					onClick={async (e) => {
@@ -135,6 +136,7 @@ export const YoutubeItem = ({ thread }: { thread: ThreadItemType }) => {
 						"Delete"
 					)}
 				</Button>
+				<QuickSaveButton thread={thread} />
 			</CardFooter>
 		</Card>
 	);

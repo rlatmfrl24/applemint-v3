@@ -107,11 +107,11 @@ function TrashThread() {
 			<Table>
 				<TableHeader>
 					<TableRow>
+						<TableHead className="hidden md:table-cell">URL</TableHead>
 						<TableHead>Title</TableHead>
-						<TableHead>URL</TableHead>
-						<TableHead>Type</TableHead>
-						<TableHead>Host</TableHead>
-						<TableHead>Created At</TableHead>
+						<TableHead className="hidden lg:table-cell">Type</TableHead>
+						<TableHead className="hidden lg:table-cell">Host</TableHead>
+						<TableHead className="hidden lg:table-cell">Created At</TableHead>
 						<TableHead>Action</TableHead>
 					</TableRow>
 				</TableHeader>
@@ -145,13 +145,19 @@ function TrashThread() {
 						))}
 					{data?.map((thread) => (
 						<TableRow key={thread.id}>
-							<TableCell className="max-w-96 overflow-ellipsis overflow-hidden text-nowrap">
+							<TableCell className="max-w-48 overflow-ellipsis overflow-hidden text-nowrap hidden md:table-cell md:max-w-96">
 								{thread.url}
 							</TableCell>
-							<TableCell>{thread.title || "Undefined"}</TableCell>
-							<TableCell>{thread.type}</TableCell>
-							<TableCell>{thread.host}</TableCell>
-							<TableCell className="text-nowrap">
+							<TableCell className="max-w-96 overflow-ellipsis overflow-hidden text-nowrap">
+								{thread.title || "Undefined"}
+							</TableCell>
+							<TableCell className="hidden lg:table-cell">
+								{thread.type}
+							</TableCell>
+							<TableCell className="hidden lg:table-cell">
+								{thread.host}
+							</TableCell>
+							<TableCell className="text-nowrap hidden lg:table-cell">
 								{format(new Date(thread.created_at), "yyyy-MM-dd HH:mm:ss")}
 							</TableCell>
 							<TableCell>

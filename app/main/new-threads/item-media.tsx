@@ -64,23 +64,19 @@ export const MediaItem = ({
 		<motion.div exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}>
 			<Card
 				key={thread.id}
-				className="cursor-pointer max-w-full w-full flex flex-col dark:hover:bg-zinc-800 hover:bg-zinc-100 transition-colors duration-200"
+				className="cursor-pointer max-w-full w-full h-full flex flex-col dark:hover:bg-zinc-800 hover:bg-zinc-100 transition-colors duration-200"
 				onClick={() => onClick(thread)}
 			>
-				<CardHeader>
-					<CardTitle className="max-w-full w-full text-ellipsis overflow-hidden whitespace-nowrap">
+				<CardHeader className="h-full">
+					<CardTitle className="max-w-full w-full h-full text-ellipsis overflow-hidden whitespace-nowrap">
 						<div className="mb-2">{thread.title || "Untitled"}</div>
-
-						{thread.sub_url && thread.sub_url?.length > 0 && (
-							<Image
-								src={thread.sub_url[0]}
-								alt="thumbnail"
-								width={0}
-								height={0}
-								sizes="100vw"
-								className="w-full h-56 object-cover"
-							/>
-						)}
+						<Thumbnail
+							url={
+								thread.sub_url && thread.sub_url?.length > 0
+									? thread.sub_url[0]
+									: ""
+							}
+						/>
 					</CardTitle>
 					<CardDescription className="max-w-full w-full text-ellipsis overflow-hidden">
 						{thread.url}
@@ -104,5 +100,34 @@ export const MediaItem = ({
 				</CardFooter>
 			</Card>
 		</motion.div>
+	);
+};
+
+const Thumbnail = ({ url }: { url: string }) => {
+	if (!url)
+		return (
+			<div className="w-full h-56 flex items-center justify-center bg-gray-500 rounded">
+				Empty
+			</div>
+		);
+	if (url.includes("mp4")) {
+		return (
+			<video src={url} controls className="w-full h-56 object-cover">
+				<track kind="captions" />
+			</video>
+		);
+	}
+
+	return (
+		<div className="h-full min-h-56 rounded">
+			<Image
+				src={url}
+				alt="thumbnail"
+				width={0}
+				height={0}
+				sizes="100vw"
+				className="w-full h-56 object-cover"
+			/>
+		</div>
 	);
 };
