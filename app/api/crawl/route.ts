@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { crawlInsagirl } from "./insagirl";
 import { crawlBattlepage } from "./battlepage";
+import { crawlArcalive } from "./arcalive";
 
 export async function GET(request: NextRequest) {
   const queries = request.nextUrl.searchParams;
@@ -19,6 +20,10 @@ export async function GET(request: NextRequest) {
       });
     case "battlepage":
       return new Response(JSON.stringify(await crawlBattlepage()), {
+        status: 200,
+      });
+    case "arcalive":
+      return new Response(JSON.stringify(await crawlArcalive()), {
         status: 200,
       });
 
