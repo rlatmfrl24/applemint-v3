@@ -33,6 +33,7 @@ export async function crawlInsagirl() {
               title: trimmedText ? trimmedText : "",
               description: "",
               host: /https?:\/\/([^/]+)/.exec(url.href)?.[1],
+              tag: ["insagirl"],
             } as CrawlItemType;
           });
 

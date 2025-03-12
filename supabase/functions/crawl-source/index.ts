@@ -37,6 +37,7 @@ interface CrawlItemType {
   description: string;
   host: string;
   type: string;
+  tag?: string[];
 }
 
 function getYoutubeId(url: string) {
@@ -217,6 +218,7 @@ Deno.serve(async (req) => {
       host: /https?:\/\/([^/]+)/.exec(item.url)?.[1],
       type: defineType(item.url, filterList),
       sub_url: await getMediaData(item),
+      tag: item.tag,
     })));
 
     console.log("🚀 ~ InsertRows", InsertRows);
@@ -230,6 +232,7 @@ Deno.serve(async (req) => {
           host: item.host,
           type: item.type,
           sub_url: item.sub_url,
+          tag: item.tag,
         })),
       );
 
