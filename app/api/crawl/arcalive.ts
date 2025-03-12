@@ -22,15 +22,20 @@ export async function crawlArcalive() {
                         $(el).find(".title").text().trim() !== "";
                 })
                 .map((i, el) => {
+                    const arcaliveBadge = $(el).find(
+                        ".vrow-inner .vrow-top .vcol.col-title .badges",
+                    ).text().trim();
+
                     return {
                         url: baseUrl + $(el).attr("href")
                             //remove ?mode=best&p= query string by using regex
                             ?.replace(/\?mode=best&p=\d+/, ""),
-
                         title: $(el).find(".title").text().trim(),
                         description: "",
                         host: baseUrl,
-                        tag: ["arcalive"],
+                        tag: arcaliveBadge
+                            ? ["arcalive", arcaliveBadge]
+                            : ["arcalive"],
                     };
                 });
 
