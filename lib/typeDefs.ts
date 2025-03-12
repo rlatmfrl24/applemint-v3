@@ -3,6 +3,7 @@ export interface CrawlItemType {
     title: string;
     description: string;
     host: string;
+    tag?: string[];
 }
 
 export interface ThreadItemType {
@@ -12,6 +13,7 @@ export interface ThreadItemType {
     title: string;
     description: string;
     host: string;
+    tag?: string[];
 }
 
 export interface MediaItemType extends ThreadItemType {

@@ -32,6 +32,7 @@ export async function crawlBattlepage() {
           title: $(el).find(".bp_subject").attr("title"),
           description: "",
           host: baseUrl,
+          tag: ["battlepage"],
         };
       });
 

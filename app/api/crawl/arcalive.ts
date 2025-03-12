@@ -23,10 +23,14 @@ export async function crawlArcalive() {
                 })
                 .map((i, el) => {
                     return {
-                        url: baseUrl + $(el).attr("href"),
+                        url: baseUrl + $(el).attr("href")
+                            //remove ?mode=best&p= query string by using regex
+                            ?.replace(/\?mode=best&p=\d+/, ""),
+
                         title: $(el).find(".title").text().trim(),
                         description: "",
                         host: baseUrl,
+                        tag: ["arcalive"],
                     };
                 });
 
