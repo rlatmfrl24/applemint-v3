@@ -42,7 +42,6 @@ export const QuickSaveButton = ({ thread }: { thread: ThreadItemType }) => {
 
 	return (
 		<Button
-			size={"sm"}
 			variant={"secondary"}
 			disabled={quickSaveMutation.isPending}
 			onClick={async (e) => {

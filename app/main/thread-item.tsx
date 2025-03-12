@@ -83,7 +83,6 @@ export const DefaultThreadItem = ({
 					{disablePrimaryAction ? null : (
 						<div className="flex items-center gap-2">
 							<Button
-								size={"sm"}
 								disabled={removeThread.isPending}
 								onClick={async (e) => {
 									e.stopPropagation();
@@ -105,7 +104,6 @@ export const DefaultThreadItem = ({
 					>
 						{extraButtons}
 						<Button
-							size={"sm"}
 							variant={"outline"}
 							onClick={(e) => {
 								e.stopPropagation();
