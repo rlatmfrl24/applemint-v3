@@ -44,7 +44,8 @@ function TrashThread() {
 				.from("trash")
 				.select()
 				.order("created_at", { ascending: false })
-				.order("id", { ascending: false });
+				.order("id", { ascending: false })
+				.limit(50);
 
 			if (error) {
 				throw new Error(error.message);
