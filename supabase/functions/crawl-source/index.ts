@@ -215,7 +215,7 @@ Deno.serve(async (req) => {
       url: item.url,
       title: item.title,
       description: item.description,
-      host: /https?:\/\/([^/]+)/.exec(item.url)?.[1],
+      host: item.host,
       type: defineType(item.url, filterList),
       sub_url: await getMediaData(item),
       tag: item.tag,
