@@ -21,9 +21,8 @@ export const NormalThreads = () => {
 			const { data, error } = await supabase
 				.from("new-threads")
 				.select()
-				.or(
-					"type.eq.normal,type.eq.fmkorea,type.eq.battlepage,type.eq.arcalive",
-				)
+				.neq("type", "media")
+				.neq("type", "youtube")
 				.order("created_at", { ascending: false })
 				.order("id", { ascending: false });
 
@@ -35,48 +34,45 @@ export const NormalThreads = () => {
 		},
 	});
 
+	const typeList = [
+		{
+			type: "battlepage",
+			name: "Battlepage",
+		},
+		{
+			type: "fmkorea",
+			name: "Fmkorea",
+		},
+		{
+			type: "arcalive",
+			name: "Arcalive",
+		},
+		{
+			type: "issuelink",
+			name: "Issuelink",
+		},
+		{
+			type: "normal",
+			name: "ETC",
+		},
+	];
+
 	return (
 		<div className="flex flex-col gap-2">
 			<Card>
 				<CardHeader>
 					<div className="flex">
-						<div className="flex-1 text-center">
-							<h5>Battlepage</h5>
-							<span className="font-bold text-2xl md:text-5xl">
-								{
-									normalThreads?.filter(
-										(thread) => thread.type === "battlepage",
-									).length
-								}
-							</span>
-						</div>
-						<div className="flex-1 text-center">
-							<h5>Fmkorea</h5>
-							<span className="font-bold text-2xl md:text-5xl">
-								{
-									normalThreads?.filter((thread) => thread.type === "fmkorea")
-										.length
-								}
-							</span>
-						</div>
-						<div className="flex-1 text-center">
-							<h5>Arcalive</h5>
-							<span className="font-bold text-2xl md:text-5xl">
-								{
-									normalThreads?.filter((thread) => thread.type === "arcalive")
-										.length
-								}
-							</span>
-						</div>
-						<div className="flex-1 text-center">
-							<h5>ETC</h5>
-							<span className="font-bold text-2xl md:text-5xl">
-								{
-									normalThreads?.filter((thread) => thread.type === "normal")
-										.length
-								}
-							</span>
-						</div>
+						{typeList.map((type) => (
+							<div key={type.type} className="flex-1 text-center">
+								<h5>{type.name}</h5>
+								<span className="font-bold text-2xl md:text-5xl">
+									{
+										normalThreads?.filter((thread) => thread.type === type.type)
+											.length
+									}
+								</span>
+							</div>
+						))}
 					</div>
 				</CardHeader>
 			</Card>
