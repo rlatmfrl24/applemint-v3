@@ -7,6 +7,47 @@ import { ThreadLoading } from "../thread-loading";
 import { Card, CardHeader } from "@/components/ui/card";
 import { QuickSaveButton } from "../quick-save-button";
 import NoDataBox from "../no-data";
+import { useMemo } from "react";
+
+const TypeStats = ({ threads }: { threads: ThreadItemType[] | undefined }) => {
+	const typeList = [
+		{ type: "battlepage", name: "Battlepage" },
+		{ type: "fmkorea", name: "Fmkorea" },
+		{ type: "arcalive", name: "Arcalive" },
+		{ type: "issuelink", name: "Issuelink" },
+		{ type: "normal", name: "ETC" },
+	];
+
+	const typeCounts = useMemo(() => {
+		if (!threads) return {};
+		return typeList.reduce(
+			(acc, { type }) => {
+				acc[type] = threads.filter((thread) => thread.type === type).length;
+				return acc;
+			},
+			{} as Record<string, number>,
+		);
+	}, [threads]);
+
+	return (
+		<Card>
+			<CardHeader>
+				<div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+					{typeList.map((type) => (
+						<div key={type.type} className="text-center p-2">
+							<h5 className="text-sm md:text-base font-medium text-gray-600">
+								{type.name}
+							</h5>
+							<span className="font-bold text-xl md:text-3xl">
+								{typeCounts[type.type] || 0}
+							</span>
+						</div>
+					))}
+				</div>
+			</CardHeader>
+		</Card>
+	);
+};
 
 export const NormalThreads = () => {
 	const supabase = createClient();
@@ -34,48 +75,9 @@ export const NormalThreads = () => {
 		},
 	});
 
-	const typeList = [
-		{
-			type: "battlepage",
-			name: "Battlepage",
-		},
-		{
-			type: "fmkorea",
-			name: "Fmkorea",
-		},
-		{
-			type: "arcalive",
-			name: "Arcalive",
-		},
-		{
-			type: "issuelink",
-			name: "Issuelink",
-		},
-		{
-			type: "normal",
-			name: "ETC",
-		},
-	];
-
 	return (
-		<div className="flex flex-col gap-2">
-			<Card>
-				<CardHeader>
-					<div className="flex">
-						{typeList.map((type) => (
-							<div key={type.type} className="flex-1 text-center">
-								<h5>{type.name}</h5>
-								<span className="font-bold text-2xl md:text-5xl">
-									{
-										normalThreads?.filter((thread) => thread.type === type.type)
-											.length
-									}
-								</span>
-							</div>
-						))}
-					</div>
-				</CardHeader>
-			</Card>
+		<div className="flex flex-col gap-4">
+			<TypeStats threads={normalThreads} />
 			{isLoading && <ThreadLoading />}
 			{(!normalThreads || normalThreads.length === 0) && <NoDataBox />}
 			<AnimatePresence>
