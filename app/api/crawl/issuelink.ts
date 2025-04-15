@@ -89,8 +89,8 @@ function getHost(url: string) {
 
 export async function crawlIssuelink() {
     const baseUrl = "https://issuelink.co.kr/community/listview/all/";
-    const timeFilter = "24"; // "3" || "6" || "12" || "24" || "72" || "168" || "336"
-    const condition = "read"; // "adj" || "read" || "comment" || "time" || "click"
+    const timeFilter = "3"; // "3" || "6" || "12" || "24" || "72" || "168" || "336"
+    const condition = "adj"; // "adj" || "read" || "comment" || "time" || "click"
     const suffix = "/_self/blank/blank/blank";
 
     const flatHtml = await fetch(
@@ -109,7 +109,7 @@ export async function crawlIssuelink() {
                 "td:nth-child(2) > div.first_title > span > a",
             );
             const title = item.text().trim()
-                .replace(/\[.*\]/, "");
+                .replace(/\[[^\[\]]*\]$/, "");
             const url = item.attr("href");
             const host = getHost(url ?? "");
 
