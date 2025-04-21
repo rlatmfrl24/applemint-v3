@@ -7,51 +7,85 @@ import { ThreadLoading } from "../thread-loading";
 import { Card, CardHeader } from "@/components/ui/card";
 import { QuickSaveButton } from "../quick-save-button";
 import NoDataBox from "../no-data";
-import { useMemo } from "react";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 
-const TypeStats = ({ threads }: { threads: ThreadItemType[] | undefined }) => {
-	const typeList = [
-		{ type: "battlepage", name: "Battlepage" },
-		{ type: "fmkorea", name: "Fmkorea" },
-		{ type: "arcalive", name: "Arcalive" },
-		{ type: "issuelink", name: "Issuelink" },
-		{ type: "normal", name: "ETC" },
-	];
+const TypeStats = ({
+	threads,
+	selectedType,
+	onTypeChange,
+}: {
+	threads: ThreadItemType[] | undefined;
+	selectedType: string;
+	onTypeChange: (type: string) => void;
+}) => {
+	const typeList = [] as {
+		type: string;
+		count: number;
+	}[];
 
-	const typeCounts = useMemo(() => {
-		if (!threads) return {};
-		return typeList.reduce(
-			(acc, { type }) => {
-				acc[type] = threads.filter((thread) => thread.type === type).length;
-				return acc;
-			},
-			{} as Record<string, number>,
-		);
-	}, [threads]);
+	threads?.map((thread) => {
+		if (thread.type === "arcalive" || thread.type === "battlepage") {
+			const existingType = typeList.find((type) => type.type === thread.type);
+			if (existingType) {
+				existingType.count++;
+			} else {
+				typeList.push({ type: thread.type, count: 1 });
+			}
+		}
+		if (thread.type === "issuelink") {
+			const issueLinkType = thread.tag?.[1] ?? "unknown";
+
+			const existingType = typeList.find((type) => type.type === issueLinkType);
+			if (existingType) {
+				existingType.count++;
+			} else {
+				typeList.push({ type: issueLinkType, count: 1 });
+			}
+		}
+		if (thread.type === "normal") {
+			const existingType = typeList.find((type) => type.type === thread.type);
+			if (existingType) {
+				existingType.count++;
+			} else {
+				typeList.push({ type: thread.type, count: 1 });
+			}
+		}
+	});
+
+	//merge unknown type if count is under 5
+	const mergedTypeList = typeList.filter((type) => type.count >= 5);
+	mergedTypeList.push({
+		type: "unknown",
+		count: typeList
+			.filter((type) => type.count < 5)
+			.reduce((acc, type) => acc + type.count, 0),
+	});
 
 	return (
 		<Card className="mb-1">
 			<CardHeader>
-				<div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-					{typeList.map((type) => (
-						<motion.div
-							key={type.type}
-							initial={{ opacity: 0, y: 20 }}
-							animate={{ opacity: 1, y: 0 }}
-							transition={{ duration: 0.3 }}
-							className="text-center p-2 rounded-lg transition-colors"
-						>
-							<h5 className="text-sm md:text-base font-medium text-gray-600">
-								{type.name}
-							</h5>
-							<span className="font-bold text-xl md:text-3xl text-primary">
-								{typeCounts[type.type] || 0}
+				<ToggleGroup
+					type="single"
+					value={selectedType}
+					onValueChange={onTypeChange}
+				>
+					<ToggleGroupItem value="all">
+						<span className="text-sm md:text-xl font-medium">All</span>
+						<Badge>{threads?.length}</Badge>
+					</ToggleGroupItem>
+					{mergedTypeList.map((type) => (
+						<ToggleGroupItem key={type.type} value={type.type}>
+							<span className="text-sm md:text-lg font-medium">
+								{type.type}
 							</span>
-						</motion.div>
+							<Badge>{type.count}</Badge>
+						</ToggleGroupItem>
 					))}
-				</div>
+				</ToggleGroup>
 			</CardHeader>
 		</Card>
 	);
@@ -81,6 +115,7 @@ const ThreadList = ({ threads }: { threads: ThreadItemType[] }) => {
 
 export const NormalThreads = () => {
 	const supabase = createClient();
+	const [selectedType, setSelectedType] = useState("all");
 
 	const {
 		data: normalThreads,
@@ -105,6 +140,29 @@ export const NormalThreads = () => {
 		},
 	});
 
+	const filteredThreads = normalThreads?.filter((thread) => {
+		if (selectedType === "all") return true;
+		if (selectedType === "unknown") {
+			// 5개 미만의 스레드를 가진 타입들만 필터링
+			const typeCounts = new Map<string, number>();
+			for (const t of normalThreads || []) {
+				const type =
+					t.type === "issuelink" ? (t.tag?.[1] ?? "unknown") : t.type;
+				typeCounts.set(type, (typeCounts.get(type) || 0) + 1);
+			}
+
+			const threadType =
+				thread.type === "issuelink"
+					? (thread.tag?.[1] ?? "unknown")
+					: thread.type;
+			return (typeCounts.get(threadType) || 0) < 5;
+		}
+		if (thread.type === "issuelink") {
+			return thread.tag?.[1] === selectedType;
+		}
+		return thread.type === selectedType;
+	});
+
 	if (error) {
 		return (
 			<Alert variant="destructive" className="mb-4">
@@ -119,17 +177,23 @@ export const NormalThreads = () => {
 
 	return (
 		<div className="flex flex-col gap-4">
-			<TypeStats threads={normalThreads} />
+			{normalThreads?.length !== 0 && (
+				<TypeStats
+					threads={normalThreads}
+					selectedType={selectedType}
+					onTypeChange={setSelectedType}
+				/>
+			)}
 			{isLoading ? (
 				<div className="space-y-4">
 					<ThreadLoading />
 					<ThreadLoading />
 					<ThreadLoading />
 				</div>
-			) : !normalThreads || normalThreads.length === 0 ? (
+			) : !filteredThreads || filteredThreads.length === 0 ? (
 				<NoDataBox />
 			) : (
-				<ThreadList threads={normalThreads} />
+				<ThreadList threads={filteredThreads} />
 			)}
 		</div>
 	);
