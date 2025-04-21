@@ -32,7 +32,7 @@ const TypeStats = ({ threads }: { threads: ThreadItemType[] | undefined }) => {
 	}, [threads]);
 
 	return (
-		<Card className="mb-4">
+		<Card className="mb-1">
 			<CardHeader>
 				<div className="grid grid-cols-2 md:grid-cols-5 gap-4">
 					{typeList.map((type) => (
@@ -59,7 +59,7 @@ const TypeStats = ({ threads }: { threads: ThreadItemType[] | undefined }) => {
 
 const ThreadList = ({ threads }: { threads: ThreadItemType[] }) => {
 	return (
-		<AnimatePresence mode="popLayout">
+		<AnimatePresence>
 			{threads.map((thread) => (
 				<motion.div
 					key={thread.id}

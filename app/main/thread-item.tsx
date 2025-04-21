@@ -61,61 +61,56 @@ export const DefaultThreadItem = ({
 	});
 
 	return (
-		<motion.div
-			key={thread.id}
-			exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}
+		<Card
+			className="cursor-pointer max-w-full w-full hover:bg-zinc-200 dark:hover:bg-zinc-900 transition-colors duration-200"
+			onClick={() => {
+				window.open(thread.url, "_blank");
+			}}
 		>
-			<Card
-				className="cursor-pointer max-w-full w-full hover:bg-zinc-200 dark:hover:bg-zinc-900 transition-colors duration-200"
-				onClick={() => {
-					window.open(thread.url, "_blank");
-				}}
-			>
-				<CardHeader className="max-w-full">
-					<CardTitle className="max-w-full w-full text-ellipsis overflow-hidden">
-						{thread.title || "Untitled"}
-					</CardTitle>
-					<CardDescription className="max-w-full w-full text-ellipsis overflow-hidden">
-						{thread.url}
-					</CardDescription>
-				</CardHeader>
-				<CardFooter className="flex gap-2 items-center justify-between">
-					{disablePrimaryAction ? null : (
-						<div className="flex items-center gap-2">
-							<Button
-								disabled={removeThread.isPending}
-								onClick={async (e) => {
-									e.stopPropagation();
-									removeThread.mutate(thread.id);
-								}}
-							>
-								{!removeThread.isPending ? (
-									"Delete"
-								) : (
-									<Loader2 className="animate-spin" />
-								)}
-							</Button>
-						</div>
-					)}
-					<div
-						className="flex gap-2"
-						onClick={(e) => e.stopPropagation()}
-						onKeyDown={(e) => e.stopPropagation()}
-					>
-						{extraButtons}
+			<CardHeader className="max-w-full">
+				<CardTitle className="max-w-full w-full text-ellipsis overflow-hidden">
+					{thread.title || "Untitled"}
+				</CardTitle>
+				<CardDescription className="max-w-full w-full text-ellipsis overflow-hidden">
+					{thread.url}
+				</CardDescription>
+			</CardHeader>
+			<CardFooter className="flex gap-2 items-center justify-between">
+				{disablePrimaryAction ? null : (
+					<div className="flex items-center gap-2">
 						<Button
-							variant={"outline"}
-							onClick={(e) => {
+							disabled={removeThread.isPending}
+							onClick={async (e) => {
 								e.stopPropagation();
-								navigator.clipboard.writeText(thread.url);
-								toast("Link copied to clipboard");
+								removeThread.mutate(thread.id);
 							}}
 						>
-							Copy Link
+							{!removeThread.isPending ? (
+								"Delete"
+							) : (
+								<Loader2 className="animate-spin" />
+							)}
 						</Button>
 					</div>
-				</CardFooter>
-			</Card>
-		</motion.div>
+				)}
+				<div
+					className="flex gap-2"
+					onClick={(e) => e.stopPropagation()}
+					onKeyDown={(e) => e.stopPropagation()}
+				>
+					{extraButtons}
+					<Button
+						variant={"outline"}
+						onClick={(e) => {
+							e.stopPropagation();
+							navigator.clipboard.writeText(thread.url);
+							toast("Link copied to clipboard");
+						}}
+					>
+						Copy Link
+					</Button>
+				</div>
+			</CardFooter>
+		</Card>
 	);
 };
