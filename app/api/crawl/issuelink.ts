@@ -37,10 +37,32 @@ function getHost(url: string): HostConfig {
 }
 
 export async function crawlIssuelink(): Promise<CrawlItemType[]> {
+    const items = [];
+
+    //add items by 12 hours and adj
+    items.push(...(await getItemsByCondition("12", "adj")));
+
+    //add items by 12 hours and read
+    items.push(...(await getItemsByCondition("12", "read")));
+
+    //add items by 12 hours and click
+    items.push(...(await getItemsByCondition("12", "click")));
+
+    // remove duplicate items
+    const uniqueItems = items.filter(
+        (item, index, self) =>
+            index === self.findIndex((t) => t.url === item.url),
+    );
+
+    return uniqueItems;
+}
+
+async function getItemsByCondition(
+    timeFilter: "3" | "6" | "12" | "24" | "72" | "168" | "336" = "12",
+    condition: "adj" | "read" | "comment" | "time" | "click" = "adj",
+): Promise<CrawlItemType[]> {
     try {
         const baseUrl = "https://issuelink.co.kr/community/listview/all/";
-        const timeFilter = "12"; // "3" || "6" || "12" || "24" || "72" || "168" || "336"
-        const condition = "adj"; // "adj" || "read" || "comment" || "time" || "click"
         const suffix = "/_self/blank/blank/blank";
 
         const response = await fetch(
