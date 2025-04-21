@@ -59,7 +59,7 @@ const TypeStats = ({ threads }: { threads: ThreadItemType[] | undefined }) => {
 
 const ThreadList = ({ threads }: { threads: ThreadItemType[] }) => {
 	return (
-		<AnimatePresence mode="popLayout">
+		<AnimatePresence>
 			{threads.map((thread) => (
 				<motion.div
 					key={thread.id}
