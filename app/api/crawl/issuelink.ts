@@ -39,7 +39,7 @@ function getHost(url: string): HostConfig {
 export async function crawlIssuelink(): Promise<CrawlItemType[]> {
     try {
         const baseUrl = "https://issuelink.co.kr/community/listview/all/";
-        const timeFilter = "3"; // "3" || "6" || "12" || "24" || "72" || "168" || "336"
+        const timeFilter = "12"; // "3" || "6" || "12" || "24" || "72" || "168" || "336"
         const condition = "adj"; // "adj" || "read" || "comment" || "time" || "click"
         const suffix = "/_self/blank/blank/blank";
 

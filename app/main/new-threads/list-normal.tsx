@@ -41,7 +41,7 @@ const TypeStats = ({ threads }: { threads: ThreadItemType[] | undefined }) => {
 							initial={{ opacity: 0, y: 20 }}
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ duration: 0.3 }}
-							className="text-center p-2 hover:bg-gray-50 rounded-lg transition-colors"
+							className="text-center p-2 rounded-lg transition-colors"
 						>
 							<h5 className="text-sm md:text-base font-medium text-gray-600">
 								{type.name}
