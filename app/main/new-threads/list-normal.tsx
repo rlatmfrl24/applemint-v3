@@ -65,6 +65,8 @@ const TypeStats = ({
 			.reduce((acc, type) => acc + type.count, 0),
 	});
 
+	const sortedTypeList = mergedTypeList.sort((a, b) => b.count - a.count);
+
 	return (
 		<Card className="mb-1">
 			<CardHeader>
@@ -73,18 +75,24 @@ const TypeStats = ({
 					value={selectedType}
 					onValueChange={onTypeChange}
 				>
-					<ToggleGroupItem value="all">
-						<span className="text-sm md:text-xl font-medium">All</span>
-						<Badge>{threads?.length}</Badge>
-					</ToggleGroupItem>
-					{mergedTypeList.map((type) => (
-						<ToggleGroupItem key={type.type} value={type.type}>
-							<span className="text-sm md:text-lg font-medium">
-								{type.type}
-							</span>
-							<Badge>{type.count}</Badge>
+					<div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+						<ToggleGroupItem value="all" className="flex justify-between">
+							<span className="text-sm md:text-xl font-medium">All</span>
+							<Badge>{threads?.length}</Badge>
 						</ToggleGroupItem>
-					))}
+						{sortedTypeList.map((type) => (
+							<ToggleGroupItem
+								key={type.type}
+								value={type.type}
+								className="flex justify-between"
+							>
+								<span className="text-sm md:text-lg font-medium">
+									{type.type}
+								</span>
+								<Badge>{type.count}</Badge>
+							</ToggleGroupItem>
+						))}
+					</div>
 				</ToggleGroup>
 			</CardHeader>
 		</Card>
