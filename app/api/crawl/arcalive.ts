@@ -28,15 +28,6 @@ export async function crawlArcalive() {
             console.log(`[Arcalive] 페이지 ${index + 1} 크롤링 시작: ${url}`);
 
             try {
-                // 각 요청 사이에 지연 추가
-                if (index > 0) {
-                    const delayMs = 300 + Math.random() * 400; // 300-700ms 랜덤 지연
-                    console.log(
-                        `[Arcalive] ${delayMs.toFixed(0)}ms 지연 후 요청...`,
-                    );
-                    await delay(delayMs);
-                }
-
                 const response = await fetch(url);
 
                 //request 헤더 출력
