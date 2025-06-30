@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 
   console.log("GET /api");
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
