@@ -4,6 +4,38 @@ import { crawlBattlepage } from "./battlepage";
 import { crawlArcalive } from "./arcalive";
 import { crawlIssuelink } from "./issuelink";
 
+// 재시도 함수
+async function retryOperation<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  delayMs: number = 1000,
+): Promise<T> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await operation();
+      return result;
+    } catch (error) {
+      console.error(`[Retry] 시도 ${attempt}/${maxRetries} 실패:`, error);
+
+      if (attempt === maxRetries) {
+        throw error; // 마지막 시도에서도 실패하면 에러 던지기
+      }
+
+      // 지수 백오프 적용
+      const delay = delayMs * Math.pow(2, attempt - 1);
+      console.log(`[Retry] ${delay}ms 대기 후 재시도...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  throw new Error("Retry logic error"); // 여기에 도달하면 안됨
+}
+
+// 간단한 지연 함수
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
   const queries = request.nextUrl.searchParams;
@@ -28,22 +60,24 @@ export async function GET(request: NextRequest) {
       case "insagirl":
         console.log("[Crawl API] 인사걸 크롤링 시작");
         crawlFunction = "insagirl";
-        result = await crawlInsagirl();
+        result = await retryOperation(() => crawlInsagirl(), 2, 1000);
         break;
       case "battlepage":
         console.log("[Crawl API] 배틀페이지 크롤링 시작");
         crawlFunction = "battlepage";
-        result = await crawlBattlepage();
+        // 배틀페이지는 특히 민감하므로 지연 추가
+        await delay(1000);
+        result = await retryOperation(() => crawlBattlepage(), 2, 2000);
         break;
       case "arcalive":
         console.log("[Crawl API] 아칼라이브 크롤링 시작");
         crawlFunction = "arcalive";
-        result = await crawlArcalive();
+        result = await retryOperation(() => crawlArcalive(), 2, 1500);
         break;
       case "issuelink":
         console.log("[Crawl API] 이슈링크 크롤링 시작");
         crawlFunction = "issuelink";
-        result = await crawlIssuelink();
+        result = await retryOperation(() => crawlIssuelink(), 2, 1000);
         break;
       default:
         console.error(`[Crawl API] 에러: 잘못된 타겟 - ${target}`);
