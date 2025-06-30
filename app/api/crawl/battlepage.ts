@@ -37,13 +37,6 @@ export async function crawlBattlepage() {
       );
 
       try {
-        // 각 요청 사이에 지연 추가
-        if (index > 0) {
-          const delayMs = 500 + Math.random() * 500; // 500-1000ms 랜덤 지연
-          console.log(`[Battlepage] ${delayMs.toFixed(0)}ms 지연 후 요청...`);
-          await delay(delayMs);
-        }
-
         const response = await fetch(url, {
           headers: {
             accept:
