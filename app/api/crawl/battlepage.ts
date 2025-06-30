@@ -1,4 +1,3 @@
-import { createClient } from "@/utils/supabase/server";
 import * as cheerio from "cheerio";
 import { Agent, fetch } from "undici";
 

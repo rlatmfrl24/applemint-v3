@@ -3,13 +3,15 @@
 import { createClient } from "@/utils/supabase/client";
 import { redirect } from "next/navigation";
 import { SubmitButton } from "./submit-button";
-import { useCallback } from "react";
+import { useCallback, use } from "react";
 
 export default function Login({
   searchParams,
 }: {
-  searchParams: { message: string };
+  searchParams: Promise<{ message?: string }>;
 }) {
+  const params = use(searchParams);
+
   const signIn = useCallback(async () => {
     const supabase = createClient();
     const email = document.querySelector(
@@ -60,9 +62,9 @@ export default function Login({
           Sign In
         </SubmitButton>
 
-        {searchParams?.message && (
+        {params?.message && (
           <p className="mt-4 p-4 bg-foreground/10 text-foreground text-center">
-            {searchParams.message}
+            {params.message}
           </p>
         )}
       </form>
