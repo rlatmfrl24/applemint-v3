@@ -6,18 +6,6 @@ type HostConfig = {
     tag: string;
 };
 
-// 브라우저처럼 보이게 하는 헤더 설정
-const crawlHeaders = {
-    "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-    "Accept":
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "Accept-Language": "ko-KR,ko;q=0.8,en-US;q=0.5,en;q=0.3",
-    "Accept-Encoding": "gzip, deflate",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
-};
-
 const HOST_CONFIGS: Record<string, HostConfig> = {
     "82cook": { host: "https://www.82cook.com", tag: "82cook" },
     "bobae": { host: "https://www.bobaedream.co.kr", tag: "bobae" },
@@ -118,8 +106,15 @@ async function getItemsByCondition(
 
     try {
         const response = await fetch(url, {
-            headers: crawlHeaders,
+            headers: {
+                accept:
+                    "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            },
         });
+
+        //request 헤더 출력
+        console.log(response.headers);
+
         console.log(
             `[Issuelink] ${timeFilter}시간 ${condition}순 응답 상태: ${response.status}`,
         );

@@ -1,17 +1,5 @@
 import * as cheerio from "cheerio";
 
-// 브라우저처럼 보이게 하는 헤더 설정
-const crawlHeaders = {
-    "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-    "Accept":
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "Accept-Language": "ko-KR,ko;q=0.8,en-US;q=0.5,en;q=0.3",
-    "Accept-Encoding": "gzip, deflate",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
-};
-
 // 간단한 지연 함수
 function delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -49,9 +37,11 @@ export async function crawlArcalive() {
                     await delay(delayMs);
                 }
 
-                const response = await fetch(url, {
-                    headers: crawlHeaders,
-                });
+                const response = await fetch(url);
+
+                //request 헤더 출력
+                console.log(response.headers);
+
                 console.log(
                     `[Arcalive] 페이지 ${
                         index + 1
