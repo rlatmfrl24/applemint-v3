@@ -65,8 +65,6 @@ export async function GET(request: NextRequest) {
       case "battlepage":
         console.log("[Crawl API] 배틀페이지 크롤링 시작");
         crawlFunction = "battlepage";
-        // 배틀페이지는 특히 민감하므로 지연 추가
-        await delay(1000);
         result = await retryOperation(() => crawlBattlepage(), 2, 2000);
         break;
       case "arcalive":
