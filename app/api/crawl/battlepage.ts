@@ -25,11 +25,8 @@ export async function crawlBattlepage() {
   );
 
   try {
-    const detectedList = [];
-
-    // 동시 요청 대신 순차 처리로 변경 (rate limiting 방지)
-    for (let index = 0; index < targetList.length; index++) {
-      const url = targetList[index];
+    // 병렬 처리를 위한 크롤링 함수
+    const crawlSingleUrl = async (url: string, index: number) => {
       console.log(
         `[Battlepage] URL ${
           index + 1
@@ -48,9 +45,6 @@ export async function crawlBattlepage() {
             },
           }),
         });
-
-        //request 헤더 출력
-        console.log(response.headers);
 
         console.log(
           `[Battlepage] URL ${index + 1} 응답 상태: ${response.status}`,
@@ -99,7 +93,7 @@ export async function crawlBattlepage() {
           }
         });
 
-        detectedList.push(items);
+        return items;
       } catch (pageError) {
         console.error(
           `[Battlepage] URL ${index + 1} 크롤링 중 에러 발생:`,
@@ -110,9 +104,30 @@ export async function crawlBattlepage() {
           `[Battlepage] 에러 스택:`,
           pageError instanceof Error ? pageError.stack : "Stack not available",
         );
-        detectedList.push([]); // 해당 URL 실패 시 빈 배열 추가
+        return []; // 해당 URL 실패 시 빈 배열 반환
       }
-    }
+    };
+
+    // 모든 URL을 병렬로 크롤링
+    console.log("[Battlepage] 병렬 크롤링 시작");
+    const crawlPromises = targetList.map((url, index) =>
+      crawlSingleUrl(url, index)
+    );
+
+    // Promise.allSettled를 사용하여 일부 실패해도 계속 진행
+    const results = await Promise.allSettled(crawlPromises);
+
+    const detectedList = results.map((result, index) => {
+      if (result.status === "fulfilled") {
+        return result.value;
+      } else {
+        console.error(
+          `[Battlepage] URL ${index + 1} 최종 실패:`,
+          result.reason,
+        );
+        return [];
+      }
+    });
 
     const flattenedList = detectedList.flat();
     console.log(
