@@ -1,5 +1,6 @@
 {
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -35,8 +36,8 @@
     "next": "latest",
     "next-themes": "^0.3.0",
     "postcss": "8.4.33",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
     "react-hook-form": "^7.59.0",
     "sonner": "^2.0.5",
     "tailwind-merge": "^2.6.0",
