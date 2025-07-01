@@ -31,11 +31,6 @@ async function retryOperation<T>(
   throw new Error("Retry logic error"); // 여기에 도달하면 안됨
 }
 
-// 간단한 지연 함수
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
   const queries = request.nextUrl.searchParams;
