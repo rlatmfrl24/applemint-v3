@@ -151,10 +151,10 @@ async function crawlPage(
     );
 
     try {
-        // 페이지 로드 (타임아웃 설정)
+        // 페이지 로드 (타임아웃 단축)
         const response = await page.goto(url, {
-            waitUntil: "networkidle2",
-            timeout: 30000,
+            waitUntil: "domcontentloaded", // networkidle2에서 domcontentloaded로 변경
+            timeout: 20000, // 30초에서 20초로 단축
         });
 
         if (!response || !response.ok()) {
@@ -165,11 +165,11 @@ async function crawlPage(
 
         console.log(`[Arcalive Puppeteer] 페이지 ${pageIndex + 1} 로드 완료`);
 
-        // 페이지 완전 로드 대기
-        await _delay(2000);
+        // 페이지 완전 로드 대기 (시간 단축)
+        await _delay(1000); // 2초에서 1초로 단축
 
-        // 리스트 테이블 요소 대기
-        await page.waitForSelector(".list-table.table", { timeout: 10000 });
+        // 리스트 테이블 요소 대기 (시간 단축)
+        await page.waitForSelector(".list-table.table", { timeout: 5000 }); // 10초에서 5초로 단축
 
         // HTML 내용 추출
         const htmlContent = await page.content();
@@ -245,7 +245,7 @@ export async function crawlArcalivePuppeteer(): Promise<CrawlResult[]> {
     console.log("[Arcalive Puppeteer] 크롤링 시작");
 
     const target = "https://arca.live/b/iloveanimal?mode=best";
-    const pageSize = 3;
+    const pageSize = 2; // Vercel 무료 플랜 60초 제한에 맞추기 위해 2페이지로 제한
     const targetList: string[] = [];
 
     // 대상 URL 목록 생성
@@ -277,9 +277,9 @@ export async function crawlArcalivePuppeteer(): Promise<CrawlResult[]> {
                 const items = await crawlPage(page, url, index);
                 detectedList.push(...items);
 
-                // 다음 페이지 요청 전 잠시 대기
+                // 다음 페이지 요청 전 잠시 대기 (시간 단축)
                 if (index < targetList.length - 1) {
-                    await _delay(1000);
+                    await _delay(500); // 1초에서 0.5초로 단축
                 }
             } catch (pageError) {
                 console.error(
@@ -287,6 +287,8 @@ export async function crawlArcalivePuppeteer(): Promise<CrawlResult[]> {
                     pageError,
                 );
                 console.error(`[Arcalive Puppeteer] 에러 URL: ${url}`);
+                // 개별 페이지 실패 시 계속 진행
+                continue;
             }
         }
 
