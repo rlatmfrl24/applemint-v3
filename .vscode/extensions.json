@@ -1,6 +1,3 @@
 {
-	"recommendations": [
-		"denoland.vscode-deno",
-		"stagewise.stagewise-vscode-extension"
-	]
+	"recommendations": ["denoland.vscode-deno", "stagewise.stagewise-vscode-extension"]
 }

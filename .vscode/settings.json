@@ -7,14 +7,7 @@
 	// ss01 for example, you could set "'ss01' on"
 	"editor.fontLigatures": true,
 	"editor.fontSize": 12,
-	"cSpell.words": [
-		"arcalive",
-		"Battlepage",
-		"clsx",
-		"imgur",
-		"Insagirl",
-		"syncwatch"
-	],
+	"cSpell.words": ["arcalive", "Battlepage", "clsx", "imgur", "Insagirl", "syncwatch"],
 	"deno.enablePaths": ["supabase/functions"],
 	"deno.importMap": "./supabase/functions/import_map.json",
 	"deno.lint": true,
