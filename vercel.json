@@ -1,25 +1,4 @@
 {
-	"functions": {
-		"app/api/crawl/test-puppeteer/route.ts": {
-			"maxDuration": 60,
-			"memory": 1024,
-			"environment": {
-				"PUPPETEER_SKIP_CHROMIUM_DOWNLOAD": "true",
-				"PUPPETEER_EXECUTABLE_PATH": "/opt/render/chrome/chrome"
-			}
-		},
-		"app/api/crawl/compare-crawlers/route.ts": {
-			"maxDuration": 60,
-			"memory": 1024,
-			"environment": {
-				"PUPPETEER_SKIP_CHROMIUM_DOWNLOAD": "true",
-				"PUPPETEER_EXECUTABLE_PATH": "/opt/render/chrome/chrome"
-			}
-		}
-	},
 	"buildCommand": "pnpm build",
-	"installCommand": "pnpm install --no-frozen-lockfile",
-	"env": {
-		"PUPPETEER_SKIP_CHROMIUM_DOWNLOAD": "true"
-	}
+	"installCommand": "pnpm install --no-frozen-lockfile"
 }
