@@ -54,39 +54,138 @@ async function getBrowserInstance(): Promise<BrowserInstance> {
                     : String(localError),
             );
             // puppeteer.launch 실패 시 puppeteer-core로 fallback
+            try {
+                const executablePath = await chromium.executablePath();
+                browser = await puppeteerCore.launch({
+                    executablePath,
+                    headless: true,
+                    args: [
+                        ...chromium.args,
+                        "--no-sandbox",
+                        "--disable-setuid-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--disable-gpu",
+                        "--disable-web-security",
+                        "--disable-features=VizDisplayCompositor",
+                    ],
+                });
+            } catch (fallbackError) {
+                console.error(
+                    "[Arcalive Puppeteer] 로컬 환경 chromium fallback 실패:",
+                    fallbackError,
+                );
+                throw fallbackError;
+            }
+        }
+    } else {
+        // Vercel 배포 환경: puppeteer-core + chromium 사용
+        try {
+            console.log(
+                "[Arcalive Puppeteer] chromium executablePath 확인 시도",
+            );
             const executablePath = await chromium.executablePath();
+            console.log(
+                "[Arcalive Puppeteer] chromium executablePath:",
+                executablePath,
+            );
+
             browser = await puppeteerCore.launch({
                 executablePath,
                 headless: true,
                 args: [
                     ...chromium.args,
+                    "--font-render-hinting=none",
+                    "--hide-scrollbars",
+                    "--disable-web-security",
+                    "--disable-animations",
+                    "--disable-background-timer-throttling",
+                    "--disable-restore-session-state",
+                    "--single-process",
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
                     "--disable-dev-shm-usage",
                     "--disable-gpu",
-                    "--disable-web-security",
-                    "--disable-features=VizDisplayCompositor",
                 ],
             });
-        }
-    } else {
-        // Vercel 배포 환경: puppeteer-core + chromium 사용
-        const executablePath = await chromium.executablePath();
+        } catch (productionError) {
+            console.error(
+                "[Arcalive Puppeteer] Production 환경 chromium 실행 실패:",
+                productionError,
+            );
 
-        browser = await puppeteerCore.launch({
-            executablePath,
-            headless: true,
-            args: [
-                ...chromium.args,
-                "--font-render-hinting=none",
-                "--hide-scrollbars",
-                "--disable-web-security",
-                "--disable-animations",
-                "--disable-background-timer-throttling",
-                "--disable-restore-session-state",
-                "--single-process",
-            ],
-        });
+            // 추가적인 fallback 시도
+            try {
+                console.log(
+                    "[Arcalive Puppeteer] Production 환경 fallback 시도",
+                );
+
+                // chromium 패키지 없이 직접 경로 시도
+                const fallbackPaths = [
+                    "/opt/render/chrome/chrome",
+                    "/usr/bin/chromium-browser",
+                    "/usr/bin/chromium",
+                    "/usr/bin/google-chrome",
+                    "/usr/bin/google-chrome-stable",
+                ];
+
+                let workingPath = null;
+                for (const path of fallbackPaths) {
+                    try {
+                        const fs = await import("fs");
+                        if (fs.existsSync(path)) {
+                            workingPath = path;
+                            break;
+                        }
+                    } catch {
+                        continue;
+                    }
+                }
+
+                if (workingPath) {
+                    console.log(
+                        "[Arcalive Puppeteer] 시스템 Chrome 경로 발견:",
+                        workingPath,
+                    );
+                    browser = await puppeteerCore.launch({
+                        executablePath: workingPath,
+                        headless: true,
+                        args: [
+                            "--no-sandbox",
+                            "--disable-setuid-sandbox",
+                            "--disable-dev-shm-usage",
+                            "--disable-gpu",
+                            "--disable-web-security",
+                            "--disable-features=VizDisplayCompositor",
+                            "--font-render-hinting=none",
+                            "--hide-scrollbars",
+                            "--disable-animations",
+                            "--disable-background-timer-throttling",
+                            "--disable-restore-session-state",
+                            "--single-process",
+                        ],
+                    });
+                } else {
+                    console.error(
+                        "[Arcalive Puppeteer] 사용 가능한 Chrome 실행 파일을 찾을 수 없음",
+                    );
+                    throw new Error(
+                        "Chrome 실행 파일을 찾을 수 없습니다. Vercel 환경에서 @sparticuz/chromium 패키지 설치를 확인해주세요.",
+                    );
+                }
+            } catch (fallbackError) {
+                console.error(
+                    "[Arcalive Puppeteer] 모든 fallback 실패:",
+                    fallbackError,
+                );
+                throw new Error(
+                    `Chrome 브라우저를 실행할 수 없습니다. 원본 에러: ${
+                        productionError instanceof Error
+                            ? productionError.message
+                            : String(productionError)
+                    }`,
+                );
+            }
+        }
     }
 
     return { browser, isLocal };
