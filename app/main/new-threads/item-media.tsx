@@ -1,17 +1,11 @@
-import {
-	Card,
-	CardDescription,
-	CardFooter,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
-import Image from "next/image";
-import type { MediaItemType, ThreadItemType } from "@/lib/typeDefs";
-import { createClient } from "@/utils/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import { Loader2 } from "lucide-react";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import type { MediaItemType, ThreadItemType } from "@/lib/typeDefs";
+import { createClient } from "@/utils/supabase/client";
 import { QuickSaveButton } from "../quick-save-button";
 
 export const MediaItem = ({
@@ -64,21 +58,17 @@ export const MediaItem = ({
 		<motion.div exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}>
 			<Card
 				key={thread.id}
-				className="cursor-pointer max-w-full w-full h-full flex flex-col dark:hover:bg-zinc-800 hover:bg-zinc-100 transition-colors duration-200"
+				className="flex h-full w-full max-w-full cursor-pointer flex-col transition-colors duration-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
 				onClick={() => onClick(thread)}
 			>
 				<CardHeader className="h-full">
-					<CardTitle className="max-w-full w-full h-full text-ellipsis overflow-hidden whitespace-nowrap">
+					<CardTitle className="h-full w-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap">
 						<div className="mb-2">{thread.title || "Untitled"}</div>
 						<Thumbnail
-							url={
-								thread.sub_url && thread.sub_url?.length > 0
-									? thread.sub_url[0]
-									: ""
-							}
+							url={thread.sub_url && thread.sub_url?.length > 0 ? thread.sub_url[0] : ""}
 						/>
 					</CardTitle>
-					<CardDescription className="max-w-full w-full text-ellipsis overflow-hidden">
+					<CardDescription className="w-full max-w-full overflow-hidden text-ellipsis">
 						{thread.url}
 					</CardDescription>
 				</CardHeader>
@@ -90,11 +80,7 @@ export const MediaItem = ({
 							mediaThreadMutation.mutate(thread.id);
 						}}
 					>
-						{mediaThreadMutation.isPending ? (
-							<Loader2 className="animate-spin" />
-						) : (
-							"Delete"
-						)}
+						{mediaThreadMutation.isPending ? <Loader2 className="animate-spin" /> : "Delete"}
 					</Button>
 					<QuickSaveButton thread={thread} />
 				</CardFooter>
@@ -106,13 +92,11 @@ export const MediaItem = ({
 const Thumbnail = ({ url }: { url: string }) => {
 	if (!url)
 		return (
-			<div className="w-full h-56 flex items-center justify-center bg-gray-500 rounded">
-				Empty
-			</div>
+			<div className="flex h-56 w-full items-center justify-center rounded bg-gray-500">Empty</div>
 		);
 	if (url.includes("mp4")) {
 		return (
-			<video src={url} controls className="w-full h-56 object-cover">
+			<video src={url} controls className="h-56 w-full object-cover">
 				<track kind="captions" />
 			</video>
 		);
@@ -126,7 +110,7 @@ const Thumbnail = ({ url }: { url: string }) => {
 				width={0}
 				height={0}
 				sizes="100vw"
-				className="w-full h-56 object-cover"
+				className="h-56 w-full object-cover"
 			/>
 		</div>
 	);

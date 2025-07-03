@@ -1,7 +1,7 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import type { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
 
 export const QuickSaveButton = ({ thread }: { thread: ThreadItemType }) => {
 	const supabase = createClient();

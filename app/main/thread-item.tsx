@@ -1,17 +1,10 @@
-import { motion } from "framer-motion";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardDescription,
-	CardFooter,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 
 export const DefaultThreadItem = ({
 	thread,
@@ -62,20 +55,20 @@ export const DefaultThreadItem = ({
 
 	return (
 		<Card
-			className="cursor-pointer max-w-full w-full hover:bg-zinc-200 dark:hover:bg-zinc-900 transition-colors duration-200"
+			className="w-full max-w-full cursor-pointer transition-colors duration-200 hover:bg-zinc-200 dark:hover:bg-zinc-900"
 			onClick={() => {
 				window.open(thread.url, "_blank");
 			}}
 		>
 			<CardHeader className="max-w-full">
-				<CardTitle className="max-w-full w-full text-ellipsis overflow-hidden">
+				<CardTitle className="w-full max-w-full overflow-hidden text-ellipsis">
 					{thread.title || "Untitled"}
 				</CardTitle>
-				<CardDescription className="max-w-full w-full text-ellipsis overflow-hidden">
+				<CardDescription className="w-full max-w-full overflow-hidden text-ellipsis">
 					{thread.url}
 				</CardDescription>
 			</CardHeader>
-			<CardFooter className="flex gap-2 items-center justify-between">
+			<CardFooter className="flex items-center justify-between gap-2">
 				{disablePrimaryAction ? null : (
 					<div className="flex items-center gap-2">
 						<Button
@@ -85,11 +78,7 @@ export const DefaultThreadItem = ({
 								removeThread.mutate(thread.id);
 							}}
 						>
-							{!removeThread.isPending ? (
-								"Delete"
-							) : (
-								<Loader2 className="animate-spin" />
-							)}
+							{!removeThread.isPending ? "Delete" : <Loader2 className="animate-spin" />}
 						</Button>
 					</div>
 				)}

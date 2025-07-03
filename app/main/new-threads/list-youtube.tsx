@@ -1,9 +1,9 @@
-import type { ThreadItemType } from "@/lib/typeDefs";
-import { YoutubeItem } from "./item-youtube";
-import { createClient } from "@/utils/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { ThreadLoading } from "../thread-loading";
+import type { ThreadItemType } from "@/lib/typeDefs";
+import { createClient } from "@/utils/supabase/client";
 import NoDataBox from "../no-data";
+import { ThreadLoading } from "../thread-loading";
+import { YoutubeItem } from "./item-youtube";
 
 export const YoutubeThreads = () => {
 	const supabase = createClient();

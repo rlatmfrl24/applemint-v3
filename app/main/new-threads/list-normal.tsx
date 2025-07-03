@@ -1,17 +1,17 @@
-import type { ThreadItemType } from "@/lib/typeDefs";
-import { AnimatePresence, motion } from "framer-motion";
-import { createClient } from "@/utils/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
+import { AlertCircle } from "lucide-react";
+import { useState } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardHeader } from "@/components/ui/card";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import type { ThreadItemType } from "@/lib/typeDefs";
+import { createClient } from "@/utils/supabase/client";
+import NoDataBox from "../no-data";
+import { QuickSaveButton } from "../quick-save-button";
 import { DefaultThreadItem } from "../thread-item";
 import { ThreadLoading } from "../thread-loading";
-import { Card, CardHeader } from "@/components/ui/card";
-import { QuickSaveButton } from "../quick-save-button";
-import NoDataBox from "../no-data";
-import { AlertCircle } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
 
 const TypeStats = ({
 	threads,
@@ -60,9 +60,7 @@ const TypeStats = ({
 	const mergedTypeList = typeList.filter((type) => type.count >= 5);
 	mergedTypeList.push({
 		type: "unknown",
-		count: typeList
-			.filter((type) => type.count < 5)
-			.reduce((acc, type) => acc + type.count, 0),
+		count: typeList.filter((type) => type.count < 5).reduce((acc, type) => acc + type.count, 0),
 	});
 
 	const sortedTypeList = mergedTypeList.sort((a, b) => b.count - a.count);
@@ -70,25 +68,15 @@ const TypeStats = ({
 	return (
 		<Card className="mb-1">
 			<CardHeader>
-				<ToggleGroup
-					type="single"
-					value={selectedType}
-					onValueChange={onTypeChange}
-				>
-					<div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+				<ToggleGroup type="single" value={selectedType} onValueChange={onTypeChange}>
+					<div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
 						<ToggleGroupItem value="all" className="flex justify-between">
-							<span className="text-sm md:text-xl font-medium">All</span>
+							<span className="font-medium text-sm md:text-xl">All</span>
 							<Badge>{threads?.length}</Badge>
 						</ToggleGroupItem>
 						{sortedTypeList.map((type) => (
-							<ToggleGroupItem
-								key={type.type}
-								value={type.type}
-								className="flex justify-between"
-							>
-								<span className="text-sm md:text-lg font-medium">
-									{type.type}
-								</span>
+							<ToggleGroupItem key={type.type} value={type.type} className="flex justify-between">
+								<span className="font-medium text-sm md:text-lg">{type.type}</span>
 								<Badge>{type.count}</Badge>
 							</ToggleGroupItem>
 						))}
@@ -154,15 +142,11 @@ export const NormalThreads = () => {
 			// 5개 미만의 스레드를 가진 타입들만 필터링
 			const typeCounts = new Map<string, number>();
 			for (const t of normalThreads || []) {
-				const type =
-					t.type === "issuelink" ? (t.tag?.[1] ?? "unknown") : t.type;
+				const type = t.type === "issuelink" ? (t.tag?.[1] ?? "unknown") : t.type;
 				typeCounts.set(type, (typeCounts.get(type) || 0) + 1);
 			}
 
-			const threadType =
-				thread.type === "issuelink"
-					? (thread.tag?.[1] ?? "unknown")
-					: thread.type;
+			const threadType = thread.type === "issuelink" ? (thread.tag?.[1] ?? "unknown") : thread.type;
 			return (typeCounts.get(threadType) || 0) < 5;
 		}
 		if (thread.type === "issuelink") {

@@ -1,8 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import type { ThreadItemType } from "@/lib/typeDefs";
-import { createClient } from "@/utils/supabase/client";
 import {
 	QueryClient,
 	QueryClientProvider,
@@ -10,9 +7,9 @@ import {
 	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
-import { AnimatePresence } from "framer-motion";
-import { DefaultThreadItem } from "../thread-item";
-import { ThreadLoading } from "../thread-loading";
+import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -21,8 +18,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { format } from "date-fns";
-import { Skeleton } from "@/components/ui/skeleton";
+import type { ThreadItemType } from "@/lib/typeDefs";
+import { createClient } from "@/utils/supabase/client";
 
 export default function TrashPage() {
 	const queryClient = new QueryClient();
@@ -59,10 +56,7 @@ function TrashThread() {
 		const queryClient = useQueryClient();
 		const restoreMutation = useMutation({
 			mutationFn: async () => {
-				const { error: DeleteError } = await supabase
-					.from("trash")
-					.delete()
-					.eq("id", thread.id);
+				const { error: DeleteError } = await supabase.from("trash").delete().eq("id", thread.id);
 				if (DeleteError) {
 					console.error("🚀 ~ removeThread ~ error", DeleteError);
 					return;
@@ -104,7 +98,7 @@ function TrashThread() {
 	};
 
 	return (
-		<div className="flex flex-col gap-2 w-full">
+		<div className="flex w-full flex-col gap-2">
 			<Table>
 				<TableHeader>
 					<TableRow>
@@ -119,11 +113,7 @@ function TrashThread() {
 				<TableBody>
 					{isLoading &&
 						Array.from({ length: 5 }).map((_, index) => (
-							<TableRow
-								key={`table-skeleton-${index}-${Math.random()
-									.toString(36)
-									.substring(7)}`}
-							>
+							<TableRow key={`table-skeleton-${index}-${Math.random().toString(36).substring(7)}`}>
 								<TableCell>
 									<Skeleton className="h-5 rounded-xl" />
 								</TableCell>
@@ -146,19 +136,15 @@ function TrashThread() {
 						))}
 					{data?.map((thread) => (
 						<TableRow key={thread.id}>
-							<TableCell className="max-w-48 overflow-ellipsis overflow-hidden text-nowrap hidden md:table-cell md:max-w-96">
+							<TableCell className="hidden max-w-48 overflow-hidden overflow-ellipsis text-nowrap md:table-cell md:max-w-96">
 								{thread.url}
 							</TableCell>
-							<TableCell className="max-w-96 overflow-ellipsis overflow-hidden text-nowrap">
+							<TableCell className="max-w-96 overflow-hidden overflow-ellipsis text-nowrap">
 								{thread.title || "Undefined"}
 							</TableCell>
-							<TableCell className="hidden lg:table-cell">
-								{thread.type}
-							</TableCell>
-							<TableCell className="hidden lg:table-cell">
-								{thread.host}
-							</TableCell>
-							<TableCell className="text-nowrap hidden lg:table-cell">
+							<TableCell className="hidden lg:table-cell">{thread.type}</TableCell>
+							<TableCell className="hidden lg:table-cell">{thread.host}</TableCell>
+							<TableCell className="hidden text-nowrap lg:table-cell">
 								{format(new Date(thread.created_at), "yyyy-MM-dd HH:mm:ss")}
 							</TableCell>
 							<TableCell>

@@ -1,10 +1,10 @@
-import type { MediaItemType } from "@/lib/typeDefs";
-import { MediaItem } from "./item-media";
-import { createClient } from "@/utils/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence } from "framer-motion";
-import { ThreadLoading } from "../thread-loading";
+import type { MediaItemType } from "@/lib/typeDefs";
+import { createClient } from "@/utils/supabase/client";
 import NoDataBox from "../no-data";
+import { ThreadLoading } from "../thread-loading";
+import { MediaItem } from "./item-media";
 
 export const MediaThreads = () => {
 	const supabase = createClient();
@@ -32,11 +32,11 @@ export const MediaThreads = () => {
 	});
 
 	return (
-		<div className="flex gap-2 max-w-full md:flex-row flex-col-reverse">
+		<div className="flex max-w-full flex-col-reverse gap-2 md:flex-row">
 			{!isLoading && mediaThreads?.length === 0 ? (
 				<NoDataBox />
 			) : (
-				<div className="flex flex-col gap-2 md:grid md:grid-cols-2 lg:grid-cols-3 w-full">
+				<div className="flex w-full flex-col gap-2 md:grid md:grid-cols-2 lg:grid-cols-3">
 					{isLoading && <ThreadLoading />}
 					<AnimatePresence>
 						{mediaThreads?.map((thread) => (
@@ -44,9 +44,7 @@ export const MediaThreads = () => {
 								key={thread.id}
 								thread={thread}
 								onClick={async (item) => {
-									const selectedMedia = mediaThreads.find(
-										(i) => i.id === item.id,
-									);
+									const selectedMedia = mediaThreads.find((i) => i.id === item.id);
 									console.log("🚀 ~ selectedMedia", selectedMedia);
 									window.open(item.url, "_blank");
 								}}

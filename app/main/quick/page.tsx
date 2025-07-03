@@ -1,15 +1,11 @@
 "use client";
 
-import { createClient } from "@/utils/supabase/client";
-import {
-	QueryClient,
-	QueryClientProvider,
-	useQuery,
-} from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { AnimatePresence } from "framer-motion";
+import { createClient } from "@/utils/supabase/client";
+import NoDataBox from "../no-data";
 import { DefaultThreadItem } from "../thread-item";
 import { ThreadLoading } from "../thread-loading";
-import NoDataBox from "../no-data";
 
 export default function QuickPage() {
 	const queryClient = new QueryClient();
@@ -42,16 +38,12 @@ const QuickThread = () => {
 	});
 
 	return (
-		<div className="flex flex-col gap-2 w-full">
+		<div className="flex w-full flex-col gap-2">
 			{isLoading && <ThreadLoading />}
 			<AnimatePresence>
 				{data && !data.length && <NoDataBox />}
 				{data?.map((thread) => (
-					<DefaultThreadItem
-						key={thread.id}
-						thread={thread}
-						threadName="quick-save"
-					/>
+					<DefaultThreadItem key={thread.id} thread={thread} threadName="quick-save" />
 				))}
 			</AnimatePresence>
 		</div>
