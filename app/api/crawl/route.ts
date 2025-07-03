@@ -1,15 +1,15 @@
 import type { NextRequest } from "next/server";
+import type { CrawlItemType } from "@/lib/typeDefs";
 import { crawlArcalive } from "./arcalive";
 import { crawlBattlepage } from "./battlepage";
 import { crawlInsagirl } from "./insagirl";
 import { crawlIssuelink } from "./issuelink";
-import type { CrawlItemType } from "@/lib/typeDefs";
 
 // 재시도 함수
 async function retryOperation<T>(
 	operation: () => Promise<T>,
 	maxRetries = 3,
-	delayMs = 1000,
+	delayMs = 1000
 ): Promise<T> {
 	for (let attempt = 1; attempt <= maxRetries; attempt++) {
 		try {
@@ -37,9 +37,7 @@ export async function GET(request: NextRequest) {
 	const queries = request.nextUrl.searchParams;
 	const target = queries.get("target");
 
-	console.log(
-		`[Crawl API] 크롤링 요청 시작 - 타겟: ${target || "undefined"}`,
-	);
+	console.log(`[Crawl API] 크롤링 요청 시작 - 타겟: ${target || "undefined"}`);
 	console.log(`[Crawl API] 요청 URL: ${request.url}`);
 	console.log(`[Crawl API] 시작 시간: ${new Date(startTime).toISOString()}`);
 
@@ -88,9 +86,7 @@ export async function GET(request: NextRequest) {
 		console.log(`[Crawl API] ${crawlFunction} 크롤링 완료`);
 		console.log(`[Crawl API] 결과 아이템 개수: ${result?.length || 0}`);
 		console.log(`[Crawl API] 처리 시간: ${duration}ms`);
-		console.log(
-			`[Crawl API] 종료 시간: ${new Date(endTime).toISOString()}`,
-		);
+		console.log(`[Crawl API] 종료 시간: ${new Date(endTime).toISOString()}`);
 
 		// 결과 로그 (처음 3개 아이템만)
 		if (result && result.length > 0) {
@@ -134,15 +130,13 @@ export async function GET(request: NextRequest) {
 		console.error(`[Crawl API] 에러 처리 시간: ${duration}ms`);
 		console.error(
 			"[Crawl API] 에러 스택:",
-			error instanceof Error ? error.stack : "Stack not available",
+			error instanceof Error ? error.stack : "Stack not available"
 		);
 
 		return new Response(
 			JSON.stringify({
 				error: "크롤링 중 에러가 발생했습니다",
-				message: error instanceof Error
-					? error.message
-					: "Unknown error",
+				message: error instanceof Error ? error.message : "Unknown error",
 				target: target,
 				duration: duration,
 			}),
@@ -151,7 +145,7 @@ export async function GET(request: NextRequest) {
 				headers: {
 					"Content-Type": "application/json",
 				},
-			},
+			}
 		);
 	}
 }
