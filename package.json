@@ -65,5 +65,16 @@
 	"resolutions": {
 		"@radix-ui/react-dismissable-layer": "1.1.0",
 		"@radix-ui/react-focus-scope": "1.1.0"
+	},
+	"bundledDependencies": [
+		"@sparticuz/chromium"
+	],
+	"pnpm": {
+		"hoistPattern": [
+			"@sparticuz/chromium"
+		],
+		"publicHoistPattern": [
+			"@sparticuz/chromium"
+		]
 	}
 }

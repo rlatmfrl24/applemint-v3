@@ -1,4 +1,3 @@
-import chromium from "@sparticuz/chromium";
 import * as cheerio from "cheerio";
 import puppeteer from "puppeteer";
 import puppeteerCore from "puppeteer-core";
@@ -22,12 +21,29 @@ function _delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// chromium 패키지 안전 로드
+async function loadChromiumSafely() {
+    try {
+        const chromium = await import("@sparticuz/chromium");
+        return chromium.default;
+    } catch (error) {
+        console.error(
+            "[Arcalive Puppeteer] @sparticuz/chromium 패키지 로드 실패:",
+            error,
+        );
+        return null;
+    }
+}
+
 // 환경별 브라우저 인스턴스 생성
 async function getBrowserInstance(): Promise<BrowserInstance> {
     const isLocal = process.env.NODE_ENV === "development";
 
     console.log(
         `[Arcalive Puppeteer] 환경: ${isLocal ? "Development" : "Production"}`,
+    );
+    console.log(
+        `[Arcalive Puppeteer] PUPPETEER_EXECUTABLE_PATH: ${process.env.PUPPETEER_EXECUTABLE_PATH}`,
     );
 
     let browser: any;
@@ -48,104 +64,165 @@ async function getBrowserInstance(): Promise<BrowserInstance> {
             });
         } catch (localError) {
             console.log(
-                "[Arcalive Puppeteer] puppeteer.launch 실패, puppeteer-core로 fallback 시도",
+                "[Arcalive Puppeteer] puppeteer.launch 실패, chromium fallback 시도",
                 localError instanceof Error
                     ? localError.message
                     : String(localError),
             );
-            // puppeteer.launch 실패 시 puppeteer-core로 fallback
+
+            // chromium 패키지 안전 로드 시도
+            const chromium = await loadChromiumSafely();
+            if (chromium) {
+                try {
+                    const executablePath = await chromium.executablePath();
+                    browser = await puppeteerCore.launch({
+                        executablePath,
+                        headless: true,
+                        args: [
+                            ...chromium.args,
+                            "--no-sandbox",
+                            "--disable-setuid-sandbox",
+                            "--disable-dev-shm-usage",
+                            "--disable-gpu",
+                            "--disable-web-security",
+                            "--disable-features=VizDisplayCompositor",
+                        ],
+                    });
+                } catch (chromiumError) {
+                    console.error(
+                        "[Arcalive Puppeteer] 로컬 환경 chromium 실행 실패:",
+                        chromiumError,
+                    );
+                    throw chromiumError;
+                }
+            } else {
+                throw new Error(
+                    "puppeteer와 chromium 모두 사용할 수 없습니다.",
+                );
+            }
+        }
+    } else {
+        // Vercel 배포 환경: 환경 변수 우선 확인
+        const envExecutablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+
+        if (envExecutablePath) {
+            console.log(
+                "[Arcalive Puppeteer] 환경 변수에서 Chrome 경로 사용:",
+                envExecutablePath,
+            );
             try {
-                const executablePath = await chromium.executablePath();
                 browser = await puppeteerCore.launch({
-                    executablePath,
+                    executablePath: envExecutablePath,
                     headless: true,
                     args: [
-                        ...chromium.args,
                         "--no-sandbox",
                         "--disable-setuid-sandbox",
                         "--disable-dev-shm-usage",
                         "--disable-gpu",
                         "--disable-web-security",
                         "--disable-features=VizDisplayCompositor",
+                        "--font-render-hinting=none",
+                        "--hide-scrollbars",
+                        "--disable-animations",
+                        "--disable-background-timer-throttling",
+                        "--disable-restore-session-state",
+                        "--single-process",
                     ],
                 });
-            } catch (fallbackError) {
-                console.error(
-                    "[Arcalive Puppeteer] 로컬 환경 chromium fallback 실패:",
-                    fallbackError,
+                console.log(
+                    "[Arcalive Puppeteer] 환경 변수 Chrome 경로로 성공적으로 실행",
                 );
-                throw fallbackError;
+            } catch (envError) {
+                console.error(
+                    "[Arcalive Puppeteer] 환경 변수 Chrome 경로 실행 실패:",
+                    envError,
+                );
+                // 환경 변수 경로 실패 시 다른 방법 시도
             }
         }
-    } else {
-        // Vercel 배포 환경: puppeteer-core + chromium 사용
-        try {
+
+        // 환경 변수가 없거나 실패한 경우 chromium 패키지 시도
+        if (!browser) {
             console.log(
-                "[Arcalive Puppeteer] chromium executablePath 확인 시도",
-            );
-            const executablePath = await chromium.executablePath();
-            console.log(
-                "[Arcalive Puppeteer] chromium executablePath:",
-                executablePath,
+                "[Arcalive Puppeteer] Production 환경에서 chromium 패키지 시도",
             );
 
-            browser = await puppeteerCore.launch({
-                executablePath,
-                headless: true,
-                args: [
-                    ...chromium.args,
-                    "--font-render-hinting=none",
-                    "--hide-scrollbars",
-                    "--disable-web-security",
-                    "--disable-animations",
-                    "--disable-background-timer-throttling",
-                    "--disable-restore-session-state",
-                    "--single-process",
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                ],
-            });
-        } catch (productionError) {
-            console.error(
-                "[Arcalive Puppeteer] Production 환경 chromium 실행 실패:",
-                productionError,
-            );
+            const chromium = await loadChromiumSafely();
 
-            // 추가적인 fallback 시도
-            try {
-                console.log(
-                    "[Arcalive Puppeteer] Production 환경 fallback 시도",
-                );
-
-                // chromium 패키지 없이 직접 경로 시도
-                const fallbackPaths = [
-                    "/opt/render/chrome/chrome",
-                    "/usr/bin/chromium-browser",
-                    "/usr/bin/chromium",
-                    "/usr/bin/google-chrome",
-                    "/usr/bin/google-chrome-stable",
-                ];
-
-                let workingPath = null;
-                for (const path of fallbackPaths) {
-                    try {
-                        const fs = await import("fs");
-                        if (fs.existsSync(path)) {
-                            workingPath = path;
-                            break;
-                        }
-                    } catch {
-                        continue;
-                    }
-                }
-
-                if (workingPath) {
+            if (chromium) {
+                try {
                     console.log(
-                        "[Arcalive Puppeteer] 시스템 Chrome 경로 발견:",
-                        workingPath,
+                        "[Arcalive Puppeteer] chromium 패키지 로드 성공, executablePath 확인",
                     );
+                    const executablePath = await chromium.executablePath();
+                    console.log(
+                        "[Arcalive Puppeteer] chromium executablePath:",
+                        executablePath,
+                    );
+
+                    browser = await puppeteerCore.launch({
+                        executablePath,
+                        headless: true,
+                        args: [
+                            ...chromium.args,
+                            "--font-render-hinting=none",
+                            "--hide-scrollbars",
+                            "--disable-web-security",
+                            "--disable-animations",
+                            "--disable-background-timer-throttling",
+                            "--disable-restore-session-state",
+                            "--single-process",
+                            "--no-sandbox",
+                            "--disable-setuid-sandbox",
+                            "--disable-dev-shm-usage",
+                            "--disable-gpu",
+                        ],
+                    });
+                } catch (chromiumError) {
+                    console.error(
+                        "[Arcalive Puppeteer] chromium 실행 실패, 시스템 경로 fallback 시도:",
+                        chromiumError,
+                    );
+                    browser = null; // 다음 단계로 진행
+                }
+            }
+        }
+
+        // 최종 fallback: 시스템 Chrome 경로 직접 시도
+        if (!browser) {
+            console.log("[Arcalive Puppeteer] 시스템 Chrome 경로 직접 시도");
+
+            const fallbackPaths = [
+                "/opt/render/chrome/chrome",
+                "/usr/bin/chromium-browser",
+                "/usr/bin/chromium",
+                "/usr/bin/google-chrome",
+                "/usr/bin/google-chrome-stable",
+                "/usr/bin/google-chrome-unstable",
+                "/usr/local/bin/chrome",
+                "/usr/local/bin/chromium",
+                "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            ];
+
+            let workingPath = null;
+            for (const path of fallbackPaths) {
+                try {
+                    const fs = await import("fs");
+                    if (fs.existsSync(path)) {
+                        workingPath = path;
+                        console.log(
+                            "[Arcalive Puppeteer] 시스템 Chrome 경로 발견:",
+                            path,
+                        );
+                        break;
+                    }
+                } catch {
+                    continue;
+                }
+            }
+
+            if (workingPath) {
+                try {
                     browser = await puppeteerCore.launch({
                         executablePath: workingPath,
                         headless: true,
@@ -164,27 +241,26 @@ async function getBrowserInstance(): Promise<BrowserInstance> {
                             "--single-process",
                         ],
                     });
-                } else {
-                    console.error(
-                        "[Arcalive Puppeteer] 사용 가능한 Chrome 실행 파일을 찾을 수 없음",
+                    console.log(
+                        "[Arcalive Puppeteer] 시스템 Chrome 경로로 성공적으로 실행",
                     );
-                    throw new Error(
-                        "Chrome 실행 파일을 찾을 수 없습니다. Vercel 환경에서 @sparticuz/chromium 패키지 설치를 확인해주세요.",
+                } catch (systemError) {
+                    console.error(
+                        "[Arcalive Puppeteer] 시스템 Chrome 경로 실행 실패:",
+                        systemError,
                     );
                 }
-            } catch (fallbackError) {
-                console.error(
-                    "[Arcalive Puppeteer] 모든 fallback 실패:",
-                    fallbackError,
-                );
-                throw new Error(
-                    `Chrome 브라우저를 실행할 수 없습니다. 원본 에러: ${
-                        productionError instanceof Error
-                            ? productionError.message
-                            : String(productionError)
-                    }`,
-                );
             }
+        }
+
+        // 모든 방법 실패 시 에러
+        if (!browser) {
+            throw new Error(
+                "Chrome 브라우저를 찾을 수 없습니다. 다음을 확인해주세요: " +
+                    "1. @sparticuz/chromium 패키지 설치 상태 " +
+                    "2. 환경 변수 PUPPETEER_EXECUTABLE_PATH 설정 " +
+                    "3. 시스템 Chrome 설치 상태",
+            );
         }
     }
 
