@@ -54,6 +54,12 @@ importers:
       '@radix-ui/react-toggle-group':
         specifier: ^1.1.10
         version: 1.1.10(@types/react-dom@18.2.18)(@types/react@18.2.48)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@stagewise-plugins/react':
+        specifier: ^0.4.9
+        version: 0.4.9(@stagewise/toolbar@0.4.9)
+      '@stagewise/toolbar-next':
+        specifier: ^0.4.9
+        version: 0.4.9(@types/react@18.2.48)(next@15.3.4(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)
       '@supabase/ssr':
         specifier: latest
         version: 0.6.1(@supabase/supabase-js@2.50.2)
@@ -910,6 +916,27 @@ packages:
 
   '@radix-ui/rect@1.1.1':
     resolution: {integrity: sha512-HPwpGIzkl28mWyZqG52jiqDJ12waP11Pa1lGoiyUkIEuMLBP0oeK/C89esbXrxsky5we7dfd8U58nm0SgAWpVw==}
+
+  '@stagewise-plugins/react@0.4.9':
+    resolution: {integrity: sha512-njlmHe92sAAvEGPeeyZS+a+twuVBNNaEmjFuUGs02WWnG20HquoXMHRgdUFH5Ecr0cxHS2SP/AbKq/kYEFwMjA==}
+    peerDependencies:
+      '@stagewise/toolbar': 0.4.9
+
+  '@stagewise/toolbar-next@0.4.9':
+    resolution: {integrity: sha512-E26F+3Spo6ATUpwcX0/U6AlBMEyTGpoY553UVPVb+7JgiQC+6YtQoJkbnmM08x1153ILii7bNUMI4O34ACD+Mg==}
+    peerDependencies:
+      '@types/react': '>=18.0.0'
+      next: '>=14.0.0'
+      react: '>=18.0.0'
+
+  '@stagewise/toolbar-react@0.4.9':
+    resolution: {integrity: sha512-K27i8GT20EWQJTmY+XQTvgiZh4EDq83W82zSUdSF7Fo8v9ogypn+wZbyFlLg97F2OYysc0uhILwUlS5eVItpyQ==}
+    peerDependencies:
+      '@types/react': '>=18.0.0'
+      react: '>=18.0.0'
+
+  '@stagewise/toolbar@0.4.9':
+    resolution: {integrity: sha512-fBggX+4nLwRDHnevWk32BjpMpc6vjF2k9mdamsPqAUnbsKbJnkTCjm0o8DOKcjRO9M/PGwcED4Ct0AWHQvkR/Q==}
 
   '@supabase/auth-js@2.70.0':
     resolution: {integrity: sha512-BaAK/tOAZFJtzF1sE3gJ2FwTjLf4ky3PSvcvLGEgEmO4BSBkwWKu8l67rLLIBZPDnCyV7Owk2uPyKHa0kj5QGg==}
@@ -2443,6 +2470,25 @@ snapshots:
       '@types/react-dom': 18.2.18
 
   '@radix-ui/rect@1.1.1': {}
+
+  '@stagewise-plugins/react@0.4.9(@stagewise/toolbar@0.4.9)':
+    dependencies:
+      '@stagewise/toolbar': 0.4.9
+
+  '@stagewise/toolbar-next@0.4.9(@types/react@18.2.48)(next@15.3.4(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)':
+    dependencies:
+      '@stagewise/toolbar-react': 0.4.9(@types/react@18.2.48)(react@19.1.0)
+      '@types/react': 18.2.48
+      next: 15.3.4(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      react: 19.1.0
+
+  '@stagewise/toolbar-react@0.4.9(@types/react@18.2.48)(react@19.1.0)':
+    dependencies:
+      '@stagewise/toolbar': 0.4.9
+      '@types/react': 18.2.48
+      react: 19.1.0
+
+  '@stagewise/toolbar@0.4.9': {}
 
   '@supabase/auth-js@2.70.0':
     dependencies:
