@@ -1,4 +1,6 @@
 import "./globals.css";
+import { StagewiseToolbar } from "@stagewise/toolbar-next";
+import { ReactPlugin } from "@stagewise-plugins/react";
 import { GeistSans } from "geist/font/sans";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sooner";
@@ -13,13 +15,9 @@ export const metadata = {
 	description: "Trends Tracker with Supabase",
 };
 
-export default async function RootLayout({
-	children,
-}: {
-	children: React.ReactNode;
-}) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
 	return (
-		<html lang="en" className={GeistSans.className}>
+		<html lang="en" className={GeistSans.className} suppressHydrationWarning>
 			<body className="bg-background text-foreground">
 				<ThemeProvider
 					attribute="class"
@@ -27,10 +25,12 @@ export default async function RootLayout({
 					enableSystem
 					disableTransitionOnChange
 				>
-					<main
-						data-vaul-drawer-wrapper
-						className="min-h-screen flex flex-col items-center"
-					>
+					<StagewiseToolbar
+						config={{
+							plugins: [ReactPlugin],
+						}}
+					/>
+					<main data-vaul-drawer-wrapper className="flex min-h-screen flex-col items-center">
 						{children}
 					</main>
 					<Toaster />
