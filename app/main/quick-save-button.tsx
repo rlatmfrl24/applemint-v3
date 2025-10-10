@@ -1,55 +1,62 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
 
 export const QuickSaveButton = ({ thread }: { thread: ThreadItemType }) => {
-	const supabase = createClient();
-	const queryClient = useQueryClient();
-	const quickSaveMutation = useMutation({
-		mutationFn: async () => {
-			const { error: DeleteError } = await supabase
-				.from("new-threads")
-				.delete()
-				.eq("id", thread.id);
-			if (DeleteError) {
-				console.error("🚀 ~ removeThread ~ error", DeleteError);
-				return;
-			}
-			const { data, error } = await supabase.from("quick-save").insert([
-				{
-					type: thread.type,
-					url: thread.url,
-					title: thread.title,
-					description: thread.description,
-					host: thread.host,
-				},
-			]);
+  const supabase = createClient();
+  const queryClient = useQueryClient();
 
-			if (error) {
-				console.error("🚀 ~ quickSaveMutation ~ error", error);
-				return;
-			}
+  const quickSaveMutation = useMutation({
+    mutationFn: async () => {
+      const deleteQuery = supabase.from("new-threads").delete();
+      const numericId = Number.parseInt(thread.id, 10);
+      const deleteTarget = Number.isNaN(numericId)
+        ? deleteQuery.eq("id", thread.id)
+        : deleteQuery.eq("id", numericId);
+      const { error: deleteError } = await deleteTarget;
+      if (deleteError) {
+        throw deleteError;
+      }
 
-			return data;
-		},
-		onSettled: async () => {
-			return await queryClient.invalidateQueries({
-				queryKey: ["new-threads"],
-			});
-		},
-	});
+      const { error: insertError } = await supabase.from("quick-save").insert([
+        {
+          type: thread.type,
+          url: thread.url,
+          title: thread.title,
+          description: thread.description,
+          host: thread.host,
+        },
+      ]);
 
-	return (
-		<Button
-			variant={"secondary"}
-			disabled={quickSaveMutation.isPending}
-			onClick={async (e) => {
-				e.stopPropagation();
-				quickSaveMutation.mutate();
-			}}
-		>
-			{quickSaveMutation.isPending ? "Saving..." : "Quick Save"}
-		</Button>
-	);
+      if (insertError) {
+        throw insertError;
+      }
+    },
+    onSuccess: async () => {
+      toast.success("퀵 세이브로 이동했습니다.");
+      await queryClient.invalidateQueries({
+        predicate: (query) =>
+          Array.isArray(query.queryKey) && query.queryKey[0] === "new-threads",
+      });
+    },
+    onError: (error) => {
+      console.error("🚀 ~ quickSaveMutation ~ error", error);
+      toast.error("퀵 세이브 처리 중 오류가 발생했습니다.");
+    },
+  });
+
+  return (
+    <Button
+      variant={"secondary"}
+      disabled={quickSaveMutation.isPending}
+      onClick={async (e) => {
+        e.stopPropagation();
+        quickSaveMutation.mutate();
+      }}
+    >
+      {quickSaveMutation.isPending ? "Saving..." : "Quick Save"}
+    </Button>
+  );
 };
