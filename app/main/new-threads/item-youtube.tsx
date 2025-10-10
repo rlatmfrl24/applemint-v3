@@ -1,8 +1,6 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import Image from "next/image";
-import { useCallback, useState } from "react";
-import { toast } from "sonner";
+import { useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,8 +10,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { ThreadItemType } from "@/lib/typeDefs";
-import { createClient } from "@/utils/supabase/client";
 import { QuickSaveButton } from "../quick-save-button";
+import { useMoveThreadToTrash } from "./use-move-to-trash";
 
 function getYoutubeId(url: string) {
   // get youtube video id from short url
@@ -23,62 +21,13 @@ function getYoutubeId(url: string) {
   return match && match[2].length === 11 ? match[2] : null;
 }
 export const YoutubeItem = ({ thread }: { thread: ThreadItemType }) => {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
-  const [isPending, setIsPending] = useState(false);
-
-  const invalidateQueries = useCallback(async () => {
-    await queryClient.invalidateQueries({
-      queryKey: ["new-threads"],
-      predicate: ({ queryKey }) => queryKey.includes("new-threads"),
-    });
-  }, [queryClient]);
+  const moveThreadToTrash = useMoveThreadToTrash(thread);
 
   const handleDelete = useCallback(
     async (id: string) => {
-      try {
-        setIsPending(true);
-        const { error: deleteError } = await supabase
-          .from("new-threads")
-          .delete()
-          .eq("id", Number.parseInt(id, 10));
-
-        if (deleteError) {
-          throw deleteError;
-        }
-
-        const { error: trashError } = await supabase.from("trash").insert([
-          {
-            type: thread.type,
-            url: thread.url,
-            title: thread.title,
-            description: thread.description,
-            host: thread.host,
-          },
-        ]);
-
-        if (trashError) {
-          throw trashError;
-        }
-
-        toast.success("스레드를 휴지통으로 이동했습니다.");
-        await invalidateQueries();
-      } catch (error) {
-        console.error("Failed to move thread to trash:", error);
-        toast.error("스레드 이동 중 오류가 발생했습니다.");
-      } finally {
-        setIsPending(false);
-      }
+      moveThreadToTrash.mutate(id);
     },
-    [
-      invalidateQueries,
-      supabase,
-      thread.description,
-      thread.host,
-      thread.title,
-      thread.type,
-      thread.url,
-    ]
+    [moveThreadToTrash]
   );
 
   const thumbnailId = getYoutubeId(thread.url);
@@ -121,7 +70,11 @@ export const YoutubeItem = ({ thread }: { thread: ThreadItemType }) => {
             void handleDelete(thread.id);
           }}
         >
-          {isPending ? <Loader2 className="animate-spin" /> : "Delete"}
+          {moveThreadToTrash.isPending ? (
+            <Loader2 className="animate-spin" />
+          ) : (
+            "Delete"
+          )}
         </Button>
         <QuickSaveButton thread={thread} />
       </CardFooter>
