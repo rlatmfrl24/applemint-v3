@@ -10,12 +10,19 @@ export const QuickSaveButton = ({ thread }: { thread: ThreadItemType }) => {
 
   const quickSaveMutation = useMutation({
     mutationFn: async () => {
-      const deleteQuery = supabase.from("new-threads").delete();
-      const numericId = Number.parseInt(thread.id, 10);
-      const deleteTarget = Number.isNaN(numericId)
-        ? deleteQuery.eq("id", thread.id)
-        : deleteQuery.eq("id", numericId);
-      const { error: deleteError } = await deleteTarget;
+      const numericId =
+        typeof thread.id === "number"
+          ? thread.id
+          : typeof thread.id === "string" && /^\d+$/.test(thread.id)
+          ? Number(thread.id)
+          : null;
+
+      const deleteIdentifier = numericId ?? thread.id;
+
+      const { error: deleteError } = await supabase
+        .from("new-threads")
+        .delete()
+        .eq("id", deleteIdentifier);
       if (deleteError) {
         throw deleteError;
       }
