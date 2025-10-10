@@ -27,9 +27,18 @@ const isNewThreadsInfiniteQueryKey = (queryKey: QueryKey) => {
 };
 
 const normalizeId = (value: string | number) => {
-    return Number.isNaN(Number.parseInt(String(value), 10))
-        ? String(value)
-        : String(Number.parseInt(String(value), 10));
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return String(value);
+    }
+
+    const stringValue = String(value);
+    const trimmedValue = stringValue.trim();
+
+    if (/^[+-]?\d+$/.test(trimmedValue)) {
+        return String(Number.parseInt(trimmedValue, 10));
+    }
+
+    return stringValue;
 };
 
 const removeThreadFromInfiniteData = (
@@ -40,22 +49,23 @@ const removeThreadFromInfiniteData = (
     let removed = false;
 
     const nextPages = data.pages.map((page) => {
+        let pageRemoved = false;
+
         const filteredItems = page.items.filter((item) => {
             const currentId = normalizeId(item.id);
             const shouldKeep = currentId !== normalizedId;
             if (!shouldKeep) {
-                removed = true;
+                pageRemoved = true;
             }
             return shouldKeep;
         });
 
-        if (filteredItems !== page.items) {
-            return { ...page, items: filteredItems };
+        if (!pageRemoved) {
+            return page;
         }
 
-        return page.items.length === filteredItems.length
-            ? page
-            : { ...page, items: filteredItems };
+        removed = true;
+        return { ...page, items: filteredItems };
     });
 
     if (!removed) {
