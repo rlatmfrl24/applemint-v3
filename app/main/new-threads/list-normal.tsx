@@ -190,7 +190,7 @@ export const NormalThreads = ({ isActive }: { isActive: boolean }) => {
       return;
     }
 
-    void refetch({ refetchPage: (_, index) => index === 0 });
+    void refetch();
   }, [filterKey, isActive, refetch]);
 
   const threads = useMemo(
