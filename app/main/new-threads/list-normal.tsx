@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -131,7 +131,7 @@ export const NormalThreads = ({ isActive }: { isActive: boolean }) => {
 	);
 
 	const fetchStats = useCallback(async () => {
-		const response = await fetch(`/api/new-threads/stats?scope=normal`);
+		const response = await fetch("/api/new-threads/stats?scope=normal");
 
 		if (!response.ok) {
 			throw new Error("신규 스레드 통계를 불러오지 못했습니다.");
