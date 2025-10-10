@@ -1,9 +1,23 @@
 import { createBrowserClient } from "@supabase/ssr";
 
+function requireEnv(value: string | undefined, key: string) {
+	if (!value) {
+		throw new Error(
+			`${key} is not defined. Check your environment configuration.`,
+		);
+	}
+	return value;
+}
+
 export function createClient() {
-	// Create a supabase client on the browser with project's credentials
-	return createBrowserClient(
-		process.env.NEXT_PUBLIC_SUPABASE_URL!,
-		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+	const supabaseUrl = requireEnv(
+		process.env.NEXT_PUBLIC_SUPABASE_URL,
+		"NEXT_PUBLIC_SUPABASE_URL",
 	);
+	const supabaseAnonKey = requireEnv(
+		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+		"NEXT_PUBLIC_SUPABASE_ANON_KEY",
+	);
+
+	return createBrowserClient(supabaseUrl, supabaseAnonKey);
 }
