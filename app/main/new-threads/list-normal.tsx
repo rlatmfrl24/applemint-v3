@@ -8,9 +8,9 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { ThreadItemType } from "@/lib/typeDefs";
 import NoDataBox from "../no-data";
-import { QuickSaveButton } from "../quick-save-button";
-import { DefaultThreadItem } from "../thread-item";
-import { ThreadLoading } from "../thread-loading";
+import { QuickSaveButton } from "./quick-save-button";
+import { DefaultThreadItem } from "./thread-item";
+import { ThreadLoading } from "./thread-loading";
 
 interface ThreadStatsItem {
 	key: string;
@@ -30,7 +30,7 @@ const TypeStats = ({
 	const totalCount = stats?.reduce((acc, type) => acc + type.count, 0) ?? 0;
 
 	return (
-		<Card className="mb-1">
+		<Card className="mb-1 w-full">
 			<CardHeader>
 				<ToggleGroup
 					type="single"
@@ -80,7 +80,7 @@ const ThreadList = ({ threads }: { threads: ThreadItemType[] }) => {
 	);
 };
 
-export const NormalThreads = ({ isActive }: { isActive: boolean }) => {
+export const NormalThreads = () => {
 	const [selectedType, setSelectedType] = useState("all");
 
 	const filterParams = useMemo(() => {
@@ -151,35 +151,17 @@ export const NormalThreads = ({ isActive }: { isActive: boolean }) => {
 		queryKey: ["new-threads", "normal", "stats"],
 		queryFn: fetchStats,
 		staleTime: 1000 * 60 * 5,
-		enabled: isActive,
 	});
 
-	const {
-		data,
-		error,
-		fetchNextPage,
-		hasNextPage,
-		isFetchingNextPage,
-		isLoading,
-		refetch,
-		isFetching,
-	} = useInfiniteQuery({
-		queryKey: ["new-threads", "normal", filterKey],
-		queryFn: ({ pageParam }) => fetchThreads({ pageParam }),
-		initialPageParam: undefined as string | undefined,
-		getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-		staleTime: 1000 * 30,
-		gcTime: 1000 * 60 * 5,
-		enabled: isActive,
-	});
-
-	useEffect(() => {
-		if (!isActive) {
-			return;
-		}
-
-		void refetch();
-	}, [filterKey, isActive, refetch]);
+	const { data, error, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isFetching } =
+		useInfiniteQuery({
+			queryKey: ["new-threads", "normal", filterKey],
+			queryFn: ({ pageParam }) => fetchThreads({ pageParam }),
+			initialPageParam: undefined as string | undefined,
+			getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+			staleTime: 1000 * 30,
+			gcTime: 1000 * 60 * 5,
+		});
 
 	const threads = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [data]);
 
@@ -197,7 +179,7 @@ export const NormalThreads = ({ isActive }: { isActive: boolean }) => {
 	}, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
 	useEffect(() => {
-		if (!isActive || typeof window === "undefined" || typeof IntersectionObserver === "undefined") {
+		if (typeof window === "undefined" || typeof IntersectionObserver === "undefined") {
 			return;
 		}
 
@@ -225,19 +207,15 @@ export const NormalThreads = ({ isActive }: { isActive: boolean }) => {
 		return () => {
 			currentObserver.disconnect();
 		};
-	}, [handleLoadMore, isActive]);
+	}, [handleLoadMore]);
 
 	useEffect(() => {
-		if (!isActive || typeof window === "undefined") {
+		if (typeof window === "undefined") {
 			return;
 		}
 
 		window.scrollTo({ top: 0, behavior: "smooth" });
-	}, [selectedType, isActive]);
-
-	if (!isActive) {
-		return null;
-	}
+	}, [selectedType]);
 
 	if (error) {
 		return (
@@ -252,7 +230,7 @@ export const NormalThreads = ({ isActive }: { isActive: boolean }) => {
 	}
 
 	return (
-		<div className="flex flex-col gap-4">
+		<div className="flex w-full flex-col gap-4">
 			{statsQuery.data?.counts && statsQuery.data.counts.length > 0 && (
 				<TypeStats
 					stats={statsQuery.data.counts}
