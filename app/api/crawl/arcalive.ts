@@ -1,10 +1,5 @@
 import * as cheerio from "cheerio";
 
-// 간단한 지연 함수
-function _delay(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export async function crawlArcalive() {
 	console.log("[Arcalive] 크롤링 시작");
 
@@ -33,14 +28,24 @@ export async function crawlArcalive() {
 				//request 헤더 출력
 				console.log(response.headers);
 
-				console.log(`[Arcalive] 페이지 ${index + 1} 응답 상태: ${response.status}`);
+				console.log(
+					`[Arcalive] 페이지 ${
+						index + 1
+					} 응답 상태: ${response.status}`,
+				);
 
 				if (!response.ok) {
-					throw new Error(`HTTP 에러: ${response.status} ${response.statusText}`);
+					throw new Error(
+						`HTTP 에러: ${response.status} ${response.statusText}`,
+					);
 				}
 
 				const text = await response.text();
-				console.log(`[Arcalive] 페이지 ${index + 1} HTML 길이: ${text.length} 문자`);
+				console.log(
+					`[Arcalive] 페이지 ${
+						index + 1
+					} HTML 길이: ${text.length} 문자`,
+				);
 
 				const $ = cheerio.load(text);
 				console.log(`[Arcalive] 페이지 ${index + 1} HTML 파싱 완료`);
@@ -48,16 +53,18 @@ export async function crawlArcalive() {
 				const itemList = $(".list-table.table")
 					.children(".vrow.column")
 					.filter((_i, el) => {
-						return $(el).attr("href") !== undefined && $(el).find(".title").text().trim() !== "";
+						return $(el).attr("href") !== undefined &&
+							$(el).find(".title").text().trim() !== "";
 					})
 					.map((_i, el) => {
 						const arcaliveBadge = $(el)
-							.find(".vrow-inner .vrow-top .vcol.col-title .badges")
+							.find(
+								".vrow-inner .vrow-top .vcol.col-title .badges",
+							)
 							.text()
 							.trim();
 
-						const itemUrl =
-							baseUrl +
+						const itemUrl = baseUrl +
 							$(el)
 								.attr("href")
 								//remove ?mode=best&p= query string by using regex
@@ -70,39 +77,56 @@ export async function crawlArcalive() {
 							title: title,
 							description: "",
 							host: baseUrl,
-							tag: arcaliveBadge ? ["arcalive", arcaliveBadge] : ["arcalive"],
+							tag: arcaliveBadge
+								? ["arcalive", arcaliveBadge]
+								: ["arcalive"],
 						};
 					});
 
 				const items = itemList.get();
-				console.log(`[Arcalive] 페이지 ${index + 1} 아이템 ${items.length}개 추출 완료`);
+				console.log(
+					`[Arcalive] 페이지 ${
+						index + 1
+					} 아이템 ${items.length}개 추출 완료`,
+				);
 
 				// 추출된 아이템들의 제목 로그 (디버깅용)
 				items.forEach((item, itemIndex) => {
-					console.log(`[Arcalive] 페이지 ${index + 1} 아이템 ${itemIndex + 1}: ${item.title}`);
+					console.log(
+						`[Arcalive] 페이지 ${index + 1} 아이템 ${
+							itemIndex + 1
+						}: ${item.title}`,
+					);
 				});
 
 				detectedList.push(items);
 			} catch (pageError) {
-				console.error(`[Arcalive] 페이지 ${index + 1} 크롤링 중 에러 발생:`, pageError);
+				console.error(
+					`[Arcalive] 페이지 ${index + 1} 크롤링 중 에러 발생:`,
+					pageError,
+				);
 				console.error(`[Arcalive] 에러 URL: ${url}`);
 				console.error(
 					"[Arcalive] 에러 스택:",
-					pageError instanceof Error ? pageError.stack : "Stack not available"
+					pageError instanceof Error
+						? pageError.stack
+						: "Stack not available",
 				);
 				detectedList.push([]); // 해당 페이지 실패 시 빈 배열 추가
 			}
 		}
 
 		const flattenedList = detectedList.flat();
-		console.log(`[Arcalive] 전체 크롤링 완료: 총 ${flattenedList.length}개 아이템 수집`);
+		console.log(
+			`[Arcalive] 전체 크롤링 완료: 총 ${flattenedList.length}개 아이템 수집`,
+		);
 
 		return flattenedList;
 	} catch (error) {
 		console.error("[Arcalive] 크롤링 중 치명적 에러 발생:", error);
 		console.error(
 			"[Arcalive] 에러 스택:",
-			error instanceof Error ? error.stack : "Stack not available"
+			error instanceof Error ? error.stack : "Stack not available",
 		);
 		throw error; // 상위로 에러 전파
 	}
