@@ -26,7 +26,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
 					<AuthButton />
 				</div>
 			</nav>
-			<div className="container flex w-full flex-1 flex-col items-center p-3">{children}</div>
+			<div className="container flex w-full flex-1 flex-col items-stretch p-3">{children}</div>
 		</>
 	);
 }

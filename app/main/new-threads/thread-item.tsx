@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { useCallback } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,8 +12,7 @@ import {
 } from "@/components/ui/card";
 import type { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
-import { useMoveThreadToTrash } from "./new-threads/use-move-to-trash";
-import { useCallback } from "react";
+import { useMoveThreadToTrash } from "./use-move-to-trash";
 
 export const DefaultThreadItem = ({
   thread,
@@ -81,7 +81,7 @@ export const DefaultThreadItem = ({
 
   return (
     <Card
-      className="w-full max-w-full cursor-pointer transition-colors duration-200 hover:bg-zinc-200 dark:hover:bg-zinc-900"
+      className="w-full cursor-pointer transition-colors duration-200 hover:bg-zinc-200 dark:hover:bg-zinc-900"
       onClick={() => {
         window.open(thread.url, "_blank");
       }}
@@ -108,11 +108,7 @@ export const DefaultThreadItem = ({
             </Button>
           </div>
         )}
-        <div
-          className="flex gap-2"
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-        >
+        <div className="ml-auto flex items-center gap-2">
           {extraButtons}
           <Button
             variant={"outline"}
