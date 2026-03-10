@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 const FORWARDED_HEADER_ALLOWLIST = [
 	"accept-language",
+	"cookie",
 	"host",
 	"user-agent",
 	"x-forwarded-for",
@@ -36,7 +37,8 @@ export const updateSession = async (request: NextRequest) => {
 	// This `try/catch` block is only here for the interactive tutorial.
 	// Feel free to remove once you have Supabase connected.
 	try {
-		// Forward only non-sensitive request headers needed by downstream logic.
+		// Forward only request headers needed by downstream logic.
+		// `cookie` must be preserved for Supabase SSR auth in route handlers/server components.
 		let response = createForwardedResponse(request);
 
 		const supabase = createServerClient(
