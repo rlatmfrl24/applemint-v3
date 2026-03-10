@@ -57,8 +57,6 @@ export const NavMenu = () => {
 							<Link href={item.href} passHref target={item.type === "external" ? "_blank" : ""}>
 								<Button variant={pathname === item.href ? "secondary" : "ghost"}>
 									{item.name} {item.type === "external" ? " ↗" : ""}
-									{/* <NavigationMenuLink>
-                  </NavigationMenuLink> */}
 								</Button>
 							</Link>
 						</NavigationMenuItem>

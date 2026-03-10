@@ -4,6 +4,7 @@ import { crawlArcalive } from "./arcalive";
 import { crawlBattlepage } from "./battlepage";
 import { crawlInsagirl } from "./insagirl";
 import { crawlIssuelink } from "./issuelink";
+import { debugLog, infoLog } from "./logger";
 
 // 재시도 함수
 async function retryOperation<T>(
@@ -24,7 +25,7 @@ async function retryOperation<T>(
 
 			// 지수 백오프 적용
 			const delay = delayMs * 2 ** (attempt - 1);
-			console.log(`[Retry] ${delay}ms 대기 후 재시도...`);
+			debugLog(`[Retry] ${delay}ms 대기 후 재시도...`);
 			await new Promise((resolve) => setTimeout(resolve, delay));
 		}
 	}
@@ -37,9 +38,9 @@ export async function GET(request: NextRequest) {
 	const queries = request.nextUrl.searchParams;
 	const target = queries.get("target");
 
-	console.log(`[Crawl API] 크롤링 요청 시작 - 타겟: ${target || "undefined"}`);
-	console.log(`[Crawl API] 요청 URL: ${request.url}`);
-	console.log(`[Crawl API] 시작 시간: ${new Date(startTime).toISOString()}`);
+	infoLog(`[Crawl API] 크롤링 요청 시작 - 타겟: ${target || "undefined"}`);
+	debugLog(`[Crawl API] 요청 URL: ${request.url}`);
+	debugLog(`[Crawl API] 시작 시간: ${new Date(startTime).toISOString()}`);
 
 	if (!target) {
 		console.error("[Crawl API] 에러: 타겟이 제공되지 않음");
@@ -54,22 +55,22 @@ export async function GET(request: NextRequest) {
 
 		switch (target) {
 			case "insagirl":
-				console.log("[Crawl API] 인사걸 크롤링 시작");
+				infoLog("[Crawl API] 인사걸 크롤링 시작");
 				crawlFunction = "insagirl";
 				result = await retryOperation(() => crawlInsagirl(), 2, 1000);
 				break;
 			case "battlepage":
-				console.log("[Crawl API] 배틀페이지 크롤링 시작");
+				infoLog("[Crawl API] 배틀페이지 크롤링 시작");
 				crawlFunction = "battlepage";
 				result = await retryOperation(() => crawlBattlepage(), 2, 2000);
 				break;
 			case "arcalive":
-				console.log("[Crawl API] 아칼라이브 크롤링 시작");
+				infoLog("[Crawl API] 아칼라이브 크롤링 시작");
 				crawlFunction = "arcalive";
 				result = await retryOperation(() => crawlArcalive(), 2, 1500);
 				break;
 			case "issuelink":
-				console.log("[Crawl API] 이슈링크 크롤링 시작");
+				infoLog("[Crawl API] 이슈링크 크롤링 시작");
 				crawlFunction = "issuelink";
 				result = await retryOperation(() => crawlIssuelink(), 2, 1000);
 				break;
@@ -83,14 +84,14 @@ export async function GET(request: NextRequest) {
 		const endTime = Date.now();
 		const duration = endTime - startTime;
 
-		console.log(`[Crawl API] ${crawlFunction} 크롤링 완료`);
-		console.log(`[Crawl API] 결과 아이템 개수: ${result?.length || 0}`);
-		console.log(`[Crawl API] 처리 시간: ${duration}ms`);
-		console.log(`[Crawl API] 종료 시간: ${new Date(endTime).toISOString()}`);
+		infoLog(`[Crawl API] ${crawlFunction} 크롤링 완료`);
+		infoLog(`[Crawl API] 결과 아이템 개수: ${result?.length || 0}`);
+		infoLog(`[Crawl API] 처리 시간: ${duration}ms`);
+		debugLog(`[Crawl API] 종료 시간: ${new Date(endTime).toISOString()}`);
 
 		// 결과 로그 (처음 3개 아이템만)
 		if (result && result.length > 0) {
-			console.log("[Crawl API] 첫 번째 아이템 예시:", {
+			debugLog("[Crawl API] 첫 번째 아이템 예시:", {
 				url: result[0]?.url,
 				title: result[0]?.title,
 				host: result[0]?.host,
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
 			});
 
 			if (result.length > 1) {
-				console.log("[Crawl API] 두 번째 아이템 예시:", {
+				debugLog("[Crawl API] 두 번째 아이템 예시:", {
 					url: result[1]?.url,
 					title: result[1]?.title,
 					host: result[1]?.host,
@@ -107,7 +108,7 @@ export async function GET(request: NextRequest) {
 			}
 
 			if (result.length > 2) {
-				console.log("[Crawl API] 세 번째 아이템 예시:", {
+				debugLog("[Crawl API] 세 번째 아이템 예시:", {
 					url: result[2]?.url,
 					title: result[2]?.title,
 					host: result[2]?.host,

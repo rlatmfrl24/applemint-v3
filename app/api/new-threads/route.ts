@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
 				if (params.filterType === "issuelink") {
 					query = query.eq("type", "issuelink");
 					if (params.issuelinkCategory) {
-						query = query.eq("tag->>1", params.issuelinkCategory);
+						query = query.contains("tag", [params.issuelinkCategory]);
 					}
 				} else {
 					query = query.eq("type", params.filterType);

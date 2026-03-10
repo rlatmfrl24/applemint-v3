@@ -1,8 +1,9 @@
 import * as cheerio from "cheerio";
 import { Agent, fetch } from "undici";
+import { debugLog } from "./logger";
 
 export async function crawlBattlepage() {
-	console.log("[Battlepage] 크롤링 시작");
+	debugLog("[Battlepage] 크롤링 시작");
 
 	const baseUrl = "https://v12.battlepage.com";
 	const pageSize = 5;
@@ -14,12 +15,12 @@ export async function crawlBattlepage() {
 		targetList.push(`${baseUrl}/??=Board.ETC.Table&page=${i + 1}`);
 	});
 
-	console.log(`[Battlepage] 크롤링 대상 URL 목록 (총 ${targetList.length}개):`, targetList);
+	debugLog(`[Battlepage] 크롤링 대상 URL 목록 (총 ${targetList.length}개):`, targetList);
 
 	try {
 		// 병렬 처리를 위한 크롤링 함수
 		const crawlSingleUrl = async (url: string, index: number) => {
-			console.log(`[Battlepage] URL ${index + 1}/${targetList.length} 크롤링 시작: ${url}`);
+			debugLog(`[Battlepage] URL ${index + 1}/${targetList.length} 크롤링 시작: ${url}`);
 
 			try {
 				const response = await fetch(url, {
@@ -33,17 +34,17 @@ export async function crawlBattlepage() {
 					}),
 				});
 
-				console.log(`[Battlepage] URL ${index + 1} 응답 상태: ${response.status}`);
+				debugLog(`[Battlepage] URL ${index + 1} 응답 상태: ${response.status}`);
 
 				if (!response.ok) {
 					throw new Error(`HTTP 에러: ${response.status} ${response.statusText}`);
 				}
 
 				const text = await response.text();
-				console.log(`[Battlepage] URL ${index + 1} HTML 길이: ${text.length} 문자`);
+				debugLog(`[Battlepage] URL ${index + 1} HTML 길이: ${text.length} 문자`);
 
 				const $ = cheerio.load(text);
-				console.log(`[Battlepage] URL ${index + 1} HTML 파싱 완료`);
+				debugLog(`[Battlepage] URL ${index + 1} HTML 파싱 완료`);
 
 				const itemList = $(".ListTable div").map((_i, el) => {
 					const href = $(el).find("a").attr("href");
@@ -59,12 +60,12 @@ export async function crawlBattlepage() {
 				});
 
 				const items = itemList.get();
-				console.log(`[Battlepage] URL ${index + 1} 아이템 ${items.length}개 추출 완료`);
+				debugLog(`[Battlepage] URL ${index + 1} 아이템 ${items.length}개 추출 완료`);
 
 				// 추출된 아이템들의 제목 로그 (디버깅용)
 				items.forEach((item, itemIndex) => {
 					if (item.title) {
-						console.log(`[Battlepage] URL ${index + 1} 아이템 ${itemIndex + 1}: ${item.title}`);
+						debugLog(`[Battlepage] URL ${index + 1} 아이템 ${itemIndex + 1}: ${item.title}`);
 					}
 				});
 
@@ -81,7 +82,7 @@ export async function crawlBattlepage() {
 		};
 
 		// 모든 URL을 병렬로 크롤링
-		console.log("[Battlepage] 병렬 크롤링 시작");
+		debugLog("[Battlepage] 병렬 크롤링 시작");
 		const crawlPromises = targetList.map((url, index) => crawlSingleUrl(url, index));
 
 		// Promise.allSettled를 사용하여 일부 실패해도 계속 진행
@@ -96,7 +97,7 @@ export async function crawlBattlepage() {
 		});
 
 		const flattenedList = detectedList.flat();
-		console.log(`[Battlepage] 전체 크롤링 완료: 총 ${flattenedList.length}개 아이템 수집`);
+		debugLog(`[Battlepage] 전체 크롤링 완료: 총 ${flattenedList.length}개 아이템 수집`);
 
 		return flattenedList;
 	} catch (error) {

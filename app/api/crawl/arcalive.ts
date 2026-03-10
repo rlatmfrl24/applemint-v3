@@ -1,7 +1,8 @@
 import * as cheerio from "cheerio";
+import { debugLog } from "./logger";
 
 export async function crawlArcalive() {
-	console.log("[Arcalive] 크롤링 시작");
+	debugLog("[Arcalive] 크롤링 시작");
 
 	const baseUrl = "https://arca.live";
 	const target = "https://arca.live/b/iloveanimal?mode=best";
@@ -12,7 +13,7 @@ export async function crawlArcalive() {
 		targetList.push(`${target}&p=${i + 1}`);
 	});
 
-	console.log("[Arcalive] 크롤링 대상 URL 목록:", targetList);
+	debugLog("[Arcalive] 크롤링 대상 URL 목록:", targetList);
 
 	try {
 		const detectedList = [];
@@ -20,25 +21,25 @@ export async function crawlArcalive() {
 		// 동시 요청 대신 순차 처리로 변경 (rate limiting 방지)
 		for (let index = 0; index < targetList.length; index++) {
 			const url = targetList[index];
-			console.log(`[Arcalive] 페이지 ${index + 1} 크롤링 시작: ${url}`);
+			debugLog(`[Arcalive] 페이지 ${index + 1} 크롤링 시작: ${url}`);
 
 			try {
 				const response = await fetch(url);
 
 				//request 헤더 출력
-				console.log(response.headers);
+				debugLog(response.headers);
 
-				console.log(`[Arcalive] 페이지 ${index + 1} 응답 상태: ${response.status}`);
+				debugLog(`[Arcalive] 페이지 ${index + 1} 응답 상태: ${response.status}`);
 
 				if (!response.ok) {
 					throw new Error(`HTTP 에러: ${response.status} ${response.statusText}`);
 				}
 
 				const text = await response.text();
-				console.log(`[Arcalive] 페이지 ${index + 1} HTML 길이: ${text.length} 문자`);
+				debugLog(`[Arcalive] 페이지 ${index + 1} HTML 길이: ${text.length} 문자`);
 
 				const $ = cheerio.load(text);
-				console.log(`[Arcalive] 페이지 ${index + 1} HTML 파싱 완료`);
+				debugLog(`[Arcalive] 페이지 ${index + 1} HTML 파싱 완료`);
 
 				const itemList = $(".list-table.table")
 					.children(".vrow.column")
@@ -70,11 +71,11 @@ export async function crawlArcalive() {
 					});
 
 				const items = itemList.get();
-				console.log(`[Arcalive] 페이지 ${index + 1} 아이템 ${items.length}개 추출 완료`);
+				debugLog(`[Arcalive] 페이지 ${index + 1} 아이템 ${items.length}개 추출 완료`);
 
 				// 추출된 아이템들의 제목 로그 (디버깅용)
 				items.forEach((item, itemIndex) => {
-					console.log(`[Arcalive] 페이지 ${index + 1} 아이템 ${itemIndex + 1}: ${item.title}`);
+					debugLog(`[Arcalive] 페이지 ${index + 1} 아이템 ${itemIndex + 1}: ${item.title}`);
 				});
 
 				detectedList.push(items);
@@ -90,7 +91,7 @@ export async function crawlArcalive() {
 		}
 
 		const flattenedList = detectedList.flat();
-		console.log(`[Arcalive] 전체 크롤링 완료: 총 ${flattenedList.length}개 아이템 수집`);
+		debugLog(`[Arcalive] 전체 크롤링 완료: 총 ${flattenedList.length}개 아이템 수집`);
 
 		return flattenedList;
 	} catch (error) {

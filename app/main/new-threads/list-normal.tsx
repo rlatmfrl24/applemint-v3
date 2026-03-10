@@ -1,5 +1,6 @@
+"use client";
+
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -60,23 +61,16 @@ const TypeStats = ({
 
 const ThreadList = ({ threads }: { threads: ThreadItemType[] }) => {
 	return (
-		<AnimatePresence>
+		<>
 			{threads.map((thread) => (
-				<motion.div
+				<DefaultThreadItem
 					key={thread.id}
-					initial={{ opacity: 0, y: 20 }}
-					animate={{ opacity: 1, y: 0 }}
-					exit={{ opacity: 0, y: -20 }}
-					transition={{ duration: 0.2 }}
-				>
-					<DefaultThreadItem
-						thread={thread}
-						threadName="new-threads"
-						extraButtons={<QuickSaveButton thread={thread} />}
-					/>
-				</motion.div>
+					thread={thread}
+					threadName="new-threads"
+					extraButtons={<QuickSaveButton thread={thread} />}
+				/>
 			))}
-		</AnimatePresence>
+		</>
 	);
 };
 
@@ -165,8 +159,6 @@ export const NormalThreads = () => {
 
 	const threads = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [data]);
 
-	const filteredThreads = useMemo(() => threads, [threads]);
-
 	const observerRef = useRef<IntersectionObserver | null>(null);
 	const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
@@ -244,10 +236,10 @@ export const NormalThreads = () => {
 					<ThreadLoading />
 					<ThreadLoading />
 				</div>
-			) : filteredThreads.length === 0 ? (
+			) : threads.length === 0 ? (
 				<NoDataBox />
 			) : (
-				<ThreadList threads={filteredThreads} />
+				<ThreadList threads={threads} />
 			)}
 			<div ref={loadMoreRef} className="h-6 w-full" />
 			{(isFetching || isFetchingNextPage) && <ThreadLoading count={2} />}
