@@ -1,22 +1,23 @@
 import * as linkify from "linkifyjs";
 import type { CrawlItemType } from "@/lib/typeDefs";
+import { debugLog } from "./logger";
 
 export async function crawlInsagirl() {
-	console.log("[Insagirl] 크롤링 시작");
+	debugLog("[Insagirl] 크롤링 시작");
 
 	const target = [
 		"http://insagirl-hrm.appspot.com/json2/1/1/2/",
 		"http://insagirl-hrm.appspot.com/json2/2/1/2/",
 	];
 
-	console.log("[Insagirl] 크롤링 대상 URL 목록:", target);
+	debugLog("[Insagirl] 크롤링 대상 URL 목록:", target);
 
 	const list: CrawlItemType[] = [];
 
 	try {
 		await Promise.all(
 			target.map(async (url, index) => {
-				console.log(`[Insagirl] URL ${index + 1}/${target.length} 크롤링 시작: ${url}`);
+				debugLog(`[Insagirl] URL ${index + 1}/${target.length} 크롤링 시작: ${url}`);
 
 				try {
 					const response = await fetch(url, {
@@ -27,16 +28,16 @@ export async function crawlInsagirl() {
 					});
 
 					//request 헤더 출력
-					console.log(response.headers);
+					debugLog(response.headers);
 
-					console.log(`[Insagirl] URL ${index + 1} 응답 상태: ${response.status}`);
+					debugLog(`[Insagirl] URL ${index + 1} 응답 상태: ${response.status}`);
 
 					if (!response.ok) {
 						throw new Error(`HTTP 에러: ${response.status} ${response.statusText}`);
 					}
 
 					const json = await response.json();
-					console.log(
+					debugLog(
 						`[Insagirl] URL ${index + 1} JSON 파싱 완료, 원본 아이템 개수: ${json.v?.length || 0}`
 					);
 
@@ -49,7 +50,7 @@ export async function crawlInsagirl() {
 						return item.split("|")[1] !== "syncwatch";
 					});
 
-					console.log(`[Insagirl] URL ${index + 1} 필터링 후 아이템 개수: ${filteredItems.length}`);
+					debugLog(`[Insagirl] URL ${index + 1} 필터링 후 아이템 개수: ${filteredItems.length}`);
 
 					filteredItems.map((item: string, itemIndex: number) => {
 						try {
@@ -63,7 +64,7 @@ export async function crawlInsagirl() {
 							}
 
 							const urls = linkify.find(rawString);
-							console.log(
+							debugLog(
 								`[Insagirl] URL ${index + 1} 아이템 ${itemIndex + 1}: ${urls.length}개 링크 발견`
 							);
 
@@ -87,7 +88,7 @@ export async function crawlInsagirl() {
 							list.push(...processed);
 
 							processed.forEach((processedItem, processedIndex) => {
-								console.log(
+								debugLog(
 									`[Insagirl] URL ${index + 1} 아이템 ${itemIndex + 1}-${
 										processedIndex + 1
 									}: ${processedItem.title || processedItem.url}`
@@ -111,7 +112,7 @@ export async function crawlInsagirl() {
 			})
 		);
 
-		console.log(`[Insagirl] 전체 수집된 아이템 개수 (중복 포함): ${list.length}`);
+		debugLog(`[Insagirl] 전체 수집된 아이템 개수 (중복 포함): ${list.length}`);
 
 		// remove duplicate items by url
 		const uniqueList = list.filter(
@@ -122,8 +123,8 @@ export async function crawlInsagirl() {
 				})
 		);
 
-		console.log(`[Insagirl] 중복 제거 후 최종 아이템 개수: ${uniqueList.length}`);
-		console.log("[Insagirl] 크롤링 완료");
+		debugLog(`[Insagirl] 중복 제거 후 최종 아이템 개수: ${uniqueList.length}`);
+		debugLog("[Insagirl] 크롤링 완료");
 
 		return uniqueList;
 	} catch (error) {

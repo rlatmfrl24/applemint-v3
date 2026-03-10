@@ -1,13 +1,7 @@
-// Follow this setup guide to integrate the Deno language server with your editor:
-// https://deno.land/manual/getting_started/setup_your_environment
-// This enables autocomplete, go to definition, etc.
-
-// Setup type definitions for built-in Supabase Runtime APIs
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const MediaExtensions = [
-	// image, movie
+const MEDIA_EXTENSIONS = [
 	"jpg",
 	"jpeg",
 	"png",
@@ -29,42 +23,48 @@ const MediaExtensions = [
 	"drc",
 	"mng",
 ];
+const CRAWL_API_BASE_URL = Deno.env.get("CRAWL_API_BASE_URL") ?? "https://applemint-v3.vercel.app";
+const LOG_LEVEL = (Deno.env.get("LOG_LEVEL") ?? "").toLowerCase();
+const DEBUG_CRAWL_ENABLED =
+	Deno.env.get("DEBUG_CRAWL") === "1" ||
+	Deno.env.get("DEBUG_CRAWL") === "true" ||
+	LOG_LEVEL === "debug";
 
-console.log("Called crawl-source");
 interface CrawlItemType {
 	url: string;
 	title: string;
 	description: string;
 	host: string;
-	type: string;
 	tag?: string[];
 }
 
+type FilterKeyword = {
+	value: string;
+	method: string;
+};
+
+const debugLog = (...args: unknown[]) => {
+	if (DEBUG_CRAWL_ENABLED) {
+		console.log(...args);
+	}
+};
+
 function getYoutubeId(url: string) {
-	// get youtube video id from short url
 	const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
 	const match = url.match(regExp);
 	return match && match[2].length === 11 ? match[2] : null;
 }
 
-function defineType(
-	value: string,
-	filterList: {
-		value: string;
-		method: string;
-	}[]
-) {
+function defineType(value: string, filterList: FilterKeyword[]) {
 	const targetMethod = filterList.find((filter) => {
 		return value.includes(filter.value);
 	})?.method;
 
-	// if the url is not a youtube video, then it should be normal
 	if (targetMethod === "youtube" && getYoutubeId(value) === null) {
 		return "normal";
 	}
 
-	// if the url is a media file, then it should be media
-	if (targetMethod === "media" && MediaExtensions.some((ext) => value.endsWith(ext))) {
+	if (targetMethod === "media" && MEDIA_EXTENSIONS.some((ext) => value.endsWith(ext))) {
 		return "media";
 	}
 
@@ -76,17 +76,14 @@ function defineType(
 }
 
 async function getMediaData(item: CrawlItemType) {
-	// case 1: direct image url
 	if (item.url.match(/\.(jpeg|jpg|gif|png)$/) != null) {
 		return [item.url];
 	}
 
-	// case 2: direct video url
 	if (item.url.match(/\.(mp4|webm)$/) != null) {
 		return [item.url];
 	}
 
-	// case 3: imgur album
 	if (item.url.match(/imgur.com\/a\//) != null) {
 		const albumId = item.url.split("/")[item.url.split("/").length - 1];
 		const imgurClientId = Deno.env.get("NEXT_PUBLIC_IMGUR_CLIENT_ID");
@@ -101,12 +98,10 @@ async function getMediaData(item: CrawlItemType) {
 		});
 
 		const data = await response.json();
-
-		console.log("🚀 ~ getMediaData ~ data", data);
+		debugLog("[crawl-source] album media data fetched", albumId);
 		return data.data.images.map((img: { link: string }) => img.link);
 	}
 
-	// case 4: imgur image
 	if (item.url.match(/imgur.com\/[^/]+$/) != null) {
 		const imageId = item.url.split("/")[item.url.split("/").length - 1];
 		const imgurClientId = Deno.env.get("NEXT_PUBLIC_IMGUR_CLIENT_ID");
@@ -122,17 +117,58 @@ async function getMediaData(item: CrawlItemType) {
 		});
 
 		const data = await response.json();
-
-		console.log("🚀 ~ getMediaData ~ data", data);
+		debugLog("[crawl-source] image media data fetched", imageId);
 		return [data.data.link];
 	}
 
-	// case 5: etc
 	return [];
 }
 
+function parseConcurrency(value: string | undefined, fallback: number) {
+	const parsed = Number.parseInt(value ?? "", 10);
+
+	if (Number.isNaN(parsed) || parsed <= 0) {
+		return fallback;
+	}
+
+	return Math.min(parsed, 20);
+}
+
+function dedupeByUrl(items: CrawlItemType[]) {
+	const deduped = new Map<string, CrawlItemType>();
+
+	for (const item of items) {
+		if (!deduped.has(item.url)) {
+			deduped.set(item.url, item);
+		}
+	}
+
+	return Array.from(deduped.values());
+}
+
+async function mapWithConcurrency<T, R>(
+	items: T[],
+	concurrency: number,
+	mapper: (item: T, index: number) => Promise<R>
+) {
+	const results = new Array<R>(items.length);
+	let cursor = 0;
+
+	const worker = async () => {
+		while (cursor < items.length) {
+			const index = cursor;
+			cursor += 1;
+			results[index] = await mapper(items[index], index);
+		}
+	};
+
+	const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
+	await Promise.all(workers);
+
+	return results;
+}
+
 Deno.serve(async (req) => {
-	// get target from query parameter
 	const url = new URL(req.url);
 	const target = url.searchParams.get("target");
 
@@ -141,9 +177,12 @@ Deno.serve(async (req) => {
 	}
 
 	try {
-		const response = await fetch(`https://applemint-v3.vercel.app/api/crawl?target=${target}`);
-		const json = await response.json();
-		const rawList = json as CrawlItemType[];
+		const response = await fetch(`${CRAWL_API_BASE_URL}/api/crawl?target=${target}`);
+		if (!response.ok) {
+			throw new Error(`crawl api request failed: ${response.status}`);
+		}
+
+		const rawList = (await response.json()) as CrawlItemType[];
 
 		const supabase = createClient(
 			Deno.env.get("SUPABASE_URL") ?? "",
@@ -157,65 +196,75 @@ Deno.serve(async (req) => {
 			}
 		);
 
-		const { data: filterList, error } = await supabase.from("filter-keyword").select("*");
+		const { data: filterListData, error: filterError } = await supabase
+			.from("filter-keyword")
+			.select("*");
+		if (filterError) {
+			throw filterError;
+		}
+
+		const filterList = (filterListData ?? []) as FilterKeyword[];
+		const ignoreList = filterList
+			.filter((keyword) => keyword.method === "ignore")
+			.map((keyword) => keyword.value);
 
 		const filtered = rawList.filter((item) => {
-			// if item's url contains any of the ignore list, then filter it out
-			return !filterList
-				?.filter((keyword: { method: string }) => keyword.method === "ignore")
-				.some((ignore: { value: string }) => {
-					return item.url.includes(ignore.value);
-				});
+			return !ignoreList.some((ignoreKeyword) => item.url.includes(ignoreKeyword));
 		});
+		const uniqueFiltered = dedupeByUrl(filtered);
 
-		if (error) {
-			throw error;
+		if (uniqueFiltered.length === 0) {
+			return new Response(JSON.stringify({ message: "No new rows", insertedCount: 0 }), {
+				headers: { "Content-Type": "application/json" },
+			});
 		}
 
-		// remove items that are already in the database
-		const { data: existingData, error: existingError } = await supabase
+		const { data: insertedHistoryRows, error: historyInsertError } = await supabase
 			.from("crawl-history")
-			.select("*")
-			.eq("crawl_source", target)
-			.order("created_at", { ascending: false });
+			.upsert(
+				uniqueFiltered.map((item) => ({
+					url: item.url,
+					crawl_source: target,
+					host: item.host,
+				})),
+				{
+					onConflict: "crawl_source,url",
+					ignoreDuplicates: true,
+				}
+			)
+			.select("url");
 
-		if (existingError) {
-			throw existingError;
+		if (historyInsertError) {
+			throw historyInsertError;
 		}
 
-		const existingUrls = existingData?.map((item: { url: string }) => item.url) ?? [];
-		const newRows = filtered.filter((item) => !existingUrls.includes(item.url));
-
-		// add crawl-history to the database
-		const { error: insertError } = await supabase.from("crawl-history").insert(
-			newRows.map((item) => ({
-				url: item.url,
-				crawl_source: target,
-				host: item.host,
-			}))
+		const insertedUrlSet = new Set(
+			(insertedHistoryRows ?? []).map((item: { url: string }) => item.url)
 		);
+		const newRows = uniqueFiltered.filter((item) => insertedUrlSet.has(item.url));
 
-		if (insertError) {
-			throw insertError;
+		if (newRows.length === 0) {
+			return new Response(JSON.stringify({ message: "No new rows", insertedCount: 0 }), {
+				headers: { "Content-Type": "application/json" },
+			});
 		}
 
-		// pre-process for media items for async actions is all finish
-		const InsertRows = await Promise.all(
-			newRows.map(async (item) => ({
-				url: item.url,
-				title: item.title,
-				description: item.description,
-				host: item.host,
-				type: defineType(item.url, filterList),
-				sub_url: await getMediaData(item),
-				tag: item.tag,
-			}))
-		);
+		const mediaFetchConcurrency = parseConcurrency(Deno.env.get("MEDIA_FETCH_CONCURRENCY"), 6);
 
-		console.log("🚀 ~ InsertRows", InsertRows);
+		const insertRows = await mapWithConcurrency(newRows, mediaFetchConcurrency, async (item) => ({
+			url: item.url,
+			title: item.title,
+			description: item.description,
+			host: item.host,
+			type: defineType(item.url, filterList),
+			sub_url: await getMediaData(item),
+			tag: item.tag,
+		}));
+
+		debugLog("[crawl-source] rows prepared", insertRows.length);
 
 		const { error: insertNewError } = await supabase.from("new-threads").insert(
-			InsertRows.map((item) => ({
+			insertRows.map((item) => ({
 				url: item.url,
 				title: item.title,
 				description: item.description,
@@ -233,12 +282,13 @@ Deno.serve(async (req) => {
 		return new Response(
 			JSON.stringify({
 				message: "Crawl successful",
-				insertedCount: InsertRows?.length,
+				insertedCount: insertRows.length,
 			}),
 			{ headers: { "Content-Type": "application/json" } }
 		);
 	} catch (err) {
-		console.error(err);
-		return new Response(String(err?.message ?? err), { status: 500 });
+		console.error("[crawl-source] error", err);
+		const message = err instanceof Error ? err.message : String(err);
+		return new Response(message, { status: 500 });
 	}
 });

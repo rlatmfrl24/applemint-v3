@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import AuthButton from "../login/auth-button";
 import { MainDrawer, NavMenu } from "../nav-menu";
+import { MainQueryProvider } from "./query-provider";
 
 export default async function MainLayout({ children }: { children: React.ReactNode }) {
 	const supabase = await createClient();
@@ -26,7 +27,9 @@ export default async function MainLayout({ children }: { children: React.ReactNo
 					<AuthButton />
 				</div>
 			</nav>
-			<div className="container flex w-full flex-1 flex-col items-stretch p-3">{children}</div>
+			<div className="container flex w-full flex-1 flex-col items-stretch p-3">
+				<MainQueryProvider>{children}</MainQueryProvider>
+			</div>
 		</>
 	);
 }

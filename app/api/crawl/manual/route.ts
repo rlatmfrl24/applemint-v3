@@ -1,18 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-	const crawlerAPIpath =
-		"https://ttrckjysfadmeqnmnxaj.supabase.co/functions/v1/crawl-source?target=";
+	const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+	const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 	const queries = request.nextUrl.searchParams;
-	const token = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 	const target = queries.get("target");
 
-	console.log(token);
-
-	if (!token) {
+	if (!supabaseUrl || !serviceRoleKey) {
 		return NextResponse.json(
-			{ error: "토큰이 없습니다." },
+			{ error: "크롤러 인증 정보가 설정되지 않았습니다." },
 			{
 				status: 500,
 			}
@@ -29,9 +26,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 	}
 
 	try {
-		const response = await fetch(crawlerAPIpath + target, {
+		const crawlerApiPath = `${supabaseUrl}/functions/v1/crawl-source?target=${target}`;
+
+		const response = await fetch(crawlerApiPath, {
 			headers: {
-				Authorization: `Bearer ${token}`,
+				Authorization: `Bearer ${serviceRoleKey}`,
 			},
 		});
 		const data = await response.json();

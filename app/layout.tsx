@@ -1,6 +1,4 @@
 import "./globals.css";
-import { StagewiseToolbar } from "@stagewise/toolbar-next";
-import { ReactPlugin } from "@stagewise-plugins/react";
 import { GeistSans } from "geist/font/sans";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sooner";
@@ -25,11 +23,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 					enableSystem
 					disableTransitionOnChange
 				>
-					<StagewiseToolbar
-						config={{
-							plugins: [ReactPlugin],
-						}}
-					/>
 					<main data-vaul-drawer-wrapper className="flex min-h-screen flex-col items-center">
 						{children}
 					</main>

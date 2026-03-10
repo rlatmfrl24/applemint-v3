@@ -1,12 +1,6 @@
 "use client";
 
-import {
-	QueryClient,
-	QueryClientProvider,
-	useMutation,
-	useQuery,
-	useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,13 +16,7 @@ import type { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
 
 export default function TrashPage() {
-	const queryClient = new QueryClient();
-
-	return (
-		<QueryClientProvider client={queryClient}>
-			<TrashThread />
-		</QueryClientProvider>
-	);
+	return <TrashThread />;
 }
 
 function TrashThread() {
@@ -154,17 +142,6 @@ function TrashThread() {
 					))}
 				</TableBody>
 			</Table>
-			{/* <AnimatePresence>
-				{data?.map((thread) => (
-					<DefaultThreadItem
-						key={thread.id}
-						thread={thread}
-						threadName="trash"
-						disablePrimaryAction
-						extraButtons={<RestoreButton thread={thread} />}
-					/>
-				))}
-			</AnimatePresence> */}
 		</div>
 	);
 }
