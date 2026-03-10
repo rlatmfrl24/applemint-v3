@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
 		const endTime = Date.now();
 		const duration = endTime - startTime;
 
-		console.error(`[Crawl API] ${target} 크롤링 중 에러 발생:`, error);
+		console.error("[Crawl API] %s 크롤링 중 에러 발생:", target, error);
 		console.error(`[Crawl API] 에러 처리 시간: ${duration}ms`);
 		console.error(
 			"[Crawl API] 에러 스택:",

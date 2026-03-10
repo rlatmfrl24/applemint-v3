@@ -288,7 +288,9 @@ Deno.serve(async (req) => {
 		);
 	} catch (err) {
 		console.error("[crawl-source] error", err);
-		const message = err instanceof Error ? err.message : String(err);
-		return new Response(message, { status: 500 });
+		return new Response(
+			JSON.stringify({ error: "Internal server error" }),
+			{ status: 500, headers: { "Content-Type": "application/json" } }
+		);
 	}
 });
