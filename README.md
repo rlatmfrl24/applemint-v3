@@ -75,6 +75,65 @@ reports/security/          # 보안 점검 결과 산출물
 lib/                       # 공통 타입/유틸
 ```
 
+## 데이터 테이블 관계도
+
+```mermaid
+erDiagram
+    FILTER_KEYWORD {
+      int id
+      text value
+      text method
+    }
+
+    CRAWL_HISTORY {
+      int id
+      text crawl_source
+      text url
+      text host
+      timestamptz created_at
+    }
+
+    NEW_THREADS {
+      int id
+      text type
+      text url
+      text title
+      text host
+      text tag
+      text sub_url
+      timestamptz created_at
+    }
+
+    QUICK_SAVE {
+      int id
+      text type
+      text url
+      text title
+      text host
+      timestamptz created_at
+    }
+
+    TRASH {
+      int id
+      text type
+      text url
+      text title
+      text host
+      timestamptz created_at
+    }
+
+    FILTER_KEYWORD ||--o{ NEW_THREADS : applies_rules
+    CRAWL_HISTORY ||--o{ NEW_THREADS : dedupe_gate
+    NEW_THREADS ||--o{ QUICK_SAVE : copied_to
+    NEW_THREADS ||--o{ TRASH : moved_to
+    TRASH ||--o{ NEW_THREADS : restored_to
+```
+
+- 현재 스키마는 명시적 FK 제약보다 애플리케이션 로직(`crawl-source`, `Quick Save`, `Trash`)으로 관계를 유지합니다.
+- `new-threads.tag`, `new-threads.sub_url`는 배열 성격 데이터(태그/미디어 URL 리스트)를 저장합니다.
+- `crawl-history`는 `(crawl_source, url)` 유니크 인덱스로 중복 유입을 방지합니다.
+- 통계 API는 `new-threads` 기반 RPC(`get_new_threads_stats`)를 사용합니다.
+
 ## 유지보수 가이드
 
 ### 1) 크롤러 소스 추가/변경
