@@ -34,7 +34,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 			},
 		});
 		const data = await response.json();
-		return NextResponse.json(data);
+		return NextResponse.json(data, {
+			status: response.status,
+		});
 	} catch (error) {
 		console.error("크롤러 API 호출 중 에러 발생:", error);
 		return NextResponse.json(
