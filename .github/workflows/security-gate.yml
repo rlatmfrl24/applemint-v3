@@ -45,13 +45,13 @@ jobs:
             const path = "reports/security/security-gate-result.json";
 
             if (!fs.existsSync(path)) {
-              core.setFailed(`Missing gate result file: ${path}`);
+              core.warning(`Missing gate result file: ${path}`);
               return;
             }
 
             const result = JSON.parse(fs.readFileSync(path, "utf8"));
             const disabled =
-              result.disabled_sources.length > 0
+              Array.isArray(result.disabled_sources) && result.disabled_sources.length > 0
                 ? result.disabled_sources.join(", ")
                 : "none";
             const highStatus =
@@ -71,7 +71,10 @@ jobs:
               `- High threshold: ${highStatus}`,
               `- Medium threshold: ${mediumStatus}`,
               `- Disabled sources: ${disabled}`,
-            ].join("\n");
+              result.collection_error
+                ? `- Collection error: ${result.collection_error}`
+                : null,
+            ].filter(Boolean).join("\n");
 
             const issue_number = context.payload.pull_request.number;
             const { owner, repo } = context.repo;
@@ -107,4 +110,4 @@ jobs:
 
       - name: Enforce gate
         run: |
-          node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync('reports/security/security-gate-result.json','utf8'));if((r.blocking_high_count??0)>0){console.error('Security gate failed: open high/critical alerts detected.');process.exit(1);}console.log('Security gate passed: no open high/critical alerts.');"
+          node -e "const fs=require('fs');const path='reports/security/security-gate-result.json';if(!fs.existsSync(path)){console.error('Security gate failed: missing result file.');process.exit(1);}const r=JSON.parse(fs.readFileSync(path,'utf8'));if(r.collection_error){console.error('Security gate failed: unable to collect alerts data.');console.error(r.collection_error);process.exit(1);}if((r.blocking_high_count??0)>0){console.error('Security gate failed: open high/critical alerts detected.');process.exit(1);}console.log('Security gate passed: no open high/critical alerts.');"

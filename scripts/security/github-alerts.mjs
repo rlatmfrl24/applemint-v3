@@ -183,7 +183,7 @@ async function fetchAlertPage({ token, url }) {
 	if (!response.ok) {
 		const body = await response.text();
 		throw new Error(
-			`GitHub API request failed (${response.status}) for ${endpoint}: ${body}`
+			`GitHub API request failed (${response.status}) for ${url}: ${body}`
 		);
 	}
 
