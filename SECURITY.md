@@ -17,8 +17,7 @@
 
 ## Alert Handling Rules
 
-- Open `high`/`critical` alerts block pull request merge through Security Gate.
-- Open `medium` alerts do not block merges but are posted as PR warnings.
+- Open alerts are reviewed in regular security triage and remediated by SLA.
 - Disabled scanners (for example, code scanning or secret scanning not enabled) are recorded as `disabled` and tracked separately from failing conditions.
 
 ## Verification
@@ -26,4 +25,4 @@
 - Security status is validated in CI by:
   - Dependabot updates (`.github/dependabot.yml`)
   - CodeQL workflow (`.github/workflows/codeql.yml`)
-  - Security Gate workflow (`.github/workflows/security-gate.yml`)
+- Optional local/ops check: `pnpm security:collect-alerts` and `pnpm security:gate`.
