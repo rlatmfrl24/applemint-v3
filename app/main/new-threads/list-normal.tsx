@@ -1,7 +1,7 @@
 "use client";
 
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -31,25 +31,35 @@ const TypeStats = ({
 	const totalCount = stats?.reduce((acc, type) => acc + type.count, 0) ?? 0;
 
 	return (
-		<Card className="mb-1 w-full">
-			<CardHeader>
+		<Card className="w-full border-zinc-200/80 shadow-none dark:border-zinc-800">
+			<CardHeader className="p-3">
 				<ToggleGroup
 					type="single"
+					variant="outline"
+					size="sm"
 					value={selectedType}
 					onValueChange={(value) => {
 						if (!value) return;
 						onTypeChange(value);
 					}}
 				>
-					<div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-						<ToggleGroupItem value="all" className="flex justify-between" disabled={!stats}>
-							<span className="font-medium text-sm md:text-xl">All</span>
-							<Badge>{stats ? totalCount : "-"}</Badge>
+					<div className="grid w-full grid-cols-2 gap-2 lg:flex lg:flex-wrap">
+						<ToggleGroupItem
+							value="all"
+							className="flex justify-between gap-2 px-2"
+							disabled={!stats}
+						>
+							<span className="font-medium text-xs sm:text-sm">All</span>
+							<Badge className="px-1.5 py-0">{stats ? totalCount : "-"}</Badge>
 						</ToggleGroupItem>
 						{stats?.map((type) => (
-							<ToggleGroupItem key={type.key} value={type.key} className="flex justify-between">
-								<span className="font-medium text-sm md:text-lg">{type.label}</span>
-								<Badge>{type.count}</Badge>
+							<ToggleGroupItem
+								key={type.key}
+								value={type.key}
+								className="flex justify-between gap-2 px-2"
+							>
+								<span className="font-medium text-xs sm:text-sm">{type.label}</span>
+								<Badge className="px-1.5 py-0">{type.count}</Badge>
 							</ToggleGroupItem>
 						))}
 					</div>
@@ -61,7 +71,7 @@ const TypeStats = ({
 
 const ThreadList = ({ threads }: { threads: ThreadItemType[] }) => {
 	return (
-		<>
+		<div className="flex flex-col gap-2">
 			{threads.map((thread) => (
 				<DefaultThreadItem
 					key={thread.id}
@@ -70,7 +80,7 @@ const ThreadList = ({ threads }: { threads: ThreadItemType[] }) => {
 					extraButtons={<QuickSaveButton thread={thread} />}
 				/>
 			))}
-		</>
+		</div>
 	);
 };
 
@@ -147,7 +157,7 @@ export const NormalThreads = () => {
 		staleTime: 1000 * 60 * 5,
 	});
 
-	const { data, error, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isFetching } =
+	const { data, error, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
 		useInfiniteQuery({
 			queryKey: ["new-threads", "normal", filterKey],
 			queryFn: ({ pageParam }) => fetchThreads({ pageParam }),
@@ -206,6 +216,10 @@ export const NormalThreads = () => {
 			return;
 		}
 
+		if (!selectedType) {
+			return;
+		}
+
 		window.scrollTo({ top: 0, behavior: "smooth" });
 	}, [selectedType]);
 
@@ -222,7 +236,7 @@ export const NormalThreads = () => {
 	}
 
 	return (
-		<div className="flex w-full flex-col gap-4">
+		<div className="flex w-full flex-col gap-3">
 			{statsQuery.data?.counts && statsQuery.data.counts.length > 0 && (
 				<TypeStats
 					stats={statsQuery.data.counts}
@@ -242,7 +256,12 @@ export const NormalThreads = () => {
 				<ThreadList threads={threads} />
 			)}
 			<div ref={loadMoreRef} className="h-6 w-full" />
-			{(isFetching || isFetchingNextPage) && <ThreadLoading count={2} />}
+			{isFetchingNextPage ? (
+				<div className="flex items-center justify-center gap-2 py-2 text-xs text-zinc-500 dark:text-zinc-400">
+					<Loader2 className="size-3.5 animate-spin" />
+					<span>Loading more</span>
+				</div>
+			) : null}
 		</div>
 	);
 };

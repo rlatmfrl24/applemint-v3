@@ -1,127 +1,136 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Copy, Loader2, Trash2 } from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
+import { ThreadCard } from "@/app/main/thread-card";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+	applyMoveThreadOptimisticUpdates,
+	getThreadInsertPayload,
+	invalidateThreadQueries,
+	normalizeThreadId,
+	type QuerySnapshot,
+	rollbackSnapshots,
+	type ThreadTableName,
+} from "@/lib/thread-query-cache";
 import type { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
 import { useMoveThreadToTrash } from "./use-move-to-trash";
 
 export const DefaultThreadItem = ({
-  thread,
-  threadName,
-  extraButtons,
-  disablePrimaryAction,
+	thread,
+	threadName,
+	extraButtons,
+	disablePrimaryAction,
 }: {
-  thread: ThreadItemType;
-  threadName: string;
-  extraButtons?: React.ReactNode;
-  disablePrimaryAction?: boolean;
+	thread: ThreadItemType;
+	threadName: Exclude<ThreadTableName, "trash">;
+	extraButtons?: React.ReactNode;
+	disablePrimaryAction?: boolean;
 }) => {
-  const queryClient = useQueryClient();
+	const queryClient = useQueryClient();
+	const supabase = createClient();
 
-  const removeThread = useMutation({
-    mutationFn: async (id: string) => {
-      const supabase = createClient();
-      const { error: DeleteError } = await supabase
-        .from(threadName)
-        .delete()
-        .eq("id", Number.parseInt(id));
-      if (DeleteError) {
-        console.error("🚀 ~ removeThread ~ error", DeleteError);
-        return;
-      }
+	const removeThread = useMutation<void, unknown, string, QuerySnapshot[]>({
+		mutationFn: async (id) => {
+			const parsedId = Number.parseInt(id, 10);
+			const deleteIdentifier = Number.isNaN(parsedId) ? id : parsedId;
+			const { error: deleteError } = await supabase
+				.from(threadName)
+				.delete()
+				.eq("id", deleteIdentifier);
 
-      const { error: TrashInsertError } = await supabase.from("trash").insert([
-        {
-          type: thread.type,
-          url: thread.url,
-          title: thread.title,
-          description: thread.description,
-          host: thread.host,
-        },
-      ]);
+			if (deleteError) {
+				throw deleteError;
+			}
 
-      if (TrashInsertError) {
-        console.error("🚀 ~ removeThread ~ error", TrashInsertError);
-        return;
-      }
-    },
-    onSettled: async () => {
-      return await queryClient.invalidateQueries({
-        queryKey: [threadName],
-      });
-    },
-  });
+			const { error: trashInsertError } = await supabase
+				.from("trash")
+				.insert([getThreadInsertPayload(thread)]);
 
-  const moveNewThreadToTrash = useMoveThreadToTrash(thread);
-  const isNewThreadsScope = threadName === "new-threads";
+			if (trashInsertError) {
+				throw trashInsertError;
+			}
+		},
+		onMutate: async () => {
+			await queryClient.cancelQueries({
+				queryKey: [threadName],
+			});
+			await queryClient.cancelQueries({
+				queryKey: ["trash"],
+			});
 
-  const isDeleting = isNewThreadsScope
-    ? moveNewThreadToTrash.isPending
-    : removeThread.isPending;
+			return applyMoveThreadOptimisticUpdates(queryClient, {
+				sourceTable: threadName,
+				destinationTable: "trash",
+				thread,
+			});
+		},
+		onSuccess: () => {
+			toast.success("휴지통으로 이동했습니다.");
+		},
+		onError: (error, _id, snapshots) => {
+			rollbackSnapshots(queryClient, snapshots ?? []);
+			console.error("스레드 휴지통 이동 실패", error);
+			toast.error("스레드 이동 중 오류가 발생했습니다.");
+		},
+		onSettled: async () => {
+			await invalidateThreadQueries(queryClient, [threadName, "trash"]);
+		},
+	});
 
-  const handleDelete = useCallback(() => {
-    const idAsString = String(thread.id);
+	const moveNewThreadToTrash = useMoveThreadToTrash(thread);
+	const isNewThreadsScope = threadName === "new-threads";
 
-    if (isNewThreadsScope) {
-      moveNewThreadToTrash.mutate(idAsString);
-      return;
-    }
+	const isDeleting = isNewThreadsScope ? moveNewThreadToTrash.isPending : removeThread.isPending;
 
-    removeThread.mutate(idAsString);
-  }, [isNewThreadsScope, moveNewThreadToTrash, removeThread, thread.id]);
+	const handleDelete = useCallback(() => {
+		const idAsString = normalizeThreadId(thread.id);
 
-  return (
-    <Card
-      className="w-full cursor-pointer transition-colors duration-200 hover:bg-zinc-200 dark:hover:bg-zinc-900"
-      onClick={() => {
-        window.open(thread.url, "_blank");
-      }}
-    >
-      <CardHeader className="max-w-full">
-        <CardTitle className="w-full max-w-full overflow-hidden text-ellipsis">
-          {thread.title || "Untitled"}
-        </CardTitle>
-        <CardDescription className="w-full max-w-full overflow-hidden text-ellipsis">
-          {thread.url}
-        </CardDescription>
-      </CardHeader>
-      <CardFooter className="flex items-center justify-between gap-2">
-        {disablePrimaryAction ? null : (
-          <div className="flex items-center gap-2">
-            <Button
-              disabled={isDeleting}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDelete();
-              }}
-            >
-              {!isDeleting ? "Delete" : <Loader2 className="animate-spin" />}
-            </Button>
-          </div>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          {extraButtons}
-          <Button
-            variant={"outline"}
-            onClick={(e) => {
-              e.stopPropagation();
-              navigator.clipboard.writeText(thread.url);
-              toast("Link copied to clipboard");
-            }}
-          >
-            Copy Link
-          </Button>
-        </div>
-      </CardFooter>
-    </Card>
-  );
+		if (isNewThreadsScope) {
+			moveNewThreadToTrash.mutate(idAsString);
+			return;
+		}
+
+		removeThread.mutate(idAsString);
+	}, [isNewThreadsScope, moveNewThreadToTrash, removeThread, thread.id]);
+
+	return (
+		<ThreadCard
+			thread={thread}
+			actions={
+				<>
+					{disablePrimaryAction ? null : (
+						<Button
+							variant="destructive"
+							size="sm"
+							disabled={isDeleting}
+							type="button"
+							onClick={handleDelete}
+						>
+							{isDeleting ? (
+								<Loader2 className="size-3.5 animate-spin" />
+							) : (
+								<Trash2 className="size-3.5" />
+							)}
+							<span className="ml-1">{isDeleting ? "Moving" : "Trash"}</span>
+						</Button>
+					)}
+					{extraButtons}
+					<Button
+						variant="outline"
+						size="sm"
+						type="button"
+						onClick={() => {
+							navigator.clipboard.writeText(thread.url);
+							toast.success("링크를 복사했습니다.");
+						}}
+					>
+						<Copy className="mr-1 size-3.5" />
+						Copy
+					</Button>
+				</>
+			}
+		/>
+	);
 };

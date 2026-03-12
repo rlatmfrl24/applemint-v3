@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import type { ThreadItemType } from "@/lib/typeDefs";
 import { createClient } from "@/utils/supabase/client";
 import { DefaultThreadItem } from "../new-threads/thread-item";
 import { ThreadLoading } from "../new-threads/thread-loading";
@@ -26,7 +27,7 @@ const QuickThread = () => {
 				throw new Error(error.message);
 			}
 
-			return data;
+			return data as ThreadItemType[];
 		},
 	});
 
