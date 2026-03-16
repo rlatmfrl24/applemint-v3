@@ -38,8 +38,14 @@ export function ThreadCard({
 						</div>
 						<button
 							type="button"
-							className="w-full truncate text-left font-semibold text-sm leading-5 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
+							className="-mx-1 w-full rounded-md px-1 py-1 text-left font-semibold text-[15px] leading-6 transition-colors hover:bg-zinc-100 hover:text-zinc-600 sm:text-base dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
 							onClick={handleOpen}
+							style={{
+								display: "-webkit-box",
+								WebkitBoxOrient: "vertical",
+								WebkitLineClamp: 2,
+								overflow: "hidden",
+							}}
 						>
 							{thread.title || "Untitled"}
 						</button>
