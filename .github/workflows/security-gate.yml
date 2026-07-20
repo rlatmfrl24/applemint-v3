@@ -47,7 +47,7 @@ jobs:
 
       - name: Evaluate repository security alerts
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.SECURITY_ALERTS_TOKEN }}
         run: >-
           pnpm security:gate --
           --baseline security/alert-baseline.json

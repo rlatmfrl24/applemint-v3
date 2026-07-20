@@ -31,6 +31,8 @@ false positive 처리 기록에는 detector, 파일과 줄, commit, 인증에 �
 
 ## 3. 기준선 갱신
 
+GitHub Actions의 live alert 수집에는 저장소 Actions secret `SECURITY_ALERTS_TOKEN`을 사용합니다. 이 값은 Applemint 저장소만 접근하는 fine-grained PAT로 만들고 Dependabot alerts, Code scanning alerts, Secret scanning alerts의 읽기 권한만 부여합니다. 만료 전에 새 토큰으로 교체하며 workflow나 로그에 값을 출력하지 않습니다.
+
 ```powershell
 pnpm security:collect-alerts
 pnpm security:baseline
