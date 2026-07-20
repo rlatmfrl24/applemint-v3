@@ -182,6 +182,9 @@ enabled = true
 policy = "oneshot"
 inspector_port = 8083
 
+[functions.crawl-source]
+verify_jwt = true
+
 [analytics]
 enabled = true
 port = 54327

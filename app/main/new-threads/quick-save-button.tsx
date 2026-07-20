@@ -2,11 +2,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { BookmarkPlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { moveThread } from "@/lib/thread-mutations";
 import {
 	applyMoveThreadOptimisticUpdates,
-	getThreadInsertPayload,
 	invalidateThreadQueries,
-	normalizeThreadId,
 	type QuerySnapshot,
 	rollbackSnapshots,
 } from "@/lib/thread-query-cache";
@@ -19,25 +18,7 @@ export const QuickSaveButton = ({ thread }: { thread: ThreadItemType }) => {
 
 	const quickSaveMutation = useMutation<void, unknown, void, QuerySnapshot[]>({
 		mutationFn: async () => {
-			const normalizedId = normalizeThreadId(thread.id);
-			const numericId = /^\d+$/.test(normalizedId) ? Number(normalizedId) : null;
-			const deleteIdentifier = numericId ?? normalizedId;
-
-			const { error: deleteError } = await supabase
-				.from("new-threads")
-				.delete()
-				.eq("id", deleteIdentifier);
-			if (deleteError) {
-				throw deleteError;
-			}
-
-			const { error: insertError } = await supabase
-				.from("quick-save")
-				.insert([getThreadInsertPayload(thread)]);
-
-			if (insertError) {
-				throw insertError;
-			}
+			await moveThread(supabase, thread.id, "new-threads", "quick-save");
 		},
 		onMutate: async () => {
 			await queryClient.cancelQueries({

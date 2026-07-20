@@ -71,7 +71,7 @@
 			"semicolons": "always",
 			"trailingCommas": "es5"
 		},
-		"globals": ["React", "JSX", "NodeJS"]
+		"globals": ["React", "JSX", "NodeJS", "Deno"]
 	},
 	"css": {
 		"formatter": {

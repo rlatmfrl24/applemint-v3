@@ -6,9 +6,9 @@ import { Copy, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { ThreadCard } from "@/app/main/thread-card";
 import { Button } from "@/components/ui/button";
+import { moveThread } from "@/lib/thread-mutations";
 import {
 	applyMoveThreadOptimisticUpdates,
-	getThreadInsertPayload,
 	invalidateThreadQueries,
 	type QuerySnapshot,
 	rollbackSnapshots,
@@ -28,19 +28,7 @@ function RestoreButton({ thread }: { thread: ThreadItemType }) {
 
 	const restoreMutation = useMutation<void, unknown, void, QuerySnapshot[]>({
 		mutationFn: async () => {
-			const { error: deleteError } = await supabase.from("trash").delete().eq("id", thread.id);
-
-			if (deleteError) {
-				throw deleteError;
-			}
-
-			const { error: insertError } = await supabase
-				.from("new-threads")
-				.insert([getThreadInsertPayload(thread)]);
-
-			if (insertError) {
-				throw insertError;
-			}
+			await moveThread(supabase, thread.id, "trash", "new-threads");
 		},
 		onMutate: async () => {
 			await queryClient.cancelQueries({

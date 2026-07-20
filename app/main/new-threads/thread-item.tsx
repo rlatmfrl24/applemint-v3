@@ -4,9 +4,9 @@ import { useCallback } from "react";
 import { toast } from "sonner";
 import { ThreadCard } from "@/app/main/thread-card";
 import { Button } from "@/components/ui/button";
+import { moveThread } from "@/lib/thread-mutations";
 import {
 	applyMoveThreadOptimisticUpdates,
-	getThreadInsertPayload,
 	invalidateThreadQueries,
 	normalizeThreadId,
 	type QuerySnapshot,
@@ -33,24 +33,7 @@ export const DefaultThreadItem = ({
 
 	const removeThread = useMutation<void, unknown, string, QuerySnapshot[]>({
 		mutationFn: async (id) => {
-			const parsedId = Number.parseInt(id, 10);
-			const deleteIdentifier = Number.isNaN(parsedId) ? id : parsedId;
-			const { error: deleteError } = await supabase
-				.from(threadName)
-				.delete()
-				.eq("id", deleteIdentifier);
-
-			if (deleteError) {
-				throw deleteError;
-			}
-
-			const { error: trashInsertError } = await supabase
-				.from("trash")
-				.insert([getThreadInsertPayload(thread)]);
-
-			if (trashInsertError) {
-				throw trashInsertError;
-			}
+			await moveThread(supabase, id, threadName, "trash");
 		},
 		onMutate: async () => {
 			await queryClient.cancelQueries({

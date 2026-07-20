@@ -1,11 +1,25 @@
 import * as cheerio from "cheerio";
 import type { CrawlItemType } from "@/lib/typeDefs";
+import {
+	type CrawlFailure,
+	type CrawlSourceResult,
+	getErrorMessage,
+	isTimeoutError,
+} from "./contracts";
+import { fetchWithTimeout } from "./fetch-with-timeout";
 import { debugLog } from "./logger";
 
 type HostConfig = {
 	host: string;
 	tag: string;
 };
+
+type Condition = "adj" | "read" | "click";
+
+interface IssuelinkPageResult {
+	items: CrawlItemType[];
+	failure?: CrawlFailure;
+}
 
 const HOST_CONFIGS: Record<string, HostConfig> = {
 	"82cook": { host: "https://www.82cook.com", tag: "82cook" },
@@ -25,141 +39,83 @@ const HOST_CONFIGS: Record<string, HostConfig> = {
 	ygosu: { host: "https://www.ygosu.com", tag: "ygosu" },
 };
 
-const DEFAULT_HOST_CONFIG: HostConfig = {
-	host: "",
-	tag: "",
-};
+const DEFAULT_HOST_CONFIG: HostConfig = { host: "", tag: "" };
 
 function getHost(url: string): HostConfig {
-	if (!url) return DEFAULT_HOST_CONFIG;
-
-	const keyword = url.split("/")[5];
-	return HOST_CONFIGS[keyword] || DEFAULT_HOST_CONFIG;
-}
-
-export async function crawlIssuelink(): Promise<CrawlItemType[]> {
-	debugLog("[Issuelink] 크롤링 시작");
-
-	const items = [];
-
-	try {
-		//add items by 12 hours and adj
-		debugLog("[Issuelink] 12시간 추천순 아이템 수집 시작");
-		const adjItems = await getItemsByCondition("12", "adj");
-		items.push(...adjItems);
-		debugLog(`[Issuelink] 12시간 추천순 아이템 ${adjItems.length}개 수집 완료`);
-
-		//add items by 12 hours and read
-		debugLog("[Issuelink] 12시간 조회순 아이템 수집 시작");
-		const readItems = await getItemsByCondition("12", "read");
-		items.push(...readItems);
-		debugLog(`[Issuelink] 12시간 조회순 아이템 ${readItems.length}개 수집 완료`);
-
-		//add items by 12 hours and click
-		debugLog("[Issuelink] 12시간 클릭순 아이템 수집 시작");
-		const clickItems = await getItemsByCondition("12", "click");
-		items.push(...clickItems);
-		debugLog(`[Issuelink] 12시간 클릭순 아이템 ${clickItems.length}개 수집 완료`);
-
-		debugLog(`[Issuelink] 전체 수집된 아이템 개수 (중복 포함): ${items.length}`);
-
-		// remove duplicate items
-		const uniqueItems = items.filter(
-			(item, index, self) => index === self.findIndex((t) => t.url === item.url)
-		);
-
-		debugLog(`[Issuelink] 중복 제거 후 최종 아이템 개수: ${uniqueItems.length}`);
-		debugLog("[Issuelink] 크롤링 완료");
-
-		return uniqueItems;
-	} catch (error) {
-		console.error("[Issuelink] 크롤링 중 치명적 에러 발생:", error);
-		console.error(
-			"[Issuelink] 에러 스택:",
-			error instanceof Error ? error.stack : "Stack not available"
-		);
-		throw error; // 상위로 에러 전파
+	if (!url) {
+		return DEFAULT_HOST_CONFIG;
 	}
+
+	return HOST_CONFIGS[url.split("/")[5] ?? ""] ?? DEFAULT_HOST_CONFIG;
 }
 
-async function getItemsByCondition(
-	timeFilter: "3" | "6" | "12" | "24" | "72" | "168" | "336" = "12",
-	condition: "adj" | "read" | "comment" | "time" | "click" = "adj"
-): Promise<CrawlItemType[]> {
-	const baseUrl = "https://issuelink.co.kr/community/listview/all/";
-	const suffix = "/_self/blank/blank/blank";
-	const url = `${baseUrl}${timeFilter}/${condition}${suffix}`;
-
-	debugLog(`[Issuelink] ${timeFilter}시간 ${condition}순 크롤링 시작: ${url}`);
+async function getItemsByCondition(condition: Condition): Promise<IssuelinkPageResult> {
+	const url = `https://issuelink.co.kr/community/listview/all/12/${condition}/_self/blank/blank/blank`;
 
 	try {
-		const response = await fetch(url, {
+		const response = await fetchWithTimeout(url, {
 			headers: {
 				accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 			},
 		});
 
-		//request 헤더 출력
-		debugLog(response.headers);
-
-		debugLog(`[Issuelink] ${timeFilter}시간 ${condition}순 응답 상태: ${response.status}`);
-
 		if (!response.ok) {
-			throw new Error(`HTTP error! status: ${response.status}`);
+			throw new Error(`HTTP ${response.status} ${response.statusText}`);
 		}
 
-		const text = await response.text();
-		debugLog(`[Issuelink] ${timeFilter}시간 ${condition}순 HTML 길이: ${text.length} 문자`);
-
-		const $ = cheerio.load(text);
-		debugLog(`[Issuelink] ${timeFilter}시간 ${condition}순 HTML 파싱 완료`);
-
-		const itemList = $(".table.table-stripped.toggle-arrow-tiny tbody")
+		const $ = cheerio.load(await response.text());
+		const items = $(".table.table-stripped.toggle-arrow-tiny tbody")
 			.first()
 			.children("tr")
-			.map((_i, el) => {
-				const item = $(el).find("td:nth-child(2) > div.first_title > span > a");
-				const title = item
-					.text()
-					.trim()
-					.replace(/\[[^[\]]*\]$/, "");
-				const url = item.attr("href");
-				const host = getHost(url ?? "");
+			.map((_index, element) => {
+				const anchor = $(element).find("td:nth-child(2) > div.first_title > span > a");
+				const itemUrl = anchor.attr("href") ?? "";
+				const host = getHost(itemUrl);
 
 				return {
-					url: url ?? "",
-					title,
+					url: itemUrl,
+					title: anchor
+						.text()
+						.trim()
+						.replace(/\[[^[\]]*\]$/, ""),
 					description: "",
 					host: host.host,
 					tag: ["issuelink", host.tag].filter(Boolean),
-				} as CrawlItemType;
+				} satisfies CrawlItemType;
 			})
-			.filter((_i, el) => el.url !== "")
-			.get();
+			.get()
+			.filter((item) => item.url !== "")
+			.slice(0, -1);
 
-		// 마지막 항목이 실제 항목이 아닌 경우 제거
-		const finalItems = itemList.slice(0, -1);
-		debugLog(
-			`[Issuelink] ${timeFilter}시간 ${condition}순 아이템 ${finalItems.length}개 추출 완료`
-		);
-
-		// 추출된 아이템들의 제목 로그 (디버깅용)
-		finalItems.forEach((item, itemIndex) => {
-			if (item.title) {
-				debugLog(
-					`[Issuelink] ${timeFilter}시간 ${condition}순 아이템 ${itemIndex + 1}: ${item.title}`
-				);
-			}
-		});
-
-		return finalItems;
+		debugLog(`[Issuelink] ${condition} 조건 아이템 ${items.length}개 추출 완료`);
+		return { items };
 	} catch (error) {
-		console.error(`[Issuelink] ${timeFilter}시간 ${condition}순 크롤링 중 에러 발생:`, error);
-		console.error(`[Issuelink] 에러 URL: ${url}`);
-		console.error(
-			"[Issuelink] 에러 스택:",
-			error instanceof Error ? error.stack : "Stack not available"
-		);
-		return [];
+		const message = getErrorMessage(error);
+		console.error(`[Issuelink] ${condition} 조건 크롤링 실패: ${message}`);
+		return { items: [], failure: { url, message, timeout: isTimeoutError(error) } };
 	}
+}
+
+export async function crawlIssuelink(): Promise<CrawlSourceResult> {
+	const conditions: Condition[] = ["adj", "read", "click"];
+	const results: IssuelinkPageResult[] = [];
+
+	for (const condition of conditions) {
+		results.push(await getItemsByCondition(condition));
+	}
+
+	const failures = results.flatMap((result) => (result.failure ? [result.failure] : []));
+	const dedupedItems = new Map<string, CrawlItemType>();
+	for (const item of results.flatMap((result) => result.items)) {
+		if (!dedupedItems.has(item.url)) {
+			dedupedItems.set(item.url, item);
+		}
+	}
+
+	return {
+		items: Array.from(dedupedItems.values()),
+		attempted: conditions.length,
+		succeeded: conditions.length - failures.length,
+		failures,
+	};
 }
