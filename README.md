@@ -141,9 +141,12 @@ erDiagram
 ## 유지보수 가이드
 
 ### 1) 크롤러 소스 추가/변경
-- `app/api/crawl/<source>.ts`에 소스별 수집 로직 구현
+- `app/api/crawl/<source>-parser.ts`에 네트워크와 분리된 순수 파서 구현
+- `app/api/crawl/<source>.ts`에서 요청 결과를 공통 파서 계약에 연결
 - `app/api/crawl/route.ts` 스위치에 타겟 등록
-- 반환 타입은 `{items, attempted, succeeded, failures}` 구조를 유지
+- 반환 타입은 `{items, attempted, succeeded, failures, warnings}` 구조를 유지
+- 정상 빈 목록은 `empty-list`, 최소 추출 건수 미달은 `below-minimum-items` warning으로 기록하며 구조 변경은 parser failure로 구분
+- 파서 변경 시 `app/api/crawl/fixtures`의 정제 fixture와 source별 parser 테스트를 함께 갱신
 - 소스 장애 대비 재시도/로그 전략 유지 (`retryOperation`, `logger.ts`)
 
 ### 2) 데이터 분류/필터 정책 관리

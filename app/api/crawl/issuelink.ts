@@ -2,6 +2,7 @@ import type { CrawlItemType } from "@/lib/type-defs";
 import {
 	type CrawlFailure,
 	type CrawlSourceResult,
+	type CrawlWarning,
 	getErrorMessage,
 	isTimeoutError,
 } from "./contracts";
@@ -13,6 +14,7 @@ type Condition = "adj" | "read" | "click";
 
 interface IssuelinkPageResult {
 	items: CrawlItemType[];
+	warnings: CrawlWarning[];
 	failure?: CrawlFailure;
 }
 
@@ -48,17 +50,27 @@ async function getItemsByCondition(condition: Condition): Promise<IssuelinkPageR
 				?.replace(/\s+/g, " ")
 				.trim()
 				.slice(0, 80);
-			throw new Error(
-				`IssueLink response contained no community items (bytes=${html.length}, title=${title || "none"})`
-			);
+			return {
+				items: [],
+				warnings: [],
+				failure: {
+					url,
+					kind: "parser",
+					message: `IssueLink response contained no community items (bytes=${html.length}, title=${title || "none"})`,
+				},
+			};
 		}
 
 		debugLog(`[Issuelink] ${condition} 조건 아이템 ${items.length}개 추출 완료`);
-		return { items };
+		return { items, warnings: [] };
 	} catch (error) {
 		const message = getErrorMessage(error);
 		console.error(`[Issuelink] ${condition} 조건 크롤링 실패: ${message}`);
-		return { items: [], failure: { url, message, timeout: isTimeoutError(error) } };
+		return {
+			items: [],
+			warnings: [],
+			failure: { url, message, kind: "network", timeout: isTimeoutError(error) },
+		};
 	}
 }
 
@@ -71,6 +83,7 @@ export async function crawlIssuelink(): Promise<CrawlSourceResult> {
 	}
 
 	const failures = results.flatMap((result) => (result.failure ? [result.failure] : []));
+	const warnings = results.flatMap((result) => result.warnings);
 	const dedupedItems = new Map<string, CrawlItemType>();
 	for (const item of results.flatMap((result) => result.items)) {
 		if (!dedupedItems.has(item.url)) {
@@ -83,5 +96,6 @@ export async function crawlIssuelink(): Promise<CrawlSourceResult> {
 		attempted: conditions.length,
 		succeeded: conditions.length - failures.length,
 		failures,
+		warnings,
 	};
 }

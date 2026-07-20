@@ -7,7 +7,15 @@ export type CrawlTarget = (typeof CRAWL_TARGETS)[number];
 export interface CrawlFailure {
 	url: string;
 	message: string;
+	kind: "network" | "parser";
 	timeout?: boolean;
+}
+
+export interface CrawlWarning {
+	url: string;
+	code: "empty-list" | "below-minimum-items" | "discarded-items";
+	message: string;
+	count: number;
 }
 
 export interface CrawlSourceResult {
@@ -15,6 +23,7 @@ export interface CrawlSourceResult {
 	attempted: number;
 	succeeded: number;
 	failures: CrawlFailure[];
+	warnings: CrawlWarning[];
 }
 
 export function isCrawlTarget(value: unknown): value is CrawlTarget {

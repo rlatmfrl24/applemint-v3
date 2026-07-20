@@ -29,8 +29,8 @@
 		"@radix-ui/react-navigation-menu": "^1.2.14",
 		"@radix-ui/react-slot": "^1.2.4",
 		"@radix-ui/react-toggle-group": "^1.1.10",
-		"@supabase/ssr": "0.9.0",
-		"@supabase/supabase-js": "^2.99.1",
+		"@supabase/ssr": "0.12.3",
+		"@supabase/supabase-js": "^2.110.7",
 		"@tanstack/react-query": "^5.90.21",
 		"autoprefixer": "10.4.27",
 		"cheerio": "^1.2.0",
@@ -40,9 +40,9 @@
 		"geist": "^1.7.0",
 		"linkifyjs": "^4.3.2",
 		"lucide-react": "^0.577.0",
-		"next": "16.1.6",
+		"next": "16.2.10",
 		"next-themes": "^0.4.6",
-		"postcss": "8.5.8",
+		"postcss": "8.5.20",
 		"react": "19.2.4",
 		"react-dom": "19.2.4",
 		"sonner": "^2.0.5",
@@ -60,21 +60,5 @@
 		"@types/react-dom": "19.2.3",
 		"cross-env": "^10.1.0",
 		"vitest": "^4.1.10"
-	},
-	"resolutions": {
-		"@radix-ui/react-dismissable-layer": "1.1.0",
-		"@radix-ui/react-focus-scope": "1.1.0"
-	},
-	"pnpm": {
-		"overrides": {
-			"ajv@^6": "6.14.0",
-			"flatted": "3.4.0",
-			"glob@^10": "10.5.0",
-			"js-yaml@^4": "4.1.1",
-			"minimatch@^3": "3.1.4",
-			"minimatch@^9": "9.0.7",
-			"undici@^6": "6.24.0",
-			"undici@^7": "7.24.3"
-		}
 	}
 }

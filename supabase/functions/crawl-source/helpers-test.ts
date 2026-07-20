@@ -3,6 +3,7 @@
 import {
 	chunkUrlsForHistoryQuery,
 	constantTimeEquals,
+	countCrawlWarnings,
 	dedupeByUrl,
 	defineType,
 	hasMinimumInternalSecretLength,
@@ -58,6 +59,10 @@ Deno.test("URL deduplication keeps the first item", () => {
 
 	assert(result.length === 2, "duplicate URL should be removed");
 	assert(result[0].title === "first", "first item should win");
+});
+
+Deno.test("crawl warning count includes partial failures and parser warnings", () => {
+	assert(countCrawlWarnings([{}], [{}, {}]) === 3, "all warning conditions should be counted");
 });
 
 Deno.test("history query chunks limit both item count and encoded URL length", () => {

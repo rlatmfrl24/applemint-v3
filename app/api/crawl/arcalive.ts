@@ -1,22 +1,24 @@
-import * as cheerio from "cheerio";
 import type { CrawlItemType } from "@/lib/type-defs";
+import { parseArcaliveHtml } from "./arcalive-parser";
 import {
 	type CrawlFailure,
 	type CrawlSourceResult,
+	type CrawlWarning,
 	getErrorMessage,
 	isTimeoutError,
 } from "./contracts";
 import { fetchWithTimeout } from "./fetch-with-timeout";
 import { debugLog } from "./logger";
+import { adaptParserOutcome } from "./parser-adapter";
 
 export async function crawlArcalive(): Promise<CrawlSourceResult> {
 	debugLog("[Arcalive] 크롤링 시작");
 
-	const baseUrl = "https://arca.live";
 	const target = "https://arca.live/b/iloveanimal?mode=best";
 	const targetList = Array.from({ length: 3 }, (_, index) => `${target}&p=${index + 1}`);
 	const detectedList: CrawlItemType[][] = [];
 	const failures: CrawlFailure[] = [];
+	const warnings: CrawlWarning[] = [];
 	let succeeded = 0;
 
 	for (let index = 0; index < targetList.length; index += 1) {
@@ -29,38 +31,22 @@ export async function crawlArcalive(): Promise<CrawlSourceResult> {
 				throw new Error(`HTTP ${response.status} ${response.statusText}`);
 			}
 
-			const text = await response.text();
-			const $ = cheerio.load(text);
-			const items = $(".list-table.table")
-				.children(".vrow.column")
-				.filter((_itemIndex, element) => {
-					return (
-						$(element).attr("href") !== undefined && $(element).find(".title").text().trim() !== ""
-					);
-				})
-				.map((_itemIndex, element) => {
-					const badge = $(element)
-						.find(".vrow-inner .vrow-top .vcol.col-title .badges")
-						.text()
-						.trim();
-					const href = $(element).attr("href") ?? "";
+			const outcome = parseArcaliveHtml(await response.text());
+			const parsed = adaptParserOutcome(url, outcome);
+			warnings.push(...parsed.warnings);
+			debugLog(
+				`[Arcalive] 페이지 ${index + 1} parser=${outcome.status} candidates=${outcome.candidateCount} valid=${outcome.items.length} discarded=${outcome.discardedCount}`
+			);
+			if (parsed.failure) {
+				failures.push(parsed.failure);
+				continue;
+			}
 
-					return {
-						url: `${baseUrl}${href.replace(/\?mode=best&p=\d+/, "")}`,
-						title: $(element).find(".title").text().trim(),
-						description: "",
-						host: baseUrl,
-						tag: badge ? ["arcalive", badge] : ["arcalive"],
-					} satisfies CrawlItemType;
-				})
-				.get();
-
-			detectedList.push(items);
+			detectedList.push(parsed.items);
 			succeeded += 1;
-			debugLog(`[Arcalive] 페이지 ${index + 1} 아이템 ${items.length}개 추출 완료`);
 		} catch (error) {
 			const message = getErrorMessage(error);
-			failures.push({ url, message, timeout: isTimeoutError(error) });
+			failures.push({ url, message, kind: "network", timeout: isTimeoutError(error) });
 			console.error(`[Arcalive] 페이지 ${index + 1} 크롤링 실패: ${message}`);
 		}
 	}
@@ -73,5 +59,6 @@ export async function crawlArcalive(): Promise<CrawlSourceResult> {
 		attempted: targetList.length,
 		succeeded,
 		failures,
+		warnings,
 	};
 }
