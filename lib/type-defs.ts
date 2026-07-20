@@ -14,11 +14,6 @@ export interface ThreadItemType {
 	description: string | null;
 	host: string | null;
 	tag?: string[] | null;
-	sub_url?: string[] | null;
 	created_at?: string | null;
 	captured_at?: string | null;
-}
-
-export interface MediaItemType extends ThreadItemType {
-	sub_url: string[] | null;
 }

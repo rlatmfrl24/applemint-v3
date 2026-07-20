@@ -291,7 +291,7 @@ export function dedupeByAlertNumber(alerts) {
 	};
 }
 
-export function dedupeByAdvisory(alerts) {
+function dedupeByAdvisory(alerts) {
 	const seen = new Set();
 	const advisories = [];
 

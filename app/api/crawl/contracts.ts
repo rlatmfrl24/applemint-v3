@@ -1,6 +1,6 @@
-import type { CrawlItemType } from "@/lib/typeDefs";
+import type { CrawlItemType } from "@/lib/type-defs";
 
-export const CRAWL_TARGETS = ["arcalive", "battlepage", "insagirl", "issuelink"] as const;
+const CRAWL_TARGETS = ["arcalive", "battlepage", "insagirl", "issuelink"] as const;
 
 export type CrawlTarget = (typeof CRAWL_TARGETS)[number];
 

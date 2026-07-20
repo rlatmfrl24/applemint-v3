@@ -3,7 +3,6 @@ import { checkApplemintOwner } from "@/utils/supabase/owner-access";
 import { createClient } from "@/utils/supabase/server";
 
 interface ListQueryParams {
-	scope: "normal" | "media" | "youtube";
 	limit: number;
 	cursor: string | null;
 	filterType: string | null;
@@ -12,9 +11,6 @@ interface ListQueryParams {
 
 function parseQuery(request: NextRequest): ListQueryParams {
 	const { searchParams } = new URL(request.url);
-	const rawScope = searchParams.get("scope") ?? "normal";
-	const scope = rawScope === "media" || rawScope === "youtube" ? rawScope : "normal";
-
 	const limitParam = Number.parseInt(searchParams.get("limit") ?? "20", 10);
 	const limit = Number.isNaN(limitParam) || limitParam <= 0 ? 20 : Math.min(limitParam, 100);
 
@@ -22,7 +18,7 @@ function parseQuery(request: NextRequest): ListQueryParams {
 	const filterType = searchParams.get("filterType");
 	const issuelinkCategory = searchParams.get("issuelinkCategory");
 
-	return { scope, limit, cursor, filterType, issuelinkCategory };
+	return { limit, cursor, filterType, issuelinkCategory };
 }
 
 export async function GET(request: NextRequest) {
@@ -36,34 +32,20 @@ export async function GET(request: NextRequest) {
 
 		let query = supabase
 			.from("new-threads")
-			.select("id, type, url, title, description, host, tag, sub_url, created_at")
+			.select("id, type, url, title, description, host, tag, created_at")
 			.order("created_at", { ascending: false })
 			.order("id", { ascending: false });
 
-		if (params.scope === "media") {
-			query = query.eq("type", "media");
-		} else if (params.scope === "youtube") {
-			query = query.eq("type", "youtube");
-		} else {
-			query = query.neq("type", "media").neq("type", "youtube");
-
-			if (params.filterType) {
-				if (params.filterType === "issuelink") {
-					query = query.eq("type", "issuelink");
-					if (params.issuelinkCategory) {
-						query = query.contains("tag", [params.issuelinkCategory]);
-					}
-				} else {
-					query = query.eq("type", params.filterType);
-				}
-			}
+		if (params.filterType) {
+			query = query.eq("type", params.filterType);
+		}
+		if (params.filterType === "issuelink" && params.issuelinkCategory) {
+			query = query.contains("tag", [params.issuelinkCategory]);
 		}
 
-		if (params.cursor) {
-			const cursorValue = Number.parseInt(params.cursor, 10);
-			if (!Number.isNaN(cursorValue)) {
-				query = query.lt("id", cursorValue);
-			}
+		const cursorValue = Number.parseInt(params.cursor ?? "", 10);
+		if (!Number.isNaN(cursorValue)) {
+			query = query.lt("id", cursorValue);
 		}
 
 		const { data, error } = await query.limit(params.limit + 1);
@@ -75,7 +57,6 @@ export async function GET(request: NextRequest) {
 		const rows = (data ?? []) as { id: string }[];
 		if (rows.length === 0) {
 			return NextResponse.json({
-				scope: params.scope,
 				items: [],
 				nextCursor: null,
 			});
@@ -86,7 +67,6 @@ export async function GET(request: NextRequest) {
 		const nextCursor = hasMore && lastItem ? String(lastItem.id) : null;
 
 		return NextResponse.json({
-			scope: params.scope,
 			items,
 			nextCursor,
 		});

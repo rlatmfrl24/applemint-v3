@@ -1,4 +1,4 @@
-export const SOURCE_FETCH_TIMEOUT_MS = 15_000;
+const SOURCE_FETCH_TIMEOUT_MS = 15_000;
 
 export function fetchWithTimeout(
 	input: string | URL | Request,

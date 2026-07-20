@@ -1,6 +1,6 @@
 # Applemint P0 배포 절차
 
-이 변경은 기존 테이블을 삭제하지 않습니다. DB migration과 환경 변수를 먼저 준비한 뒤 Next와 Edge를 연속 배포하며, 전환 중에는 수동 크롤링을 실행하지 않습니다.
+단일 소유자 권한 migration은 기존 데이터를 유지하지만, 후속 `20260720144000_remove_media_youtube.sql`은 사용하지 않는 Media·YouTube 행과 `sub_url` 컬럼을 삭제합니다. 배포 중에는 수동 크롤링을 실행하지 않습니다.
 
 ## 1. 사전 검증
 
@@ -19,7 +19,7 @@ Next 런타임에는 다음 값을 설정합니다.
 - `SUPABASE_SERVICE_ROLE_KEY`: 서버 전용 키
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-Edge Function에는 같은 `CRAWL_INTERNAL_SECRET`과 `CRAWL_API_BASE_URL`, `NEXT_PUBLIC_IMGUR_CLIENT_ID`를 설정합니다. secret 값은 명령 기록이나 문서에 남기지 않습니다.
+Edge Function에는 같은 `CRAWL_INTERNAL_SECRET`과 `CRAWL_API_BASE_URL`을 설정합니다. secret 값은 명령 기록이나 문서에 남기지 않습니다.
 
 ## 2. 원격 baseline과 migration history 정렬
 
@@ -44,11 +44,13 @@ supabase migration repair --status applied 20260310090000
 Supabase Dashboard의 **Authentication > Providers**에서 신규 가입을 비활성화하고, **Authentication > Users**에 개인 계정 한 명만 존재하는지 확인합니다. 해당 사용자의 UUID가 `20260720130000_single_owner_rls.sql`에 고정된 UUID와 일치하지 않으면 배포를 중단하고, 기존 migration을 수정하지 말고 소유자 교체용 migration을 새로 작성합니다.
 
 ```powershell
-supabase db push
 supabase functions deploy crawl-source
+supabase db push
 ```
 
-`supabase/config.toml`의 `verify_jwt = true`와 Auth signup 비활성화 설정을 유지합니다. 이어서 같은 `CRAWL_INTERNAL_SECRET`이 설정된 Next 배포를 완료합니다. 새 애플리케이션 배포가 정상임을 확인한 뒤 Vercel의 기존 `CRAWL_ALLOWED_USER_IDS` 환경 변수는 삭제합니다.
+Edge를 먼저 배포해 신규 Media·YouTube 적재를 중단한 다음 DB migration과 Next를 연속 적용합니다. 통계 RPC 시그니처가 변경되므로 DB와 Next 사이의 간격을 최소화합니다. `supabase/config.toml`의 `verify_jwt = true`와 Auth signup 비활성화 설정을 유지합니다.
+
+새 배포가 정상임을 확인한 뒤 Edge Function의 기존 `NEXT_PUBLIC_IMGUR_CLIENT_ID`, `MEDIA_FETCH_CONCURRENCY` secret과 Vercel의 `CRAWL_ALLOWED_USER_IDS`, 미사용 `DATABASE_PASSWORD` 환경 변수를 삭제합니다.
 
 ## 4. 배포 후 확인
 
@@ -59,5 +61,6 @@ supabase functions deploy crawl-source
 5. 네 소스를 한 번씩 실행해 `insertedCount`, `skippedCount`, `warningCount`, `durationMs`를 확인합니다.
 6. 두 번째 실행에서 중복 URL이 `skippedCount`로 집계되고 `crawl_run_locks`에 global lock이 남지 않는지 확인합니다.
 7. 개인 계정으로 Main, Quick Save, Trash를 조회하고 Main→Quick Save→Trash→Restore 및 모두 휴지통으로 이동을 확인합니다.
+8. `media`, `youtube` 타입 행과 분류 키워드가 0건이고 세 스레드 테이블에 `sub_url` 컬럼이 없는지 확인합니다.
 
-문제가 발생하면 Next와 Edge를 함께 이전 버전으로 되돌립니다. 추가된 컬럼·함수·잠금 테이블은 이전 코드와 충돌하지 않으므로 즉시 제거하지 않습니다.
+문제가 발생하면 Next와 Edge를 함께 이전 버전으로 되돌립니다. 삭제된 행과 `sub_url` 값은 migration만으로 복구할 수 없으므로 배포 전 백업이 필요합니다.

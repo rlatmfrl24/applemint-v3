@@ -13,7 +13,7 @@ import {
 	type QuerySnapshot,
 	rollbackSnapshots,
 } from "@/lib/thread-query-cache";
-import type { ThreadItemType } from "@/lib/typeDefs";
+import type { ThreadItemType } from "@/lib/type-defs";
 import { createClient } from "@/utils/supabase/client";
 import { ThreadLoading } from "../new-threads/thread-loading";
 import NoDataBox from "../no-data";

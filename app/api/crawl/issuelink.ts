@@ -1,4 +1,4 @@
-import type { CrawlItemType } from "@/lib/typeDefs";
+import type { CrawlItemType } from "@/lib/type-defs";
 import {
 	type CrawlFailure,
 	type CrawlSourceResult,

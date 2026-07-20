@@ -1,5 +1,5 @@
-import { NormalThreads } from "./new-threads/list-normal";
+import { ThreadList } from "./new-threads/thread-list";
 
 export default function MainPage() {
-	return <NormalThreads />;
+	return <ThreadList />;
 }
