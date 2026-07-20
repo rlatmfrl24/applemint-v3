@@ -3,6 +3,8 @@ import { type NextRequest, NextResponse } from "next/server";
 
 const FORWARDED_HEADER_ALLOWLIST = [
 	"accept-language",
+	"content-length",
+	"content-type",
 	"cookie",
 	"host",
 	"user-agent",
@@ -13,7 +15,7 @@ const FORWARDED_HEADER_ALLOWLIST = [
 	"x-real-ip",
 ] as const;
 
-const getAllowedRequestHeaders = (request: NextRequest) => {
+export const getAllowedRequestHeaders = (request: NextRequest) => {
 	const headers = new Headers();
 
 	for (const headerName of FORWARDED_HEADER_ALLOWLIST) {
