@@ -4,6 +4,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import {
 	type CrawlTarget,
+	chunkUrlsForHistoryQuery,
 	constantTimeEquals,
 	dedupeByUrl,
 	defineType,
@@ -18,7 +19,6 @@ const CRAWL_LOCK_KEY = "global-crawl";
 const CRAWL_LOCK_TTL_SECONDS = 300;
 const CRAWL_API_TIMEOUT_MS = 90_000;
 const MEDIA_FETCH_TIMEOUT_MS = 10_000;
-const HISTORY_CHUNK_SIZE = 200;
 const CRAWL_API_BASE_URL = (
 	Deno.env.get("CRAWL_API_BASE_URL") ?? "https://applemint-v3.vercel.app"
 ).replace(/\/$/, "");
@@ -180,8 +180,7 @@ async function getMediaData(item: CrawlItem, type: string) {
 async function getExistingUrls(supabase: SupabaseClient, target: CrawlTarget, urls: string[]) {
 	const existingUrls = new Set<string>();
 
-	for (let index = 0; index < urls.length; index += HISTORY_CHUNK_SIZE) {
-		const chunk = urls.slice(index, index + HISTORY_CHUNK_SIZE);
+	for (const chunk of chunkUrlsForHistoryQuery(urls)) {
 		const { data, error } = await supabase
 			.from("crawl-history")
 			.select("url")

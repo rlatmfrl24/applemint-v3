@@ -1,6 +1,7 @@
 /// <reference lib="deno.ns" />
 
 import {
+	chunkUrlsForHistoryQuery,
 	constantTimeEquals,
 	dedupeByUrl,
 	defineType,
@@ -64,4 +65,28 @@ Deno.test("URL deduplication keeps the first item", () => {
 
 	assert(result.length === 2, "duplicate URL should be removed");
 	assert(result[0].title === "first", "first item should win");
+});
+
+Deno.test("history query chunks limit both item count and encoded URL length", () => {
+	const urls = Array.from(
+		{ length: 306 },
+		(_, index) =>
+			`https://v12.battlepage.com/??=Board.Humor.View&no=${index}&title=${"가".repeat(20)}`
+	);
+	const chunks = chunkUrlsForHistoryQuery(urls);
+
+	assert(chunks.length > 1, "long Battlepage URLs should be split into multiple chunks");
+	assert(chunks.flat().join("\n") === urls.join("\n"), "chunking should preserve URL order");
+	assert(
+		chunks.every((chunk) => chunk.length <= 200),
+		"a chunk should contain at most 200 URLs"
+	);
+	assert(
+		chunks.every(
+			(chunk) =>
+				chunk.length === 1 ||
+				chunk.reduce((total, url) => total + encodeURIComponent(url).length + 3, 0) <= 6000
+		),
+		"a multi-URL chunk should stay within the encoded query budget"
+	);
 });
