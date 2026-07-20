@@ -22,7 +22,6 @@ jobs:
     env:
       NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
-      SUPABASE_URL: http://127.0.0.1:54321
       SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
       CRAWL_INTERNAL_SECRET: ci-placeholder-internal-secret-not-production
 
