@@ -27,8 +27,8 @@
 - 소스별 크롤러 모듈 분리 (`arcalive`, `battlepage`, `insagirl`, `issuelink`)
 
 ### 품질 / 보안 유지보수
-- `Biome` 포맷/린트 규칙
-- `Biome` 포맷·정적 검사
+- `Biome 2.4.7` 포맷·린트·정적 검사
+- GitHub PR CI (`Vitest`, `pgTAP`, `Deno`, `TypeScript`, production build)
 - GitHub `CodeQL` 워크플로우
 - `Dependabot` 주간 보안 업데이트
 - 커스텀 보안 스크립트 (`scripts/security/*`)
@@ -165,6 +165,9 @@ erDiagram
 ### 5) 코드 컨벤션
 - TS strict + 경로 별칭 `@/*`
 - 포맷/린트 규칙은 `biome.json` 기준
+- 운영·배포 기준 브랜치는 `master`, 통합 개발 브랜치는 `develop`
+- 로컬 전체 검증은 `supabase db start` 후 `pnpm run ci`
+- `pnpm ci`는 pnpm의 clean-install 명령이므로 프로젝트 검증에는 사용하지 않음
 - 신규 데이터 모델 필드 추가 시:
   - `lib/type-defs.ts`
   - Supabase 관련 쿼리 코드

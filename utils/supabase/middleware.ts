@@ -42,46 +42,48 @@ export const updateSession = async (request: NextRequest) => {
 		// Forward only request headers needed by downstream logic.
 		// `cookie` must be preserved for Supabase SSR auth in route handlers/server components.
 		let response = createForwardedResponse(request);
+		const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+		const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-		const supabase = createServerClient(
-			process.env.NEXT_PUBLIC_SUPABASE_URL!,
-			process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-			{
-				cookies: {
-					get(name: string) {
-						return request.cookies.get(name)?.value;
-					},
-					set(name: string, value: string, options: CookieOptions) {
-						// If the cookie is updated, update the cookies for the request and response
-						request.cookies.set({
-							name,
-							value,
-							...options,
-						});
-						response = createForwardedResponse(request);
-						response.cookies.set({
-							name,
-							value,
-							...options,
-						});
-					},
-					remove(name: string, options: CookieOptions) {
-						// If the cookie is removed, update the cookies for the request and response
-						request.cookies.set({
-							name,
-							value: "",
-							...options,
-						});
-						response = createForwardedResponse(request);
-						response.cookies.set({
-							name,
-							value: "",
-							...options,
-						});
-					},
+		if (!supabaseUrl || !supabaseAnonKey) {
+			return response;
+		}
+
+		const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+			cookies: {
+				get(name: string) {
+					return request.cookies.get(name)?.value;
 				},
-			}
-		);
+				set(name: string, value: string, options: CookieOptions) {
+					// If the cookie is updated, update the cookies for the request and response
+					request.cookies.set({
+						name,
+						value,
+						...options,
+					});
+					response = createForwardedResponse(request);
+					response.cookies.set({
+						name,
+						value,
+						...options,
+					});
+				},
+				remove(name: string, options: CookieOptions) {
+					// If the cookie is removed, update the cookies for the request and response
+					request.cookies.set({
+						name,
+						value: "",
+						...options,
+					});
+					response = createForwardedResponse(request);
+					response.cookies.set({
+						name,
+						value: "",
+						...options,
+					});
+				},
+			},
+		});
 
 		// This will refresh session if expired - required for Server Components
 		// https://supabase.com/docs/guides/auth/server-side/nextjs

@@ -2,9 +2,9 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import {
 	countBySeverity,
+	dedupeByAlertNumber,
 	detectRepository,
 	detectToken,
-	dedupeByAlertNumber,
 	fetchAndNormalizeAlerts,
 } from "./github-alerts.mjs";
 

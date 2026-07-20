@@ -1,10 +1,20 @@
 {
 	"private": true,
 	"type": "module",
+	"packageManager": "pnpm@10.33.0",
+	"engines": {
+		"node": "24.x"
+	},
 	"scripts": {
 		"dev": "cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-webstorage\" next dev",
 		"build": "cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-webstorage\" next build",
 		"start": "cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-webstorage\" next start",
+		"format": "biome format --write .",
+		"format:check": "biome format .",
+		"lint": "biome lint . --error-on-warnings",
+		"lint:fix": "biome lint --write .",
+		"check": "biome check . --error-on-warnings && pnpm typecheck && pnpm check:edge",
+		"ci": "pnpm run check && pnpm test && pnpm test:edge && pnpm test:db && pnpm build",
 		"test": "vitest run",
 		"test:db": "supabase test db",
 		"test:edge": "deno test --config supabase/functions/deno.json --lock deno.lock --frozen supabase/functions/crawl-source/helpers-test.ts",
