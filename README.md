@@ -8,7 +8,7 @@
 ## 주요 기술 스택
 
 ### Frontend
-- `Next.js 15` (App Router)
+- `Next.js 16` (App Router)
 - `React 19` + `TypeScript (strict)`
 - `@tanstack/react-query` (목록/무한 스크롤/캐시 무효화)
 - `Tailwind CSS` + `shadcn/ui`(Radix 기반 컴포넌트)
@@ -18,10 +18,10 @@
 - `Supabase Auth` + `@supabase/ssr` (쿠키 기반 SSR 인증)
 - `Supabase Postgres` (`new-threads`, `quick-save`, `trash`, `crawl-history`, `filter-keyword`)
 - `Supabase Edge Functions` (`supabase/functions/crawl-source`)
-- `SQL migration` 기반 성능 튜닝 및 RPC (`get_new_threads_stats`)
+- `SQL migration` 기반 성능 튜닝 및 원자적 RPC (`move_thread`, `ingest_crawl_items`)
 
 ### Crawling / Parsing
-- `fetch` / `undici` 네트워크 요청
+- 표준 `fetch`와 요청별 timeout
 - `cheerio` HTML 파싱
 - `linkifyjs` URL 추출
 - 소스별 크롤러 모듈 분리 (`arcalive`, `battlepage`, `insagirl`, `issuelink`)
@@ -43,11 +43,11 @@
 
 ## 아키텍처 개요
 
-1. UI(`/main/setting`)에서 수동 크롤링 호출  
-2. `app/api/crawl/manual`이 Supabase Edge Function(`crawl-source`) 호출  
-3. Edge Function이 다시 내부 크롤링 API(`app/api/crawl?target=...`) 호출  
-4. 크롤링 결과를 `filter-keyword` 기준으로 필터링/타입 분류/미디어 확장  
-5. `crawl-history` 업서트로 중복 유입 차단 후 `new-threads` 적재  
+1. UI(`/main/setting`)에서 수동 크롤링 호출
+2. `POST /api/crawl/manual`이 로그인 사용자 UUID 허용목록을 확인한 뒤 Supabase Edge Function(`crawl-source`) 호출
+3. Edge Function이 global DB lock을 획득하고 `POST /api/crawl` 내부 API 호출
+4. 크롤링 결과를 `filter-keyword` 기준으로 필터링/타입 분류/미디어 확장
+5. `ingest_crawl_items` RPC가 `crawl-history` claim과 `new-threads` 적재를 하나의 트랜잭션으로 확정
 6. UI는 `app/api/new-threads`, `app/api/new-threads/stats`로 조회
 
 ## 프로젝트 구조
@@ -102,6 +102,7 @@ erDiagram
       text tag
       text sub_url
       timestamptz created_at
+      timestamptz captured_at
     }
 
     QUICK_SAVE {
@@ -110,7 +111,10 @@ erDiagram
       text url
       text title
       text host
+      text tag
+      text sub_url
       timestamptz created_at
+      timestamptz captured_at
     }
 
     TRASH {
@@ -119,7 +123,10 @@ erDiagram
       text url
       text title
       text host
+      text tag
+      text sub_url
       timestamptz created_at
+      timestamptz captured_at
     }
 
     FILTER_KEYWORD ||--o{ NEW_THREADS : applies_rules
@@ -129,7 +136,7 @@ erDiagram
     TRASH ||--o{ NEW_THREADS : restored_to
 ```
 
-- 현재 스키마는 명시적 FK 제약보다 애플리케이션 로직(`crawl-source`, `Quick Save`, `Trash`)으로 관계를 유지합니다.
+- 현재 스키마는 명시적 FK 제약보다 PostgreSQL RPC(`move_thread`, `bulk_move_new_threads_to_trash`)로 이동 원자성을 유지합니다.
 - `new-threads.tag`, `new-threads.sub_url`는 배열 성격 데이터(태그/미디어 URL 리스트)를 저장합니다.
 - `crawl-history`는 `(crawl_source, url)` 유니크 인덱스로 중복 유입을 방지합니다.
 - 통계 API는 `new-threads` 기반 RPC(`get_new_threads_stats`)를 사용합니다.
@@ -139,7 +146,7 @@ erDiagram
 ### 1) 크롤러 소스 추가/변경
 - `app/api/crawl/<source>.ts`에 소스별 수집 로직 구현
 - `app/api/crawl/route.ts` 스위치에 타겟 등록
-- 반환 타입은 `CrawlItemType` 일관성 유지 (`url`, `title`, `host` 필수)
+- 반환 타입은 `{items, attempted, succeeded, failures}` 구조를 유지
 - 소스 장애 대비 재시도/로그 전략 유지 (`retryOperation`, `logger.ts`)
 
 ### 2) 데이터 분류/필터 정책 관리
@@ -174,8 +181,21 @@ erDiagram
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (서버 전용)
 - `SUPABASE_URL` (manual crawl fallback)
+- `CRAWL_ALLOWED_USER_IDS` (수동 크롤링 허용 사용자 UUID, 쉼표 구분; 누락/오류 시 fail-closed)
+- `CRAWL_INTERNAL_SECRET` (Next/Edge에 동일하게 설정하는 32바이트 이상 내부 secret)
 - `CRAWL_API_BASE_URL` (Edge Function -> 내부 크롤링 API 주소)
 - `NEXT_PUBLIC_IMGUR_CLIENT_ID` (Imgur 미디어 확장)
 - `DEBUG_CRAWL`, `LOG_LEVEL`
 - `MEDIA_FETCH_CONCURRENCY`
 - `GITHUB_TOKEN` 또는 `GH_TOKEN` (보안 스크립트 실행 시)
+
+## 검증 명령
+
+- `pnpm test`: Next API, 인증, UI loading, optimistic cache 단위 테스트
+- `pnpm test:db`: 이동·적재 rollback, 권한, lock pgTAP 테스트
+- `pnpm typecheck`: TypeScript strict 검사
+- `pnpm check:edge`: 고정된 `deno.lock`으로 Edge Function 타입 검사
+- `pnpm test:edge`: Edge helper Deno 단위 테스트
+- `pnpm build`: Next.js 프로덕션 빌드
+
+원격 migration history 정렬과 배포 순서는 [`docs/P0_DEPLOYMENT.md`](docs/P0_DEPLOYMENT.md)를 따릅니다.

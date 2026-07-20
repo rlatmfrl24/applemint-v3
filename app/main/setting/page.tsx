@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
 	AlertDialog,
@@ -14,23 +15,42 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { ThreadItemType } from "@/lib/typeDefs";
+import { invalidateThreadQueries } from "@/lib/thread-query-cache";
 import { createClient } from "@/utils/supabase/client";
+import { ManualCrawlError, requestManualCrawl, withLoadingState } from "./crawl-client";
 
-async function crawlerAPI(target: string) {
-	const response = await fetch(`/api/crawl/manual?target=${target}`);
-	const data = await response.json();
-	return data;
+function formatManualCrawlError(error: unknown) {
+	return JSON.stringify(
+		{
+			error: error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.",
+			httpStatus: error instanceof ManualCrawlError ? error.httpStatus : null,
+			response: error instanceof ManualCrawlError ? error.responseBody : null,
+		},
+		null,
+		2
+	);
 }
 
 export default function SettingPage() {
 	const [result, setResult] = useState<string>("아직 크롤링 결과가 없습니다.");
 	const [isLoading, setIsLoading] = useState<boolean>(false);
 	const [bulkDeleteStatus, setBulkDeleteStatus] = useState<string>(
-		"아직 일괄 삭제를 실행하지 않았습니다."
+		"아직 일괄 이동을 실행하지 않았습니다."
 	);
 	const [isBulkDeleting, setIsBulkDeleting] = useState<boolean>(false);
 	const supabase = createClient();
+	const queryClient = useQueryClient();
+	const handleCrawl = async (target: string) => {
+		await withLoadingState(setIsLoading, async () => {
+			try {
+				const crawlResult = await requestManualCrawl(target);
+				setResult(JSON.stringify(crawlResult, null, 2));
+				await invalidateThreadQueries(queryClient, ["new-threads"]);
+			} catch (error) {
+				setResult(formatManualCrawlError(error));
+			}
+		});
+	};
 
 	const crawlerTrigger = (title: string, target: string) => {
 		return (
@@ -49,11 +69,9 @@ export default function SettingPage() {
 					<AlertDialogFooter>
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
 						<AlertDialogAction
+							disabled={isLoading}
 							onClick={async () => {
-								setIsLoading(true);
-								const result = await crawlerAPI(target);
-								setResult(JSON.stringify(result));
-								setIsLoading(false);
+								await handleCrawl(target);
 							}}
 						>
 							Crawl
@@ -65,52 +83,26 @@ export default function SettingPage() {
 	};
 
 	const handleBulkDelete = async () => {
-		setIsBulkDeleting(true);
-		try {
-			const { data: threads, error: selectError } = await supabase.from("new-threads").select();
+		await withLoadingState(setIsBulkDeleting, async () => {
+			try {
+				const { data, error } = await supabase.rpc("bulk_move_new_threads_to_trash");
 
-			if (selectError) {
-				throw selectError;
-			}
+				if (error) {
+					throw error;
+				}
 
-			const typedThreads = (threads ?? []) as ThreadItemType[];
-
-			if (typedThreads.length > 0) {
-				const { error: trashError } = await supabase.from("trash").insert(
-					typedThreads.map((thread) => ({
-						type: thread.type,
-						url: thread.url,
-						title: thread.title,
-						description: thread.description,
-						host: thread.host,
-					}))
-				);
-
-				if (trashError) {
-					throw trashError;
+				const movedCount = Number(data ?? 0);
+				setBulkDeleteStatus(`총 ${movedCount}개의 스레드를 휴지통으로 이동했습니다.`);
+				await invalidateThreadQueries(queryClient, ["new-threads", "trash"]);
+			} catch (error) {
+				console.error("신규 스레드 일괄 이동 중 오류", error);
+				if (error instanceof Error) {
+					setBulkDeleteStatus(`이동 실패: ${error.message}`);
+				} else {
+					setBulkDeleteStatus("이동 실패: 알 수 없는 오류가 발생했습니다.");
 				}
 			}
-
-			const { error: deleteError } = await supabase
-				.from("new-threads")
-				.delete()
-				.not("id", "is", null);
-
-			if (deleteError) {
-				throw deleteError;
-			}
-
-			setBulkDeleteStatus(`총 ${typedThreads.length}개의 스레드를 삭제했습니다.`);
-		} catch (error) {
-			console.error("신규 스레드 일괄 삭제 중 오류", error);
-			if (error instanceof Error) {
-				setBulkDeleteStatus(`삭제 실패: ${error.message}`);
-			} else {
-				setBulkDeleteStatus("삭제 실패: 알 수 없는 오류가 발생했습니다.");
-			}
-		} finally {
-			setIsBulkDeleting(false);
-		}
+		});
 	};
 
 	return (
@@ -130,21 +122,21 @@ export default function SettingPage() {
 				readOnly
 			/>
 			<h2 className="mt-8">신규 스레드 관리</h2>
-			<p className="mt-2 text-sm text-muted-foreground">
-				모든 신규 스레드를 휴지통으로 이동한 뒤 삭제합니다. 실행 전에 반드시 확인해주세요.
+			<p className="mt-2 text-muted-foreground text-sm">
+				모든 신규 스레드를 원자적으로 휴지통으로 이동합니다. 실행 전에 반드시 확인해주세요.
 			</p>
 			<div className="mt-4 max-w-xs">
 				<AlertDialog>
 					<AlertDialogTrigger asChild>
 						<Button className="w-full" variant="destructive" disabled={isBulkDeleting}>
-							{isBulkDeleting ? "삭제 중..." : "신규 스레드 일괄 삭제"}
+							{isBulkDeleting ? "이동 중..." : "모두 휴지통으로 이동"}
 						</Button>
 					</AlertDialogTrigger>
 					<AlertDialogContent>
 						<AlertDialogHeader>
-							<AlertDialogTitle>신규 스레드 일괄 삭제</AlertDialogTitle>
+							<AlertDialogTitle>모든 신규 스레드 이동</AlertDialogTitle>
 							<AlertDialogDescription>
-								모든 신규 스레드를 휴지통으로 이동한 뒤 삭제합니다. 계속하시겠습니까?
+								모든 신규 스레드를 휴지통으로 이동합니다. 계속하시겠습니까?
 							</AlertDialogDescription>
 						</AlertDialogHeader>
 						<AlertDialogFooter>
@@ -155,7 +147,7 @@ export default function SettingPage() {
 									await handleBulkDelete();
 								}}
 							>
-								삭제 진행
+								이동 진행
 							</AlertDialogAction>
 						</AlertDialogFooter>
 					</AlertDialogContent>
@@ -163,7 +155,7 @@ export default function SettingPage() {
 			</div>
 			<Textarea
 				className="mt-4 w-full"
-				value={isBulkDeleting ? "삭제를 진행 중입니다..." : bulkDeleteStatus}
+				value={isBulkDeleting ? "이동을 진행 중입니다..." : bulkDeleteStatus}
 				disabled={isBulkDeleting}
 				readOnly
 			/>

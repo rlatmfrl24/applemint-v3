@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { moveThread } from "@/lib/thread-mutations";
 import {
 	applyMoveThreadOptimisticUpdates,
-	getThreadInsertPayload,
 	invalidateThreadQueries,
 	normalizeThreadId,
 	type QuerySnapshot,
@@ -17,26 +17,7 @@ export const useMoveThreadToTrash = (thread: ThreadItemType) => {
 
 	return useMutation<string, unknown, string, QuerySnapshot[]>({
 		mutationFn: async (threadId) => {
-			const normalizedId = normalizeThreadId(threadId);
-			const parsedId = Number.parseInt(normalizedId, 10);
-			const deleteIdentifier = Number.isNaN(parsedId) ? normalizedId : parsedId;
-
-			const { error: deleteError } = await supabase
-				.from("new-threads")
-				.delete()
-				.eq("id", deleteIdentifier);
-
-			if (deleteError) {
-				throw deleteError;
-			}
-
-			const { error: trashError } = await supabase
-				.from("trash")
-				.insert([getThreadInsertPayload(thread)]);
-
-			if (trashError) {
-				throw trashError;
-			}
+			await moveThread(supabase, threadId, "new-threads", "trash");
 
 			return threadId;
 		},

@@ -421,16 +421,6 @@ export const applyMoveThreadOptimisticUpdates = (
 	return [...sourceSnapshots, ...destinationSnapshots];
 };
 
-export const getThreadInsertPayload = (thread: ThreadItemType) => {
-	return {
-		type: thread.type,
-		url: thread.url,
-		title: thread.title,
-		description: thread.description,
-		host: thread.host,
-	};
-};
-
 export const invalidateThreadQueries = async (
 	queryClient: QueryClient,
 	tables: ThreadTableName[]

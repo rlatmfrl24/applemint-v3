@@ -5,6 +5,11 @@
     "dev": "cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-webstorage\" next dev",
     "build": "cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-webstorage\" next build",
     "start": "cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-webstorage\" next start",
+    "test": "vitest run",
+    "test:db": "supabase test db",
+    "test:edge": "deno test --config supabase/functions/deno.json --lock deno.lock --frozen supabase/functions/crawl-source/helpers-test.ts",
+    "typecheck": "tsc --noEmit --incremental false",
+    "check:edge": "deno check --config supabase/functions/deno.json --lock deno.lock --frozen supabase/functions/crawl-source/index.ts",
     "security:collect-alerts": "node scripts/security/collect-alerts.mjs",
     "security:gate": "node scripts/security/security-gate.mjs"
   },
@@ -36,7 +41,6 @@
     "tailwindcss": "4.2.1",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "5.3.3",
-    "undici": "^7.24.3",
     "vaul": "^1.1.2"
   },
   "devDependencies": {
@@ -48,7 +52,8 @@
     "cross-env": "^10.1.0",
     "encoding": "^0.1.13",
     "eslint": "^9.37.0",
-    "eslint-config-next": "16.1.6"
+    "eslint-config-next": "16.1.6",
+    "vitest": "^4.1.10"
   },
   "resolutions": {
     "@radix-ui/react-dismissable-layer": "1.1.0",
