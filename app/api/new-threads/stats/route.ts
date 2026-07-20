@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { checkApplemintOwner } from "@/utils/supabase/owner-access";
 import { createClient } from "@/utils/supabase/server";
 
 interface StatsRow {
@@ -11,6 +12,11 @@ interface StatsRow {
 export async function GET(request: NextRequest) {
 	try {
 		const supabase = await createClient();
+		const ownerAccess = await checkApplemintOwner(supabase);
+		if (ownerAccess.kind !== "owner") {
+			return NextResponse.json({ error: ownerAccess.message }, { status: ownerAccess.status });
+		}
+
 		const { searchParams } = new URL(request.url);
 		const scope = searchParams.get("scope") ?? "normal";
 		const filterType = searchParams.get("filterType");

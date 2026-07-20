@@ -99,3 +99,36 @@ export function dedupeByUrl<T extends { url: string }>(items: T[]) {
 
 	return Array.from(deduped.values());
 }
+
+export function chunkUrlsForHistoryQuery(
+	urls: string[],
+	maxItems = 200,
+	maxEncodedCharacters = 6000
+) {
+	const chunks: string[][] = [];
+	let currentChunk: string[] = [];
+	let currentEncodedCharacters = 0;
+
+	for (const url of urls) {
+		const encodedCharacters = encodeURIComponent(url).length + 3;
+		const exceedsLimit =
+			currentChunk.length > 0 &&
+			(currentChunk.length >= maxItems ||
+				currentEncodedCharacters + encodedCharacters > maxEncodedCharacters);
+
+		if (exceedsLimit) {
+			chunks.push(currentChunk);
+			currentChunk = [];
+			currentEncodedCharacters = 0;
+		}
+
+		currentChunk.push(url);
+		currentEncodedCharacters += encodedCharacters;
+	}
+
+	if (currentChunk.length > 0) {
+		chunks.push(currentChunk);
+	}
+
+	return chunks;
+}
