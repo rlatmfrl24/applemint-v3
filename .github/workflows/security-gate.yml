@@ -1,0 +1,63 @@
+name: Security Gate
+
+on:
+  pull_request:
+    branches: [master]
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: read
+
+concurrency:
+  group: security-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security-gate:
+    name: security-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit high and critical dependencies
+        run: pnpm audit --audit-level high
+
+      - name: Validate package overrides
+        run: pnpm security:overrides
+
+      - name: Evaluate repository security alerts
+        env:
+          GITHUB_TOKEN: ${{ secrets.SECURITY_ALERTS_TOKEN }}
+        run: >-
+          pnpm security:gate --
+          --baseline security/alert-baseline.json
+          --out reports/security/security-gate-result.json
+
+      - name: Upload security gate result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-gate-result
+          path: reports/security/security-gate-result.json
+          if-no-files-found: warn
+          retention-days: 30

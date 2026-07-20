@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import {
 	countBySeverity,
-	dedupeByAlertNumber,
+	dedupeAlertsByKey,
 	detectRepository,
 	detectToken,
 	fetchAndNormalizeAlerts,
@@ -33,7 +33,7 @@ async function main() {
 	const token = detectToken();
 
 	const snapshot = await fetchAndNormalizeAlerts({ repo, token });
-	const uniqueAlerts = dedupeByAlertNumber(snapshot.normalized_alerts).alerts;
+	const uniqueAlerts = dedupeAlertsByKey(snapshot.normalized_alerts).alerts;
 	const severity = countBySeverity(uniqueAlerts);
 	const outputPath = resolve(args.out);
 
@@ -43,7 +43,7 @@ async function main() {
 	console.log(`Repository: ${repo}`);
 	console.log(`Output: ${outputPath}`);
 	console.log(`Raw alerts: ${snapshot.dedup.alert_count_raw}`);
-	console.log(`Unique alerts (number): ${snapshot.dedup.alert_count_unique_by_number}`);
+	console.log(`Unique alerts (stable key): ${snapshot.dedup.alert_count_unique_by_key}`);
 	console.log(
 		`Unique advisories (ghsa+package): ${snapshot.dedup.advisory_count_unique_ghsa_package}`
 	);

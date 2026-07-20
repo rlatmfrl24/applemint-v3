@@ -162,7 +162,9 @@ erDiagram
 - 기준 문서: `SECURITY.md`
 - 로컬 보안 점검:
   - `pnpm security:collect-alerts`
+  - `pnpm security:baseline`
   - `pnpm security:gate`
+  - `pnpm security:overrides`
 - CI에서는 CodeQL + Dependabot 흐름으로 지속 점검
 
 ### 5) 코드 컨벤션
