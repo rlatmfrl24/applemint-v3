@@ -21,7 +21,9 @@
 		"typecheck": "tsc --noEmit --incremental false",
 		"check:edge": "deno check --config supabase/functions/deno.json --lock deno.lock --frozen supabase/functions/crawl-source/index.ts",
 		"security:collect-alerts": "node scripts/security/collect-alerts.mjs",
-		"security:gate": "node scripts/security/security-gate.mjs"
+		"security:baseline": "node scripts/security/create-baseline.mjs",
+		"security:gate": "node scripts/security/security-gate.mjs",
+		"security:overrides": "node scripts/security/check-overrides.mjs"
 	},
 	"dependencies": {
 		"@radix-ui/react-alert-dialog": "^1.1.15",

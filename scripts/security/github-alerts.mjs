@@ -240,11 +240,16 @@ export async function fetchAndNormalizeAlerts({ repo, token }) {
 		};
 
 		if (result.status === "ok") {
-			normalized.push(...result.alerts.map((alert) => SOURCE_CONFIG[source].normalize(alert)));
+			normalized.push(
+				...result.alerts.map((alert) => {
+					const normalizedAlert = SOURCE_CONFIG[source].normalize(alert);
+					return { ...normalizedAlert, key: getAlertKey(normalizedAlert) };
+				})
+			);
 		}
 	}
 
-	const dedupedByNumber = dedupeByAlertNumber(normalized);
+	const dedupedByKey = dedupeAlertsByKey(normalized);
 	const dedupedAdvisories = dedupeByAdvisory(normalized);
 
 	return {
@@ -254,32 +259,45 @@ export async function fetchAndNormalizeAlerts({ repo, token }) {
 		normalized_alerts: normalized,
 		dedup: {
 			alert_count_raw: normalized.length,
-			alert_count_unique_by_number: dedupedByNumber.alerts.length,
-			alert_duplicate_numbers: dedupedByNumber.duplicate_numbers,
+			alert_count_unique_by_key: dedupedByKey.alerts.length,
+			alert_duplicate_keys: dedupedByKey.duplicate_keys,
 			advisory_count_unique_ghsa_package: dedupedAdvisories.length,
 			advisories_unique_ghsa_package: dedupedAdvisories,
 		},
 	};
 }
 
-export function dedupeByAlertNumber(alerts) {
+export function getAlertKey(alert) {
+	if (alert.source === "dependabot" && alert.ghsa && alert.package) {
+		return `dependabot:${alert.ghsa}:${alert.package}`;
+	}
+
+	if (alert.source && alert.alert_number !== null && alert.alert_number !== undefined) {
+		return `${alert.source}:${alert.alert_number}`;
+	}
+
+	throw new Error("Cannot create a stable key for a security alert.");
+}
+
+export function dedupeAlertsByKey(alerts) {
 	const seen = new Set();
-	const duplicateNumbers = new Set();
+	const duplicateKeys = new Set();
 	const uniqueAlerts = [];
 
 	for (const alert of alerts) {
-		const key = String(alert.alert_number);
+		const key = alert.key ?? getAlertKey(alert);
 		if (seen.has(key)) {
-			duplicateNumbers.add(alert.alert_number);
+			duplicateKeys.add(key);
 			continue;
 		}
+
 		seen.add(key);
-		uniqueAlerts.push(alert);
+		uniqueAlerts.push({ ...alert, key });
 	}
 
 	return {
 		alerts: uniqueAlerts,
-		duplicate_numbers: [...duplicateNumbers].sort((a, b) => Number(a) - Number(b)),
+		duplicate_keys: [...duplicateKeys].sort(),
 	};
 }
 
