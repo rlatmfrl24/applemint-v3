@@ -69,7 +69,7 @@ insert into p0_test_state (key, value)
 select 'move_id', id from inserted;
 
 set local role authenticated;
-select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
 select lives_ok(
 	format(
 		'select public.move_thread(%s, %L, %L)',
@@ -124,7 +124,7 @@ insert into p0_test_state (key, value)
 select 'rollback_move_id', id from inserted;
 
 set local role authenticated;
-select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
 select throws_ok(
 	format(
 		'select public.move_thread(%s, %L, %L)',
@@ -157,7 +157,7 @@ insert into p0_test_state (key, value)
 select 'trash_before', count(*) from public.trash;
 
 set local role authenticated;
-select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
 select is(
 	public.bulk_move_new_threads_to_trash(),
 	(select value from p0_test_state where key = 'bulk_source_count'),

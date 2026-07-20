@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { checkApplemintOwner } from "@/utils/supabase/owner-access";
 import { createClient } from "@/utils/supabase/server";
 import AuthButton from "../login/auth-button";
 import { MainDrawer, NavMenu } from "../nav-menu";
@@ -6,13 +7,16 @@ import { MainQueryProvider } from "./query-provider";
 
 export default async function MainLayout({ children }: { children: React.ReactNode }) {
 	const supabase = await createClient();
+	const ownerAccess = await checkApplemintOwner(supabase);
 
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
-
-	if (!user) {
+	if (ownerAccess.kind === "unauthenticated") {
 		redirect("/login");
+	}
+	if (ownerAccess.kind === "forbidden") {
+		redirect("/signout");
+	}
+	if (ownerAccess.kind === "unavailable") {
+		throw new Error(ownerAccess.message);
 	}
 
 	return (

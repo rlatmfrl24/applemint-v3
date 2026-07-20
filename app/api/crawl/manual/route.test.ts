@@ -10,7 +10,6 @@ vi.mock("@/utils/supabase/server", () => ({
 import { POST } from "./route";
 
 const INTERNAL_SECRET = "0123456789abcdef0123456789abcdef";
-const ALLOWED_USER_ID = "11111111-1111-4111-8111-111111111111";
 
 function createRequest(target: unknown) {
 	return new Request("http://localhost/api/crawl/manual", {
@@ -20,7 +19,15 @@ function createRequest(target: unknown) {
 	}) as NextRequest;
 }
 
-function mockUser(userId: string | null) {
+function mockAccess({
+	userId = "owner",
+	isOwner = true,
+	ownerError = null,
+}: {
+	userId?: string | null;
+	isOwner?: boolean;
+	ownerError?: Error | null;
+} = {}) {
 	createClientMock.mockResolvedValue({
 		auth: {
 			getUser: vi.fn().mockResolvedValue({
@@ -28,6 +35,7 @@ function mockUser(userId: string | null) {
 				error: null,
 			}),
 		},
+		rpc: vi.fn().mockResolvedValue({ data: isOwner, error: ownerError }),
 	});
 }
 
@@ -36,8 +44,7 @@ describe("POST /api/crawl/manual", () => {
 		vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://project.supabase.co");
 		vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-role-key");
 		vi.stubEnv("CRAWL_INTERNAL_SECRET", INTERNAL_SECRET);
-		vi.stubEnv("CRAWL_ALLOWED_USER_IDS", ALLOWED_USER_ID);
-		mockUser(ALLOWED_USER_ID);
+		mockAccess();
 	});
 
 	afterEach(() => {
@@ -46,15 +53,15 @@ describe("POST /api/crawl/manual", () => {
 	});
 
 	it("미로그인 사용자는 401을 반환한다", async () => {
-		mockUser(null);
+		mockAccess({ userId: null });
 
 		const response = await POST(createRequest("arcalive"));
 
 		expect(response.status).toBe(401);
 	});
 
-	it("허용목록 밖의 사용자는 403을 반환한다", async () => {
-		mockUser("22222222-2222-4222-8222-222222222222");
+	it("DB가 소유자로 확인하지 않은 사용자는 403을 반환한다", async () => {
+		mockAccess({ isOwner: false });
 
 		const response = await POST(createRequest("arcalive"));
 
@@ -67,12 +74,27 @@ describe("POST /api/crawl/manual", () => {
 		expect(response.status).toBe(400);
 	});
 
-	it("허용목록 설정이 없거나 UUID 형식이 아니면 503으로 닫힌다", async () => {
-		vi.stubEnv("CRAWL_ALLOWED_USER_IDS", "not-a-uuid");
+	it("소유자 권한을 확인할 수 없으면 503으로 닫힌다", async () => {
+		mockAccess({ ownerError: new Error("rpc unavailable") });
 
 		const response = await POST(createRequest("arcalive"));
 
 		expect(response.status).toBe(503);
+	});
+
+	it("CRAWL_ALLOWED_USER_IDS 없이도 소유자는 수동 크롤링을 실행한다", async () => {
+		const fetchMock = vi.fn().mockResolvedValue(
+			new Response(JSON.stringify({ target: "arcalive", insertedCount: 0 }), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			})
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const response = await POST(createRequest("arcalive"));
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledOnce();
 	});
 
 	it("Edge의 409 상태와 구조화 응답을 그대로 전달한다", async () => {

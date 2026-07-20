@@ -181,13 +181,14 @@ erDiagram
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (서버 전용)
 - `SUPABASE_URL` (manual crawl fallback)
-- `CRAWL_ALLOWED_USER_IDS` (수동 크롤링 허용 사용자 UUID, 쉼표 구분; 누락/오류 시 fail-closed)
 - `CRAWL_INTERNAL_SECRET` (Next/Edge에 동일하게 설정하는 32바이트 이상 내부 secret)
 - `CRAWL_API_BASE_URL` (Edge Function -> 내부 크롤링 API 주소)
 - `NEXT_PUBLIC_IMGUR_CLIENT_ID` (Imgur 미디어 확장)
 - `DEBUG_CRAWL`, `LOG_LEVEL`
 - `MEDIA_FETCH_CONCURRENCY`
 - `GITHUB_TOKEN` 또는 `GH_TOKEN` (보안 스크립트 실행 시)
+
+Applemint는 migration에 고정한 단일 Supabase Auth 계정만 사용할 수 있습니다. 신규 가입은 비활성화하며 목록 조회는 소유자에게만 허용되고, 스레드 변경은 소유자 확인이 포함된 RPC를 통해서만 수행합니다.
 
 ## 검증 명령
 

@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { checkApplemintOwner } from "@/utils/supabase/owner-access";
 import { createClient } from "@/utils/supabase/server";
 
 interface ListQueryParams {
@@ -28,25 +29,9 @@ export async function GET(request: NextRequest) {
 	try {
 		const params = parseQuery(request);
 		const supabase = await createClient();
-		const {
-			data: { user },
-			error: userError,
-		} = await supabase.auth.getUser();
-		if (userError) {
-			return NextResponse.json(
-				{ error: userError.message },
-				{
-					status: 401,
-				}
-			);
-		}
-		if (!user) {
-			return NextResponse.json(
-				{ error: "인증되지 않은 요청입니다." },
-				{
-					status: 401,
-				}
-			);
+		const ownerAccess = await checkApplemintOwner(supabase);
+		if (ownerAccess.kind !== "owner") {
+			return NextResponse.json({ error: ownerAccess.message }, { status: ownerAccess.status });
 		}
 
 		let query = supabase
