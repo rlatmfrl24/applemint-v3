@@ -1,7 +1,9 @@
 import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
+import { normalizeThreadId, type ThreadPage, type ThreadTableName } from "./thread-list-contract";
 import type { ThreadItemType } from "./type-defs";
 
-export type ThreadTableName = "new-threads" | "quick-save" | "trash";
+export type { ThreadTableName } from "./thread-list-contract";
+export { normalizeThreadId } from "./thread-list-contract";
 
 interface ThreadStatsItem {
 	key: string;
@@ -14,10 +16,7 @@ interface ThreadStats {
 	totalCount?: number;
 }
 
-export interface ThreadInfinitePage {
-	items: ThreadItemType[];
-	nextCursor: string | null;
-}
+export type ThreadInfinitePage = ThreadPage;
 
 export interface QuerySnapshot<TData = unknown> {
 	queryKey: QueryKey;
@@ -25,20 +24,6 @@ export interface QuerySnapshot<TData = unknown> {
 }
 
 const NEW_THREADS_STATS_QUERY_KEY = ["new-threads", "stats"] as const;
-
-export const normalizeThreadId = (value: string | number) => {
-	if (typeof value === "number" && Number.isFinite(value)) {
-		return String(value);
-	}
-
-	const trimmedValue = String(value).trim();
-
-	if (/^[+-]?\d+$/.test(trimmedValue)) {
-		return String(Number.parseInt(trimmedValue, 10));
-	}
-
-	return trimmedValue;
-};
 
 const getIssuelinkCategory = (thread: ThreadItemType) => {
 	return thread.tag?.[1] ?? "unknown";
@@ -64,16 +49,29 @@ const createOptimisticThread = (thread: ThreadItemType, seed: string): ThreadIte
 	return {
 		...thread,
 		id: `optimistic-${seed}-${normalizeThreadId(thread.id)}`,
-		created_at: thread.created_at ?? new Date().toISOString(),
+		created_at: new Date().toISOString(),
 	};
 };
 
-const isNewThreadsInfiniteQueryKey = (queryKey: QueryKey) => {
+export const isThreadListQueryKey = (queryKey: QueryKey, table?: ThreadTableName) => {
 	return (
 		Array.isArray(queryKey) &&
-		queryKey.length > 0 &&
+		queryKey.length >= 2 &&
+		queryKey[0] === "threads" &&
+		(table === undefined || queryKey[1] === table)
+	);
+};
+
+export const isThreadQueryKeyForTables = (queryKey: QueryKey, tables: ThreadTableName[]) => {
+	if (isThreadListQueryKey(queryKey)) {
+		return tables.includes(queryKey[1] as ThreadTableName);
+	}
+
+	return (
+		tables.includes("new-threads") &&
+		Array.isArray(queryKey) &&
 		queryKey[0] === "new-threads" &&
-		queryKey[queryKey.length - 1] !== "stats"
+		queryKey[1] === "stats"
 	);
 };
 
@@ -121,7 +119,7 @@ const matchesThreadFilter = (thread: ThreadItemType, filterKey: string | undefin
 };
 
 const removeThreadFromInfiniteData = (
-	data: InfiniteData<ThreadInfinitePage>,
+	data: InfiniteData<ThreadPage>,
 	threadId: string | number
 ) => {
 	const normalizedId = normalizeThreadId(threadId);
@@ -167,10 +165,7 @@ const prependThreadToItems = (items: ThreadItemType[], thread: ThreadItemType) =
 	return [thread, ...items];
 };
 
-const prependThreadToInfiniteData = (
-	data: InfiniteData<ThreadInfinitePage>,
-	thread: ThreadItemType
-) => {
+const prependThreadToInfiniteData = (data: InfiniteData<ThreadPage>, thread: ThreadItemType) => {
 	if (data.pages.length === 0) {
 		return {
 			...data,
@@ -192,23 +187,6 @@ const prependThreadToInfiniteData = (
 			};
 		}),
 	};
-};
-
-const removeThreadFromArray = (items: ThreadItemType[] | undefined, threadId: string | number) => {
-	if (!items) {
-		return items;
-	}
-
-	const normalizedId = normalizeThreadId(threadId);
-	return items.filter((item) => normalizeThreadId(item.id) !== normalizedId);
-};
-
-const prependThreadToArray = (items: ThreadItemType[] | undefined, thread: ThreadItemType) => {
-	if (!items) {
-		return items;
-	}
-
-	return prependThreadToItems(items, thread);
 };
 
 export const rollbackSnapshots = (queryClient: QueryClient, snapshots: QuerySnapshot[]) => {
@@ -271,13 +249,17 @@ const updateStatsQuery = (queryClient: QueryClient, thread: ThreadItemType, delt
 	} satisfies QuerySnapshot<ThreadStats>;
 };
 
-const captureNewThreadsRemovalSnapshots = (queryClient: QueryClient, thread: ThreadItemType) => {
+const captureRemovalSnapshots = (
+	queryClient: QueryClient,
+	table: ThreadTableName,
+	thread: ThreadItemType
+) => {
 	const affectedQueries = queryClient.getQueryCache().findAll({
-		predicate: (query) => isNewThreadsInfiniteQueryKey(query.queryKey),
+		predicate: (query) => isThreadListQueryKey(query.queryKey, table),
 	});
 
 	const snapshots: QuerySnapshot[] = affectedQueries.map((query) => {
-		const previousData = query.state.data as InfiniteData<ThreadInfinitePage> | undefined;
+		const previousData = query.state.data as InfiniteData<ThreadPage> | undefined;
 
 		if (previousData) {
 			queryClient.setQueryData(
@@ -289,48 +271,31 @@ const captureNewThreadsRemovalSnapshots = (queryClient: QueryClient, thread: Thr
 		return {
 			queryKey: query.queryKey,
 			data: previousData,
-		} satisfies QuerySnapshot<InfiniteData<ThreadInfinitePage>>;
+		} satisfies QuerySnapshot<InfiniteData<ThreadPage>>;
 	});
 
-	snapshots.push(updateStatsQuery(queryClient, thread, -1));
+	if (table === "new-threads") {
+		snapshots.push(updateStatsQuery(queryClient, thread, -1));
+	}
 
 	return snapshots;
 };
 
-const captureArrayRemovalSnapshot = (
+const captureInsertSnapshots = (
 	queryClient: QueryClient,
-	sourceTable: Exclude<ThreadTableName, "new-threads">,
-	thread: ThreadItemType
-) => {
-	const sourceQueryKey = [sourceTable] as const;
-	const previousData = queryClient.getQueryData<ThreadItemType[]>(sourceQueryKey);
-
-	if (previousData) {
-		queryClient.setQueryData(sourceQueryKey, removeThreadFromArray(previousData, thread.id));
-	}
-
-	return [
-		{
-			queryKey: sourceQueryKey,
-			data: previousData,
-		} satisfies QuerySnapshot<ThreadItemType[]>,
-	];
-};
-
-const captureNewThreadsInsertSnapshots = (
-	queryClient: QueryClient,
+	table: ThreadTableName,
 	thread: ThreadItemType,
 	optimisticThread: ThreadItemType
 ) => {
 	const affectedQueries = queryClient.getQueryCache().findAll({
-		predicate: (query) => isNewThreadsInfiniteQueryKey(query.queryKey),
+		predicate: (query) => isThreadListQueryKey(query.queryKey, table),
 	});
 
 	const snapshots: QuerySnapshot[] = affectedQueries.map((query) => {
-		const previousData = query.state.data as InfiniteData<ThreadInfinitePage> | undefined;
+		const previousData = query.state.data as InfiniteData<ThreadPage> | undefined;
 		const filterKey =
-			Array.isArray(query.queryKey) && typeof query.queryKey[1] === "string"
-				? query.queryKey[1]
+			Array.isArray(query.queryKey) && typeof query.queryKey[2] === "string"
+				? query.queryKey[2]
 				: undefined;
 
 		if (previousData && matchesThreadFilter(thread, filterKey)) {
@@ -343,35 +308,14 @@ const captureNewThreadsInsertSnapshots = (
 		return {
 			queryKey: query.queryKey,
 			data: previousData,
-		} satisfies QuerySnapshot<InfiniteData<ThreadInfinitePage>>;
+		} satisfies QuerySnapshot<InfiniteData<ThreadPage>>;
 	});
 
-	snapshots.push(updateStatsQuery(queryClient, thread, 1));
-
-	return snapshots;
-};
-
-const captureArrayInsertSnapshot = (
-	queryClient: QueryClient,
-	destinationTable: Exclude<ThreadTableName, "new-threads">,
-	optimisticThread: ThreadItemType
-) => {
-	const destinationQueryKey = [destinationTable] as const;
-	const previousData = queryClient.getQueryData<ThreadItemType[]>(destinationQueryKey);
-
-	if (previousData) {
-		queryClient.setQueryData(
-			destinationQueryKey,
-			prependThreadToArray(previousData, optimisticThread)
-		);
+	if (table === "new-threads") {
+		snapshots.push(updateStatsQuery(queryClient, thread, 1));
 	}
 
-	return [
-		{
-			queryKey: destinationQueryKey,
-			data: previousData,
-		} satisfies QuerySnapshot<ThreadItemType[]>,
-	];
+	return snapshots;
 };
 
 export const applyMoveThreadOptimisticUpdates = (
@@ -387,14 +331,13 @@ export const applyMoveThreadOptimisticUpdates = (
 	}
 ) => {
 	const optimisticThread = createOptimisticThread(thread, `${sourceTable}-to-${destinationTable}`);
-	const sourceSnapshots =
-		sourceTable === "new-threads"
-			? captureNewThreadsRemovalSnapshots(queryClient, thread)
-			: captureArrayRemovalSnapshot(queryClient, sourceTable, thread);
-	const destinationSnapshots =
-		destinationTable === "new-threads"
-			? captureNewThreadsInsertSnapshots(queryClient, thread, optimisticThread)
-			: captureArrayInsertSnapshot(queryClient, destinationTable, optimisticThread);
+	const sourceSnapshots = captureRemovalSnapshots(queryClient, sourceTable, thread);
+	const destinationSnapshots = captureInsertSnapshots(
+		queryClient,
+		destinationTable,
+		thread,
+		optimisticThread
+	);
 
 	return [...sourceSnapshots, ...destinationSnapshots];
 };
@@ -406,15 +349,12 @@ export const invalidateThreadQueries = async (
 	const uniqueTables = Array.from(new Set(tables));
 
 	for (const table of uniqueTables) {
-		if (table === "new-threads") {
-			await queryClient.invalidateQueries({
-				predicate: (query) => Array.isArray(query.queryKey) && query.queryKey[0] === "new-threads",
-			});
-			continue;
-		}
-
 		await queryClient.invalidateQueries({
-			queryKey: [table],
+			queryKey: ["threads", table],
 		});
+
+		if (table === "new-threads") {
+			await queryClient.invalidateQueries({ queryKey: NEW_THREADS_STATS_QUERY_KEY });
+		}
 	}
 };

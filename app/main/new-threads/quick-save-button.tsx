@@ -6,6 +6,7 @@ import { moveThread } from "@/lib/thread-mutations";
 import {
 	applyMoveThreadOptimisticUpdates,
 	invalidateThreadQueries,
+	isThreadQueryKeyForTables,
 	type QuerySnapshot,
 	rollbackSnapshots,
 } from "@/lib/thread-query-cache";
@@ -23,8 +24,7 @@ export const QuickSaveButton = ({ thread }: { thread: ThreadItemType }) => {
 		onMutate: async () => {
 			await queryClient.cancelQueries({
 				predicate: (query) =>
-					Array.isArray(query.queryKey) &&
-					(query.queryKey[0] === "new-threads" || query.queryKey[0] === "quick-save"),
+					isThreadQueryKeyForTables(query.queryKey, ["new-threads", "quick-save"]),
 			});
 
 			return applyMoveThreadOptimisticUpdates(queryClient, {

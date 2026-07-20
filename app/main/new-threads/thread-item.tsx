@@ -8,6 +8,7 @@ import { moveThread } from "@/lib/thread-mutations";
 import {
 	applyMoveThreadOptimisticUpdates,
 	invalidateThreadQueries,
+	isThreadQueryKeyForTables,
 	normalizeThreadId,
 	type QuerySnapshot,
 	rollbackSnapshots,
@@ -37,10 +38,7 @@ export const DefaultThreadItem = ({
 		},
 		onMutate: async () => {
 			await queryClient.cancelQueries({
-				queryKey: [threadName],
-			});
-			await queryClient.cancelQueries({
-				queryKey: ["trash"],
+				predicate: (query) => isThreadQueryKeyForTables(query.queryKey, [threadName, "trash"]),
 			});
 
 			return applyMoveThreadOptimisticUpdates(queryClient, {
