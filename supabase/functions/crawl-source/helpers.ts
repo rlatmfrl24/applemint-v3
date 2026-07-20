@@ -53,6 +53,10 @@ export function dedupeByUrl<T extends { url: string }>(items: T[]) {
 	return Array.from(deduped.values());
 }
 
+export function countCrawlWarnings(failures: unknown[], warnings: unknown[]) {
+	return failures.length + warnings.length;
+}
+
 export function chunkUrlsForHistoryQuery(
 	urls: string[],
 	maxItems = 200,

@@ -66,7 +66,10 @@ export async function POST(request: NextRequest) {
 		const durationMs = Date.now() - startTime;
 
 		if (!result || result.succeeded === 0) {
-			const status = result?.failures.some((failure) => failure.timeout) ? 504 : 502;
+			const allFailuresTimedOut =
+				(result?.failures.length ?? 0) > 0 &&
+				result?.failures.every((failure) => failure.timeout === true);
+			const status = allFailuresTimedOut ? 504 : 502;
 			return NextResponse.json(
 				{
 					error: "모든 소스 요청이 실패했습니다.",

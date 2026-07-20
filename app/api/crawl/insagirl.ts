@@ -1,16 +1,19 @@
-import * as linkify from "linkifyjs";
 import type { CrawlItemType } from "@/lib/type-defs";
 import {
 	type CrawlFailure,
 	type CrawlSourceResult,
+	type CrawlWarning,
 	getErrorMessage,
 	isTimeoutError,
 } from "./contracts";
 import { fetchWithTimeout } from "./fetch-with-timeout";
+import { parseInsagirlPayload } from "./insagirl-parser";
 import { debugLog } from "./logger";
+import { adaptParserOutcome } from "./parser-adapter";
 
 interface InsagirlPageResult {
 	items: CrawlItemType[];
+	warnings: CrawlWarning[];
 	failure?: CrawlFailure;
 }
 
@@ -26,50 +29,28 @@ async function crawlInsagirlTarget(url: string, index: number): Promise<Insagirl
 			throw new Error(`HTTP ${response.status} ${response.statusText}`);
 		}
 
-		const json = (await response.json()) as { v?: unknown };
-		if (!Array.isArray(json.v)) {
-			throw new Error("Unexpected JSON response shape");
+		const responseBody = await response.text();
+		let payload: unknown = null;
+		try {
+			payload = JSON.parse(responseBody) as unknown;
+		} catch {
+			// 손상된 JSON도 네트워크 오류가 아닌 parser failure로 분류합니다.
 		}
 
-		const items: CrawlItemType[] = [];
-		for (const rawItem of json.v) {
-			if (typeof rawItem !== "string") {
-				continue;
-			}
-
-			const segments = rawItem.split("|");
-			if (segments[1] === "syncwatch" || !segments[2]) {
-				continue;
-			}
-
-			const rawString = segments[2];
-			const urls = linkify.find(rawString);
-			const title = urls
-				.reduce((text, detectedUrl) => text.replace(detectedUrl.value, ""), rawString)
-				.replace(/\s+/g, " ")
-				.trim();
-
-			for (const detectedUrl of urls) {
-				try {
-					items.push({
-						url: detectedUrl.href,
-						title,
-						description: "",
-						host: new URL(detectedUrl.href).hostname,
-						tag: ["insagirl"],
-					});
-				} catch (error) {
-					debugLog("[Insagirl] 잘못된 URL 제외", getErrorMessage(error));
-				}
-			}
-		}
-
-		debugLog(`[Insagirl] URL ${index + 1} 아이템 ${items.length}개 추출 완료`);
-		return { items };
+		const outcome = parseInsagirlPayload(payload);
+		const parsed = adaptParserOutcome(url, outcome);
+		debugLog(
+			`[Insagirl] URL ${index + 1} parser=${outcome.status} candidates=${outcome.candidateCount} valid=${outcome.items.length} discarded=${outcome.discardedCount}`
+		);
+		return parsed;
 	} catch (error) {
 		const message = getErrorMessage(error);
 		console.error(`[Insagirl] URL ${index + 1} 크롤링 실패: ${message}`);
-		return { items: [], failure: { url, message, timeout: isTimeoutError(error) } };
+		return {
+			items: [],
+			warnings: [],
+			failure: { url, message, kind: "network", timeout: isTimeoutError(error) },
+		};
 	}
 }
 
@@ -82,6 +63,7 @@ export async function crawlInsagirl(): Promise<CrawlSourceResult> {
 	const results = await Promise.all(targets.map(crawlInsagirlTarget));
 
 	const failures = results.flatMap((result) => (result.failure ? [result.failure] : []));
+	const warnings = results.flatMap((result) => result.warnings);
 	const dedupedItems = new Map<string, CrawlItemType>();
 	for (const item of results.flatMap((result) => result.items)) {
 		if (!dedupedItems.has(item.url)) {
@@ -94,5 +76,6 @@ export async function crawlInsagirl(): Promise<CrawlSourceResult> {
 		attempted: targets.length,
 		succeeded: targets.length - failures.length,
 		failures,
+		warnings,
 	};
 }

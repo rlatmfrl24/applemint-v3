@@ -1,16 +1,19 @@
-import * as cheerio from "cheerio";
 import type { CrawlItemType } from "@/lib/type-defs";
+import { parseBattlepageHtml } from "./battlepage-parser";
 import {
 	type CrawlFailure,
 	type CrawlSourceResult,
+	type CrawlWarning,
 	getErrorMessage,
 	isTimeoutError,
 } from "./contracts";
 import { fetchWithTimeout } from "./fetch-with-timeout";
 import { debugLog } from "./logger";
+import { adaptParserOutcome } from "./parser-adapter";
 
 interface BattlepagePageResult {
 	items: CrawlItemType[];
+	warnings: CrawlWarning[];
 	failure?: CrawlFailure;
 }
 
@@ -36,43 +39,33 @@ export async function crawlBattlepage(): Promise<CrawlSourceResult> {
 					throw new Error(`HTTP ${response.status} ${response.statusText}`);
 				}
 
-				const text = await response.text();
-				const $ = cheerio.load(text);
-				const mappedItems = $(".ListTable div")
-					.map((_itemIndex, element) => {
-						const href = $(element).find("a").attr("href");
-						if (!href) {
-							return null;
-						}
-
-						return {
-							url: `${baseUrl}${href.replace(/&page=\d+/, "")}`,
-							title: $(element).find(".bp_subject").attr("title") ?? "",
-							description: "",
-							host: baseUrl,
-							tag: ["battlepage"],
-						} satisfies CrawlItemType;
-					})
-					.get();
-				const items: CrawlItemType[] = mappedItems.flatMap((item) => (item ? [item] : []));
-
-				debugLog(`[Battlepage] URL ${index + 1} 아이템 ${items.length}개 추출 완료`);
-				return { items };
+				const outcome = parseBattlepageHtml(await response.text());
+				const parsed = adaptParserOutcome(url, outcome);
+				debugLog(
+					`[Battlepage] URL ${index + 1} parser=${outcome.status} candidates=${outcome.candidateCount} valid=${outcome.items.length} discarded=${outcome.discardedCount}`
+				);
+				return parsed;
 			} catch (error) {
 				const message = getErrorMessage(error);
 				console.error(`[Battlepage] URL ${index + 1} 크롤링 실패: ${message}`);
-				return { items: [], failure: { url, message, timeout: isTimeoutError(error) } };
+				return {
+					items: [],
+					warnings: [],
+					failure: { url, message, kind: "network", timeout: isTimeoutError(error) },
+				};
 			}
 		})
 	);
 
 	const failures = results.flatMap((result) => (result.failure ? [result.failure] : []));
 	const items = results.flatMap((result) => result.items);
+	const warnings = results.flatMap((result) => result.warnings);
 
 	return {
 		items,
 		attempted: targetList.length,
 		succeeded: targetList.length - failures.length,
 		failures,
+		warnings,
 	};
 }

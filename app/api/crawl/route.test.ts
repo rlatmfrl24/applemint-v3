@@ -35,7 +35,15 @@ describe("POST /api/crawl", () => {
 			items: [{ url: "https://example.com/1", title: "one", host: "example.com" }],
 			attempted: 2,
 			succeeded: 1,
-			failures: [{ url: "https://example.com/2", message: "HTTP 500" }],
+			failures: [{ url: "https://example.com/2", message: "selector changed", kind: "parser" }],
+			warnings: [
+				{
+					url: "https://example.com/1",
+					code: "below-minimum-items",
+					message: "below minimum",
+					count: 1,
+				},
+			],
 		});
 	});
 
@@ -64,7 +72,26 @@ describe("POST /api/crawl", () => {
 		expect(response.status).toBe(200);
 		expect(body).toMatchObject({ target: "arcalive", attempted: 2, succeeded: 1 });
 		expect(body.failures).toHaveLength(1);
+		expect(body.warnings).toHaveLength(1);
 		expect(crawlerMocks.arcalive).toHaveBeenCalledTimes(1);
+	});
+
+	it("모든 요청이 parser failure이면 재시도 후 502를 반환한다", async () => {
+		vi.useFakeTimers();
+		crawlerMocks.arcalive.mockResolvedValue({
+			items: [],
+			attempted: 3,
+			succeeded: 0,
+			failures: [{ url: "https://example.com", message: "missing container", kind: "parser" }],
+			warnings: [],
+		});
+
+		const responsePromise = POST(createRequest("arcalive"));
+		await vi.runAllTimersAsync();
+		const response = await responsePromise;
+
+		expect(response.status).toBe(502);
+		expect(crawlerMocks.arcalive).toHaveBeenCalledTimes(2);
 	});
 
 	it("모든 요청이 timeout이면 재시도 후 504를 반환한다", async () => {
@@ -73,7 +100,15 @@ describe("POST /api/crawl", () => {
 			items: [],
 			attempted: 2,
 			succeeded: 0,
-			failures: [{ url: "https://example.com", message: "timed out", timeout: true }],
+			failures: [
+				{
+					url: "https://example.com",
+					message: "timed out",
+					kind: "network",
+					timeout: true,
+				},
+			],
+			warnings: [],
 		});
 
 		const responsePromise = POST(createRequest("arcalive"));
@@ -81,6 +116,36 @@ describe("POST /api/crawl", () => {
 		const response = await responsePromise;
 
 		expect(response.status).toBe(504);
+		expect(crawlerMocks.arcalive).toHaveBeenCalledTimes(2);
+	});
+
+	it("timeout과 parser failure가 섞이면 502를 반환한다", async () => {
+		vi.useFakeTimers();
+		crawlerMocks.arcalive.mockResolvedValue({
+			items: [],
+			attempted: 2,
+			succeeded: 0,
+			failures: [
+				{
+					url: "https://example.com/timeout",
+					message: "timed out",
+					kind: "network",
+					timeout: true,
+				},
+				{
+					url: "https://example.com/parser",
+					message: "missing container",
+					kind: "parser",
+				},
+			],
+			warnings: [],
+		});
+
+		const responsePromise = POST(createRequest("arcalive"));
+		await vi.runAllTimersAsync();
+		const response = await responsePromise;
+
+		expect(response.status).toBe(502);
 		expect(crawlerMocks.arcalive).toHaveBeenCalledTimes(2);
 	});
 });

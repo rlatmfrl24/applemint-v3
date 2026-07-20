@@ -6,6 +6,7 @@ import {
 	type CrawlTarget,
 	chunkUrlsForHistoryQuery,
 	constantTimeEquals,
+	countCrawlWarnings,
 	dedupeByUrl,
 	defineType,
 	type FilterKeyword,
@@ -31,6 +32,14 @@ interface CrawlItem {
 interface CrawlFailure {
 	url: string;
 	message: string;
+	kind: "network" | "parser";
+}
+
+interface CrawlWarning {
+	url: string;
+	code: "empty-list" | "below-minimum-items" | "discarded-items";
+	message: string;
+	count: number;
 }
 
 interface CrawlApiResponse {
@@ -39,6 +48,7 @@ interface CrawlApiResponse {
 	attempted: number;
 	succeeded: number;
 	failures: CrawlFailure[];
+	warnings: CrawlWarning[];
 	durationMs: number;
 }
 
@@ -210,7 +220,10 @@ async function processCrawl(context: CrawlRequestContext, startedAt: number) {
 		target: context.target,
 		insertedCount: Number(counts.insertedCount ?? 0),
 		skippedCount: prepared.existingCount + Number(counts.skippedCount ?? 0),
-		warningCount: Array.isArray(crawlData.failures) ? crawlData.failures.length : 0,
+		warningCount: countCrawlWarnings(
+			Array.isArray(crawlData.failures) ? crawlData.failures : [],
+			Array.isArray(crawlData.warnings) ? crawlData.warnings : []
+		),
 		durationMs: Date.now() - startedAt,
 	});
 }
