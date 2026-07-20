@@ -6,7 +6,7 @@ import {
 	rollbackSnapshots,
 	type ThreadInfinitePage,
 } from "./thread-query-cache";
-import type { ThreadItemType } from "./typeDefs";
+import type { ThreadItemType } from "./type-defs";
 
 const thread: ThreadItemType = {
 	id: "1",
@@ -16,7 +16,6 @@ const thread: ThreadItemType = {
 	description: "description",
 	host: "example.com",
 	tag: ["test"],
-	sub_url: ["https://example.com/media.jpg"],
 	created_at: "2026-07-20T00:00:00.000Z",
 	captured_at: "2026-07-19T00:00:00.000Z",
 };
@@ -24,13 +23,13 @@ const thread: ThreadItemType = {
 describe("thread query cache", () => {
 	it("optimistic 이동 실패 시 원본 cache로 rollback한다", () => {
 		const queryClient = new QueryClient();
-		const sourceKey = ["new-threads", "normal", ""] as const;
+		const sourceKey = ["new-threads", ""] as const;
 		const sourceData = {
 			pages: [{ items: [thread], nextCursor: null } satisfies ThreadInfinitePage],
 			pageParams: [undefined],
 		};
 		queryClient.setQueryData(sourceKey, sourceData);
-		queryClient.setQueryData(["new-threads", "normal", "stats"], {
+		queryClient.setQueryData(["new-threads", "stats"], {
 			counts: [{ key: "normal", label: "normal", count: 1 }],
 			totalCount: 1,
 		});
@@ -49,7 +48,7 @@ describe("thread query cache", () => {
 
 		expect(queryClient.getQueryData(sourceKey)).toEqual(sourceData);
 		expect(queryClient.getQueryData(["trash"])).toEqual([]);
-		expect(queryClient.getQueryData(["new-threads", "normal", "stats"])).toEqual({
+		expect(queryClient.getQueryData(["new-threads", "stats"])).toEqual({
 			counts: [{ key: "normal", label: "normal", count: 1 }],
 			totalCount: 1,
 		});
@@ -58,14 +57,14 @@ describe("thread query cache", () => {
 
 	it("성공 후 관련 목록과 통계를 invalidate한다", async () => {
 		const queryClient = new QueryClient();
-		queryClient.setQueryData(["new-threads", "normal", ""], { pages: [], pageParams: [] });
-		queryClient.setQueryData(["new-threads", "normal", "stats"], { counts: [] });
+		queryClient.setQueryData(["new-threads", ""], { pages: [], pageParams: [] });
+		queryClient.setQueryData(["new-threads", "stats"], { counts: [] });
 		queryClient.setQueryData(["trash"], []);
 
 		await invalidateThreadQueries(queryClient, ["new-threads", "trash"]);
 
-		expect(queryClient.getQueryState(["new-threads", "normal", ""])?.isInvalidated).toBe(true);
-		expect(queryClient.getQueryState(["new-threads", "normal", "stats"])?.isInvalidated).toBe(true);
+		expect(queryClient.getQueryState(["new-threads", ""])?.isInvalidated).toBe(true);
+		expect(queryClient.getQueryState(["new-threads", "stats"])?.isInvalidated).toBe(true);
 		expect(queryClient.getQueryState(["trash"])?.isInvalidated).toBe(true);
 		queryClient.clear();
 	});

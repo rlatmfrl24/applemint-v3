@@ -50,7 +50,6 @@ with inserted as (
 		description,
 		host,
 		tag,
-		sub_url,
 		captured_at
 	)
 	values (
@@ -60,7 +59,6 @@ with inserted as (
 		'move description',
 		'p0.test',
 		array['p0', 'tag'],
-		array['https://p0.test/media.jpg'],
 		'2026-07-19 12:34:56+00'::timestamptz
 	)
 	returning id
@@ -90,11 +88,6 @@ select is(
 	(select tag from public."quick-save" where url = 'https://p0.test/move'),
 	array['p0', 'tag']::text[],
 	'tag is preserved'
-);
-select is(
-	(select sub_url from public."quick-save" where url = 'https://p0.test/move'),
-	array['https://p0.test/media.jpg']::text[],
-	'sub_url is preserved'
 );
 select ok(
 	(select captured_at from public."quick-save" where url = 'https://p0.test/move') =
@@ -182,9 +175,9 @@ select is(
 	public.ingest_crawl_items(
 		'arcalive',
 		'[
-			{"url":"https://p0.test/ingest-1","title":"one","host":"p0.test","type":"normal","tag":["a"],"sub_url":[]},
+			{"url":"https://p0.test/ingest-1","title":"one","host":"p0.test","type":"normal","tag":["a"]},
 			{"url":"https://p0.test/ingest-1","title":"duplicate","host":"p0.test","type":"normal"},
-			{"url":"https://p0.test/ingest-2","title":"two","host":"p0.test","type":"media","sub_url":["https://p0.test/two.jpg"]}
+			{"url":"https://p0.test/ingest-2","title":"two","host":"p0.test","type":"youtube"}
 		]'::jsonb
 	),
 	'{"insertedCount": 2, "skippedCount": 0}'::jsonb,
@@ -201,6 +194,11 @@ select is(
 	(select count(*) from public."new-threads" where url like 'https://p0.test/ingest-%'),
 	2::bigint,
 	'ingest creates one new thread per URL'
+);
+select is(
+	(select type from public."new-threads" where url = 'https://p0.test/ingest-2'),
+	'normal',
+	'ingest normalizes removed media types'
 );
 
 set local role service_role;

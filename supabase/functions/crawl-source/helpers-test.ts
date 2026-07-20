@@ -5,7 +5,6 @@ import {
 	constantTimeEquals,
 	dedupeByUrl,
 	defineType,
-	getUrlExtension,
 	hasMinimumInternalSecretLength,
 	isCrawlTarget,
 } from "./helpers.ts";
@@ -37,23 +36,17 @@ Deno.test("crawl target validation is allowlist based", () => {
 	assert(!isCrawlTarget("unknown"), "unknown target should fail");
 });
 
-Deno.test("URL classification validates youtube IDs and media extensions", () => {
+Deno.test("URL classification follows filter keyword methods", () => {
 	assert(
-		defineType("https://youtu.be/abcdefghijk", [{ value: "youtu.be", method: "youtube" }]) ===
-			"youtube",
-		"valid youtube URL should be classified"
+		defineType("https://example.com/post", [{ value: "example.com", method: "source" }]) ===
+			"source",
+		"matching URLs should use the configured method"
 	);
 	assert(
-		defineType("https://youtu.be/invalid", [{ value: "youtu.be", method: "youtube" }]) === "normal",
-		"invalid youtube URL should fall back to normal"
+		defineType("https://other.test/post", [{ value: "example.com", method: "source" }]) ===
+			"normal",
+		"non-matching URLs should fall back to normal"
 	);
-	assert(
-		defineType("https://example.com/image.JPG?size=large", [
-			{ value: "example.com", method: "media" },
-		]) === "media",
-		"media URL should use its pathname extension"
-	);
-	assert(getUrlExtension("not a URL") === "", "invalid URL should have no extension");
 });
 
 Deno.test("URL deduplication keeps the first item", () => {

@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import type { ThreadItemType } from "@/lib/typeDefs";
+import type { ThreadItemType } from "@/lib/type-defs";
 import NoDataBox from "../no-data";
 import { QuickSaveButton } from "./quick-save-button";
 import { DefaultThreadItem } from "./thread-item";
@@ -69,7 +69,7 @@ const TypeStats = ({
 	);
 };
 
-const ThreadList = ({ threads }: { threads: ThreadItemType[] }) => {
+const ThreadItems = ({ threads }: { threads: ThreadItemType[] }) => {
 	return (
 		<div className="flex flex-col gap-2">
 			{threads.map((thread) => (
@@ -84,7 +84,7 @@ const ThreadList = ({ threads }: { threads: ThreadItemType[] }) => {
 	);
 };
 
-export const NormalThreads = () => {
+export const ThreadList = () => {
 	const [selectedType, setSelectedType] = useState("all");
 
 	const filterParams = useMemo(() => {
@@ -108,7 +108,6 @@ export const NormalThreads = () => {
 	const fetchThreads = useCallback(
 		async ({ pageParam }: { pageParam?: string }) => {
 			const searchParams = new URLSearchParams({
-				scope: "normal",
 				limit: "24",
 			});
 
@@ -135,7 +134,7 @@ export const NormalThreads = () => {
 	);
 
 	const fetchStats = useCallback(async () => {
-		const response = await fetch("/api/new-threads/stats?scope=normal");
+		const response = await fetch("/api/new-threads/stats");
 
 		if (!response.ok) {
 			throw new Error("신규 스레드 통계를 불러오지 못했습니다.");
@@ -152,14 +151,14 @@ export const NormalThreads = () => {
 	);
 
 	const statsQuery = useQuery({
-		queryKey: ["new-threads", "normal", "stats"],
+		queryKey: ["new-threads", "stats"],
 		queryFn: fetchStats,
 		staleTime: 1000 * 60 * 5,
 	});
 
 	const { data, error, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
 		useInfiniteQuery({
-			queryKey: ["new-threads", "normal", filterKey],
+			queryKey: ["new-threads", filterKey],
 			queryFn: ({ pageParam }) => fetchThreads({ pageParam }),
 			initialPageParam: undefined as string | undefined,
 			getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
@@ -253,7 +252,7 @@ export const NormalThreads = () => {
 			) : threads.length === 0 ? (
 				<NoDataBox />
 			) : (
-				<ThreadList threads={threads} />
+				<ThreadItems threads={threads} />
 			)}
 			<div ref={loadMoreRef} className="h-6 w-full" />
 			{isFetchingNextPage ? (

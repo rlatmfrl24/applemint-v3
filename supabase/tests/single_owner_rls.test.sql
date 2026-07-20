@@ -1,6 +1,34 @@
 begin;
 
-select plan(31);
+select plan(37);
+
+select hasnt_column('public', 'new-threads', 'sub_url', 'new threads no longer store media URLs');
+select hasnt_column('public', 'quick-save', 'sub_url', 'quick saves no longer store media URLs');
+select hasnt_column('public', 'trash', 'sub_url', 'trash no longer stores media URLs');
+select is(
+	(select count(*) from public."filter-keyword" where method in ('media', 'youtube')),
+	0::bigint,
+	'removed media classifiers are absent'
+);
+select ok(
+	to_regprocedure('public.get_new_threads_stats(text,text,text)') is null
+		and to_regprocedure('public.get_new_threads_stats(text,text)') is not null,
+	'thread statistics RPC no longer exposes a media scope parameter'
+);
+select is(
+	(
+		select count(*)
+		from pg_constraint
+		where conname in (
+			'filter_keyword_no_removed_media_types',
+			'new_threads_no_removed_media_types',
+			'quick_save_no_removed_media_types',
+			'trash_no_removed_media_types'
+		)
+	),
+	4::bigint,
+	'database constraints prevent removed media types from returning'
+);
 
 select ok(
 	not exists (
@@ -25,7 +53,7 @@ select ok(
 			'public.is_applemint_owner()',
 			'public.move_thread(bigint,text,text)',
 			'public.bulk_move_new_threads_to_trash()',
-			'public.get_new_threads_stats(text,text,text)',
+			'public.get_new_threads_stats(text,text)',
 			'public.clean_trash()',
 			'public.ingest_crawl_items(text,jsonb)',
 			'public.acquire_crawl_lock(text,uuid,integer)',

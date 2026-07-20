@@ -1,6 +1,6 @@
 {
-  "compilerOptions": {
-    "strict": true
-  },
-  "nodeModulesDir": "none"
+	"compilerOptions": {
+		"strict": true
+	},
+	"nodeModulesDir": "none"
 }

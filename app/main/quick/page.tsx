@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { ThreadItemType } from "@/lib/typeDefs";
+import type { ThreadItemType } from "@/lib/type-defs";
 import { createClient } from "@/utils/supabase/client";
 import { DefaultThreadItem } from "../new-threads/thread-item";
 import { ThreadLoading } from "../new-threads/thread-loading";

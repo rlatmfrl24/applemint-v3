@@ -18,12 +18,10 @@ export async function GET(request: NextRequest) {
 		}
 
 		const { searchParams } = new URL(request.url);
-		const scope = searchParams.get("scope") ?? "normal";
 		const filterType = searchParams.get("filterType");
 		const issuelinkCategory = searchParams.get("issuelinkCategory");
 
 		const { data, error } = await supabase.rpc("get_new_threads_stats", {
-			in_scope: scope,
 			in_filter_type: filterType,
 			in_issuelink_category: issuelinkCategory,
 		});
@@ -41,7 +39,6 @@ export async function GET(request: NextRequest) {
 		const totalCount = rows.length > 0 ? Number(rows[0].total_count) : 0;
 
 		return NextResponse.json({
-			scope,
 			totalCount,
 			counts,
 		});

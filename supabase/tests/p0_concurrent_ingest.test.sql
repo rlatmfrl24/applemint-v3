@@ -33,7 +33,7 @@ select is(
 	extensions.dblink_connect(
 		'p0_ingest_1',
 		format(
-			'host=host.docker.internal port=54322 dbname=postgres user=p0_concurrent_ingest_login password=%s',
+			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=p0_concurrent_ingest_login password=%s',
 			:'p0_test_password'
 		)
 	),
@@ -44,7 +44,7 @@ select is(
 	extensions.dblink_connect(
 		'p0_ingest_2',
 		format(
-			'host=host.docker.internal port=54322 dbname=postgres user=p0_concurrent_ingest_login password=%s',
+			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=p0_concurrent_ingest_login password=%s',
 			:'p0_test_password'
 		)
 	),

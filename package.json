@@ -1,74 +1,80 @@
 {
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-webstorage\" next dev",
-    "build": "cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-webstorage\" next build",
-    "start": "cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-webstorage\" next start",
-    "test": "vitest run",
-    "test:db": "supabase test db",
-    "test:edge": "deno test --config supabase/functions/deno.json --lock deno.lock --frozen supabase/functions/crawl-source/helpers-test.ts",
-    "typecheck": "tsc --noEmit --incremental false",
-    "check:edge": "deno check --config supabase/functions/deno.json --lock deno.lock --frozen supabase/functions/crawl-source/index.ts",
-    "security:collect-alerts": "node scripts/security/collect-alerts.mjs",
-    "security:gate": "node scripts/security/security-gate.mjs"
-  },
-  "dependencies": {
-    "@radix-ui/react-alert-dialog": "^1.1.15",
-    "@radix-ui/react-dropdown-menu": "^2.1.16",
-    "@radix-ui/react-navigation-menu": "^1.2.14",
-    "@radix-ui/react-slot": "^1.2.4",
-    "@radix-ui/react-toggle": "^1.1.9",
-    "@radix-ui/react-toggle-group": "^1.1.10",
-    "@supabase/ssr": "0.9.0",
-    "@supabase/supabase-js": "^2.99.1",
-    "@tanstack/react-query": "^5.90.21",
-    "autoprefixer": "10.4.27",
-    "cheerio": "^1.2.0",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "date-fns": "^4.1.0",
-    "geist": "^1.7.0",
-    "linkifyjs": "^4.3.2",
-    "lucide-react": "^0.577.0",
-    "next": "16.1.6",
-    "next-themes": "^0.4.6",
-    "postcss": "8.5.8",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "sonner": "^2.0.5",
-    "tailwind-merge": "^3.5.0",
-    "tailwindcss": "4.2.1",
-    "tailwindcss-animate": "^1.0.7",
-    "typescript": "5.3.3",
-    "vaul": "^1.1.2"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "2.4.7",
-    "@tailwindcss/postcss": "^4.2.1",
-    "@types/node": "20.11.5",
-    "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3",
-    "cross-env": "^10.1.0",
-    "encoding": "^0.1.13",
-    "eslint": "^9.37.0",
-    "eslint-config-next": "16.1.6",
-    "vitest": "^4.1.10"
-  },
-  "resolutions": {
-    "@radix-ui/react-dismissable-layer": "1.1.0",
-    "@radix-ui/react-focus-scope": "1.1.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "ajv@^6": "6.14.0",
-      "flatted": "3.4.0",
-      "glob@^10": "10.5.0",
-      "js-yaml@^4": "4.1.1",
-      "minimatch@^3": "3.1.4",
-      "minimatch@^9": "9.0.7",
-      "undici@^6": "6.24.0",
-      "undici@^7": "7.24.3"
-    }
-  }
+	"private": true,
+	"type": "module",
+	"packageManager": "pnpm@10.33.0",
+	"engines": {
+		"node": "24.x"
+	},
+	"scripts": {
+		"dev": "cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-webstorage\" next dev",
+		"build": "cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-webstorage\" next build",
+		"start": "cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-webstorage\" next start",
+		"format": "biome format --write .",
+		"format:check": "biome format .",
+		"lint": "biome lint . --error-on-warnings",
+		"lint:fix": "biome lint --write .",
+		"check": "biome check . --error-on-warnings && pnpm typecheck && pnpm check:edge",
+		"ci": "pnpm run check && pnpm test && pnpm test:edge && pnpm test:db && pnpm build",
+		"test": "vitest run",
+		"test:db": "supabase test db",
+		"test:edge": "deno test --config supabase/functions/deno.json --lock deno.lock --frozen supabase/functions/crawl-source/helpers-test.ts",
+		"typecheck": "tsc --noEmit --incremental false",
+		"check:edge": "deno check --config supabase/functions/deno.json --lock deno.lock --frozen supabase/functions/crawl-source/index.ts",
+		"security:collect-alerts": "node scripts/security/collect-alerts.mjs",
+		"security:gate": "node scripts/security/security-gate.mjs"
+	},
+	"dependencies": {
+		"@radix-ui/react-alert-dialog": "^1.1.15",
+		"@radix-ui/react-dropdown-menu": "^2.1.16",
+		"@radix-ui/react-navigation-menu": "^1.2.14",
+		"@radix-ui/react-slot": "^1.2.4",
+		"@radix-ui/react-toggle-group": "^1.1.10",
+		"@supabase/ssr": "0.9.0",
+		"@supabase/supabase-js": "^2.99.1",
+		"@tanstack/react-query": "^5.90.21",
+		"autoprefixer": "10.4.27",
+		"cheerio": "^1.2.0",
+		"class-variance-authority": "^0.7.1",
+		"clsx": "^2.1.1",
+		"date-fns": "^4.1.0",
+		"geist": "^1.7.0",
+		"linkifyjs": "^4.3.2",
+		"lucide-react": "^0.577.0",
+		"next": "16.1.6",
+		"next-themes": "^0.4.6",
+		"postcss": "8.5.8",
+		"react": "19.2.4",
+		"react-dom": "19.2.4",
+		"sonner": "^2.0.5",
+		"tailwind-merge": "^3.5.0",
+		"tailwindcss": "4.2.1",
+		"tailwindcss-animate": "^1.0.7",
+		"typescript": "5.3.3",
+		"vaul": "^1.1.2"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.4.7",
+		"@tailwindcss/postcss": "^4.2.1",
+		"@types/node": "20.11.5",
+		"@types/react": "19.2.14",
+		"@types/react-dom": "19.2.3",
+		"cross-env": "^10.1.0",
+		"vitest": "^4.1.10"
+	},
+	"resolutions": {
+		"@radix-ui/react-dismissable-layer": "1.1.0",
+		"@radix-ui/react-focus-scope": "1.1.0"
+	},
+	"pnpm": {
+		"overrides": {
+			"ajv@^6": "6.14.0",
+			"flatted": "3.4.0",
+			"glob@^10": "10.5.0",
+			"js-yaml@^4": "4.1.1",
+			"minimatch@^3": "3.1.4",
+			"minimatch@^9": "9.0.7",
+			"undici@^6": "6.24.0",
+			"undici@^7": "7.24.3"
+		}
+	}
 }

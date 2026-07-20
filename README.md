@@ -27,8 +27,8 @@
 - 소스별 크롤러 모듈 분리 (`arcalive`, `battlepage`, `insagirl`, `issuelink`)
 
 ### 품질 / 보안 유지보수
-- `Biome` 포맷/린트 규칙
-- `ESLint (next/core-web-vitals 계열)`
+- `Biome 2.4.7` 포맷·린트·정적 검사
+- GitHub PR CI (`Vitest`, `pgTAP`, `Deno`, `TypeScript`, production build)
 - GitHub `CodeQL` 워크플로우
 - `Dependabot` 주간 보안 업데이트
 - 커스텀 보안 스크립트 (`scripts/security/*`)
@@ -36,7 +36,7 @@
 ## 핵심 기능
 
 - 인증 사용자만 `/main` 접근 가능 (서버 레이아웃 + 미들웨어 세션 갱신)
-- 소스별 크롤링 결과 수집 후 중복 제거 및 타입 분류(`normal`, `media`, `youtube`)
+- 소스별 크롤링 결과 수집 후 중복 제거 및 키워드 기반 타입 분류
 - `new-threads` 무한 스크롤 목록 + 타입별 통계/필터
 - `Quick Save` 이동, `Trash` 이동/복원 워크플로우
 - 설정 페이지에서 수동 크롤링 트리거 및 신규 스레드 일괄 정리
@@ -44,9 +44,9 @@
 ## 아키텍처 개요
 
 1. UI(`/main/setting`)에서 수동 크롤링 호출
-2. `POST /api/crawl/manual`이 로그인 사용자 UUID 허용목록을 확인한 뒤 Supabase Edge Function(`crawl-source`) 호출
+2. `POST /api/crawl/manual`이 DB의 단일 소유자 권한을 확인한 뒤 Supabase Edge Function(`crawl-source`) 호출
 3. Edge Function이 global DB lock을 획득하고 `POST /api/crawl` 내부 API 호출
-4. 크롤링 결과를 `filter-keyword` 기준으로 필터링/타입 분류/미디어 확장
+4. 크롤링 결과를 `filter-keyword` 기준으로 필터링/타입 분류
 5. `ingest_crawl_items` RPC가 `crawl-history` claim과 `new-threads` 적재를 하나의 트랜잭션으로 확정
 6. UI는 `app/api/new-threads`, `app/api/new-threads/stats`로 조회
 
@@ -100,7 +100,6 @@ erDiagram
       text title
       text host
       text tag
-      text sub_url
       timestamptz created_at
       timestamptz captured_at
     }
@@ -112,7 +111,6 @@ erDiagram
       text title
       text host
       text tag
-      text sub_url
       timestamptz created_at
       timestamptz captured_at
     }
@@ -124,7 +122,6 @@ erDiagram
       text title
       text host
       text tag
-      text sub_url
       timestamptz created_at
       timestamptz captured_at
     }
@@ -137,7 +134,7 @@ erDiagram
 ```
 
 - 현재 스키마는 명시적 FK 제약보다 PostgreSQL RPC(`move_thread`, `bulk_move_new_threads_to_trash`)로 이동 원자성을 유지합니다.
-- `new-threads.tag`, `new-threads.sub_url`는 배열 성격 데이터(태그/미디어 URL 리스트)를 저장합니다.
+- `new-threads.tag`는 배열 성격의 태그 데이터를 저장합니다.
 - `crawl-history`는 `(crawl_source, url)` 유니크 인덱스로 중복 유입을 방지합니다.
 - 통계 API는 `new-threads` 기반 RPC(`get_new_threads_stats`)를 사용합니다.
 
@@ -152,7 +149,6 @@ erDiagram
 ### 2) 데이터 분류/필터 정책 관리
 - 타입 분류 기준은 `supabase/functions/crawl-source/index.ts`의 `defineType`에서 처리
 - 무시 키워드/분류 키워드는 DB `filter-keyword` 테이블에서 제어
-- 미디어 확장자/Imgur 처리 로직 변경 시 `getMediaData` 영향 범위 확인
 
 ### 3) 조회 성능 및 통계 로직
 - 목록 API는 커서 기반(`id < cursor`) 페이지네이션 사용
@@ -169,8 +165,11 @@ erDiagram
 ### 5) 코드 컨벤션
 - TS strict + 경로 별칭 `@/*`
 - 포맷/린트 규칙은 `biome.json` 기준
+- 운영·배포 기준 브랜치는 `master`, 통합 개발 브랜치는 `develop`
+- 로컬 전체 검증은 `supabase db start` 후 `pnpm run ci`
+- `pnpm ci`는 pnpm의 clean-install 명령이므로 프로젝트 검증에는 사용하지 않음
 - 신규 데이터 모델 필드 추가 시:
-  - `lib/typeDefs.ts`
+  - `lib/type-defs.ts`
   - Supabase 관련 쿼리 코드
   - 통계/필터 API 및 UI 표시부
   를 함께 동기화
@@ -183,9 +182,7 @@ erDiagram
 - `SUPABASE_URL` (manual crawl fallback)
 - `CRAWL_INTERNAL_SECRET` (Next/Edge에 동일하게 설정하는 32바이트 이상 내부 secret)
 - `CRAWL_API_BASE_URL` (Edge Function -> 내부 크롤링 API 주소)
-- `NEXT_PUBLIC_IMGUR_CLIENT_ID` (Imgur 미디어 확장)
 - `DEBUG_CRAWL`, `LOG_LEVEL`
-- `MEDIA_FETCH_CONCURRENCY`
 - `GITHUB_TOKEN` 또는 `GH_TOKEN` (보안 스크립트 실행 시)
 
 Applemint는 migration에 고정한 단일 Supabase Auth 계정만 사용할 수 있습니다. 신규 가입은 비활성화하며 목록 조회는 소유자에게만 허용되고, 스레드 변경은 소유자 확인이 포함된 RPC를 통해서만 수행합니다.

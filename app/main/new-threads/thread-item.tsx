@@ -13,7 +13,7 @@ import {
 	rollbackSnapshots,
 	type ThreadTableName,
 } from "@/lib/thread-query-cache";
-import type { ThreadItemType } from "@/lib/typeDefs";
+import type { ThreadItemType } from "@/lib/type-defs";
 import { createClient } from "@/utils/supabase/client";
 import { useMoveThreadToTrash } from "./use-move-to-trash";
 

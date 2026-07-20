@@ -5,7 +5,7 @@ import { useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import type { ThreadItemType } from "@/lib/typeDefs";
+import type { ThreadItemType } from "@/lib/type-defs";
 
 export function ThreadCard({
 	thread,

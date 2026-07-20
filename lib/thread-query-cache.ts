@@ -1,18 +1,17 @@
 import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
-import type { ThreadItemType } from "./typeDefs";
+import type { ThreadItemType } from "./type-defs";
 
 export type ThreadTableName = "new-threads" | "quick-save" | "trash";
 
-export interface ThreadStatsItem {
+interface ThreadStatsItem {
 	key: string;
 	label: string;
 	count: number;
 }
 
-export interface NormalThreadStats {
+interface ThreadStats {
 	counts: ThreadStatsItem[];
 	totalCount?: number;
-	scope?: string;
 }
 
 export interface ThreadInfinitePage {
@@ -25,7 +24,7 @@ export interface QuerySnapshot<TData = unknown> {
 	data: TData | undefined;
 }
 
-const NEW_THREADS_STATS_QUERY_KEY = ["new-threads", "normal", "stats"] as const;
+const NEW_THREADS_STATS_QUERY_KEY = ["new-threads", "stats"] as const;
 
 export const normalizeThreadId = (value: string | number) => {
 	if (typeof value === "number" && Number.isFinite(value)) {
@@ -41,15 +40,11 @@ export const normalizeThreadId = (value: string | number) => {
 	return trimmedValue;
 };
 
-export const isNormalScopeThread = (thread: ThreadItemType) => {
-	return thread.type !== "media" && thread.type !== "youtube";
-};
-
-export const getIssuelinkCategory = (thread: ThreadItemType) => {
+const getIssuelinkCategory = (thread: ThreadItemType) => {
 	return thread.tag?.[1] ?? "unknown";
 };
 
-export const getThreadStatKey = (thread: ThreadItemType) => {
+const getThreadStatKey = (thread: ThreadItemType) => {
 	if (thread.type === "issuelink") {
 		return `issuelink::${getIssuelinkCategory(thread)}`;
 	}
@@ -57,7 +52,7 @@ export const getThreadStatKey = (thread: ThreadItemType) => {
 	return thread.type;
 };
 
-export const getThreadStatLabel = (thread: ThreadItemType) => {
+const getThreadStatLabel = (thread: ThreadItemType) => {
 	if (thread.type === "issuelink") {
 		return getIssuelinkCategory(thread);
 	}
@@ -65,7 +60,7 @@ export const getThreadStatLabel = (thread: ThreadItemType) => {
 	return thread.type;
 };
 
-export const createOptimisticThread = (thread: ThreadItemType, seed: string): ThreadItemType => {
+const createOptimisticThread = (thread: ThreadItemType, seed: string): ThreadItemType => {
 	return {
 		...thread,
 		id: `optimistic-${seed}-${normalizeThreadId(thread.id)}`,
@@ -73,7 +68,7 @@ export const createOptimisticThread = (thread: ThreadItemType, seed: string): Th
 	};
 };
 
-export const isNewThreadsInfiniteQueryKey = (queryKey: QueryKey) => {
+const isNewThreadsInfiniteQueryKey = (queryKey: QueryKey) => {
 	return (
 		Array.isArray(queryKey) &&
 		queryKey.length > 0 &&
@@ -101,14 +96,7 @@ const parseFilterKey = (filterKey: string | undefined) => {
 	return filters;
 };
 
-export const matchesNormalThreadFilter = (
-	thread: ThreadItemType,
-	filterKey: string | undefined
-) => {
-	if (!isNormalScopeThread(thread)) {
-		return false;
-	}
-
+const matchesThreadFilter = (thread: ThreadItemType, filterKey: string | undefined) => {
 	if (!filterKey) {
 		return true;
 	}
@@ -132,7 +120,7 @@ export const matchesNormalThreadFilter = (
 	return thread.type === filterType;
 };
 
-export const removeThreadFromInfiniteData = (
+const removeThreadFromInfiniteData = (
 	data: InfiniteData<ThreadInfinitePage>,
 	threadId: string | number
 ) => {
@@ -179,7 +167,7 @@ const prependThreadToItems = (items: ThreadItemType[], thread: ThreadItemType) =
 	return [thread, ...items];
 };
 
-export const prependThreadToInfiniteData = (
+const prependThreadToInfiniteData = (
 	data: InfiniteData<ThreadInfinitePage>,
 	thread: ThreadItemType
 ) => {
@@ -206,10 +194,7 @@ export const prependThreadToInfiniteData = (
 	};
 };
 
-export const removeThreadFromArray = (
-	items: ThreadItemType[] | undefined,
-	threadId: string | number
-) => {
+const removeThreadFromArray = (items: ThreadItemType[] | undefined, threadId: string | number) => {
 	if (!items) {
 		return items;
 	}
@@ -218,10 +203,7 @@ export const removeThreadFromArray = (
 	return items.filter((item) => normalizeThreadId(item.id) !== normalizedId);
 };
 
-export const prependThreadToArray = (
-	items: ThreadItemType[] | undefined,
-	thread: ThreadItemType
-) => {
+const prependThreadToArray = (items: ThreadItemType[] | undefined, thread: ThreadItemType) => {
 	if (!items) {
 		return items;
 	}
@@ -235,18 +217,14 @@ export const rollbackSnapshots = (queryClient: QueryClient, snapshots: QuerySnap
 	}
 };
 
-export const updateNormalStatsQuery = (
-	queryClient: QueryClient,
-	thread: ThreadItemType,
-	delta: number
-) => {
-	const previousData = queryClient.getQueryData<NormalThreadStats>(NEW_THREADS_STATS_QUERY_KEY);
+const updateStatsQuery = (queryClient: QueryClient, thread: ThreadItemType, delta: number) => {
+	const previousData = queryClient.getQueryData<ThreadStats>(NEW_THREADS_STATS_QUERY_KEY);
 
-	if (!previousData || !isNormalScopeThread(thread)) {
+	if (!previousData) {
 		return {
 			queryKey: NEW_THREADS_STATS_QUERY_KEY,
 			data: previousData,
-		} satisfies QuerySnapshot<NormalThreadStats>;
+		} satisfies QuerySnapshot<ThreadStats>;
 	}
 
 	const statKey = getThreadStatKey(thread);
@@ -281,7 +259,7 @@ export const updateNormalStatsQuery = (
 	const currentTotalCount =
 		previousData.totalCount ?? previousData.counts.reduce((sum, item) => sum + item.count, 0);
 
-	queryClient.setQueryData<NormalThreadStats>(NEW_THREADS_STATS_QUERY_KEY, {
+	queryClient.setQueryData<ThreadStats>(NEW_THREADS_STATS_QUERY_KEY, {
 		...previousData,
 		counts,
 		totalCount: Math.max(0, currentTotalCount + delta),
@@ -290,7 +268,7 @@ export const updateNormalStatsQuery = (
 	return {
 		queryKey: NEW_THREADS_STATS_QUERY_KEY,
 		data: previousData,
-	} satisfies QuerySnapshot<NormalThreadStats>;
+	} satisfies QuerySnapshot<ThreadStats>;
 };
 
 const captureNewThreadsRemovalSnapshots = (queryClient: QueryClient, thread: ThreadItemType) => {
@@ -314,7 +292,7 @@ const captureNewThreadsRemovalSnapshots = (queryClient: QueryClient, thread: Thr
 		} satisfies QuerySnapshot<InfiniteData<ThreadInfinitePage>>;
 	});
 
-	snapshots.push(updateNormalStatsQuery(queryClient, thread, -1));
+	snapshots.push(updateStatsQuery(queryClient, thread, -1));
 
 	return snapshots;
 };
@@ -351,11 +329,11 @@ const captureNewThreadsInsertSnapshots = (
 	const snapshots: QuerySnapshot[] = affectedQueries.map((query) => {
 		const previousData = query.state.data as InfiniteData<ThreadInfinitePage> | undefined;
 		const filterKey =
-			Array.isArray(query.queryKey) && typeof query.queryKey[2] === "string"
-				? query.queryKey[2]
+			Array.isArray(query.queryKey) && typeof query.queryKey[1] === "string"
+				? query.queryKey[1]
 				: undefined;
 
-		if (previousData && matchesNormalThreadFilter(thread, filterKey)) {
+		if (previousData && matchesThreadFilter(thread, filterKey)) {
 			queryClient.setQueryData(
 				query.queryKey,
 				prependThreadToInfiniteData(previousData, optimisticThread)
@@ -368,7 +346,7 @@ const captureNewThreadsInsertSnapshots = (
 		} satisfies QuerySnapshot<InfiniteData<ThreadInfinitePage>>;
 	});
 
-	snapshots.push(updateNormalStatsQuery(queryClient, thread, 1));
+	snapshots.push(updateStatsQuery(queryClient, thread, 1));
 
 	return snapshots;
 };

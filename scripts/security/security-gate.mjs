@@ -2,9 +2,9 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import {
 	countBySeverity,
+	dedupeByAlertNumber,
 	detectRepository,
 	detectToken,
-	dedupeByAlertNumber,
 	fetchAndNormalizeAlerts,
 } from "./github-alerts.mjs";
 
@@ -31,8 +31,7 @@ function buildStepSummary(result) {
 	const disabledSources = Object.entries(result.sources)
 		.filter(([, status]) => status.status === "disabled")
 		.map(([name]) => name);
-	const disabledLine =
-		disabledSources.length > 0 ? disabledSources.join(", ") : "none";
+	const disabledLine = disabledSources.length > 0 ? disabledSources.join(", ") : "none";
 
 	return [
 		"## Security Gate",
@@ -43,9 +42,7 @@ function buildStepSummary(result) {
 		`- High threshold result: ${
 			result.blocking_high_count > 0 ? "FAIL" : "PASS"
 		} (count=${result.blocking_high_count})`,
-		result.collection_error
-			? `- Collection error: ${result.collection_error}`
-			: null,
+		result.collection_error ? `- Collection error: ${result.collection_error}` : null,
 	]
 		.filter(Boolean)
 		.join("\n");

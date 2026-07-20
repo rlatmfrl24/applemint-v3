@@ -29,8 +29,7 @@ function normalizeDependabotAlert(alert) {
 		package: alert.dependency?.package?.name ?? null,
 		relationship: alert.dependency?.relationship ?? null,
 		manifest_path: alert.dependency?.manifest_path ?? null,
-		patched_version:
-			alert.security_vulnerability?.first_patched_version?.identifier ?? null,
+		patched_version: alert.security_vulnerability?.first_patched_version?.identifier ?? null,
 		state: alert.state ?? null,
 		html_url: alert.html_url ?? null,
 		created_at: alert.created_at ?? null,
@@ -76,8 +75,7 @@ function normalizeSecretScanningAlert(alert) {
 }
 
 function mapCodeScanningSeverity(alert) {
-	const level =
-		alert.rule?.security_severity_level ?? alert.rule?.severity ?? "unknown";
+	const level = alert.rule?.security_severity_level ?? alert.rule?.severity ?? "unknown";
 	const normalizedLevel = String(level).toLowerCase();
 
 	if (["critical", "high", "error"].includes(normalizedLevel)) {
@@ -99,9 +97,7 @@ function parseRepoFromGitRemote(remoteUrl) {
 		return `${sshMatch[1]}/${sshMatch[2]}`;
 	}
 
-	const httpsMatch = trimmed.match(
-		/^https:\/\/github\.com\/([^/]+)\/(.+?)(?:\.git)?$/
-	);
+	const httpsMatch = trimmed.match(/^https:\/\/github\.com\/([^/]+)\/(.+?)(?:\.git)?$/);
 	if (httpsMatch) {
 		return `${httpsMatch[1]}/${httpsMatch[2]}`;
 	}
@@ -110,12 +106,12 @@ function parseRepoFromGitRemote(remoteUrl) {
 }
 
 export function detectRepository(explicitRepo = null) {
-	if (explicitRepo && explicitRepo.includes("/")) {
+	if (explicitRepo?.includes("/")) {
 		return explicitRepo;
 	}
 
 	const fromEnv = process.env.GITHUB_REPOSITORY;
-	if (fromEnv && fromEnv.includes("/")) {
+	if (fromEnv?.includes("/")) {
 		return fromEnv;
 	}
 
@@ -131,9 +127,7 @@ export function detectRepository(explicitRepo = null) {
 		// Ignore and throw a clearer error below.
 	}
 
-	throw new Error(
-		"Cannot detect repository. Pass --repo owner/name or set GITHUB_REPOSITORY."
-	);
+	throw new Error("Cannot detect repository. Pass --repo owner/name or set GITHUB_REPOSITORY.");
 }
 
 export function detectToken() {
@@ -153,9 +147,7 @@ export function detectToken() {
 		// Fall through to the explicit error.
 	}
 
-	throw new Error(
-		"Missing GitHub token. Set GITHUB_TOKEN (or GH_TOKEN) or run `gh auth login`."
-	);
+	throw new Error("Missing GitHub token. Set GITHUB_TOKEN (or GH_TOKEN) or run `gh auth login`.");
 }
 
 function parseNextLink(linkHeader) {
@@ -182,9 +174,7 @@ async function fetchAlertPage({ token, url }) {
 
 	if (!response.ok) {
 		const body = await response.text();
-		throw new Error(
-			`GitHub API request failed (${response.status}) for ${url}: ${body}`
-		);
+		throw new Error(`GitHub API request failed (${response.status}) for ${url}: ${body}`);
 	}
 
 	const alerts = await response.json();
@@ -207,7 +197,11 @@ async function fetchOpenAlertsForSource({ repo, token, source }) {
 	nextUrl.searchParams.set("per_page", String(PAGE_SIZE));
 
 	while (nextUrl) {
-		const { status, alerts, nextUrl: candidateNextUrl } = await fetchAlertPage({
+		const {
+			status,
+			alerts,
+			nextUrl: candidateNextUrl,
+		} = await fetchAlertPage({
 			token,
 			url: nextUrl,
 		});
@@ -246,9 +240,7 @@ export async function fetchAndNormalizeAlerts({ repo, token }) {
 		};
 
 		if (result.status === "ok") {
-			normalized.push(
-				...result.alerts.map((alert) => SOURCE_CONFIG[source].normalize(alert))
-			);
+			normalized.push(...result.alerts.map((alert) => SOURCE_CONFIG[source].normalize(alert)));
 		}
 	}
 
@@ -291,7 +283,7 @@ export function dedupeByAlertNumber(alerts) {
 	};
 }
 
-export function dedupeByAdvisory(alerts) {
+function dedupeByAdvisory(alerts) {
 	const seen = new Set();
 	const advisories = [];
 
@@ -330,7 +322,7 @@ export function countBySeverity(alerts) {
 
 	for (const alert of alerts) {
 		const severity = String(alert.severity ?? "unknown").toLowerCase();
-		if (Object.prototype.hasOwnProperty.call(counts, severity)) {
+		if (Object.hasOwn(counts, severity)) {
 			counts[severity] += 1;
 		} else {
 			counts.unknown += 1;

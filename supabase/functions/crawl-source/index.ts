@@ -9,16 +9,13 @@ import {
 	dedupeByUrl,
 	defineType,
 	type FilterKeyword,
-	getUrlExtension,
 	hasMinimumInternalSecretLength,
 	isCrawlTarget,
-	MEDIA_EXTENSIONS,
 } from "./helpers.ts";
 
 const CRAWL_LOCK_KEY = "global-crawl";
 const CRAWL_LOCK_TTL_SECONDS = 300;
 const CRAWL_API_TIMEOUT_MS = 90_000;
-const MEDIA_FETCH_TIMEOUT_MS = 10_000;
 const CRAWL_API_BASE_URL = (
 	Deno.env.get("CRAWL_API_BASE_URL") ?? "https://applemint-v3.vercel.app"
 ).replace(/\/$/, "");
@@ -47,7 +44,6 @@ interface CrawlApiResponse {
 
 interface PreparedCrawlItem extends CrawlItem {
 	type: string;
-	sub_url: string[];
 }
 
 interface CrawlRequestContext {
@@ -73,109 +69,6 @@ const jsonResponse = (body: Record<string, unknown>, status = 200) =>
 
 const getErrorMessage = (error: unknown) =>
 	error instanceof Error ? error.message : "Unknown error";
-
-function parseConcurrency(value: string | undefined, fallback: number) {
-	const parsed = Number.parseInt(value ?? "", 10);
-	return Number.isNaN(parsed) || parsed <= 0 ? fallback : Math.min(parsed, 20);
-}
-
-async function mapWithConcurrency<T, R>(
-	items: T[],
-	concurrency: number,
-	mapper: (item: T, index: number) => Promise<R>
-) {
-	const results = new Array<R>(items.length);
-	let cursor = 0;
-
-	const worker = async () => {
-		while (cursor < items.length) {
-			const index = cursor;
-			cursor += 1;
-			results[index] = await mapper(items[index], index);
-		}
-	};
-
-	await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
-	return results;
-}
-
-async function fetchImgur(path: string, clientId: string) {
-	const response = await fetch(`https://api.imgur.com/3/${path}`, {
-		headers: { Authorization: `Client-ID ${clientId}` },
-		signal: AbortSignal.timeout(MEDIA_FETCH_TIMEOUT_MS),
-	});
-
-	if (!response.ok) {
-		throw new Error(`Imgur API returned HTTP ${response.status}`);
-	}
-
-	return (await response.json()) as { data?: unknown };
-}
-
-async function expandImgurUrl(itemUrl: string, imgurClientId: string) {
-	const parsedUrl = new URL(itemUrl);
-	const identifier = parsedUrl.pathname.split("/").filter(Boolean).at(-1)?.split(".")[0];
-	if (!identifier) {
-		throw new Error("Imgur URL is missing an identifier");
-	}
-
-	if (parsedUrl.hostname !== "imgur.com") {
-		return [];
-	}
-
-	if (parsedUrl.pathname.startsWith("/a/")) {
-		const response = await fetchImgur(`album/${identifier}`, imgurClientId);
-		if (!response.data || typeof response.data !== "object" || !("images" in response.data)) {
-			throw new Error("Imgur album response is missing images");
-		}
-
-		const images = (response.data as { images?: unknown }).images;
-		if (!Array.isArray(images)) {
-			throw new Error("Imgur album images are invalid");
-		}
-
-		return images.flatMap((image) =>
-			typeof image === "object" && image && "link" in image && typeof image.link === "string"
-				? [image.link]
-				: []
-		);
-	}
-
-	const response = await fetchImgur(`image/${identifier}`, imgurClientId);
-	if (
-		!response.data ||
-		typeof response.data !== "object" ||
-		!("link" in response.data) ||
-		typeof response.data.link !== "string"
-	) {
-		throw new Error("Imgur image response is missing a link");
-	}
-
-	return [response.data.link];
-}
-
-async function getMediaData(item: CrawlItem, type: string) {
-	if (type !== "media") {
-		return { urls: [] as string[], warningCount: 0 };
-	}
-
-	const extension = getUrlExtension(item.url);
-	if (MEDIA_EXTENSIONS.has(extension)) {
-		return { urls: [item.url], warningCount: 0 };
-	}
-
-	const imgurClientId = Deno.env.get("NEXT_PUBLIC_IMGUR_CLIENT_ID");
-	if (!imgurClientId) {
-		return { urls: [] as string[], warningCount: 1 };
-	}
-
-	try {
-		return { urls: await expandImgurUrl(item.url, imgurClientId), warningCount: 0 };
-	} catch (error) {
-		console.error(`[crawl-source] media expansion failed: ${getErrorMessage(error)}`);
-		return { urls: [] as string[], warningCount: 1 };
-	}
-}
 
 async function getExistingUrls(supabase: SupabaseClient, target: CrawlTarget, urls: string[]) {
 	const existingUrls = new Set<string>();
@@ -292,21 +185,12 @@ async function prepareItems(
 		filteredItems.map((item) => item.url)
 	);
 	const newItems = filteredItems.filter((item) => !existingUrls.has(item.url));
-	const mediaConcurrency = parseConcurrency(Deno.env.get("MEDIA_FETCH_CONCURRENCY"), 6);
-	let mediaWarningCount = 0;
-	const items = await mapWithConcurrency(
-		newItems,
-		mediaConcurrency,
-		async (item): Promise<PreparedCrawlItem> => {
-			const type = defineType(item.url, filterList);
-			const media = await getMediaData(item, type);
-			mediaWarningCount += media.warningCount;
+	const items: PreparedCrawlItem[] = newItems.map((item) => ({
+		...item,
+		type: defineType(item.url, filterList),
+	}));
 
-			return { ...item, type, sub_url: media.urls };
-		}
-	);
-
-	return { items, existingCount: existingUrls.size, mediaWarningCount };
+	return { items, existingCount: existingUrls.size };
 }
 
 async function processCrawl(context: CrawlRequestContext, startedAt: number) {
@@ -326,9 +210,7 @@ async function processCrawl(context: CrawlRequestContext, startedAt: number) {
 		target: context.target,
 		insertedCount: Number(counts.insertedCount ?? 0),
 		skippedCount: prepared.existingCount + Number(counts.skippedCount ?? 0),
-		warningCount:
-			(Array.isArray(crawlData.failures) ? crawlData.failures.length : 0) +
-			prepared.mediaWarningCount,
+		warningCount: Array.isArray(crawlData.failures) ? crawlData.failures.length : 0,
 		durationMs: Date.now() - startedAt,
 	});
 }

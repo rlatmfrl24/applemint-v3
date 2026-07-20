@@ -1,5 +1,5 @@
 import * as linkify from "linkifyjs";
-import type { CrawlItemType } from "@/lib/typeDefs";
+import type { CrawlItemType } from "@/lib/type-defs";
 import {
 	type CrawlFailure,
 	type CrawlSourceResult,
