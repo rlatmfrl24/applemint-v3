@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Copy, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -10,13 +10,13 @@ import { moveThread } from "@/lib/thread-mutations";
 import {
 	applyMoveThreadOptimisticUpdates,
 	invalidateThreadQueries,
+	isThreadQueryKeyForTables,
 	type QuerySnapshot,
 	rollbackSnapshots,
 } from "@/lib/thread-query-cache";
 import type { ThreadItemType } from "@/lib/type-defs";
 import { createClient } from "@/utils/supabase/client";
-import { ThreadLoading } from "../new-threads/thread-loading";
-import NoDataBox from "../no-data";
+import { ThreadInfiniteList } from "../thread-infinite-list";
 
 export default function TrashPage() {
 	return <TrashThread />;
@@ -32,9 +32,7 @@ function RestoreButton({ thread }: { thread: ThreadItemType }) {
 		},
 		onMutate: async () => {
 			await queryClient.cancelQueries({
-				predicate: (query) =>
-					Array.isArray(query.queryKey) &&
-					(query.queryKey[0] === "trash" || query.queryKey[0] === "new-threads"),
+				predicate: (query) => isThreadQueryKeyForTables(query.queryKey, ["trash", "new-threads"]),
 			});
 
 			return applyMoveThreadOptimisticUpdates(queryClient, {
@@ -76,33 +74,12 @@ function RestoreButton({ thread }: { thread: ThreadItemType }) {
 }
 
 function TrashThread() {
-	const supabase = createClient();
-
-	const { data, isLoading } = useQuery({
-		queryKey: ["trash"],
-		queryFn: async () => {
-			const { data, error } = await supabase
-				.from("trash")
-				.select()
-				.order("created_at", { ascending: false })
-				.order("id", { ascending: false })
-				.limit(50);
-
-			if (error) {
-				throw new Error(error.message);
-			}
-
-			return data as ThreadItemType[];
-		},
-	});
-
 	return (
-		<div className="flex w-full flex-col gap-2">
-			{isLoading ? <ThreadLoading count={5} /> : null}
-			{data && data.length === 0 ? <NoDataBox /> : null}
-			{data?.map((thread) => (
+		<ThreadInfiniteList
+			table="trash"
+			loadingCount={5}
+			renderItem={(thread) => (
 				<ThreadCard
-					key={thread.id}
 					thread={thread}
 					meta={
 						thread.created_at ? (
@@ -129,7 +106,7 @@ function TrashThread() {
 						</>
 					}
 				/>
-			))}
-		</div>
+			)}
+		/>
 	);
 }

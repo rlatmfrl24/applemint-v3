@@ -53,6 +53,7 @@ select ok(
 			'public.is_applemint_owner()',
 			'public.move_thread(bigint,text,text)',
 			'public.bulk_move_new_threads_to_trash()',
+			'public.list_thread_page(text,integer,timestamp with time zone,bigint,text,text)',
 			'public.get_new_threads_stats(text,text)',
 			'public.clean_trash()',
 			'public.ingest_crawl_items(text,jsonb)',

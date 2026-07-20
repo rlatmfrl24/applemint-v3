@@ -7,6 +7,8 @@ vi.mock("@/utils/supabase/server", () => ({
 	createClient: createClientMock,
 }));
 
+import { GET as getQuickSave } from "../quick-save/route";
+import { GET as getTrash } from "../trash/route";
 import { GET as getThreads } from "./route";
 import { GET as getStats } from "./stats/route";
 
@@ -36,6 +38,8 @@ function request(path: string) {
 
 describe.each([
 	["신규 스레드", (req: NextRequest) => getThreads(req), "/api/new-threads"],
+	["퀵 세이브", (req: NextRequest) => getQuickSave(req), "/api/quick-save"],
+	["휴지통", (req: NextRequest) => getTrash(req), "/api/trash"],
 	["신규 스레드 통계", (req: NextRequest) => getStats(req), "/api/new-threads/stats"],
 ])("%s API 소유자 검사", (_name, handler, path) => {
 	beforeEach(() => {

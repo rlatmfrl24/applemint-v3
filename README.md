@@ -151,7 +151,7 @@ erDiagram
 - 무시 키워드/분류 키워드는 DB `filter-keyword` 테이블에서 제어
 
 ### 3) 조회 성능 및 통계 로직
-- 목록 API는 커서 기반(`id < cursor`) 페이지네이션 사용
+- `new-threads`, `quick-save`, `trash` 목록 API는 `(created_at, id)` 복합 커서 기반 무한 스크롤 사용
 - 통계는 Postgres RPC `get_new_threads_stats`를 통해 집계
 - 쿼리 변경 시 API(`app/api/new-threads/*`)와 SQL 함수를 함께 수정
 
