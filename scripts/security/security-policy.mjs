@@ -1,11 +1,11 @@
 import { countBySeverity, dedupeAlertsByKey } from "./github-alerts.mjs";
 
-export const ALERT_BASELINE_SCHEMA_VERSION = 1;
-export const ALERT_BASELINE_POLICY = "zero-high-critical";
+const ALERT_BASELINE_SCHEMA_VERSION = 1;
+const ALERT_BASELINE_POLICY = "zero-high-critical";
 
 const BLOCKING_SEVERITIES = new Set(["critical", "high"]);
 
-export function isBlockingSeverity(severity) {
+function isBlockingSeverity(severity) {
 	return BLOCKING_SEVERITIES.has(String(severity ?? "unknown").toLowerCase());
 }
 
@@ -23,7 +23,7 @@ function sortByKey(entries) {
 	return [...entries].sort((left, right) => left.key.localeCompare(right.key));
 }
 
-export function validateAlertBaseline(baseline) {
+function validateAlertBaseline(baseline) {
 	if (!baseline || typeof baseline !== "object") {
 		throw new Error("Security alert baseline must be an object.");
 	}

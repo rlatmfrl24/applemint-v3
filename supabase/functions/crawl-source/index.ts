@@ -12,14 +12,13 @@ import {
 	type FilterKeyword,
 	hasMinimumInternalSecretLength,
 	isCrawlTarget,
+	normalizeCrawlApiBaseUrl,
 } from "./helpers.ts";
 
 const CRAWL_LOCK_KEY = "global-crawl";
 const CRAWL_LOCK_TTL_SECONDS = 300;
 const CRAWL_API_TIMEOUT_MS = 90_000;
-const CRAWL_API_BASE_URL = (
-	Deno.env.get("CRAWL_API_BASE_URL") ?? "https://applemint-v3.vercel.app"
-).replace(/\/$/, "");
+const CRAWL_API_BASE_URL = normalizeCrawlApiBaseUrl(Deno.env.get("CRAWL_API_BASE_URL"));
 
 interface CrawlItem {
 	url: string;
@@ -145,6 +144,10 @@ async function createRequestContext(request: Request): Promise<CrawlRequestConte
 }
 
 async function fetchCrawlData(target: CrawlTarget, internalSecret: string) {
+	if (!CRAWL_API_BASE_URL) {
+		throw new HttpError("CRAWL_API_BASE_URL is not configured", 503);
+	}
+
 	const crawlResponse = await fetch(`${CRAWL_API_BASE_URL}/api/crawl`, {
 		method: "POST",
 		headers: {

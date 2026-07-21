@@ -1,28 +1,9 @@
 {
-	"editor.fontFamily": "MonoLisa", // Or "'MonoLisa'"
-	// When lineHeight is set to zero, VS Code will figure out the
-	// the height automatically based on the font
-	"editor.lineHeight": 0,
-	// You can use standard CSS syntax here. To enable
-	// ss01 for example, you could set "'ss01' on"
-	"editor.fontLigatures": true,
-	"editor.fontSize": 12,
-	"cSpell.words": ["arcalive", "Battlepage", "clsx", "imgur", "Insagirl", "syncwatch"],
-	"deno.enablePaths": ["supabase/functions"],
-	"deno.importMap": "./supabase/functions/import_map.json",
-	"deno.lint": true,
-	"deno.unstable": true,
-	"[typescript]": {
-		"editor.defaultFormatter": "denoland.vscode-deno"
+	"editor.defaultFormatter": "biomejs.biome",
+	"editor.formatOnSave": true,
+	"editor.codeActionsOnSave": {
+		"source.fixAll.biome": "explicit"
 	},
-	"deno.enable": true,
-	"files.exclude": {
-		"**/.git": true,
-		"**/.svn": true,
-		"**/.hg": true,
-		"**/CVS": true,
-		"**/.DS_Store": true,
-		"**/Thumbs.db": true,
-		".yoyo": true
-	}
+	"deno.enablePaths": ["./supabase/functions"],
+	"deno.lint": true
 }

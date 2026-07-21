@@ -36,8 +36,6 @@ const createForwardedResponse = (request: NextRequest) =>
 	});
 
 export const updateSession = async (request: NextRequest) => {
-	// This `try/catch` block is only here for the interactive tutorial.
-	// Feel free to remove once you have Supabase connected.
 	try {
 		// Forward only request headers needed by downstream logic.
 		// `cookie` must be preserved for Supabase SSR auth in route handlers/server components.
@@ -91,9 +89,7 @@ export const updateSession = async (request: NextRequest) => {
 
 		return response;
 	} catch (_e) {
-		// If you are here, a Supabase client could not be created!
-		// This is likely because you have not set up environment variables.
-		// Check out http://localhost:3000 for Next Steps.
+		// 인증 인프라 오류가 발생해도 요청 헤더는 허용목록으로 제한해 전달합니다.
 		return createForwardedResponse(request);
 	}
 };

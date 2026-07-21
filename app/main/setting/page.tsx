@@ -31,6 +31,21 @@ function formatManualCrawlError(error: unknown) {
 	);
 }
 
+function getErrorMessage(error: unknown) {
+	if (error instanceof Error) {
+		return error.message;
+	}
+	if (
+		typeof error === "object" &&
+		error !== null &&
+		"message" in error &&
+		typeof error.message === "string"
+	) {
+		return error.message;
+	}
+	return "알 수 없는 오류가 발생했습니다.";
+}
+
 export default function SettingPage() {
 	const [result, setResult] = useState<string>("아직 크롤링 결과가 없습니다.");
 	const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -96,11 +111,7 @@ export default function SettingPage() {
 				await invalidateThreadQueries(queryClient, ["new-threads", "trash"]);
 			} catch (error) {
 				console.error("신규 스레드 일괄 이동 중 오류", error);
-				if (error instanceof Error) {
-					setBulkDeleteStatus(`이동 실패: ${error.message}`);
-				} else {
-					setBulkDeleteStatus("이동 실패: 알 수 없는 오류가 발생했습니다.");
-				}
+				setBulkDeleteStatus(`이동 실패: ${getErrorMessage(error)}`);
 			}
 		});
 	};
@@ -116,6 +127,7 @@ export default function SettingPage() {
 			</div>
 			<p className="mt-4">Crawl Result</p>
 			<Textarea
+				aria-label="크롤링 결과"
 				className="w-full"
 				value={isLoading ? "Loading..." : result}
 				disabled={isLoading}
@@ -154,6 +166,7 @@ export default function SettingPage() {
 				</AlertDialog>
 			</div>
 			<Textarea
+				aria-label="일괄 이동 결과"
 				className="mt-4 w-full"
 				value={isBulkDeleting ? "이동을 진행 중입니다..." : bulkDeleteStatus}
 				disabled={isBulkDeleting}

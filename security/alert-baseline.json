@@ -1,13 +1,5 @@
 {
 	"schemaVersion": 1,
 	"policy": "zero-high-critical",
-	"alerts": [
-		{
-			"key": "dependabot:GHSA-qx2v-qp2m-jg93:postcss",
-			"source": "dependabot",
-			"severity": "medium",
-			"package": "postcss",
-			"ghsa": "GHSA-qx2v-qp2m-jg93"
-		}
-	]
+	"alerts": []
 }

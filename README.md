@@ -28,7 +28,7 @@
 
 ### 품질 / 보안 유지보수
 - `Biome 2.4.7` 포맷·린트·정적 검사
-- GitHub PR CI (`Vitest`, `pgTAP`, `Deno`, `TypeScript`, production build)
+- GitHub PR CI (`Vitest`, `pgTAP`, `Deno`, `TypeScript`, production build, Playwright E2E)
 - GitHub `CodeQL` 워크플로우
 - `Dependabot` 주간 보안 업데이트
 - 커스텀 보안 스크립트 (`scripts/security/*`)
@@ -170,8 +170,13 @@ erDiagram
 ### 5) 코드 컨벤션
 - TS strict + 경로 별칭 `@/*`
 - 포맷/린트 규칙은 `biome.json` 기준
+- `pnpm deadcode`로 미사용 파일·의존성·export를 검사
+- Vitest 커버리지는 CI에서 statements/lines 50%, branches/functions 44% 이상을 유지
 - 운영·배포 기준 브랜치는 `master`, 통합 개발 브랜치는 `develop`
 - 로컬 전체 검증은 `supabase db start` 후 `pnpm run ci`
+- 브라우저 E2E는 Docker가 실행 중인 상태에서 `pnpm test:e2e`로 수행하며 로컬 DB를 초기화함
+- 최초 실행 전 `pnpm exec playwright install chromium`으로 테스트 브라우저를 설치
+- E2E 준비 과정은 `--local`과 loopback 주소를 검증하므로 원격 DB를 사용하지 않음
 - `pnpm ci`는 pnpm의 clean-install 명령이므로 프로젝트 검증에는 사용하지 않음
 - 신규 데이터 모델 필드 추가 시:
   - `lib/type-defs.ts`
@@ -195,10 +200,13 @@ Applemint는 migration에 고정한 단일 Supabase Auth 계정만 사용할 수
 ## 검증 명령
 
 - `pnpm test`: Next API, 인증, UI loading, optimistic cache 단위 테스트
+- `pnpm test:coverage`: 단위 테스트와 V8 커버리지 하한선 검사
 - `pnpm test:db`: 이동·적재 rollback, 권한, lock pgTAP 테스트
 - `pnpm typecheck`: TypeScript strict 검사
 - `pnpm check:edge`: 고정된 `deno.lock`으로 Edge Function 타입 검사
 - `pnpm test:edge`: Edge helper Deno 단위 테스트
 - `pnpm build`: Next.js 프로덕션 빌드
+- `pnpm test:e2e`: 로컬 Supabase 초기화 후 Chromium 브라우저 흐름 검증
+- `pnpm test:e2e:ui`: 로컬 Supabase 초기화 후 Playwright UI 모드 실행
 
 원격 migration history 정렬과 배포 순서는 [`docs/P0_DEPLOYMENT.md`](docs/P0_DEPLOYMENT.md)를 따릅니다.
