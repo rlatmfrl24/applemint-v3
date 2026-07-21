@@ -149,9 +149,10 @@ erDiagram
 
 - 현재 스키마는 명시적 FK 제약보다 PostgreSQL RPC(`move_thread`, `bulk_move_new_threads_to_trash`)로 이동 원자성을 유지합니다.
 - `new-threads.tag`는 배열 성격의 태그 데이터를 저장합니다.
-- `crawl-history`는 `(crawl_source, url)` 유니크 인덱스로 중복 유입을 방지합니다.
+- `crawl-history`는 `(crawl_source, url)` 유니크 인덱스로 중복 유입을 영구적으로 방지합니다. 사용자 목록에서 삭제된 URL도 재수집하지 않으며, 기간 만료 삭제·아카이브·월별 파티셔닝을 적용하지 않습니다.
 - `crawl_runs`는 재시도를 포함한 한 번의 실행을 한 행으로 보존하며 90일이 지난 이력은 매일 03:15 KST에 정리합니다.
 - `crawl_alert_incidents`와 `crawl_alert_notifications`는 소스 장애 상태와 GitHub Issue 전달 outbox를 보존합니다.
+- `crawl-history` 용량 측정, 백업·복구, 성능 검증 절차는 [`docs/CRAWL_HISTORY_RETENTION.md`](docs/CRAWL_HISTORY_RETENTION.md)를 참고합니다.
 - 장애 감지 기준과 운영 절차는 [`docs/CRAWLER_ALERT_OPERATIONS.md`](docs/CRAWLER_ALERT_OPERATIONS.md)를 참고합니다.
 - 통계 API는 `new-threads` 기반 RPC(`get_new_threads_stats`)를 사용합니다.
 
