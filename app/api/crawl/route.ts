@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import { crawlArcalive } from "./arcalive";
 import { crawlBattlepage } from "./battlepage";
 import {
+	aggregateCrawlAttempts,
+	type CrawlExecutionResult,
 	type CrawlSourceResult,
 	type CrawlTarget,
 	getErrorMessage,
@@ -20,12 +22,13 @@ const CRAWLERS: Record<CrawlTarget, () => Promise<CrawlSourceResult>> = {
 };
 
 async function runCrawlerWithRetry(target: CrawlTarget) {
-	let latestResult: CrawlSourceResult | null = null;
+	const attempts: CrawlSourceResult[] = [];
 
 	for (let attempt = 1; attempt <= 2; attempt += 1) {
-		latestResult = await CRAWLERS[target]();
-		if (latestResult.succeeded > 0) {
-			return latestResult;
+		const result = await CRAWLERS[target]();
+		attempts.push(result);
+		if (result.succeeded > 0) {
+			return aggregateCrawlAttempts(attempts);
 		}
 
 		if (attempt < 2) {
@@ -35,7 +38,21 @@ async function runCrawlerWithRetry(target: CrawlTarget) {
 		}
 	}
 
-	return latestResult;
+	return aggregateCrawlAttempts(attempts);
+}
+
+function emptyExecutionResult(): CrawlExecutionResult {
+	return {
+		items: [],
+		attempted: 0,
+		succeeded: 0,
+		failures: [],
+		warnings: [],
+		parserObservations: [],
+		retryCount: 0,
+		parserValidCount: 0,
+		parserMinimumCount: 0,
+	};
 }
 
 export async function POST(request: NextRequest) {
@@ -65,16 +82,15 @@ export async function POST(request: NextRequest) {
 		const result = await runCrawlerWithRetry(target);
 		const durationMs = Date.now() - startTime;
 
-		if (!result || result.succeeded === 0) {
+		if (result.succeeded === 0) {
 			const allFailuresTimedOut =
-				(result?.failures.length ?? 0) > 0 &&
-				result?.failures.every((failure) => failure.timeout === true);
+				result.failures.length > 0 && result.failures.every((failure) => failure.timeout === true);
 			const status = allFailuresTimedOut ? 504 : 502;
 			return NextResponse.json(
 				{
 					error: "모든 소스 요청이 실패했습니다.",
 					target,
-					failures: result?.failures ?? [],
+					...result,
 					durationMs,
 				},
 				{ status }
@@ -94,6 +110,7 @@ export async function POST(request: NextRequest) {
 			{
 				error: "크롤링 중 오류가 발생했습니다.",
 				target,
+				...emptyExecutionResult(),
 				durationMs: Date.now() - startTime,
 			},
 			{ status: 500 }

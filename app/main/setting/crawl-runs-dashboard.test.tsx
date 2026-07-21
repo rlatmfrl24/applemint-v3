@@ -1,0 +1,229 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import type {
+	CrawlRun,
+	CrawlRunsDashboard as CrawlRunsDashboardData,
+	CrawlSource,
+	CrawlSourceSummary,
+} from "@/lib/crawl-run-contract";
+import { CRAWL_RUNS_QUERY_KEY, CrawlRunsDashboard } from "./crawl-runs-dashboard";
+
+const sources: CrawlSource[] = ["arcalive", "battlepage", "insagirl", "issuelink"];
+
+const alertSettings = {
+	parserFailureStreak: 2,
+	parserDropRatio: 0.5,
+	parserDropStreak: 2,
+	noSuccessSeconds: 172800,
+	transportWindow: 3,
+	transportErrorRatio: 0.5,
+	transportMinFailures: 2,
+	cooldownSeconds: 86400,
+	lastEvaluatedAt: "2026-07-21T05:00:00.000Z",
+};
+
+function createRun(overrides: Partial<CrawlRun> = {}): CrawlRun {
+	return {
+		id: "1",
+		source: "arcalive",
+		status: "partial",
+		startedAt: "2026-07-21T03:00:00.000Z",
+		finishedAt: "2026-07-21T03:00:07.000Z",
+		durationMs: 7000,
+		retryCount: 1,
+		attemptedCount: 6,
+		succeededCount: 3,
+		extractedCount: 8,
+		insertedCount: 4,
+		skippedCount: 4,
+		warningCount: 1,
+		failureCount: 1,
+		networkFailureCount: 0,
+		parserFailureCount: 0,
+		timeoutFailureCount: 1,
+		parserValidCount: 8,
+		parserMinimumCount: 10,
+		warnings: [
+			{
+				url: "https://example.com/page",
+				code: "below-minimum-items",
+				message: "최소 미달",
+				attempt: 2,
+			},
+		],
+		failures: [
+			{
+				url: "https://example.com/page",
+				kind: "network",
+				timeout: true,
+				message: "timed out",
+				attempt: 1,
+			},
+		],
+		parserObservations: [
+			{
+				url: "https://example.com/page",
+				status: "ok",
+				candidateCount: 9,
+				validCount: 8,
+				discardedCount: 1,
+				minimumItems: 10,
+				attempt: 2,
+			},
+		],
+		errorStage: null,
+		errorMessage: null,
+		...overrides,
+	};
+}
+
+function renderDashboard(dashboard: CrawlRunsDashboardData) {
+	const queryClient = new QueryClient({
+		defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
+	});
+	queryClient.setQueryData(CRAWL_RUNS_QUERY_KEY, dashboard);
+	return renderToStaticMarkup(
+		<QueryClientProvider client={queryClient}>
+			<CrawlRunsDashboard manualCrawlRunning={false} />
+		</QueryClientProvider>
+	);
+}
+
+function createSourceSummary(
+	source: CrawlSource,
+	index: number,
+	runs: CrawlRun[]
+): CrawlSourceSummary {
+	const run = runs[index];
+	if (!run) {
+		return {
+			source,
+			activeAlertCount: 0,
+			lastSuccessAt: null,
+			lastFailureAt: null,
+			latest: null,
+			trend: [],
+		};
+	}
+	const trendStatus = run.status === "running" ? "interrupted" : run.status;
+	return {
+		source,
+		activeAlertCount: index === 0 ? 1 : 0,
+		lastSuccessAt: "2026-07-21T03:00:07.000Z",
+		lastFailureAt: index === 0 ? "2026-07-21T03:00:07.000Z" : null,
+		latest: {
+			id: String(index + 1),
+			status: run.status,
+			startedAt: run.startedAt,
+			durationMs: run.durationMs,
+			extractedCount: run.extractedCount,
+			insertedCount: run.insertedCount,
+		},
+		trend: [
+			{
+				id: String(index + 1),
+				status: trendStatus,
+				startedAt: run.startedAt,
+				extractedCount: run.extractedCount,
+				parserValidCount: run.parserValidCount,
+				parserMinimumCount: run.parserMinimumCount,
+				failureCount: run.failureCount,
+			},
+		],
+	};
+}
+
+describe("CrawlRunsDashboard", () => {
+	it("실행 중·소스 요약·추세·상세 상태를 렌더링한다", () => {
+		const runs = [
+			createRun(),
+			createRun({
+				id: "2",
+				source: "battlepage",
+				status: "succeeded",
+				warnings: [],
+				failures: [],
+				parserObservations: [],
+				warningCount: 0,
+				failureCount: 0,
+				networkFailureCount: 0,
+				timeoutFailureCount: 0,
+			}),
+			createRun({
+				id: "3",
+				source: "insagirl",
+				status: "failed",
+				errorStage: "ingest",
+				errorMessage: "DB 적재 실패",
+			}),
+			createRun({ id: "4", source: "issuelink", status: "interrupted", durationMs: null }),
+		];
+		const dashboard: CrawlRunsDashboardData = {
+			activeRun: {
+				id: "5",
+				source: "battlepage",
+				status: "running",
+				startedAt: new Date().toISOString(),
+				staleAfter: new Date(Date.now() + 300_000).toISOString(),
+			},
+			sources: sources.map((source, index) => createSourceSummary(source, index, runs)),
+			runs,
+			alerts: [
+				{
+					id: "10",
+					source: "arcalive",
+					activeSignals: ["parser-failure", "parser-volume-drop"],
+					openedAt: "2026-07-21T04:00:00.000Z",
+					lastObservedAt: "2026-07-21T05:00:00.000Z",
+					lastNotificationAt: "2026-07-21T05:01:00.000Z",
+					githubIssueNumber: 123,
+					githubIssueUrl: "https://github.com/rlatmfrl24/applemint-v3/issues/123",
+					snapshot: {
+						latestRunId: "1",
+						parserFailureTriggered: true,
+						parserValidRatio: 0.2,
+						lastSuccessAt: null,
+						hoursSinceSuccess: 4,
+						transportWindow: 3,
+						transportAttemptedCount: 6,
+						transportFailureCount: 1,
+						transportFailureRatio: 1 / 6,
+					},
+				},
+			],
+			alertSettings,
+		};
+
+		const html = renderDashboard(dashboard);
+		expect(html).toContain("Battlepage 크롤링 실행 중");
+		expect(html).toContain("부분 성공");
+		expect(html).toContain("중단됨");
+		expect(html).toContain("경고·실패 상세보기");
+		expect(html).toContain("below-minimum-items");
+		expect(html).toContain("DB 적재 실패");
+		expect(html).toContain("Arcalive 장애 감지");
+		expect(html).toContain("GitHub Issue #123");
+		expect(html).toContain("장애 알림 기준");
+	});
+
+	it("이력이 없을 때 empty 상태를 렌더링한다", () => {
+		const html = renderDashboard({
+			activeRun: null,
+			sources: sources.map((source) => ({
+				source,
+				activeAlertCount: 0,
+				lastSuccessAt: null,
+				lastFailureAt: null,
+				latest: null,
+				trend: [],
+			})),
+			runs: [],
+			alerts: [],
+			alertSettings,
+		});
+		expect(html).toContain("저장된 크롤링 실행 이력이 없습니다.");
+		expect(html).toContain("기록 없음");
+		expect(html).toContain("현재 감지된 소스 장애가 없습니다.");
+	});
+});

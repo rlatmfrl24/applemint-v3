@@ -15,6 +15,7 @@ interface InsagirlPageResult {
 	items: CrawlItemType[];
 	warnings: CrawlWarning[];
 	failure?: CrawlFailure;
+	parserObservations: CrawlSourceResult["parserObservations"];
 }
 
 async function crawlInsagirlTarget(url: string, index: number): Promise<InsagirlPageResult> {
@@ -42,13 +43,14 @@ async function crawlInsagirlTarget(url: string, index: number): Promise<Insagirl
 		debugLog(
 			`[Insagirl] URL ${index + 1} parser=${outcome.status} candidates=${outcome.candidateCount} valid=${outcome.items.length} discarded=${outcome.discardedCount}`
 		);
-		return parsed;
+		return { ...parsed, parserObservations: [parsed.observation] };
 	} catch (error) {
 		const message = getErrorMessage(error);
 		console.error(`[Insagirl] URL ${index + 1} 크롤링 실패: ${message}`);
 		return {
 			items: [],
 			warnings: [],
+			parserObservations: [],
 			failure: { url, message, kind: "network", timeout: isTimeoutError(error) },
 		};
 	}
@@ -64,6 +66,7 @@ export async function crawlInsagirl(): Promise<CrawlSourceResult> {
 
 	const failures = results.flatMap((result) => (result.failure ? [result.failure] : []));
 	const warnings = results.flatMap((result) => result.warnings);
+	const parserObservations = results.flatMap((result) => result.parserObservations);
 	const dedupedItems = new Map<string, CrawlItemType>();
 	for (const item of results.flatMap((result) => result.items)) {
 		if (!dedupedItems.has(item.url)) {
@@ -77,5 +80,6 @@ export async function crawlInsagirl(): Promise<CrawlSourceResult> {
 		succeeded: targets.length - failures.length,
 		failures,
 		warnings,
+		parserObservations,
 	};
 }

@@ -7,6 +7,27 @@ export interface FilterKeyword {
 	method: string;
 }
 
+export function createTransportFailureData(
+	target: CrawlTarget,
+	url: string,
+	message: string,
+	timeout: boolean
+) {
+	return {
+		target,
+		items: [],
+		attempted: 1,
+		succeeded: 0,
+		failures: [{ url, message, kind: "network" as const, timeout, attempt: 1 }],
+		warnings: [],
+		parserObservations: [],
+		retryCount: 0,
+		parserValidCount: 0,
+		parserMinimumCount: 0,
+		durationMs: 0,
+	};
+}
+
 export async function constantTimeEquals(provided: string | null, expected: string | undefined) {
 	if (!provided || !expected) {
 		return false;
@@ -55,6 +76,61 @@ export function dedupeByUrl<T extends { url: string }>(items: T[]) {
 
 export function countCrawlWarnings(failures: unknown[], warnings: unknown[]) {
 	return failures.length + warnings.length;
+}
+
+export interface CrawlFailureLike {
+	kind?: unknown;
+	timeout?: unknown;
+}
+
+export interface ParserObservationLike {
+	attempt?: unknown;
+	status?: unknown;
+	validCount?: unknown;
+	minimumItems?: unknown;
+}
+
+export function countCrawlFailureKinds(failures: CrawlFailureLike[]) {
+	let networkFailureCount = 0;
+	let parserFailureCount = 0;
+	let timeoutFailureCount = 0;
+
+	for (const failure of failures) {
+		if (failure.timeout === true) {
+			timeoutFailureCount += 1;
+		} else if (failure.kind === "parser") {
+			parserFailureCount += 1;
+		} else {
+			networkFailureCount += 1;
+		}
+	}
+
+	return { networkFailureCount, parserFailureCount, timeoutFailureCount };
+}
+
+export function calculateParserTrend(observations: ParserObservationLike[], retryCount: number) {
+	const finalAttempt = retryCount + 1;
+	const finalObservations = observations.filter(
+		(observation) => Number(observation.attempt ?? 1) === finalAttempt
+	);
+
+	return {
+		parserValidCount: finalObservations.reduce(
+			(total, observation) => total + Math.max(0, Number(observation.validCount) || 0),
+			0
+		),
+		parserMinimumCount: finalObservations.reduce(
+			(total, observation) =>
+				observation.status === "empty"
+					? total
+					: total + Math.max(0, Number(observation.minimumItems) || 0),
+			0
+		),
+	};
+}
+
+export function getCompletedRunStatus(failures: unknown[], warnings: unknown[]) {
+	return failures.length > 0 || warnings.length > 0 ? "partial" : "succeeded";
 }
 
 export function normalizeCrawlApiBaseUrl(value: string | undefined) {

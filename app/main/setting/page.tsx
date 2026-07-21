@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { invalidateThreadQueries } from "@/lib/thread-query-cache";
 import { createClient } from "@/utils/supabase/client";
 import { ManualCrawlError, requestManualCrawl, withLoadingState } from "./crawl-client";
+import { CRAWL_RUNS_QUERY_KEY, CrawlRunsDashboard } from "./crawl-runs-dashboard";
 
 function formatManualCrawlError(error: unknown) {
 	return JSON.stringify(
@@ -58,11 +59,14 @@ export default function SettingPage() {
 	const handleCrawl = async (target: string) => {
 		await withLoadingState(setIsLoading, async () => {
 			try {
+				await queryClient.invalidateQueries({ queryKey: CRAWL_RUNS_QUERY_KEY });
 				const crawlResult = await requestManualCrawl(target);
 				setResult(JSON.stringify(crawlResult, null, 2));
 				await invalidateThreadQueries(queryClient, ["new-threads"]);
 			} catch (error) {
 				setResult(formatManualCrawlError(error));
+			} finally {
+				await queryClient.invalidateQueries({ queryKey: CRAWL_RUNS_QUERY_KEY });
 			}
 		});
 	};
@@ -133,6 +137,7 @@ export default function SettingPage() {
 				disabled={isLoading}
 				readOnly
 			/>
+			<CrawlRunsDashboard manualCrawlRunning={isLoading} />
 			<h2 className="mt-8">신규 스레드 관리</h2>
 			<p className="mt-2 text-muted-foreground text-sm">
 				모든 신규 스레드를 원자적으로 휴지통으로 이동합니다. 실행 전에 반드시 확인해주세요.

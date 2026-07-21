@@ -1,5 +1,7 @@
 export interface ManualCrawlResult {
 	httpStatus: number;
+	runId?: string;
+	status?: "succeeded" | "partial";
 	target: string;
 	insertedCount: number;
 	skippedCount: number;
@@ -34,7 +36,9 @@ function isManualCrawlResult(value: unknown): value is Omit<ManualCrawlResult, "
 		typeof result.insertedCount === "number" &&
 		typeof result.skippedCount === "number" &&
 		typeof result.warningCount === "number" &&
-		typeof result.durationMs === "number"
+		typeof result.durationMs === "number" &&
+		(result.runId === undefined || typeof result.runId === "string") &&
+		(result.status === undefined || result.status === "succeeded" || result.status === "partial")
 	);
 }
 

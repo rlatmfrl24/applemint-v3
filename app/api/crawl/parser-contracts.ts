@@ -24,6 +24,7 @@ export interface ParserOutcome {
 	items: CrawlItemType[];
 	candidateCount: number;
 	discardedCount: number;
+	minimumItems: number;
 	warnings: ParserWarning[];
 	failure?: ParserFailure;
 }
@@ -62,16 +63,18 @@ export function createParserSuccess({
 		items,
 		candidateCount,
 		discardedCount,
+		minimumItems,
 		warnings,
 	};
 }
 
-export function createParserEmpty(source: string): ParserOutcome {
+export function createParserEmpty(source: string, minimumItems: number): ParserOutcome {
 	return {
 		status: "empty",
 		items: [],
 		candidateCount: 0,
 		discardedCount: 0,
+		minimumItems,
 		warnings: [
 			{
 				code: "empty-list",
@@ -87,17 +90,20 @@ export function createParserFailure({
 	message,
 	candidateCount = 0,
 	discardedCount = 0,
+	minimumItems,
 }: {
 	code: ParserFailureCode;
 	message: string;
 	candidateCount?: number;
 	discardedCount?: number;
+	minimumItems: number;
 }): ParserOutcome {
 	return {
 		status: "failure",
 		items: [],
 		candidateCount,
 		discardedCount,
+		minimumItems,
 		warnings:
 			discardedCount > 0
 				? [

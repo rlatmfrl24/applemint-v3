@@ -1,0 +1,172 @@
+const CRAWL_SOURCES = ["arcalive", "battlepage", "insagirl", "issuelink"] as const;
+
+export type CrawlSource = (typeof CRAWL_SOURCES)[number];
+export type CrawlRunStatus = "running" | "succeeded" | "partial" | "failed" | "interrupted";
+export type CrawlAlertSignal =
+	| "parser-failure"
+	| "parser-volume-drop"
+	| "no-recent-success"
+	| "transport-error-rate";
+
+interface CrawlRunDetailItem {
+	url?: string;
+	message?: string;
+	kind?: "network" | "parser";
+	timeout?: boolean;
+	code?: string;
+	count?: number;
+	attempt?: number;
+}
+
+interface CrawlParserObservation {
+	url: string;
+	status: "ok" | "empty" | "failure";
+	candidateCount: number;
+	validCount: number;
+	discardedCount: number;
+	minimumItems: number;
+	attempt?: number;
+}
+
+export interface CrawlRun {
+	id: string;
+	source: CrawlSource;
+	status: CrawlRunStatus;
+	startedAt: string;
+	finishedAt: string | null;
+	durationMs: number | null;
+	retryCount: number;
+	attemptedCount: number;
+	succeededCount: number;
+	extractedCount: number;
+	insertedCount: number;
+	skippedCount: number;
+	warningCount: number;
+	failureCount: number;
+	networkFailureCount: number;
+	parserFailureCount: number;
+	timeoutFailureCount: number;
+	parserValidCount: number;
+	parserMinimumCount: number;
+	warnings: CrawlRunDetailItem[];
+	failures: CrawlRunDetailItem[];
+	parserObservations: CrawlParserObservation[];
+	errorStage: string | null;
+	errorMessage: string | null;
+}
+
+interface ActiveCrawlRun {
+	id: string;
+	source: CrawlSource;
+	status: "running";
+	startedAt: string;
+	staleAfter: string;
+}
+
+interface CrawlRunTrendPoint {
+	id: string;
+	status: Exclude<CrawlRunStatus, "running">;
+	startedAt: string;
+	extractedCount: number;
+	parserValidCount: number;
+	parserMinimumCount: number;
+	failureCount: number;
+}
+
+export interface CrawlSourceSummary {
+	source: CrawlSource;
+	activeAlertCount: number;
+	lastSuccessAt: string | null;
+	lastFailureAt: string | null;
+	latest: {
+		id: string;
+		status: CrawlRunStatus;
+		startedAt: string;
+		durationMs: number | null;
+		extractedCount: number;
+		insertedCount: number;
+	} | null;
+	trend: CrawlRunTrendPoint[];
+}
+
+interface CrawlAlertSnapshot {
+	latestRunId: string | null;
+	parserFailureTriggered: boolean;
+	parserValidRatio: number | null;
+	lastSuccessAt: string | null;
+	hoursSinceSuccess: number | null;
+	transportWindow: number;
+	transportAttemptedCount: number;
+	transportFailureCount: number;
+	transportFailureRatio: number;
+}
+
+export interface CrawlAlertIncident {
+	id: string;
+	source: CrawlSource;
+	activeSignals: CrawlAlertSignal[];
+	openedAt: string;
+	lastObservedAt: string;
+	lastNotificationAt: string | null;
+	githubIssueNumber: number | null;
+	githubIssueUrl: string | null;
+	snapshot: CrawlAlertSnapshot;
+}
+
+export interface CrawlAlertSettings {
+	parserFailureStreak: number;
+	parserDropRatio: number;
+	parserDropStreak: number;
+	noSuccessSeconds: number;
+	transportWindow: number;
+	transportErrorRatio: number;
+	transportMinFailures: number;
+	cooldownSeconds: number;
+	lastEvaluatedAt: string | null;
+}
+
+export interface CrawlRunsDashboard {
+	activeRun: ActiveCrawlRun | null;
+	sources: CrawlSourceSummary[];
+	runs: CrawlRun[];
+	alerts: CrawlAlertIncident[];
+	alertSettings: CrawlAlertSettings;
+}
+
+export function parseDashboardLimit(value: string | null, fallback = 20) {
+	if (value === null) {
+		return fallback;
+	}
+	if (!/^\d+$/u.test(value)) {
+		return null;
+	}
+	const parsed = Number(value);
+	return Number.isInteger(parsed) && parsed >= 1 && parsed <= 50 ? parsed : null;
+}
+
+export function isCrawlRunsDashboard(value: unknown): value is CrawlRunsDashboard {
+	if (!value || typeof value !== "object") {
+		return false;
+	}
+	const dashboard = value as Record<string, unknown>;
+	const settings = dashboard.alertSettings as Record<string, unknown> | null;
+	const validSettings =
+		settings !== null &&
+		typeof settings === "object" &&
+		[
+			"parserFailureStreak",
+			"parserDropRatio",
+			"parserDropStreak",
+			"noSuccessSeconds",
+			"transportWindow",
+			"transportErrorRatio",
+			"transportMinFailures",
+			"cooldownSeconds",
+		].every((key) => typeof settings[key] === "number" && Number.isFinite(settings[key]));
+	return (
+		Array.isArray(dashboard.sources) &&
+		Array.isArray(dashboard.runs) &&
+		Array.isArray(dashboard.alerts) &&
+		validSettings
+	);
+}

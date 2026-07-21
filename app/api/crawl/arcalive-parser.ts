@@ -39,6 +39,7 @@ export function parseArcaliveHtml(html: string): ParserOutcome {
 		return createParserFailure({
 			code: "missing-container",
 			message: "Arcalive 목록 container를 찾지 못했습니다.",
+			minimumItems: ARCALIVE_MINIMUM_ITEMS,
 		});
 	}
 
@@ -46,12 +47,13 @@ export function parseArcaliveHtml(html: string): ParserOutcome {
 	const candidateCount = candidates.length;
 	if (candidateCount === 0) {
 		if (EMPTY_LIST_TEXT.test(container.text().replace(/\s+/g, " "))) {
-			return createParserEmpty("Arcalive");
+			return createParserEmpty("Arcalive", ARCALIVE_MINIMUM_ITEMS);
 		}
 
 		return createParserFailure({
 			code: "unrecognized-empty-state",
 			message: "Arcalive 목록은 존재하지만 게시물 또는 공식 빈 목록 표시를 찾지 못했습니다.",
+			minimumItems: ARCALIVE_MINIMUM_ITEMS,
 		});
 	}
 
@@ -86,6 +88,7 @@ export function parseArcaliveHtml(html: string): ParserOutcome {
 			message: "Arcalive 게시물 후보가 모두 URL 또는 필수 필드 검증에 실패했습니다.",
 			candidateCount,
 			discardedCount,
+			minimumItems: ARCALIVE_MINIMUM_ITEMS,
 		});
 	}
 
