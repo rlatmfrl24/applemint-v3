@@ -12,9 +12,9 @@ describe("parseInsagirlPayload", () => {
 
 		expect(result.status).toBe("ok");
 		expect(result.items).toHaveLength(INSAGIRL_MINIMUM_ITEMS);
-		expect(result.warnings).toContainEqual(
-			expect.objectContaining({ code: "discarded-items", count: 1 })
-		);
+		expect(result.warnings).toEqual([]);
+		expect(result.ignoredCount).toBe(1);
+		expect(result.duplicateCount).toBe(1);
 		for (const item of result.items) {
 			expect(item.url).toMatch(/^https?:\/\//);
 			expect(item.title?.trim()).toBeTruthy();
@@ -27,11 +27,11 @@ describe("parseInsagirlPayload", () => {
 	it("빈 배열과 syncwatch 전용 응답을 정상 empty로 구분한다", () => {
 		expect(parseInsagirlPayload({ v: [] })).toMatchObject({
 			status: "empty",
-			warnings: [{ code: "empty-list" }],
+			warnings: [{ code: "empty-list", severity: "info" }],
 		});
 		expect(parseInsagirlPayload({ v: ["1|syncwatch|payload"] })).toMatchObject({
 			status: "empty",
-			warnings: [{ code: "empty-list" }],
+			warnings: [{ code: "empty-list", severity: "info" }],
 		});
 	});
 
@@ -46,15 +46,13 @@ describe("parseInsagirlPayload", () => {
 		});
 	});
 
-	it("필수 title이 없는 URL 후보만 있으면 all-items-invalid로 처리한다", () => {
+	it("제목 없는 URL 후보도 null title로 수집한다", () => {
 		const result = parseInsagirlPayload({ v: ["1|tester|https://example.com/only-url"] });
 
-		expect(result).toMatchObject({
-			status: "failure",
-			candidateCount: 1,
-			discardedCount: 1,
-			failure: { code: "all-items-invalid" },
-		});
+		expect(result).toMatchObject({ status: "ok", candidateCount: 1, discardedCount: 0 });
+		expect(result.items).toEqual([
+			expect.objectContaining({ url: "https://example.com/only-url", title: null }),
+		]);
 	});
 
 	it("일부 잘못된 후보는 제외하고 warning과 유효 항목을 보존한다", () => {
@@ -73,10 +71,25 @@ describe("parseInsagirlPayload", () => {
 				title: "정상 제목",
 				host: "example.com",
 			}),
+			expect.objectContaining({
+				url: "https://example.com/only-url",
+				title: null,
+			}),
 		]);
 		expect(result.warnings.map((warning) => warning.code)).toEqual([
 			"discarded-items",
 			"below-minimum-items",
 		]);
+	});
+
+	it("동일 URL은 제목이 있는 항목을 우선한다", () => {
+		const result = parseInsagirlPayload({
+			v: ["1|tester|https://example.com/same", "2|tester|복구된 제목 https://example.com/same"],
+		});
+
+		expect(result.items).toEqual([
+			expect.objectContaining({ url: "https://example.com/same", title: "복구된 제목" }),
+		]);
+		expect(result.duplicateCount).toBe(1);
 	});
 });

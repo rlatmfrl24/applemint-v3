@@ -12,8 +12,9 @@ select is(
 );
 select ok(
 	to_regprocedure('public.get_new_threads_stats(text,text,text)') is null
-		and to_regprocedure('public.get_new_threads_stats(text,text)') is not null,
-	'thread statistics RPC no longer exposes a media scope parameter'
+		and to_regprocedure('public.get_new_threads_stats(text,text)') is null
+		and to_regprocedure('public.get_new_threads_stats(text)') is not null,
+	'thread statistics RPC only accepts the source type filter'
 );
 select is(
 	(
@@ -57,8 +58,8 @@ select ok(
 			'public.is_applemint_owner()',
 			'public.move_thread(bigint,text,text)',
 			'public.bulk_move_new_threads_to_trash()',
-			'public.list_thread_page(text,integer,timestamp with time zone,bigint,text,text)',
-			'public.get_new_threads_stats(text,text)',
+			'public.list_thread_page(text,integer,timestamp with time zone,bigint,text)',
+			'public.get_new_threads_stats(text)',
 			'public.clean_trash()',
 			'public.ingest_crawl_items(text,jsonb)',
 			'public.acquire_crawl_lock(text,uuid,integer)',

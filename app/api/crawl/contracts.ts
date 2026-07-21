@@ -1,6 +1,6 @@
 import type { CrawlItemType } from "@/lib/type-defs";
 
-const CRAWL_TARGETS = ["arcalive", "battlepage", "insagirl", "issuelink"] as const;
+const CRAWL_TARGETS = ["arcalive", "battlepage", "insagirl"] as const;
 
 export type CrawlTarget = (typeof CRAWL_TARGETS)[number];
 
@@ -13,7 +13,8 @@ export interface CrawlFailure {
 
 export interface CrawlWarning {
 	url: string;
-	code: "empty-list" | "below-minimum-items" | "discarded-items";
+	code: "empty-list" | "below-minimum-items" | "discarded-items" | "high-discard-rate";
+	severity: "info" | "warning";
 	message: string;
 	count: number;
 }
@@ -24,6 +25,8 @@ interface ParserObservation {
 	candidateCount: number;
 	validCount: number;
 	discardedCount: number;
+	ignoredCount: number;
+	duplicateCount: number;
 	minimumItems: number;
 }
 

@@ -25,23 +25,11 @@ export interface QuerySnapshot<TData = unknown> {
 
 const NEW_THREADS_STATS_QUERY_KEY = ["new-threads", "stats"] as const;
 
-const getIssuelinkCategory = (thread: ThreadItemType) => {
-	return thread.tag?.[1] ?? "unknown";
-};
-
 const getThreadStatKey = (thread: ThreadItemType) => {
-	if (thread.type === "issuelink") {
-		return `issuelink::${getIssuelinkCategory(thread)}`;
-	}
-
 	return thread.type;
 };
 
 const getThreadStatLabel = (thread: ThreadItemType) => {
-	if (thread.type === "issuelink") {
-		return getIssuelinkCategory(thread);
-	}
-
 	return thread.type;
 };
 
@@ -104,15 +92,6 @@ const matchesThreadFilter = (thread: ThreadItemType, filterKey: string | undefin
 
 	if (!filterType) {
 		return true;
-	}
-
-	if (filterType === "issuelink") {
-		if (thread.type !== "issuelink") {
-			return false;
-		}
-
-		const category = filters.get("issuelinkCategory");
-		return !category || getIssuelinkCategory(thread) === category;
 	}
 
 	return thread.type === filterType;

@@ -12,6 +12,8 @@ export function adaptParserOutcome(url: string, outcome: ParserOutcome) {
 		candidateCount: outcome.candidateCount,
 		validCount: outcome.items.length,
 		discardedCount: outcome.discardedCount,
+		ignoredCount: outcome.ignoredCount,
+		duplicateCount: outcome.duplicateCount,
 		minimumItems: outcome.minimumItems,
 	} as const;
 

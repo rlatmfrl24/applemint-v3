@@ -12,7 +12,6 @@ const SOURCE_LABELS = {
 	arcalive: "Arcalive",
 	battlepage: "Battlepage",
 	insagirl: "Insagirl",
-	issuelink: "IssueLink",
 };
 
 const HEALTH_LABEL = {
@@ -41,7 +40,7 @@ function safeDate(value) {
 
 export function sanitizeAlertPayload(payload) {
 	if (!isRecord(payload)) throw new Error("invalid_notification_payload");
-	const source = safeString(payload.source, /^(arcalive|battlepage|insagirl|issuelink)$/u);
+	const source = safeString(payload.source, /^(arcalive|battlepage|insagirl)$/u);
 	const signals = Array.isArray(payload.signals)
 		? payload.signals.filter(
 				(signal) => typeof signal === "string" && Object.hasOwn(SIGNAL_LABELS, signal)

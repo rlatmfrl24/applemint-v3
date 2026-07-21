@@ -1,4 +1,4 @@
-const CRAWL_SOURCES = ["arcalive", "battlepage", "insagirl", "issuelink"] as const;
+const CRAWL_SOURCES = ["arcalive", "battlepage", "insagirl"] as const;
 
 export type CrawlSource = (typeof CRAWL_SOURCES)[number];
 export type CrawlRunStatus = "running" | "succeeded" | "partial" | "failed" | "interrupted";
@@ -14,6 +14,7 @@ interface CrawlRunDetailItem {
 	kind?: "network" | "parser";
 	timeout?: boolean;
 	code?: string;
+	severity?: "info" | "warning";
 	count?: number;
 	attempt?: number;
 }
@@ -24,6 +25,8 @@ interface CrawlParserObservation {
 	candidateCount: number;
 	validCount: number;
 	discardedCount: number;
+	ignoredCount?: number;
+	duplicateCount?: number;
 	minimumItems: number;
 	attempt?: number;
 }

@@ -43,7 +43,9 @@ export function parseArcaliveHtml(html: string): ParserOutcome {
 		});
 	}
 
-	const candidates = container.children(".vrow.column[href]");
+	const allRows = container.children(".vrow.column[href]");
+	const ignoredCount = allRows.filter(".notice, .filtered").length;
+	const candidates = allRows.not(".notice, .filtered");
 	const candidateCount = candidates.length;
 	if (candidateCount === 0) {
 		if (EMPTY_LIST_TEXT.test(container.text().replace(/\s+/g, " "))) {
@@ -59,12 +61,17 @@ export function parseArcaliveHtml(html: string): ParserOutcome {
 
 	const items = new Map<string, CrawlItemType>();
 	let discardedCount = 0;
+	let duplicateCount = 0;
 	candidates.each((_index, element) => {
 		const href = $(element).attr("href");
 		const title = $(element).find(".title").text().replace(/\s+/g, " ").trim();
 		const url = href ? parsePostUrl(href) : null;
-		if (!url || !title || items.has(url)) {
+		if (!url || !title) {
 			discardedCount += 1;
+			return;
+		}
+		if (items.has(url)) {
+			duplicateCount += 1;
 			return;
 		}
 
@@ -88,6 +95,8 @@ export function parseArcaliveHtml(html: string): ParserOutcome {
 			message: "Arcalive 게시물 후보가 모두 URL 또는 필수 필드 검증에 실패했습니다.",
 			candidateCount,
 			discardedCount,
+			ignoredCount,
+			duplicateCount,
 			minimumItems: ARCALIVE_MINIMUM_ITEMS,
 		});
 	}
@@ -96,6 +105,8 @@ export function parseArcaliveHtml(html: string): ParserOutcome {
 		items: Array.from(items.values()),
 		candidateCount,
 		discardedCount,
+		ignoredCount,
+		duplicateCount,
 		minimumItems: ARCALIVE_MINIMUM_ITEMS,
 		source: "Arcalive",
 	});

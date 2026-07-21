@@ -11,14 +11,12 @@ import {
 } from "./contracts";
 import { crawlInsagirl } from "./insagirl";
 import { hasMinimumInternalSecretLength, hasValidInternalSecret } from "./internal-auth";
-import { crawlIssuelink } from "./issuelink";
 import { debugLog, infoLog } from "./logger";
 
 const CRAWLERS: Record<CrawlTarget, () => Promise<CrawlSourceResult>> = {
 	arcalive: crawlArcalive,
 	battlepage: crawlBattlepage,
 	insagirl: crawlInsagirl,
-	issuelink: crawlIssuelink,
 };
 
 async function runCrawlerWithRetry(target: CrawlTarget) {

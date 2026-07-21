@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { crawlArcalive } from "./arcalive";
 import { crawlBattlepage } from "./battlepage";
 import { crawlInsagirl } from "./insagirl";
-import { crawlIssuelink } from "./issuelink";
 
 const arcaliveFixture = readFileSync(
 	new URL("./fixtures/arcalive-current.html", import.meta.url),
@@ -15,10 +14,6 @@ const battlepageEmptyFixture = readFileSync(
 );
 const insagirlFixture = readFileSync(
 	new URL("./fixtures/insagirl-current.json", import.meta.url),
-	"utf8"
-);
-const issuelinkFixture = readFileSync(
-	new URL("./fixtures/issuelink-current.html", import.meta.url),
 	"utf8"
 );
 
@@ -51,10 +46,7 @@ describe("crawler parser adapters", () => {
 		expect(result.failures).toEqual([
 			expect.objectContaining({ kind: "parser", message: expect.stringContaining("container") }),
 		]);
-		expect(result.warnings.map((warning) => warning.code)).toEqual([
-			"discarded-items",
-			"empty-list",
-		]);
+		expect(result.warnings.map((warning) => warning.code)).toEqual(["empty-list"]);
 	});
 
 	it("Battlepage의 정상 empty 응답은 성공과 warning으로 집계한다", async () => {
@@ -84,9 +76,7 @@ describe("crawler parser adapters", () => {
 		expect(result.failures).toEqual([
 			expect.objectContaining({ kind: "parser", message: expect.stringContaining("v 배열") }),
 		]);
-		expect(result.warnings).toEqual([
-			expect.objectContaining({ code: "discarded-items", count: 1 }),
-		]);
+		expect(result.warnings).toEqual([]);
 	});
 
 	it("Insagirl 손상 JSON을 network 오류가 아닌 parser failure로 분류한다", async () => {
@@ -102,32 +92,6 @@ describe("crawler parser adapters", () => {
 		expect(result.failures).toEqual([
 			expect.objectContaining({ kind: "parser", message: expect.stringContaining("v 배열") }),
 		]);
-	});
-
-	it("IssueLink 조건별 결과를 URL 기준으로 중복 제거한다", async () => {
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(() => Promise.resolve(htmlResponse(issuelinkFixture)))
-		);
-
-		const result = await crawlIssuelink();
-
-		expect(result).toMatchObject({ attempted: 3, succeeded: 3, failures: [], warnings: [] });
-		expect(result.items).toHaveLength(2);
-		expect(new Set(result.items.map((item) => item.url)).size).toBe(2);
-	});
-
-	it("IssueLink의 빈 비정상 문서는 parser failure로 분류한다", async () => {
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(() => Promise.resolve(htmlResponse("<html><title>changed</title></html>")))
-		);
-
-		const result = await crawlIssuelink();
-
-		expect(result).toMatchObject({ attempted: 3, succeeded: 0, items: [], warnings: [] });
-		expect(result.failures).toHaveLength(3);
-		expect(result.failures.every((failure) => failure.kind === "parser")).toBe(true);
 	});
 
 	it("HTTP·timeout 오류는 network failure로 유지한다", async () => {

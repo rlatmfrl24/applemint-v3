@@ -122,7 +122,6 @@ describe("thread list API", () => {
 			p_cursor_created_at: null,
 			p_cursor_id: null,
 			p_filter_type: null,
-			p_issuelink_category: null,
 		});
 	});
 
@@ -131,7 +130,7 @@ describe("thread list API", () => {
 		const cursor = encodeThreadCursor({ createdAt, id: "2" });
 
 		const response = await getNewThreads(
-			request(`/api/new-threads?cursor=${cursor}&filterType=issuelink&issuelinkCategory=news`)
+			request(`/api/new-threads?cursor=${cursor}&filterType=normal`)
 		);
 
 		expect(response.status).toBe(200);
@@ -140,8 +139,7 @@ describe("thread list API", () => {
 			p_limit: 24,
 			p_cursor_created_at: createdAt,
 			p_cursor_id: "2",
-			p_filter_type: "issuelink",
-			p_issuelink_category: "news",
+			p_filter_type: "normal",
 		});
 	});
 

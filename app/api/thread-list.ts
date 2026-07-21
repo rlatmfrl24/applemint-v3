@@ -19,7 +19,6 @@ interface ThreadListParams {
 	limit: number;
 	cursor: ThreadCursor | null;
 	filterType: string | null;
-	issuelinkCategory: string | null;
 }
 
 const getOptionalParam = (searchParams: URLSearchParams, key: string) => {
@@ -75,7 +74,6 @@ export function parseThreadListParams(request: NextRequest): ThreadListParams {
 		limit,
 		cursor: cursorValue ? decodeThreadCursor(cursorValue) : null,
 		filterType: getOptionalParam(searchParams, "filterType"),
-		issuelinkCategory: getOptionalParam(searchParams, "issuelinkCategory"),
 	};
 }
 
@@ -90,7 +88,6 @@ async function loadThreadPage(
 		p_cursor_created_at: params.cursor?.createdAt ?? null,
 		p_cursor_id: params.cursor?.id ?? null,
 		p_filter_type: params.filterType,
-		p_issuelink_category: params.issuelinkCategory,
 	});
 }
 

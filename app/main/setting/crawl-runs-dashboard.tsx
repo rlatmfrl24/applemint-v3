@@ -24,7 +24,6 @@ const SOURCE_LABELS: Record<CrawlSource, string> = {
 	arcalive: "Arcalive",
 	battlepage: "Battlepage",
 	insagirl: "Insagirl",
-	issuelink: "IssueLink",
 };
 
 const ALERT_SIGNAL_LABELS: Record<CrawlAlertSignal, string> = {
@@ -60,6 +59,13 @@ function statusVariant(status: CrawlRunStatus) {
 	if (status === "failed" || status === "interrupted") return "destructive" as const;
 	if (status === "partial" || status === "running") return "secondary" as const;
 	return "default" as const;
+}
+
+function getWarningSeverity(warning: CrawlRun["warnings"][number]) {
+	if (warning.severity) return warning.severity;
+	return warning.code === "below-minimum-items" || warning.code === "high-discard-rate"
+		? "warning"
+		: "info";
 }
 
 function formatPercent(value: number | null) {
@@ -274,14 +280,14 @@ function RunDetails({ run }: { run: CrawlRun }) {
 			) : null}
 			{run.warnings.length > 0 ? (
 				<div className="mt-3">
-					<p className="font-medium">경고</p>
+					<p className="font-medium">진단</p>
 					<ul className="mt-1 list-disc space-y-1 pl-5">
 						{run.warnings.map((warning) => (
 							<li
 								key={`${warning.url ?? "warning"}-${warning.attempt ?? 0}-${warning.code ?? "warning"}-${warning.message ?? ""}`}
 							>
-								시도 {warning.attempt ?? 1} · {warning.code ?? "warning"} ·{" "}
-								{warning.message ?? "상세 없음"}
+								시도 {warning.attempt ?? 1} · {getWarningSeverity(warning)} ·{" "}
+								{warning.code ?? "warning"} · {warning.message ?? "상세 없음"}
 							</li>
 						))}
 					</ul>
@@ -297,6 +303,8 @@ function RunDetails({ run }: { run: CrawlRun }) {
 								<th className="p-2">후보</th>
 								<th className="p-2">유효</th>
 								<th className="p-2">제외</th>
+								<th className="p-2">무시</th>
+								<th className="p-2">중복</th>
 								<th className="p-2">최소</th>
 							</tr>
 						</thead>
@@ -311,6 +319,8 @@ function RunDetails({ run }: { run: CrawlRun }) {
 									<td className="p-2">{observation.candidateCount}</td>
 									<td className="p-2">{observation.validCount}</td>
 									<td className="p-2">{observation.discardedCount}</td>
+									<td className="p-2">{observation.ignoredCount ?? 0}</td>
+									<td className="p-2">{observation.duplicateCount ?? 0}</td>
 									<td className="p-2">{observation.minimumItems}</td>
 								</tr>
 							))}

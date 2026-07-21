@@ -184,9 +184,9 @@ insert into public.crawl_runs (
 	parser_valid_count, parser_minimum_count
 )
 values
-	('issuelink', '30000000-0000-4000-8000-000000000030', 'partial', now() - interval '3 hours', now(), now() - interval '179 minutes', 60000, 4, 2, 2, 2, 1, 1),
-	('issuelink', '30000000-0000-4000-8000-000000000031', 'partial', now() - interval '2 hours', now(), now() - interval '119 minutes', 60000, 4, 2, 2, 2, 1, 1),
-	('issuelink', '30000000-0000-4000-8000-000000000032', 'partial', now() - interval '1 hour', now(), now() - interval '59 minutes', 60000, 4, 2, 2, 2, 1, 1);
+	('battlepage', '30000000-0000-4000-8000-000000000030', 'partial', now() - interval '50 minutes', now(), now() - interval '49 minutes', 60000, 4, 2, 2, 2, 5, 5),
+	('battlepage', '30000000-0000-4000-8000-000000000031', 'partial', now() - interval '40 minutes', now(), now() - interval '39 minutes', 60000, 4, 2, 2, 2, 5, 5),
+	('battlepage', '30000000-0000-4000-8000-000000000032', 'partial', now() - interval '30 minutes', now(), now() - interval '29 minutes', 60000, 4, 2, 2, 2, 5, 5);
 set local role service_role;
 select public.evaluate_crawl_alerts(now());
 reset role;
@@ -194,7 +194,7 @@ select ok(
 	(
 		select 'transport-error-rate' = any(active_signals)
 		from public.crawl_alert_incidents
-		where source = 'issuelink' and status = 'open'
+		where source = 'battlepage' and status = 'open'
 	),
 	'50 percent network and timeout failures across three runs triggers transport alerting'
 );
@@ -204,13 +204,13 @@ insert into public.crawl_runs (
 	attempted_count, succeeded_count, parser_valid_count, parser_minimum_count
 )
 values
-	('issuelink', '30000000-0000-4000-8000-000000000033', 'succeeded', now() + interval '1 hour', now() + interval '2 hours', now() + interval '61 minutes', 60000, 4, 4, 1, 1),
-	('issuelink', '30000000-0000-4000-8000-000000000034', 'succeeded', now() + interval '2 hours', now() + interval '3 hours', now() + interval '121 minutes', 60000, 4, 4, 1, 1);
+	('battlepage', '30000000-0000-4000-8000-000000000033', 'succeeded', now() + interval '1 hour', now() + interval '2 hours', now() + interval '61 minutes', 60000, 4, 4, 5, 5),
+	('battlepage', '30000000-0000-4000-8000-000000000034', 'succeeded', now() + interval '2 hours', now() + interval '3 hours', now() + interval '121 minutes', 60000, 4, 4, 5, 5);
 set local role service_role;
 select public.evaluate_crawl_alerts(now() + interval '3 hours');
 reset role;
 select is(
-	(select status from public.crawl_alert_incidents where source = 'issuelink'),
+	(select status from public.crawl_alert_incidents where source = 'battlepage'),
 	'recovered',
 	'two transport-clean runs resolve a transport incident'
 );

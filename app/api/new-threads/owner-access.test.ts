@@ -96,9 +96,7 @@ describe("신규 스레드 통계 응답", () => {
 			error: null,
 		});
 
-		const response = await getStats(
-			request("/api/new-threads/stats?filterType=normal&issuelinkCategory=community")
-		);
+		const response = await getStats(request("/api/new-threads/stats?filterType=normal"));
 
 		expect(response.status).toBe(200);
 		expect(await response.json()).toEqual({
@@ -107,7 +105,6 @@ describe("신규 스레드 통계 응답", () => {
 		});
 		expect(rpc).toHaveBeenLastCalledWith("get_new_threads_stats", {
 			in_filter_type: "normal",
-			in_issuelink_category: "community",
 		});
 	});
 
