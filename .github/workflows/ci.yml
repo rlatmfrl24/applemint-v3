@@ -38,6 +38,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify dead-code checks without E2E runtime
+        run: pnpm deadcode
+
       - name: Set up Deno
         uses: denoland/setup-deno@v2
         with:
