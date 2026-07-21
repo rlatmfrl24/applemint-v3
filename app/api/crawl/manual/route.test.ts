@@ -42,6 +42,7 @@ function mockAccess({
 describe("POST /api/crawl/manual", () => {
 	beforeEach(() => {
 		vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://project.supabase.co");
+		vi.stubEnv("SUPABASE_URL", "https://project.supabase.co");
 		vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-role-key");
 		vi.stubEnv("CRAWL_INTERNAL_SECRET", INTERNAL_SECRET);
 		mockAccess();

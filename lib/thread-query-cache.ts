@@ -53,7 +53,7 @@ const createOptimisticThread = (thread: ThreadItemType, seed: string): ThreadIte
 	};
 };
 
-export const isThreadListQueryKey = (queryKey: QueryKey, table?: ThreadTableName) => {
+const isThreadListQueryKey = (queryKey: QueryKey, table?: ThreadTableName) => {
 	return (
 		Array.isArray(queryKey) &&
 		queryKey.length >= 2 &&

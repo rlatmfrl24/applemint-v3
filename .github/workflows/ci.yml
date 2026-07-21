@@ -46,16 +46,22 @@ jobs:
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v2
         with:
-          version: 2.75.0
-
-      - name: Start local Supabase
-        run: supabase start --ignore-health-check --exclude edge-runtime,imgproxy,logflare,mailpit,postgres-meta,realtime,storage-api,studio,supavisor,vector > /dev/null
+          version: 2.109.1
 
       - name: Prepare local E2E environment
         run: pnpm run e2e:prepare
 
       - name: Run CI checks
         run: pnpm run ci
+
+      - name: Upload unit coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-coverage
+          path: coverage/
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium

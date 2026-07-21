@@ -57,6 +57,24 @@ export function countCrawlWarnings(failures: unknown[], warnings: unknown[]) {
 	return failures.length + warnings.length;
 }
 
+export function normalizeCrawlApiBaseUrl(value: string | undefined) {
+	if (!value) {
+		return null;
+	}
+
+	try {
+		const url = new URL(value);
+		if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) {
+			return null;
+		}
+		url.search = "";
+		url.hash = "";
+		return url.toString().replace(/\/$/, "");
+	} catch {
+		return null;
+	}
+}
+
 export function chunkUrlsForHistoryQuery(
 	urls: string[],
 	maxItems = 200,

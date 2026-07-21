@@ -70,3 +70,53 @@ describe.each([
 		expect(response.status).toBe(503);
 	});
 });
+
+describe("신규 스레드 통계 응답", () => {
+	beforeEach(() => {
+		createClientMock.mockReset();
+	});
+
+	function mockStatsRpc(statsResult: { data: unknown; error: { message: string } | null }) {
+		const rpc = vi
+			.fn()
+			.mockResolvedValueOnce({ data: true, error: null })
+			.mockResolvedValueOnce(statsResult);
+		createClientMock.mockResolvedValue({
+			auth: {
+				getUser: vi.fn().mockResolvedValue({ data: { user: { id: "owner" } }, error: null }),
+			},
+			rpc,
+		});
+		return rpc;
+	}
+
+	it("필터를 RPC로 전달하고 숫자로 정규화한 통계를 반환한다", async () => {
+		const rpc = mockStatsRpc({
+			data: [{ key: "normal", label: "normal", count: "2", total_count: "2" }],
+			error: null,
+		});
+
+		const response = await getStats(
+			request("/api/new-threads/stats?filterType=normal&issuelinkCategory=community")
+		);
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({
+			totalCount: 2,
+			counts: [{ key: "normal", label: "normal", count: 2 }],
+		});
+		expect(rpc).toHaveBeenLastCalledWith("get_new_threads_stats", {
+			in_filter_type: "normal",
+			in_issuelink_category: "community",
+		});
+	});
+
+	it("통계 RPC 오류를 500으로 반환한다", async () => {
+		mockStatsRpc({ data: null, error: { message: "stats unavailable" } });
+
+		const response = await getStats(request("/api/new-threads/stats"));
+
+		expect(response.status).toBe(500);
+		expect(await response.json()).toEqual({ error: "stats unavailable" });
+	});
+});

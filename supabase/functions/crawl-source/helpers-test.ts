@@ -8,6 +8,7 @@ import {
 	defineType,
 	hasMinimumInternalSecretLength,
 	isCrawlTarget,
+	normalizeCrawlApiBaseUrl,
 } from "./helpers.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -35,6 +36,20 @@ Deno.test("internal secret requires at least 32 UTF-8 bytes", () => {
 Deno.test("crawl target validation is allowlist based", () => {
 	assert(isCrawlTarget("arcalive"), "known target should pass");
 	assert(!isCrawlTarget("unknown"), "unknown target should fail");
+});
+
+Deno.test("crawl API base URL is required and limited to HTTP(S)", () => {
+	assert(normalizeCrawlApiBaseUrl(undefined) === null, "missing URL should fail closed");
+	assert(normalizeCrawlApiBaseUrl("file:///tmp/crawl") === null, "non-HTTP URL should fail");
+	assert(
+		normalizeCrawlApiBaseUrl("https://user:pass@example.com") === null,
+		"credentials should fail"
+	);
+	assert(
+		normalizeCrawlApiBaseUrl("https://example.com/?token=secret#fragment") ===
+			"https://example.com",
+		"query and fragment should not be retained"
+	);
 });
 
 Deno.test("URL classification follows filter keyword methods", () => {

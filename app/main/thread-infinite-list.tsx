@@ -24,7 +24,7 @@ interface FetchThreadPageOptions {
 	filters: ThreadListFilterParam[];
 }
 
-export async function fetchThreadPage({
+async function fetchThreadPage({
 	table,
 	limit,
 	cursor,

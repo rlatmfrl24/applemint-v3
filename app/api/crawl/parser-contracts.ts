@@ -1,6 +1,6 @@
 import type { CrawlItemType } from "@/lib/type-defs";
 
-export type ParserWarningCode = "empty-list" | "below-minimum-items" | "discarded-items";
+type ParserWarningCode = "empty-list" | "below-minimum-items" | "discarded-items";
 
 export type ParserFailureCode =
 	| "missing-container"
@@ -8,13 +8,13 @@ export type ParserFailureCode =
 	| "unrecognized-empty-state"
 	| "all-items-invalid";
 
-export interface ParserWarning {
+interface ParserWarning {
 	code: ParserWarningCode;
 	message: string;
 	count: number;
 }
 
-export interface ParserFailure {
+interface ParserFailure {
 	code: ParserFailureCode;
 	message: string;
 }

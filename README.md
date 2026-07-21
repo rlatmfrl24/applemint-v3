@@ -170,6 +170,8 @@ erDiagram
 ### 5) 코드 컨벤션
 - TS strict + 경로 별칭 `@/*`
 - 포맷/린트 규칙은 `biome.json` 기준
+- `pnpm deadcode`로 미사용 파일·의존성·export를 검사
+- Vitest 커버리지는 CI에서 statements/lines 50%, branches/functions 44% 이상을 유지
 - 운영·배포 기준 브랜치는 `master`, 통합 개발 브랜치는 `develop`
 - 로컬 전체 검증은 `supabase db start` 후 `pnpm run ci`
 - 브라우저 E2E는 Docker가 실행 중인 상태에서 `pnpm test:e2e`로 수행하며 로컬 DB를 초기화함
@@ -198,6 +200,7 @@ Applemint는 migration에 고정한 단일 Supabase Auth 계정만 사용할 수
 ## 검증 명령
 
 - `pnpm test`: Next API, 인증, UI loading, optimistic cache 단위 테스트
+- `pnpm test:coverage`: 단위 테스트와 V8 커버리지 하한선 검사
 - `pnpm test:db`: 이동·적재 rollback, 권한, lock pgTAP 테스트
 - `pnpm typecheck`: TypeScript strict 검사
 - `pnpm check:edge`: 고정된 `deno.lock`으로 Edge Function 타입 검사

@@ -9,22 +9,29 @@ export default function Login({ searchParams }: { searchParams: Promise<{ messag
 	const params = use(searchParams);
 	const router = useRouter();
 
-	const signIn = useCallback(async () => {
-		const supabase = createClient();
-		const email = document.querySelector("input[name=email]") as HTMLInputElement;
-		const password = document.querySelector("input[name=password]") as HTMLInputElement;
+	const signIn = useCallback(
+		async (formData: FormData) => {
+			const supabase = createClient();
+			const email = formData.get("email");
+			const password = formData.get("password");
+			if (typeof email !== "string" || typeof password !== "string") {
+				router.replace(`/login?message=${encodeURIComponent("이메일과 비밀번호를 입력해주세요.")}`);
+				return;
+			}
 
-		const { error } = await supabase.auth.signInWithPassword({
-			email: email.value,
-			password: password.value,
-		});
+			const { error } = await supabase.auth.signInWithPassword({
+				email,
+				password,
+			});
 
-		if (error) {
-			router.replace(`/login?message=${encodeURIComponent(error.message)}`);
-			return;
-		}
-		window.location.assign("/main");
-	}, [router]);
+			if (error) {
+				router.replace(`/login?message=${encodeURIComponent(error.message)}`);
+				return;
+			}
+			window.location.assign("/main");
+		},
+		[router]
+	);
 
 	return (
 		<div className="flex w-full flex-1 flex-col justify-center gap-2 px-8 sm:max-w-md">

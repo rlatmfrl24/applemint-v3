@@ -1,9 +1,9 @@
 "use client";
 
 import { MenuIcon } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Drawer, DrawerClose, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
 
 const MenuList = [
@@ -49,7 +49,11 @@ export const NavMenu = () => {
 					{MenuList.map((item) => (
 						<li key={item.href}>
 							<Button asChild variant={pathname === item.href ? "secondary" : "ghost"}>
-								<a href={item.href} target={item.type === "external" ? "_blank" : undefined}>
+								<a
+									href={item.href}
+									target={item.type === "external" ? "_blank" : undefined}
+									rel={item.type === "external" ? "noreferrer" : undefined}
+								>
 									{item.name} {item.type === "external" ? " ↗" : ""}
 								</a>
 							</Button>
@@ -62,8 +66,6 @@ export const NavMenu = () => {
 };
 
 export const MainDrawer = () => {
-	const router = useRouter();
-
 	return (
 		<Drawer setBackgroundColorOnScale={false}>
 			<DrawerTrigger asChild>
@@ -73,14 +75,14 @@ export const MainDrawer = () => {
 				<div className="container mx-auto flex w-full flex-col gap-2 p-4">
 					{MenuList.map((item) => (
 						<DrawerClose asChild key={item.href}>
-							<Button
-								key={item.href}
-								variant={"ghost"}
-								className="text-xl"
-								onClick={() => router.push(item.href)}
+							<a
+								className={buttonVariants({ variant: "ghost", className: "text-xl" })}
+								href={item.href}
+								target={item.type === "external" ? "_blank" : undefined}
+								rel={item.type === "external" ? "noreferrer" : undefined}
 							>
-								{item.name}
-							</Button>
+								{item.name} {item.type === "external" ? " ↗" : ""}
+							</a>
 						</DrawerClose>
 					))}
 				</div>

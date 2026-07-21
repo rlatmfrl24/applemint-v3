@@ -1,4 +1,15 @@
 {
 	"schemaVersion": 1,
-	"entries": []
+	"entries": [
+		{
+			"manager": "pnpm.overrides",
+			"selector": "next>postcss",
+			"version": "8.5.20",
+			"reason": "Next 16.2.10 pins vulnerable postcss 8.4.31 (GHSA-qx2v-qp2m-jg93).",
+			"introducedAt": "2026-07-21",
+			"lastReviewedAt": "2026-07-21",
+			"nextReviewAt": "2026-10-19",
+			"removalCriteria": "Remove when Next.js depends on postcss 8.5.10 or later."
+		}
+	]
 }

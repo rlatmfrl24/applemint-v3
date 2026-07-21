@@ -1,6 +1,6 @@
 import type { ThreadItemType } from "./type-defs";
 
-export const THREAD_TABLE_NAMES = ["new-threads", "quick-save", "trash"] as const;
+const THREAD_TABLE_NAMES = ["new-threads", "quick-save", "trash"] as const;
 
 export type ThreadTableName = (typeof THREAD_TABLE_NAMES)[number];
 

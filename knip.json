@@ -1,0 +1,6 @@
+{
+	"$schema": "https://unpkg.com/knip@6/schema.json",
+	"entry": ["e2e/**/*.setup.ts"],
+	"ignoreFiles": ["supabase/functions/**/*.ts"],
+	"ignoreBinaries": ["supabase"]
+}

@@ -1,5 +1,5 @@
-export const OVERRIDE_REGISTRY_SCHEMA_VERSION = 1;
-export const MAX_OVERRIDE_REVIEW_DAYS = 90;
+const OVERRIDE_REGISTRY_SCHEMA_VERSION = 1;
+const MAX_OVERRIDE_REVIEW_DAYS = 90;
 
 const REQUIRED_TEXT_FIELDS = [
 	"reason",
@@ -25,7 +25,7 @@ function collectObjectEntries(manager, value) {
 	}));
 }
 
-export function collectPackageOverrides(packageJson) {
+function collectPackageOverrides(packageJson) {
 	return [
 		...collectObjectEntries("pnpm.overrides", packageJson?.pnpm?.overrides),
 		...collectObjectEntries("resolutions", packageJson?.resolutions),
