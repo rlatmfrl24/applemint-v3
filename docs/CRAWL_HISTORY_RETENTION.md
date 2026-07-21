@@ -87,14 +87,43 @@ order by pg_relation_size(indexrelid) desc;
 pnpm exec supabase db dump --linked --data-only --use-copy --schema public --file C:\secure-backups\applemint-public-YYYYMMDD.sql
 ```
 
-3. 운영 프로젝트가 아닌 격리된 로컬 DB에서 migration을 적용하고 백업을 복원한다. `db reset`은 지정한 로컬 DB의 데이터를 지우므로 `supabase status`에서 대상이 로컬 프로젝트인지 먼저 확인한다.
+3. 운영 프로젝트가 아닌 격리된 로컬 DB에서 migration을 적용한다. `db reset`은 지정한 로컬 DB의 데이터를 지우므로 `supabase status`에서 대상이 로컬 프로젝트인지 먼저 확인한다.
 
 ```powershell
 pnpm exec supabase db reset --local --no-seed
-psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" --file C:\secure-backups\applemint-public-YYYYMMDD.sql
 ```
 
-4. 원본과 복원본에서 다음 검증 쿼리를 실행해 전체·소스별 행 수와 기간이 일치하는지 확인한다.
+4. data-only dump를 재생하기 전에 migration이 생성한 singleton 행을 포함해 로컬 `public` 데이터를 모두 비운다. 아래 URL은 이 프로젝트의 고정된 loopback 로컬 DB 주소이며, 원격 또는 linked DB 주소로 바꾸지 않는다.
+
+```powershell
+$restoreDbUrl = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+$restoreDbUri = [Uri]$restoreDbUrl
+if ($restoreDbUri.Host -notin @("127.0.0.1", "localhost") -or $restoreDbUri.Port -ne 54322) {
+	throw "복원 검증은 loopback 로컬 DB의 54322 포트에서만 실행할 수 있습니다."
+}
+$emptyPublicDataSql = @'
+do $$
+declare
+	table_list text;
+begin
+	select string_agg(format('%I.%I', schemaname, tablename), ', ')
+	into table_list
+	from pg_tables
+	where schemaname = 'public';
+
+	if table_list is not null then
+		execute 'truncate table ' || table_list || ' restart identity cascade';
+	end if;
+end
+$$;
+'@
+psql $restoreDbUrl --set ON_ERROR_STOP=on --command $emptyPublicDataSql
+psql $restoreDbUrl --set ON_ERROR_STOP=on --file C:\secure-backups\applemint-public-YYYYMMDD.sql
+```
+
+전체 `public` 데이터와 identity 값을 비운 뒤 복원하므로 migration에 포함된 초기 행과 data-only dump가 충돌하지 않는다. `ON_ERROR_STOP`은 duplicate key 등 첫 SQL 오류에서 복원을 즉시 중단한다.
+
+5. 원본과 복원본에서 다음 검증 쿼리를 실행해 전체·소스별 행 수와 기간이 일치하는지 확인한다.
 
 ```sql
 select
