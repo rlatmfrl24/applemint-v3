@@ -2,11 +2,38 @@ import type { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const createClientMock = vi.hoisted(() => vi.fn());
+const createServiceRoleClientMock = vi.hoisted(() => vi.fn());
+const executeCrawlPipelineMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/utils/supabase/server", () => ({
 	createClient: createClientMock,
 }));
 
+vi.mock("@/utils/supabase/service-role", () => ({
+	createServiceRoleClient: createServiceRoleClientMock,
+}));
+
+vi.mock("../pipeline", () => {
+	class MockCrawlPipelineError extends Error {
+		constructor(
+			message: string,
+			readonly httpStatus: number,
+			readonly stage: string,
+			readonly crawlData: unknown = null,
+			readonly runId?: string,
+			readonly activeRunId?: string | null
+		) {
+			super(message);
+		}
+	}
+
+	return {
+		CrawlPipelineError: MockCrawlPipelineError,
+		executeCrawlPipeline: executeCrawlPipelineMock,
+	};
+});
+
+import { CrawlPipelineError } from "../pipeline";
 import { POST } from "./route";
 
 const INTERNAL_SECRET = "0123456789abcdef0123456789abcdef";
@@ -45,6 +72,9 @@ describe("POST /api/crawl/manual", () => {
 		vi.stubEnv("SUPABASE_URL", "https://project.supabase.co");
 		vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-role-key");
 		vi.stubEnv("CRAWL_INTERNAL_SECRET", INTERNAL_SECRET);
+		vi.stubEnv("CRAWL_EXECUTION_MODE", "edge");
+		createServiceRoleClientMock.mockReturnValue({ kind: "service-role-client" });
+		executeCrawlPipelineMock.mockReset();
 		mockAccess();
 	});
 
@@ -130,5 +160,93 @@ describe("POST /api/crawl/manual", () => {
 		const response = await POST(createRequest("arcalive"));
 
 		expect(response.status).toBe(504);
+	});
+
+	it("next 모드에서는 Edge 호출 없이 통합 파이프라인 결과를 반환한다", async () => {
+		vi.stubEnv("CRAWL_EXECUTION_MODE", "next");
+		executeCrawlPipelineMock.mockResolvedValue({
+			runId: "42",
+			status: "succeeded",
+			target: "arcalive",
+			insertedCount: 3,
+			skippedCount: 1,
+			warningCount: 0,
+			durationMs: 123,
+		});
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		const response = await POST(createRequest("arcalive"));
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({ runId: "42", insertedCount: 3 });
+		expect(executeCrawlPipelineMock).toHaveBeenCalledWith(
+			"arcalive",
+			createServiceRoleClientMock.mock.results[0].value
+		);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("next 모드의 lock 충돌은 기존 409 응답 계약을 유지한다", async () => {
+		vi.stubEnv("CRAWL_EXECUTION_MODE", "next");
+		executeCrawlPipelineMock.mockRejectedValue(
+			new CrawlPipelineError(
+				"다른 크롤링 작업이 이미 실행 중입니다.",
+				409,
+				"unknown",
+				null,
+				undefined,
+				"41"
+			)
+		);
+
+		const response = await POST(createRequest("arcalive"));
+
+		expect(response.status).toBe(409);
+		expect(await response.json()).toEqual({
+			error: "다른 크롤링 작업이 이미 실행 중입니다.",
+			activeRunId: "41",
+		});
+	});
+
+	it("next 모드의 timeout 실패는 runId와 504를 반환한다", async () => {
+		vi.stubEnv("CRAWL_EXECUTION_MODE", "next");
+		executeCrawlPipelineMock.mockRejectedValue(
+			new CrawlPipelineError("timeout", 504, "source", null, "42")
+		);
+
+		const response = await POST(createRequest("arcalive"));
+
+		expect(response.status).toBe(504);
+		expect(await response.json()).toEqual({
+			runId: "42",
+			status: "failed",
+			error: "크롤링 요청 시간이 초과되었습니다.",
+		});
+	});
+
+	it("next 모드의 service-role 설정 오류는 503을 반환한다", async () => {
+		vi.stubEnv("CRAWL_EXECUTION_MODE", "next");
+		createServiceRoleClientMock.mockImplementation(() => {
+			throw new Error("missing service role key");
+		});
+
+		const response = await POST(createRequest("arcalive"));
+
+		expect(response.status).toBe(503);
+		expect(await response.json()).toEqual({
+			error: "수동 크롤링 서버 설정이 완료되지 않았습니다.",
+		});
+		expect(executeCrawlPipelineMock).not.toHaveBeenCalled();
+	});
+
+	it("next 모드의 예상하지 못한 실행 오류는 500을 반환한다", async () => {
+		vi.stubEnv("CRAWL_EXECUTION_MODE", "next");
+		executeCrawlPipelineMock.mockRejectedValue(new Error("unexpected"));
+
+		const response = await POST(createRequest("arcalive"));
+
+		expect(response.status).toBe(500);
+		expect(await response.json()).toEqual({ error: "크롤링 처리에 실패했습니다." });
 	});
 });
