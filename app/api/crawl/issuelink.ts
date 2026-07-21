@@ -16,7 +16,10 @@ interface IssuelinkPageResult {
 	items: CrawlItemType[];
 	warnings: CrawlWarning[];
 	failure?: CrawlFailure;
+	parserObservations: CrawlSourceResult["parserObservations"];
 }
+
+const ISSUELINK_MINIMUM_ITEMS = 1;
 
 async function getItemsByCondition(condition: Condition): Promise<IssuelinkPageResult> {
 	const url = `https://www.issuelink.co.kr/community/listview/all/12/${condition}/_self/blank/blank/blank`;
@@ -53,6 +56,16 @@ async function getItemsByCondition(condition: Condition): Promise<IssuelinkPageR
 			return {
 				items: [],
 				warnings: [],
+				parserObservations: [
+					{
+						url,
+						status: "failure",
+						candidateCount: 0,
+						validCount: 0,
+						discardedCount: 0,
+						minimumItems: ISSUELINK_MINIMUM_ITEMS,
+					},
+				],
 				failure: {
 					url,
 					kind: "parser",
@@ -62,13 +75,27 @@ async function getItemsByCondition(condition: Condition): Promise<IssuelinkPageR
 		}
 
 		debugLog(`[Issuelink] ${condition} 조건 아이템 ${items.length}개 추출 완료`);
-		return { items, warnings: [] };
+		return {
+			items,
+			warnings: [],
+			parserObservations: [
+				{
+					url,
+					status: "ok",
+					candidateCount: items.length,
+					validCount: items.length,
+					discardedCount: 0,
+					minimumItems: ISSUELINK_MINIMUM_ITEMS,
+				},
+			],
+		};
 	} catch (error) {
 		const message = getErrorMessage(error);
 		console.error(`[Issuelink] ${condition} 조건 크롤링 실패: ${message}`);
 		return {
 			items: [],
 			warnings: [],
+			parserObservations: [],
 			failure: { url, message, kind: "network", timeout: isTimeoutError(error) },
 		};
 	}
@@ -84,6 +111,7 @@ export async function crawlIssuelink(): Promise<CrawlSourceResult> {
 
 	const failures = results.flatMap((result) => (result.failure ? [result.failure] : []));
 	const warnings = results.flatMap((result) => result.warnings);
+	const parserObservations = results.flatMap((result) => result.parserObservations);
 	const dedupedItems = new Map<string, CrawlItemType>();
 	for (const item of results.flatMap((result) => result.items)) {
 		if (!dedupedItems.has(item.url)) {
@@ -97,5 +125,6 @@ export async function crawlIssuelink(): Promise<CrawlSourceResult> {
 		succeeded: conditions.length - failures.length,
 		failures,
 		warnings,
+		parserObservations,
 	};
 }

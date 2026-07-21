@@ -19,6 +19,7 @@ export async function crawlArcalive(): Promise<CrawlSourceResult> {
 	const detectedList: CrawlItemType[][] = [];
 	const failures: CrawlFailure[] = [];
 	const warnings: CrawlWarning[] = [];
+	const parserObservations: CrawlSourceResult["parserObservations"] = [];
 	let succeeded = 0;
 
 	for (let index = 0; index < targetList.length; index += 1) {
@@ -33,6 +34,7 @@ export async function crawlArcalive(): Promise<CrawlSourceResult> {
 
 			const outcome = parseArcaliveHtml(await response.text());
 			const parsed = adaptParserOutcome(url, outcome);
+			parserObservations.push(parsed.observation);
 			warnings.push(...parsed.warnings);
 			debugLog(
 				`[Arcalive] 페이지 ${index + 1} parser=${outcome.status} candidates=${outcome.candidateCount} valid=${outcome.items.length} discarded=${outcome.discardedCount}`
@@ -60,5 +62,6 @@ export async function crawlArcalive(): Promise<CrawlSourceResult> {
 		succeeded,
 		failures,
 		warnings,
+		parserObservations,
 	};
 }

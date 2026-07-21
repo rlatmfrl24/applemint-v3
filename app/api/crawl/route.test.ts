@@ -44,6 +44,16 @@ describe("POST /api/crawl", () => {
 					count: 1,
 				},
 			],
+			parserObservations: [
+				{
+					url: "https://example.com/1",
+					status: "ok",
+					candidateCount: 1,
+					validCount: 1,
+					discardedCount: 0,
+					minimumItems: 10,
+				},
+			],
 		});
 	});
 
@@ -71,6 +81,8 @@ describe("POST /api/crawl", () => {
 
 		expect(response.status).toBe(200);
 		expect(body).toMatchObject({ target: "arcalive", attempted: 2, succeeded: 1 });
+		expect(body).toMatchObject({ retryCount: 0, parserValidCount: 1, parserMinimumCount: 10 });
+		expect(body.failures[0].attempt).toBe(1);
 		expect(body.failures).toHaveLength(1);
 		expect(body.warnings).toHaveLength(1);
 		expect(crawlerMocks.arcalive).toHaveBeenCalledTimes(1);
@@ -84,6 +96,7 @@ describe("POST /api/crawl", () => {
 			succeeded: 0,
 			failures: [{ url: "https://example.com", message: "missing container", kind: "parser" }],
 			warnings: [],
+			parserObservations: [],
 		});
 
 		const responsePromise = POST(createRequest("arcalive"));
@@ -109,6 +122,7 @@ describe("POST /api/crawl", () => {
 				},
 			],
 			warnings: [],
+			parserObservations: [],
 		});
 
 		const responsePromise = POST(createRequest("arcalive"));
@@ -139,6 +153,7 @@ describe("POST /api/crawl", () => {
 				},
 			],
 			warnings: [],
+			parserObservations: [],
 		});
 
 		const responsePromise = POST(createRequest("arcalive"));
@@ -147,5 +162,47 @@ describe("POST /api/crawl", () => {
 
 		expect(response.status).toBe(502);
 		expect(crawlerMocks.arcalive).toHaveBeenCalledTimes(2);
+	});
+
+	it("재시도별 실패를 보존하고 집계를 합산한다", async () => {
+		vi.useFakeTimers();
+		crawlerMocks.arcalive
+			.mockResolvedValueOnce({
+				items: [],
+				attempted: 3,
+				succeeded: 0,
+				failures: [
+					{ url: "https://example.com/first", message: "timeout", kind: "network", timeout: true },
+				],
+				warnings: [],
+				parserObservations: [],
+			})
+			.mockResolvedValueOnce({
+				items: [{ url: "https://example.com/ok", title: "ok", host: "example.com" }],
+				attempted: 3,
+				succeeded: 3,
+				failures: [],
+				warnings: [],
+				parserObservations: [
+					{
+						url: "https://example.com/page",
+						status: "ok",
+						candidateCount: 12,
+						validCount: 12,
+						discardedCount: 0,
+						minimumItems: 10,
+					},
+				],
+			});
+
+		const responsePromise = POST(createRequest("arcalive"));
+		await vi.runAllTimersAsync();
+		const body = await (await responsePromise).json();
+
+		expect(body).toMatchObject({ attempted: 6, succeeded: 3, retryCount: 1 });
+		expect(body.failures).toEqual([expect.objectContaining({ attempt: 1, timeout: true })]);
+		expect(body.parserObservations).toEqual([
+			expect.objectContaining({ attempt: 2, validCount: 12 }),
+		]);
 	});
 });

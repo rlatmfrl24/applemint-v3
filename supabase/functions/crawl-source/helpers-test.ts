@@ -1,11 +1,14 @@
 /// <reference lib="deno.ns" />
 
 import {
+	calculateParserTrend,
 	chunkUrlsForHistoryQuery,
 	constantTimeEquals,
+	countCrawlFailureKinds,
 	countCrawlWarnings,
 	dedupeByUrl,
 	defineType,
+	getCompletedRunStatus,
 	hasMinimumInternalSecretLength,
 	isCrawlTarget,
 	normalizeCrawlApiBaseUrl,
@@ -78,6 +81,36 @@ Deno.test("URL deduplication keeps the first item", () => {
 
 Deno.test("crawl warning count includes partial failures and parser warnings", () => {
 	assert(countCrawlWarnings([{}], [{}, {}]) === 3, "all warning conditions should be counted");
+});
+
+Deno.test("failure causes are mutually exclusively classified", () => {
+	const counts = countCrawlFailureKinds([
+		{ kind: "network" },
+		{ kind: "parser" },
+		{ kind: "network", timeout: true },
+	]);
+	assert(counts.networkFailureCount === 1, "network failure should be counted");
+	assert(counts.parserFailureCount === 1, "parser failure should be counted");
+	assert(counts.timeoutFailureCount === 1, "timeout should not also count as network");
+});
+
+Deno.test("parser trend uses only the final attempt and excludes explicit empty minimums", () => {
+	const trend = calculateParserTrend(
+		[
+			{ attempt: 1, status: "failure", validCount: 0, minimumItems: 10 },
+			{ attempt: 2, status: "ok", validCount: 8, minimumItems: 10 },
+			{ attempt: 2, status: "empty", validCount: 0, minimumItems: 10 },
+		],
+		1
+	);
+	assert(trend.parserValidCount === 8, "final attempt valid items should be summed");
+	assert(trend.parserMinimumCount === 10, "empty pages should not add a minimum");
+});
+
+Deno.test("completed runs with warnings or failures are partial", () => {
+	assert(getCompletedRunStatus([], []) === "succeeded", "clean run should succeed");
+	assert(getCompletedRunStatus([{}], []) === "partial", "failure should make a partial run");
+	assert(getCompletedRunStatus([], [{}]) === "partial", "warning should make a partial run");
 });
 
 Deno.test("history query chunks limit both item count and encoded URL length", () => {

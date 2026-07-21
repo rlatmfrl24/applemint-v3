@@ -43,6 +43,7 @@ export function parseBattlepageHtml(html: string): ParserOutcome {
 		return createParserFailure({
 			code: "missing-container",
 			message: "Battlepage 목록 container를 찾지 못했습니다.",
+			minimumItems: BATTLEPAGE_MINIMUM_ITEMS,
 		});
 	}
 
@@ -50,12 +51,13 @@ export function parseBattlepageHtml(html: string): ParserOutcome {
 	const candidateCount = candidates.length;
 	if (candidateCount === 0) {
 		if (EMPTY_LIST_TEXT.test(containers.text().replace(/\s+/g, " "))) {
-			return createParserEmpty("Battlepage");
+			return createParserEmpty("Battlepage", BATTLEPAGE_MINIMUM_ITEMS);
 		}
 
 		return createParserFailure({
 			code: "unrecognized-empty-state",
 			message: "Battlepage 목록은 존재하지만 게시물 또는 공식 빈 목록 표시를 찾지 못했습니다.",
+			minimumItems: BATTLEPAGE_MINIMUM_ITEMS,
 		});
 	}
 
@@ -85,6 +87,7 @@ export function parseBattlepageHtml(html: string): ParserOutcome {
 			message: "Battlepage 게시물 후보가 모두 URL 또는 필수 필드 검증에 실패했습니다.",
 			candidateCount,
 			discardedCount,
+			minimumItems: BATTLEPAGE_MINIMUM_ITEMS,
 		});
 	}
 

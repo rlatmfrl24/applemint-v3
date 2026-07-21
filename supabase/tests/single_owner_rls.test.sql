@@ -39,7 +39,8 @@ select ok(
 			'public."new-threads"',
 			'public."quick-save"',
 			'public.trash',
-			'public.crawl_run_locks'
+			'public.crawl_run_locks',
+			'public.crawl_runs'
 		]) as business_table(table_name)
 		cross join unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE']) as access(privilege_name)
 		where has_table_privilege('anon', business_table.table_name, access.privilege_name)
@@ -58,7 +59,10 @@ select ok(
 			'public.clean_trash()',
 			'public.ingest_crawl_items(text,jsonb)',
 			'public.acquire_crawl_lock(text,uuid,integer)',
-			'public.release_crawl_lock(text,uuid)'
+			'public.release_crawl_lock(text,uuid)',
+			'public.begin_crawl_run(text,uuid,integer)',
+			'public.finish_crawl_run(bigint,uuid,jsonb)',
+			'public.get_crawl_runs_dashboard(integer,integer)'
 		]) as business_function(function_name)
 		where has_function_privilege('anon', business_function.function_name, 'EXECUTE')
 	),
@@ -73,7 +77,8 @@ select ok(
 			'public."filter-keyword_id_seq"',
 			'public."new-threads_id_seq"',
 			'public."quick-save_id_seq"',
-			'public.trash_id_seq'
+			'public.trash_id_seq',
+			'public.crawl_runs_id_seq'
 		]) as business_sequence(sequence_name)
 		cross join unnest(array['USAGE', 'SELECT', 'UPDATE']) as access(privilege_name)
 		where has_sequence_privilege(
@@ -103,7 +108,8 @@ select ok(
 		from unnest(array[
 			'public."crawl-history"',
 			'public."filter-keyword"',
-			'public.crawl_run_locks'
+			'public.crawl_run_locks',
+			'public.crawl_runs'
 		]) as internal_table(table_name)
 		cross join unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE']) as access(privilege_name)
 		where has_table_privilege('authenticated', internal_table.table_name, access.privilege_name)
@@ -111,8 +117,9 @@ select ok(
 	'authenticated cannot access crawler-internal tables'
 );
 select ok(
-	has_table_privilege('service_role', 'public."filter-keyword"', 'SELECT')
-		and has_table_privilege('service_role', 'public.crawl_run_locks', 'INSERT,UPDATE,DELETE'),
+		has_table_privilege('service_role', 'public."filter-keyword"', 'SELECT')
+		and has_table_privilege('service_role', 'public.crawl_run_locks', 'INSERT,UPDATE,DELETE')
+		and has_table_privilege('service_role', 'public.crawl_runs', 'INSERT,UPDATE,DELETE'),
 	'service role retains filter and crawl lock table access'
 );
 

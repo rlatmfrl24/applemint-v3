@@ -6,12 +6,21 @@ export function adaptParserOutcome(url: string, outcome: ParserOutcome) {
 		url,
 		...warning,
 	}));
+	const observation = {
+		url,
+		status: outcome.status,
+		candidateCount: outcome.candidateCount,
+		validCount: outcome.items.length,
+		discardedCount: outcome.discardedCount,
+		minimumItems: outcome.minimumItems,
+	} as const;
 
 	if (outcome.status === "failure") {
 		return {
 			items: [],
 			succeeded: false,
 			warnings,
+			observation,
 			failure: {
 				url,
 				kind: "parser",
@@ -24,5 +33,6 @@ export function adaptParserOutcome(url: string, outcome: ParserOutcome) {
 		items: outcome.items,
 		succeeded: true,
 		warnings,
+		observation,
 	};
 }

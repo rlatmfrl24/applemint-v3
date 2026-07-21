@@ -1,6 +1,6 @@
 # Applemint v3
 
-개인용 트렌드 링크 수집/정리 프로젝트입니다.  
+개인용 트렌드 링크 수집/정리 프로젝트입니다.
 여러 커뮤니티 소스를 크롤링해 `new-threads`에 적재하고, 웹 UI에서 빠르게 확인/분류(`Quick Save`, `Trash`)할 수 있도록 구성되어 있습니다.
 
 > 이 문서는 개인 프로젝트 운영 관점에 맞춰 작성되었으며, 설치/배포 가이드는 의도적으로 제외했습니다.
@@ -39,16 +39,17 @@
 - 소스별 크롤링 결과 수집 후 중복 제거 및 키워드 기반 타입 분류
 - `new-threads` 무한 스크롤 목록 + 타입별 통계/필터
 - `Quick Save` 이동, `Trash` 이동/복원 워크플로우
-- 설정 페이지에서 수동 크롤링 트리거 및 신규 스레드 일괄 정리
+- 설정 페이지에서 수동 크롤링, 최근 90일 실행 이력·파서 추세 확인 및 신규 스레드 일괄 정리
 
 ## 아키텍처 개요
 
 1. UI(`/main/setting`)에서 수동 크롤링 호출
 2. `POST /api/crawl/manual`이 DB의 단일 소유자 권한을 확인한 뒤 Supabase Edge Function(`crawl-source`) 호출
-3. Edge Function이 global DB lock을 획득하고 `POST /api/crawl` 내부 API 호출
+3. Edge Function이 `begin_crawl_run`으로 global DB lock과 실행 이력을 원자적으로 생성하고 `POST /api/crawl` 내부 API 호출
 4. 크롤링 결과를 `filter-keyword` 기준으로 필터링/타입 분류
 5. `ingest_crawl_items` RPC가 `crawl-history` claim과 `new-threads` 적재를 하나의 트랜잭션으로 확정
-6. UI는 `app/api/new-threads`, `app/api/new-threads/stats`로 조회
+6. `finish_crawl_run`이 결과 저장과 lock 해제를 원자적으로 완료
+7. UI는 스레드 API와 `GET /api/crawl/runs`로 목록·운영 이력을 조회
 
 ## 프로젝트 구조
 
@@ -93,6 +94,18 @@ erDiagram
       timestamptz created_at
     }
 
+    CRAWL_RUNS {
+      int id
+      text source
+      text status
+      timestamptz started_at
+      timestamptz finished_at
+      int inserted_count
+      int failure_count
+      jsonb warnings
+      jsonb failures
+    }
+
     NEW_THREADS {
       int id
       text type
@@ -128,6 +141,7 @@ erDiagram
 
     FILTER_KEYWORD ||--o{ NEW_THREADS : applies_rules
     CRAWL_HISTORY ||--o{ NEW_THREADS : dedupe_gate
+    CRAWL_RUNS ||--o{ CRAWL_HISTORY : records_ingest
     NEW_THREADS ||--o{ QUICK_SAVE : copied_to
     NEW_THREADS ||--o{ TRASH : moved_to
     TRASH ||--o{ NEW_THREADS : restored_to
@@ -136,6 +150,7 @@ erDiagram
 - 현재 스키마는 명시적 FK 제약보다 PostgreSQL RPC(`move_thread`, `bulk_move_new_threads_to_trash`)로 이동 원자성을 유지합니다.
 - `new-threads.tag`는 배열 성격의 태그 데이터를 저장합니다.
 - `crawl-history`는 `(crawl_source, url)` 유니크 인덱스로 중복 유입을 방지합니다.
+- `crawl_runs`는 재시도를 포함한 한 번의 실행을 한 행으로 보존하며 90일이 지난 이력은 매일 03:15 KST에 정리합니다.
 - 통계 API는 `new-threads` 기반 RPC(`get_new_threads_stats`)를 사용합니다.
 
 ## 유지보수 가이드
@@ -144,9 +159,10 @@ erDiagram
 - `app/api/crawl/<source>-parser.ts`에 네트워크와 분리된 순수 파서 구현
 - `app/api/crawl/<source>.ts`에서 요청 결과를 공통 파서 계약에 연결
 - `app/api/crawl/route.ts` 스위치에 타겟 등록
-- 반환 타입은 `{items, attempted, succeeded, failures, warnings}` 구조를 유지
+- 반환 타입은 `{items, attempted, succeeded, failures, warnings, parserObservations}` 구조를 유지
 - 정상 빈 목록은 `empty-list`, 최소 추출 건수 미달은 `below-minimum-items` warning으로 기록하며 구조 변경은 parser failure로 구분
 - 파서 변경 시 `app/api/crawl/fixtures`의 정제 fixture와 source별 parser 테스트를 함께 갱신
+- 파서 최소 건수 변경 시 observation과 설정 화면의 추세 기준도 함께 검증
 - 소스 장애 대비 재시도/로그 전략 유지 (`retryOperation`, `logger.ts`)
 
 ### 2) 데이터 분류/필터 정책 관리

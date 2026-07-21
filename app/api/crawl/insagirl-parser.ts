@@ -72,11 +72,12 @@ export function parseInsagirlPayload(payload: unknown): ParserOutcome {
 		return createParserFailure({
 			code: "invalid-payload",
 			message: "Insagirl 응답의 v 배열을 찾지 못했습니다.",
+			minimumItems: INSAGIRL_MINIMUM_ITEMS,
 		});
 	}
 
 	if (payload.v.length === 0) {
-		return createParserEmpty("Insagirl");
+		return createParserEmpty("Insagirl", INSAGIRL_MINIMUM_ITEMS);
 	}
 
 	const items = new Map<string, CrawlItemType>();
@@ -92,7 +93,7 @@ export function parseInsagirlPayload(payload: unknown): ParserOutcome {
 	}
 
 	if (nonSyncRecordCount === 0) {
-		return createParserEmpty("Insagirl");
+		return createParserEmpty("Insagirl", INSAGIRL_MINIMUM_ITEMS);
 	}
 
 	if (items.size === 0) {
@@ -101,6 +102,7 @@ export function parseInsagirlPayload(payload: unknown): ParserOutcome {
 			message: "Insagirl 게시물 후보가 모두 URL 또는 필수 필드 검증에 실패했습니다.",
 			candidateCount,
 			discardedCount,
+			minimumItems: INSAGIRL_MINIMUM_ITEMS,
 		});
 	}
 

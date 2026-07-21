@@ -15,6 +15,7 @@ interface BattlepagePageResult {
 	items: CrawlItemType[];
 	warnings: CrawlWarning[];
 	failure?: CrawlFailure;
+	parserObservations: CrawlSourceResult["parserObservations"];
 }
 
 export async function crawlBattlepage(): Promise<CrawlSourceResult> {
@@ -44,13 +45,14 @@ export async function crawlBattlepage(): Promise<CrawlSourceResult> {
 				debugLog(
 					`[Battlepage] URL ${index + 1} parser=${outcome.status} candidates=${outcome.candidateCount} valid=${outcome.items.length} discarded=${outcome.discardedCount}`
 				);
-				return parsed;
+				return { ...parsed, parserObservations: [parsed.observation] };
 			} catch (error) {
 				const message = getErrorMessage(error);
 				console.error(`[Battlepage] URL ${index + 1} 크롤링 실패: ${message}`);
 				return {
 					items: [],
 					warnings: [],
+					parserObservations: [],
 					failure: { url, message, kind: "network", timeout: isTimeoutError(error) },
 				};
 			}
@@ -60,6 +62,7 @@ export async function crawlBattlepage(): Promise<CrawlSourceResult> {
 	const failures = results.flatMap((result) => (result.failure ? [result.failure] : []));
 	const items = results.flatMap((result) => result.items);
 	const warnings = results.flatMap((result) => result.warnings);
+	const parserObservations = results.flatMap((result) => result.parserObservations);
 
 	return {
 		items,
@@ -67,5 +70,6 @@ export async function crawlBattlepage(): Promise<CrawlSourceResult> {
 		succeeded: targetList.length - failures.length,
 		failures,
 		warnings,
+		parserObservations,
 	};
 }
