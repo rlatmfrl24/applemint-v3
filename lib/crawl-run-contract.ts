@@ -2,6 +2,11 @@ const CRAWL_SOURCES = ["arcalive", "battlepage", "insagirl", "issuelink"] as con
 
 export type CrawlSource = (typeof CRAWL_SOURCES)[number];
 export type CrawlRunStatus = "running" | "succeeded" | "partial" | "failed" | "interrupted";
+export type CrawlAlertSignal =
+	| "parser-failure"
+	| "parser-volume-drop"
+	| "no-recent-success"
+	| "transport-error-rate";
 
 interface CrawlRunDetailItem {
 	url?: string;
@@ -70,6 +75,7 @@ interface CrawlRunTrendPoint {
 
 export interface CrawlSourceSummary {
 	source: CrawlSource;
+	activeAlertCount: number;
 	lastSuccessAt: string | null;
 	lastFailureAt: string | null;
 	latest: {
@@ -83,10 +89,48 @@ export interface CrawlSourceSummary {
 	trend: CrawlRunTrendPoint[];
 }
 
+interface CrawlAlertSnapshot {
+	latestRunId: string | null;
+	parserFailureTriggered: boolean;
+	parserValidRatio: number | null;
+	lastSuccessAt: string | null;
+	hoursSinceSuccess: number | null;
+	transportWindow: number;
+	transportAttemptedCount: number;
+	transportFailureCount: number;
+	transportFailureRatio: number;
+}
+
+export interface CrawlAlertIncident {
+	id: string;
+	source: CrawlSource;
+	activeSignals: CrawlAlertSignal[];
+	openedAt: string;
+	lastObservedAt: string;
+	lastNotificationAt: string | null;
+	githubIssueNumber: number | null;
+	githubIssueUrl: string | null;
+	snapshot: CrawlAlertSnapshot;
+}
+
+export interface CrawlAlertSettings {
+	parserFailureStreak: number;
+	parserDropRatio: number;
+	parserDropStreak: number;
+	noSuccessSeconds: number;
+	transportWindow: number;
+	transportErrorRatio: number;
+	transportMinFailures: number;
+	cooldownSeconds: number;
+	lastEvaluatedAt: string | null;
+}
+
 export interface CrawlRunsDashboard {
 	activeRun: ActiveCrawlRun | null;
 	sources: CrawlSourceSummary[];
 	runs: CrawlRun[];
+	alerts: CrawlAlertIncident[];
+	alertSettings: CrawlAlertSettings;
 }
 
 export function parseDashboardLimit(value: string | null, fallback = 20) {
@@ -105,5 +149,24 @@ export function isCrawlRunsDashboard(value: unknown): value is CrawlRunsDashboar
 		return false;
 	}
 	const dashboard = value as Record<string, unknown>;
-	return Array.isArray(dashboard.sources) && Array.isArray(dashboard.runs);
+	const settings = dashboard.alertSettings as Record<string, unknown> | null;
+	const validSettings =
+		settings !== null &&
+		typeof settings === "object" &&
+		[
+			"parserFailureStreak",
+			"parserDropRatio",
+			"parserDropStreak",
+			"noSuccessSeconds",
+			"transportWindow",
+			"transportErrorRatio",
+			"transportMinFailures",
+			"cooldownSeconds",
+		].every((key) => typeof settings[key] === "number" && Number.isFinite(settings[key]));
+	return (
+		Array.isArray(dashboard.sources) &&
+		Array.isArray(dashboard.runs) &&
+		Array.isArray(dashboard.alerts) &&
+		validSettings
+	);
 }

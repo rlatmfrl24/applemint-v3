@@ -20,6 +20,7 @@ export default defineConfig({
 				"app/**/*.{ts,tsx}",
 				"lib/**/*.{ts,tsx}",
 				"utils/**/*.{ts,tsx}",
+				"scripts/crawler-health/**/*.mjs",
 				"scripts/security/**/*.mjs",
 			],
 			exclude: ["**/*.test.{ts,tsx}", "app/api/crawl/fixtures/**"],

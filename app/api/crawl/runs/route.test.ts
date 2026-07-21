@@ -3,6 +3,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createClientMock = vi.hoisted(() => vi.fn());
 
+const alertsDashboard = {
+	alerts: [],
+	alertSettings: {
+		parserFailureStreak: 2,
+		parserDropRatio: 0.5,
+		parserDropStreak: 2,
+		noSuccessSeconds: 172800,
+		transportWindow: 3,
+		transportErrorRatio: 0.5,
+		transportMinFailures: 2,
+		cooldownSeconds: 86400,
+		lastEvaluatedAt: null,
+	},
+};
+
 vi.mock("@/utils/supabase/server", () => ({
 	createClient: createClientMock,
 }));
@@ -19,17 +34,22 @@ function mockRpc({
 	ownerError = null,
 	dashboard = { activeRun: null, sources: [], runs: [] },
 	dashboardError = null,
+	alerts = alertsDashboard,
+	alertError = null,
 }: {
 	userId?: string | null;
 	isOwner?: boolean;
 	ownerError?: Error | null;
 	dashboard?: unknown;
 	dashboardError?: { message: string } | null;
+	alerts?: unknown;
+	alertError?: { message: string } | null;
 } = {}) {
 	const rpc = vi
 		.fn()
 		.mockResolvedValueOnce({ data: isOwner, error: ownerError })
-		.mockResolvedValueOnce({ data: dashboard, error: dashboardError });
+		.mockResolvedValueOnce({ data: dashboard, error: dashboardError })
+		.mockResolvedValueOnce({ data: alerts, error: alertError });
 	createClientMock.mockResolvedValue({
 		auth: {
 			getUser: vi.fn().mockResolvedValue({
@@ -67,11 +87,17 @@ describe("GET /api/crawl/runs", () => {
 		const rpc = mockRpc();
 		const response = await GET(request("?limit=12&trendLimit=8"));
 		expect(response.status).toBe(200);
-		expect(await response.json()).toEqual({ activeRun: null, sources: [], runs: [] });
-		expect(rpc).toHaveBeenLastCalledWith("get_crawl_runs_dashboard", {
+		expect(await response.json()).toEqual({
+			activeRun: null,
+			sources: [],
+			runs: [],
+			...alertsDashboard,
+		});
+		expect(rpc).toHaveBeenNthCalledWith(2, "get_crawl_runs_dashboard", {
 			p_limit: 12,
 			p_trend_limit: 8,
 		});
+		expect(rpc).toHaveBeenNthCalledWith(3, "get_crawl_alerts_dashboard");
 	});
 
 	it("dashboard RPC 오류와 손상된 응답을 500으로 반환한다", async () => {
@@ -79,6 +105,15 @@ describe("GET /api/crawl/runs", () => {
 		expect((await GET(request())).status).toBe(500);
 
 		mockRpc({ dashboard: null });
+		expect((await GET(request())).status).toBe(500);
+
+		mockRpc({ dashboard: { activeRun: null, sources: null, runs: [] } });
+		expect((await GET(request())).status).toBe(500);
+
+		mockRpc({ alertError: { message: "alerts unavailable" } });
+		expect((await GET(request())).status).toBe(500);
+
+		mockRpc({ alerts: null });
 		expect((await GET(request())).status).toBe(500);
 	});
 });

@@ -32,6 +32,12 @@ export async function clearThreadTables() {
 
 export async function clearCrawlRuns() {
 	const supabase = createAdminClient();
+	for (const table of ["crawl_alert_notifications", "crawl_alert_incidents"] as const) {
+		const { error: alertError } = await supabase.from(table).delete().gte("id", 0);
+		if (alertError) {
+			throw new Error(`${table} E2E 데이터 초기화 실패: ${alertError.message}`);
+		}
+	}
 	const { error: lockError } = await supabase
 		.from("crawl_run_locks")
 		.delete()
@@ -43,6 +49,38 @@ export async function clearCrawlRuns() {
 	if (error) {
 		throw new Error(`crawl_runs E2E 데이터 초기화 실패: ${error.message}`);
 	}
+}
+
+export async function seedCrawlAlert(source: SeedCrawlRunOptions["source"]) {
+	const supabase = createAdminClient();
+	const now = new Date().toISOString();
+	const { data, error } = await supabase
+		.from("crawl_alert_incidents")
+		.insert({
+			source,
+			status: "open",
+			active_signals: ["parser-failure", "parser-volume-drop"],
+			opened_at: now,
+			last_observed_at: now,
+			last_notification_at: now,
+			github_issue_number: 123,
+			github_issue_url: "https://github.com/rlatmfrl24/applemint-v3/issues/123",
+			snapshot: {
+				latestRunId: "1",
+				parserFailureTriggered: true,
+				parserValidRatio: 0.2,
+				lastSuccessAt: null,
+				hoursSinceSuccess: 4,
+				transportWindow: 3,
+				transportAttemptedCount: 6,
+				transportFailureCount: 1,
+				transportFailureRatio: 1 / 6,
+			},
+		})
+		.select("id")
+		.single();
+	if (error) throw new Error(`crawl alert E2E 데이터 생성 실패: ${error.message}`);
+	return String(data.id);
 }
 
 interface SeedCrawlRunOptions {

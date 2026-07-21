@@ -40,7 +40,10 @@ select ok(
 			'public."quick-save"',
 			'public.trash',
 			'public.crawl_run_locks',
-			'public.crawl_runs'
+			'public.crawl_runs',
+			'public.crawl_alert_settings',
+			'public.crawl_alert_incidents',
+			'public.crawl_alert_notifications'
 		]) as business_table(table_name)
 		cross join unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE']) as access(privilege_name)
 		where has_table_privilege('anon', business_table.table_name, access.privilege_name)
@@ -62,7 +65,12 @@ select ok(
 			'public.release_crawl_lock(text,uuid)',
 			'public.begin_crawl_run(text,uuid,integer)',
 			'public.finish_crawl_run(bigint,uuid,jsonb)',
-			'public.get_crawl_runs_dashboard(integer,integer)'
+			'public.get_crawl_runs_dashboard(integer,integer)',
+			'public.evaluate_crawl_alerts(timestamp with time zone)',
+			'public.get_pending_crawl_alert_notifications(integer)',
+			'public.complete_crawl_alert_notification(bigint,bigint,text)',
+			'public.fail_crawl_alert_notification(bigint,text)',
+			'public.get_crawl_alerts_dashboard()'
 		]) as business_function(function_name)
 		where has_function_privilege('anon', business_function.function_name, 'EXECUTE')
 	),
@@ -78,7 +86,9 @@ select ok(
 			'public."new-threads_id_seq"',
 			'public."quick-save_id_seq"',
 			'public.trash_id_seq',
-			'public.crawl_runs_id_seq'
+			'public.crawl_runs_id_seq',
+			'public.crawl_alert_incidents_id_seq',
+			'public.crawl_alert_notifications_id_seq'
 		]) as business_sequence(sequence_name)
 		cross join unnest(array['USAGE', 'SELECT', 'UPDATE']) as access(privilege_name)
 		where has_sequence_privilege(
@@ -109,7 +119,10 @@ select ok(
 			'public."crawl-history"',
 			'public."filter-keyword"',
 			'public.crawl_run_locks',
-			'public.crawl_runs'
+			'public.crawl_runs',
+			'public.crawl_alert_settings',
+			'public.crawl_alert_incidents',
+			'public.crawl_alert_notifications'
 		]) as internal_table(table_name)
 		cross join unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE']) as access(privilege_name)
 		where has_table_privilege('authenticated', internal_table.table_name, access.privilege_name)
@@ -119,7 +132,8 @@ select ok(
 select ok(
 		has_table_privilege('service_role', 'public."filter-keyword"', 'SELECT')
 		and has_table_privilege('service_role', 'public.crawl_run_locks', 'INSERT,UPDATE,DELETE')
-		and has_table_privilege('service_role', 'public.crawl_runs', 'INSERT,UPDATE,DELETE'),
+		and has_table_privilege('service_role', 'public.crawl_runs', 'INSERT,UPDATE,DELETE')
+		and has_table_privilege('service_role', 'public.crawl_alert_incidents', 'INSERT,UPDATE,DELETE'),
 	'service role retains filter and crawl lock table access'
 );
 

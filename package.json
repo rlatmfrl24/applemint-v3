@@ -30,7 +30,8 @@
 		"security:collect-alerts": "node scripts/security/collect-alerts.mjs",
 		"security:baseline": "node scripts/security/create-baseline.mjs",
 		"security:gate": "node scripts/security/security-gate.mjs",
-		"security:overrides": "node scripts/security/check-overrides.mjs"
+		"security:overrides": "node scripts/security/check-overrides.mjs",
+		"crawler:health": "node scripts/crawler-health/monitor.mjs"
 	},
 	"dependencies": {
 		"@radix-ui/react-alert-dialog": "^1.1.15",

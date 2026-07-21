@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type {
+	CrawlAlertIncident,
+	CrawlAlertSettings,
+	CrawlAlertSignal,
 	CrawlRun,
 	CrawlRunStatus,
 	CrawlRunsDashboard as CrawlRunsDashboardData,
@@ -22,6 +25,13 @@ const SOURCE_LABELS: Record<CrawlSource, string> = {
 	battlepage: "Battlepage",
 	insagirl: "Insagirl",
 	issuelink: "IssueLink",
+};
+
+const ALERT_SIGNAL_LABELS: Record<CrawlAlertSignal, string> = {
+	"parser-failure": "Parser failure 2회 연속",
+	"parser-volume-drop": "파서 추출량 급감",
+	"no-recent-success": "성공 실행 없음",
+	"transport-error-rate": "전송 오류율 증가",
 };
 
 const STATUS_LABELS: Record<CrawlRunStatus, string> = {
@@ -50,6 +60,18 @@ function statusVariant(status: CrawlRunStatus) {
 	if (status === "failed" || status === "interrupted") return "destructive" as const;
 	if (status === "partial" || status === "running") return "secondary" as const;
 	return "default" as const;
+}
+
+function formatPercent(value: number | null) {
+	return value === null ? "기록 없음" : `${(value * 100).toFixed(1)}%`;
+}
+
+function formatRemaining(lastSuccessAt: string | null, noSuccessSeconds: number) {
+	if (!lastSuccessAt) return "성공 기록 없음 · 첫 실행 후 기준 적용";
+	const remaining = new Date(lastSuccessAt).getTime() + noSuccessSeconds * 1000 - Date.now();
+	if (remaining <= 0) return `${noSuccessSeconds / 3600}시간 기준 초과`;
+	const hours = Math.ceil(remaining / (60 * 60 * 1000));
+	return `${hours}시간 남음`;
 }
 
 function SourceTrend({ summary }: { summary: CrawlSourceSummary }) {
@@ -98,22 +120,43 @@ function SourceTrend({ summary }: { summary: CrawlSourceSummary }) {
 	);
 }
 
-function SourceCard({ summary }: { summary: CrawlSourceSummary }) {
+function SourceCard({
+	summary,
+	alert,
+	settings,
+}: {
+	summary: CrawlSourceSummary;
+	alert?: CrawlAlertIncident;
+	settings: CrawlAlertSettings;
+}) {
 	return (
 		<Card data-testid={`crawl-source-${summary.source}`}>
 			<CardHeader className="pb-3">
 				<div className="flex items-center justify-between gap-2">
 					<h3 className="font-semibold">{SOURCE_LABELS[summary.source]}</h3>
-					{summary.latest ? (
-						<Badge variant={statusVariant(summary.latest.status)}>
-							{STATUS_LABELS[summary.latest.status]}
-						</Badge>
-					) : null}
+					<div className="flex flex-wrap gap-2">
+						{summary.activeAlertCount > 0 ? <Badge variant="destructive">장애 감지</Badge> : null}
+						{summary.latest ? (
+							<Badge variant={statusVariant(summary.latest.status)}>
+								{STATUS_LABELS[summary.latest.status]}
+							</Badge>
+						) : null}
+					</div>
 				</div>
 			</CardHeader>
 			<CardContent className="space-y-1 text-sm">
 				<p>마지막 성공: {formatDate(summary.lastSuccessAt)}</p>
 				<p>마지막 실패: {formatDate(summary.lastFailureAt)}</p>
+				<p className="text-muted-foreground">
+					무성공 감지까지: {formatRemaining(summary.lastSuccessAt, settings.noSuccessSeconds)}
+				</p>
+				{alert ? (
+					<ul className="mt-2 list-disc space-y-1 pl-5 text-red-600 text-xs dark:text-red-400">
+						{alert.activeSignals.map((signal) => (
+							<li key={signal}>{ALERT_SIGNAL_LABELS[signal]}</li>
+						))}
+					</ul>
+				) : null}
 				{summary.latest ? (
 					<p className="text-muted-foreground">
 						최근 {summary.latest.extractedCount}건 추출 · {summary.latest.insertedCount}건 저장 ·{" "}
@@ -121,6 +164,77 @@ function SourceCard({ summary }: { summary: CrawlSourceSummary }) {
 					</p>
 				) : null}
 				<SourceTrend summary={summary} />
+			</CardContent>
+		</Card>
+	);
+}
+
+function ActiveAlerts({ alerts }: { alerts: CrawlAlertIncident[] }) {
+	if (alerts.length === 0) {
+		return (
+			<Alert className="mt-4" data-testid="crawl-alerts-empty">
+				<AlertTitle>현재 감지된 소스 장애가 없습니다.</AlertTitle>
+				<AlertDescription>정기 모니터가 실행 이력과 파서 추세를 확인합니다.</AlertDescription>
+			</Alert>
+		);
+	}
+
+	return (
+		<div className="mt-4 space-y-3" data-testid="active-crawl-alerts">
+			{alerts.map((alert) => (
+				<Alert key={alert.id} variant="destructive">
+					<AlertTitle>{SOURCE_LABELS[alert.source]} 장애 감지</AlertTitle>
+					<AlertDescription className="space-y-2">
+						<p>
+							시작 {formatDate(alert.openedAt)} · 최근 확인 {formatDate(alert.lastObservedAt)}
+						</p>
+						<ul className="list-disc pl-5">
+							{alert.activeSignals.map((signal) => (
+								<li key={signal}>{ALERT_SIGNAL_LABELS[signal]}</li>
+							))}
+						</ul>
+						<p>
+							parser 비율 {formatPercent(alert.snapshot.parserValidRatio)} · 전송 오류율{" "}
+							{formatPercent(alert.snapshot.transportFailureRatio)}
+						</p>
+						{alert.githubIssueUrl ? (
+							<a
+								className="font-medium underline underline-offset-4"
+								href={alert.githubIssueUrl}
+								target="_blank"
+								rel="noreferrer"
+							>
+								GitHub Issue #{alert.githubIssueNumber}
+							</a>
+						) : (
+							<p>GitHub 알림 전달 대기 중</p>
+						)}
+					</AlertDescription>
+				</Alert>
+			))}
+		</div>
+	);
+}
+
+function AlertSettings({ settings }: { settings: CrawlAlertSettings }) {
+	return (
+		<Card className="mt-4" data-testid="crawl-alert-settings">
+			<CardHeader className="pb-3">
+				<h3 className="font-semibold">장애 알림 기준</h3>
+			</CardHeader>
+			<CardContent className="grid gap-2 text-sm md:grid-cols-2">
+				<p>Parser failure {settings.parserFailureStreak}회 연속</p>
+				<p>
+					추출량 {Math.round(settings.parserDropRatio * 100)}% 미만 {settings.parserDropStreak}회
+					연속
+				</p>
+				<p>성공 실행 없음 {settings.noSuccessSeconds / 3600}시간</p>
+				<p>
+					최근 {settings.transportWindow}회 전송 오류율{" "}
+					{Math.round(settings.transportErrorRatio * 100)}% 이상
+				</p>
+				<p>동일 장애 재알림 {settings.cooldownSeconds / 3600}시간</p>
+				<p>마지막 평가: {formatDate(settings.lastEvaluatedAt)}</p>
 			</CardContent>
 		</Card>
 	);
@@ -311,9 +425,16 @@ export function CrawlRunsDashboard({ manualCrawlRunning }: { manualCrawlRunning:
 
 			{dashboard ? (
 				<>
+					<ActiveAlerts alerts={dashboard.alerts} />
+					<AlertSettings settings={dashboard.alertSettings} />
 					<div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 						{dashboard.sources.map((summary) => (
-							<SourceCard key={summary.source} summary={summary} />
+							<SourceCard
+								key={summary.source}
+								summary={summary}
+								alert={dashboard.alerts.find((alert) => alert.source === summary.source)}
+								settings={dashboard.alertSettings}
+							/>
 						))}
 					</div>
 					<h3 className="mt-8 font-semibold text-lg">최근 실행</h3>

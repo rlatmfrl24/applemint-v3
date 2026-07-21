@@ -3,7 +3,23 @@ import { fetchCrawlRunsDashboard } from "./crawl-runs-client";
 
 describe("crawl runs client", () => {
 	it("정상 dashboard 응답을 반환한다", async () => {
-		const dashboard = { activeRun: null, sources: [], runs: [] };
+		const dashboard = {
+			activeRun: null,
+			sources: [],
+			runs: [],
+			alerts: [],
+			alertSettings: {
+				parserFailureStreak: 2,
+				parserDropRatio: 0.5,
+				parserDropStreak: 2,
+				noSuccessSeconds: 172800,
+				transportWindow: 3,
+				transportErrorRatio: 0.5,
+				transportMinFailures: 2,
+				cooldownSeconds: 86400,
+				lastEvaluatedAt: null,
+			},
+		};
 		const fetchMock = vi.fn().mockResolvedValue(
 			new Response(JSON.stringify(dashboard), {
 				status: 200,

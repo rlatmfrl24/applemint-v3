@@ -11,6 +11,18 @@ import { CRAWL_RUNS_QUERY_KEY, CrawlRunsDashboard } from "./crawl-runs-dashboard
 
 const sources: CrawlSource[] = ["arcalive", "battlepage", "insagirl", "issuelink"];
 
+const alertSettings = {
+	parserFailureStreak: 2,
+	parserDropRatio: 0.5,
+	parserDropStreak: 2,
+	noSuccessSeconds: 172800,
+	transportWindow: 3,
+	transportErrorRatio: 0.5,
+	transportMinFailures: 2,
+	cooldownSeconds: 86400,
+	lastEvaluatedAt: "2026-07-21T05:00:00.000Z",
+};
+
 function createRun(overrides: Partial<CrawlRun> = {}): CrawlRun {
 	return {
 		id: "1",
@@ -85,11 +97,19 @@ function createSourceSummary(
 ): CrawlSourceSummary {
 	const run = runs[index];
 	if (!run) {
-		return { source, lastSuccessAt: null, lastFailureAt: null, latest: null, trend: [] };
+		return {
+			source,
+			activeAlertCount: 0,
+			lastSuccessAt: null,
+			lastFailureAt: null,
+			latest: null,
+			trend: [],
+		};
 	}
 	const trendStatus = run.status === "running" ? "interrupted" : run.status;
 	return {
 		source,
+		activeAlertCount: index === 0 ? 1 : 0,
 		lastSuccessAt: "2026-07-21T03:00:07.000Z",
 		lastFailureAt: index === 0 ? "2026-07-21T03:00:07.000Z" : null,
 		latest: {
@@ -149,6 +169,30 @@ describe("CrawlRunsDashboard", () => {
 			},
 			sources: sources.map((source, index) => createSourceSummary(source, index, runs)),
 			runs,
+			alerts: [
+				{
+					id: "10",
+					source: "arcalive",
+					activeSignals: ["parser-failure", "parser-volume-drop"],
+					openedAt: "2026-07-21T04:00:00.000Z",
+					lastObservedAt: "2026-07-21T05:00:00.000Z",
+					lastNotificationAt: "2026-07-21T05:01:00.000Z",
+					githubIssueNumber: 123,
+					githubIssueUrl: "https://github.com/rlatmfrl24/applemint-v3/issues/123",
+					snapshot: {
+						latestRunId: "1",
+						parserFailureTriggered: true,
+						parserValidRatio: 0.2,
+						lastSuccessAt: null,
+						hoursSinceSuccess: 4,
+						transportWindow: 3,
+						transportAttemptedCount: 6,
+						transportFailureCount: 1,
+						transportFailureRatio: 1 / 6,
+					},
+				},
+			],
+			alertSettings,
 		};
 
 		const html = renderDashboard(dashboard);
@@ -158,6 +202,9 @@ describe("CrawlRunsDashboard", () => {
 		expect(html).toContain("경고·실패 상세보기");
 		expect(html).toContain("below-minimum-items");
 		expect(html).toContain("DB 적재 실패");
+		expect(html).toContain("Arcalive 장애 감지");
+		expect(html).toContain("GitHub Issue #123");
+		expect(html).toContain("장애 알림 기준");
 	});
 
 	it("이력이 없을 때 empty 상태를 렌더링한다", () => {
@@ -165,14 +212,18 @@ describe("CrawlRunsDashboard", () => {
 			activeRun: null,
 			sources: sources.map((source) => ({
 				source,
+				activeAlertCount: 0,
 				lastSuccessAt: null,
 				lastFailureAt: null,
 				latest: null,
 				trend: [],
 			})),
 			runs: [],
+			alerts: [],
+			alertSettings,
 		});
 		expect(html).toContain("저장된 크롤링 실행 이력이 없습니다.");
 		expect(html).toContain("기록 없음");
+		expect(html).toContain("현재 감지된 소스 장애가 없습니다.");
 	});
 });

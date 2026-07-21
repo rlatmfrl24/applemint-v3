@@ -13,7 +13,27 @@ describe("crawl run dashboard contract", () => {
 	});
 
 	it("dashboard 최상위 배열 계약을 검증한다", () => {
-		expect(isCrawlRunsDashboard({ activeRun: null, sources: [], runs: [] })).toBe(true);
+		expect(
+			isCrawlRunsDashboard({
+				activeRun: null,
+				sources: [],
+				runs: [],
+				alerts: [],
+				alertSettings: {
+					parserFailureStreak: 2,
+					parserDropRatio: 0.5,
+					parserDropStreak: 2,
+					noSuccessSeconds: 172800,
+					transportWindow: 3,
+					transportErrorRatio: 0.5,
+					transportMinFailures: 2,
+					cooldownSeconds: 86400,
+				},
+			})
+		).toBe(true);
+		expect(isCrawlRunsDashboard({ sources: [], runs: [], alerts: [], alertSettings: {} })).toBe(
+			false
+		);
 		expect(isCrawlRunsDashboard({ sources: null, runs: [] })).toBe(false);
 		expect(isCrawlRunsDashboard(null)).toBe(false);
 	});
