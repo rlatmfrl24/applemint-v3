@@ -15,9 +15,9 @@ export default async function AuthButton() {
 			<p className="invisible w-0 sm:visible sm:w-fit">{user?.email}</p>
 			<ModeToggle />
 			{user && (
-				<Link href="/signout" passHref>
-					<Button>Sign Out</Button>
-				</Link>
+				<Button asChild>
+					<Link href="/signout">Sign Out</Link>
+				</Button>
 			)}
 		</div>
 	);

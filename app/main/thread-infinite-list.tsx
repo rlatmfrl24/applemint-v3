@@ -134,7 +134,7 @@ export function ThreadInfiniteList({
 			{threads.map((thread) => (
 				<Fragment key={String(thread.id)}>{renderItem(thread)}</Fragment>
 			))}
-			<div ref={loadMoreRef} className="h-6 w-full" />
+			<div ref={loadMoreRef} className="h-6 w-full" data-testid={`${table}-load-more-sentinel`} />
 			{query.isFetchingNextPage ? (
 				<div className="flex items-center justify-center gap-2 py-2 text-xs text-zinc-500 dark:text-zinc-400">
 					<Loader2 className="size-3.5 animate-spin" />

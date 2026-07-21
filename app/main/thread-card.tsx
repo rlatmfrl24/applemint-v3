@@ -21,7 +21,11 @@ export function ThreadCard({
 	}, [thread.url]);
 
 	return (
-		<Card className="w-full border-zinc-200/80 shadow-none transition-colors duration-150 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700">
+		<Card
+			className="w-full border-zinc-200/80 shadow-none transition-colors duration-150 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700"
+			data-testid="thread-card"
+			data-thread-url={thread.url}
+		>
 			<CardContent className="flex flex-col gap-3 p-3">
 				<div className="flex items-start gap-3">
 					<div className="min-w-0 flex-1 space-y-1.5">

@@ -1,12 +1,13 @@
 "use client";
 
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { use, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { SubmitButton } from "./submit-button";
 
 export default function Login({ searchParams }: { searchParams: Promise<{ message?: string }> }) {
 	const params = use(searchParams);
+	const router = useRouter();
 
 	const signIn = useCallback(async () => {
 		const supabase = createClient();
@@ -19,19 +20,24 @@ export default function Login({ searchParams }: { searchParams: Promise<{ messag
 		});
 
 		if (error) {
-			return redirect(`/login?message=${error.message}`);
+			router.replace(`/login?message=${encodeURIComponent(error.message)}`);
+			return;
 		}
-		return redirect("/main");
-	}, []);
+		window.location.assign("/main");
+	}, [router]);
 
 	return (
 		<div className="flex w-full flex-1 flex-col justify-center gap-2 px-8 sm:max-w-md">
-			<form className="flex w-full flex-1 flex-col justify-center gap-2 text-foreground">
+			<form
+				action={signIn}
+				className="flex w-full flex-1 flex-col justify-center gap-2 text-foreground"
+			>
 				<label className="text-md" htmlFor="email">
 					Email
 				</label>
 				<input
 					className="mb-6 rounded-md border bg-inherit px-4 py-2"
+					id="email"
 					name="email"
 					placeholder="you@example.com"
 					required
@@ -41,13 +47,13 @@ export default function Login({ searchParams }: { searchParams: Promise<{ messag
 				</label>
 				<input
 					className="mb-6 rounded-md border bg-inherit px-4 py-2"
+					id="password"
 					type="password"
 					name="password"
 					placeholder="••••••••"
 					required
 				/>
 				<SubmitButton
-					formAction={signIn}
 					className="mb-2 rounded-md bg-green-700 px-4 py-2 text-foreground"
 					pendingText="Signing In..."
 				>

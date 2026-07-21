@@ -18,12 +18,7 @@ jobs:
   verify:
     name: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
-      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
-      CRAWL_INTERNAL_SECRET: ci-placeholder-internal-secret-not-production
+    timeout-minutes: 35
 
     steps:
       - name: Checkout
@@ -53,11 +48,31 @@ jobs:
         with:
           version: 2.75.0
 
-      - name: Start local database
-        run: supabase db start
+      - name: Start local Supabase
+        run: supabase start --ignore-health-check --exclude edge-runtime,imgproxy,logflare,mailpit,postgres-meta,realtime,storage-api,studio,supavisor,vector > /dev/null
+
+      - name: Prepare local E2E environment
+        run: pnpm run e2e:prepare
 
       - name: Run CI checks
         run: pnpm run ci
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run browser E2E tests
+        run: pnpm run test:e2e:run
+
+      - name: Upload Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Stop local Supabase
         if: always()

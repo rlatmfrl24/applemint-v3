@@ -116,6 +116,7 @@ export default function SettingPage() {
 			</div>
 			<p className="mt-4">Crawl Result</p>
 			<Textarea
+				aria-label="크롤링 결과"
 				className="w-full"
 				value={isLoading ? "Loading..." : result}
 				disabled={isLoading}
@@ -154,6 +155,7 @@ export default function SettingPage() {
 				</AlertDialog>
 			</div>
 			<Textarea
+				aria-label="일괄 이동 결과"
 				className="mt-4 w-full"
 				value={isBulkDeleting ? "이동을 진행 중입니다..." : bulkDeleteStatus}
 				disabled={isBulkDeleting}
