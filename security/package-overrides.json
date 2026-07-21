@@ -10,6 +10,16 @@
 			"lastReviewedAt": "2026-07-21",
 			"nextReviewAt": "2026-10-19",
 			"removalCriteria": "Remove when Next.js depends on postcss 8.5.10 or later."
+		},
+		{
+			"manager": "pnpm.overrides",
+			"selector": "next>sharp",
+			"version": "0.35.3",
+			"reason": "Next 16.2.10 restricts sharp to vulnerable 0.34.x releases (GHSA-f88m-g3jw-g9cj).",
+			"introducedAt": "2026-07-22",
+			"lastReviewedAt": "2026-07-22",
+			"nextReviewAt": "2026-10-20",
+			"removalCriteria": "Remove when Next.js depends on sharp 0.35.0 or later."
 		}
 	]
 }
