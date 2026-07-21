@@ -38,7 +38,7 @@
 		"cheerio": "^1.2.0",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
-		"date-fns": "^4.1.0",
+		"date-fns": "^4.4.0",
 		"geist": "^1.7.0",
 		"linkifyjs": "^4.3.2",
 		"lucide-react": "^0.577.0",
