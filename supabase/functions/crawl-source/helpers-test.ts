@@ -6,6 +6,7 @@ import {
 	constantTimeEquals,
 	countCrawlFailureKinds,
 	countCrawlWarnings,
+	createTransportFailureData,
 	dedupeByUrl,
 	defineType,
 	getCompletedRunStatus,
@@ -81,6 +82,21 @@ Deno.test("URL deduplication keeps the first item", () => {
 
 Deno.test("crawl warning count includes partial failures and parser warnings", () => {
 	assert(countCrawlWarnings([{}], [{}, {}]) === 3, "all warning conditions should be counted");
+});
+
+Deno.test("synthetic transport failures count the internal request as an attempt", () => {
+	const result = createTransportFailureData(
+		"arcalive",
+		"https://example.com/api/crawl",
+		"request timed out",
+		true
+	);
+
+	assert(result.attempted === 1, "the failed transport request should count as one attempt");
+	assert(result.succeeded === 0, "a failed transport request should not succeed");
+	assert(result.failures.length === 1, "the transport failure should be retained");
+	assert(result.failures[0].kind === "network", "the failure should be classified as network");
+	assert(result.failures[0].timeout, "the timeout marker should be retained");
 });
 
 Deno.test("failure causes are mutually exclusively classified", () => {

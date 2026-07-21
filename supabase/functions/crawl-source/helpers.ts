@@ -7,6 +7,27 @@ export interface FilterKeyword {
 	method: string;
 }
 
+export function createTransportFailureData(
+	target: CrawlTarget,
+	url: string,
+	message: string,
+	timeout: boolean
+) {
+	return {
+		target,
+		items: [],
+		attempted: 1,
+		succeeded: 0,
+		failures: [{ url, message, kind: "network" as const, timeout, attempt: 1 }],
+		warnings: [],
+		parserObservations: [],
+		retryCount: 0,
+		parserValidCount: 0,
+		parserMinimumCount: 0,
+		durationMs: 0,
+	};
+}
+
 export async function constantTimeEquals(provided: string | null, expected: string | undefined) {
 	if (!provided || !expected) {
 		return false;

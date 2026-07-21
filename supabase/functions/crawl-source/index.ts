@@ -9,6 +9,7 @@ import {
 	constantTimeEquals,
 	countCrawlFailureKinds,
 	countCrawlWarnings,
+	createTransportFailureData,
 	dedupeByUrl,
 	defineType,
 	type FilterKeyword,
@@ -144,27 +145,6 @@ function normalizeCrawlData(
 		parserMinimumCount: Number(responseBody.parserMinimumCount ?? 0),
 		durationMs: Number(responseBody.durationMs ?? 0),
 	} as CrawlApiResponse;
-}
-
-function createTransportFailureData(
-	target: CrawlTarget,
-	url: string,
-	message: string,
-	timeout: boolean
-): CrawlApiResponse {
-	return {
-		target,
-		items: [],
-		attempted: 0,
-		succeeded: 0,
-		failures: [{ url, message, kind: "network", timeout, attempt: 1 }],
-		warnings: [],
-		parserObservations: [],
-		retryCount: 0,
-		parserValidCount: 0,
-		parserMinimumCount: 0,
-		durationMs: 0,
-	};
 }
 
 async function getExistingUrls(supabase: SupabaseClient, target: CrawlTarget, urls: string[]) {
