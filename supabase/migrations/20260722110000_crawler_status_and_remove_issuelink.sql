@@ -7,9 +7,9 @@ begin
 		union all
 		select 1 from public.trash where type = 'issuelink'
 		union all
-		select 1 from public.crawl_runs where source = 'issuelink'
+		select 1 from public.crawl_runs where source = 'issuelink' and status = 'running'
 		union all
-		select 1 from public.crawl_alert_incidents where source = 'issuelink'
+		select 1 from public.crawl_alert_incidents where source = 'issuelink' and status = 'open'
 	) then
 		raise exception using
 			errcode = '23514',
@@ -67,6 +67,7 @@ begin
 	recent_runs as (
 		select *
 		from effective_runs
+		where source in ('arcalive', 'battlepage', 'insagirl')
 		order by started_at desc, id desc
 		limit p_limit
 	),
@@ -74,6 +75,7 @@ begin
 		select *
 		from effective_runs
 		where effective_status = 'running'
+			and source in ('arcalive', 'battlepage', 'insagirl')
 		order by started_at desc, id desc
 		limit 1
 	)
@@ -184,14 +186,6 @@ end;
 $$;
 
 drop index if exists public.idx_new_threads_issuelink_category;
-
-alter table public.crawl_runs drop constraint crawl_runs_source_check;
-alter table public.crawl_runs add constraint crawl_runs_source_check
-	check (source in ('arcalive', 'battlepage', 'insagirl'));
-
-alter table public.crawl_alert_incidents drop constraint crawl_alert_incidents_source_check;
-alter table public.crawl_alert_incidents add constraint crawl_alert_incidents_source_check
-	check (source in ('arcalive', 'battlepage', 'insagirl'));
 
 create or replace function public.ingest_crawl_items(
 	p_crawl_source text,

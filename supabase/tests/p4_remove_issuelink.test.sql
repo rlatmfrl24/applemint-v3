@@ -1,6 +1,6 @@
 begin;
 
-select plan(9);
+select plan(12);
 
 select ok(
 	to_regprocedure('public.list_thread_page(text,integer,timestamp with time zone,bigint,text,text)') is null
@@ -48,8 +48,8 @@ select is(
 		from pg_constraint
 		where conrelid = 'public.crawl_runs'::regclass and conname = 'crawl_runs_source_check'
 	),
-	'CHECK ((source = ANY (ARRAY[''arcalive''::text, ''battlepage''::text, ''insagirl''::text])))',
-	'crawl runs accept only the three active sources'
+	'CHECK ((source = ANY (ARRAY[''arcalive''::text, ''battlepage''::text, ''insagirl''::text, ''issuelink''::text])))',
+	'crawl runs preserve the legacy source value for historical rows'
 );
 
 select is(
@@ -59,8 +59,60 @@ select is(
 		where conrelid = 'public.crawl_alert_incidents'::regclass
 			and conname = 'crawl_alert_incidents_source_check'
 	),
-	'CHECK ((source = ANY (ARRAY[''arcalive''::text, ''battlepage''::text, ''insagirl''::text])))',
-	'crawl alert incidents accept only the three active sources'
+	'CHECK ((source = ANY (ARRAY[''arcalive''::text, ''battlepage''::text, ''insagirl''::text, ''issuelink''::text])))',
+	'crawl alert incidents preserve the legacy source value for historical rows'
+);
+
+set local role service_role;
+insert into public.crawl_runs (
+	source,
+	lock_token,
+	status,
+	started_at,
+	stale_after,
+	finished_at,
+	duration_ms
+)
+values (
+	'issuelink',
+	'40000000-0000-4000-8000-000000000002'::uuid,
+	'succeeded',
+	now() - interval '2 minutes',
+	now() - interval '1 minute',
+	now() - interval '1 minute',
+	60000
+);
+
+insert into public.crawl_alert_incidents (
+	source,
+	status,
+	active_signals,
+	opened_at,
+	last_observed_at,
+	recovered_at,
+	snapshot
+)
+values (
+	'issuelink',
+	'recovered',
+	array['parser-failure'],
+	now() - interval '2 minutes',
+	now() - interval '1 minute',
+	now() - interval '1 minute',
+	'{}'::jsonb
+);
+reset role;
+
+select is(
+	(select count(*) from public.crawl_runs where source = 'issuelink'),
+	1::bigint,
+	'completed IssueLink crawl run history remains preservable'
+);
+
+select is(
+	(select count(*) from public.crawl_alert_incidents where source = 'issuelink'),
+	1::bigint,
+	'recovered IssueLink incident history remains preservable'
 );
 
 set local role authenticated;
@@ -76,6 +128,13 @@ select ok(
 		'$.sources[*] ? (@.source == "issuelink")'
 	),
 	'crawl dashboard does not expose IssueLink'
+);
+select ok(
+	not jsonb_path_exists(
+		public.get_crawl_runs_dashboard(20, 20),
+		'$.runs[*] ? (@.source == "issuelink")'
+	),
+	'crawl dashboard hides preserved IssueLink run history'
 );
 reset role;
 
