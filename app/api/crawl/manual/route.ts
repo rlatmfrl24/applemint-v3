@@ -6,9 +6,9 @@ import { isCrawlTarget } from "../contracts";
 import { hasMinimumInternalSecretLength } from "../internal-auth";
 import { CrawlPipelineError, executeCrawlPipeline } from "../pipeline";
 
-const EDGE_REQUEST_TIMEOUT_MS = 120_000;
+const EDGE_REQUEST_TIMEOUT_MS = 55_000;
 
-export const maxDuration = 180;
+export const maxDuration = 60;
 
 type CrawlExecutionMode = "edge" | "next";
 

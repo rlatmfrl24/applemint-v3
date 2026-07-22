@@ -67,8 +67,9 @@ function mockAccess({
 }
 
 describe("POST /api/crawl/manual", () => {
-	it("함수 실행 제한은 Edge 요청 timeout보다 길다", () => {
-		expect(maxDuration * 1000).toBeGreaterThan(120_000);
+	it("함수 실행 제한은 Vercel Hobby 허용 범위 안이다", () => {
+		expect(maxDuration).toBeGreaterThanOrEqual(1);
+		expect(maxDuration).toBeLessThanOrEqual(60);
 	});
 
 	beforeEach(() => {
