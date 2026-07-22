@@ -1,6 +1,6 @@
 begin;
 
-select plan(5);
+select plan(8);
 
 update public.crawl_runtime_settings set scheduler_enabled = true where id = true;
 
@@ -49,6 +49,45 @@ select is(
 	(select response_body ->> 'error' from public.crawl_schedule_dispatches where request_id = 8800001),
 	'unauthorized',
 	'safe response details remain available in the dispatch audit'
+);
+
+update public.crawl_runtime_settings set scheduler_enabled = true where id = true;
+
+insert into public.crawl_schedule_dispatches (
+	scheduled_for, source, request_id, state
+)
+values ('2026-07-22 16:05:00+00', 'battlepage', 8800002, 'queued');
+
+insert into net._http_response (
+	id, status_code, content_type, headers, content, timed_out, error_msg
+)
+values (
+	8800002,
+	503,
+	'application/json',
+	'{}'::jsonb,
+	'{"error":"configuration missing","reason":"configuration-missing"}',
+	false,
+	null
+);
+
+set local role service_role;
+select is(
+	public.reconcile_crawl_schedule_dispatches(),
+	1::bigint,
+	'reconciler settles an authentication configuration failure'
+);
+reset role;
+
+select is(
+	(select admission_reason from public.crawl_schedule_dispatches where request_id = 8800002),
+	'configuration-missing',
+	'authentication configuration reason is preserved for operations'
+);
+select is(
+	(select scheduler_enabled from public.crawl_runtime_settings where id = true),
+	false,
+	'authentication configuration failure disables scheduled dispatches'
 );
 
 select * from finish();

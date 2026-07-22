@@ -34,9 +34,10 @@ attempt를 가진 작업 큐가 아닙니다. URL과 secret은 migration에 넣�
 Vault 값이 없거나 올바르지 않으면 dispatcher는 `configuration-missing`으로 종료하고 외부 요청을
 보내지 않습니다. Next 운영 환경의 `CRAWL_EXECUTION_MODE`는 `next`로 설정합니다.
 
-예약 API가 `401` 또는 `403`을 반환하면 reconciler는 secret 또는 접근 정책 불일치로 판단해
-`scheduler_enabled=false`로 예약을 자동 중지합니다. 수동 수집은 계속 사용할 수 있습니다. Vault와
-Vercel의 `CRAWL_INTERNAL_SECRET`을 동일하게 맞춘 뒤 스모크 테스트를 통과해야 다시 활성화합니다.
+예약 API가 `401`, `403`을 반환하거나 `configuration-missing`, `configuration-invalid` 사유를
+반환하면 reconciler는 secret 또는 접근 정책 불일치로 판단해 `scheduler_enabled=false`로 예약을
+자동 중지합니다. 수동 수집은 계속 사용할 수 있습니다. Vault와 Vercel의
+`CRAWL_INTERNAL_SECRET`을 동일하게 맞춘 뒤 스모크 테스트를 통과해야 다시 활성화합니다.
 `404`는 배포 전환 중 일시적으로 발생할 수 있으므로 감사 로그에 `endpoint-not-found`로 기록하되
 예약을 자동 중지하지 않습니다.
 
