@@ -37,8 +37,14 @@ const MenuList = [
 export const NavMenu = () => {
 	const pathname = usePathname() ?? "/";
 
+	function isActive(href: string) {
+		return pathname === href || (href !== "/main" && pathname.startsWith(`${href}/`));
+	}
+
 	function getActiveMenu(pathname: string) {
-		return MenuList.find((item) => item.href === pathname);
+		return MenuList.find(
+			(item) => item.type === "internal" && (item.href === pathname || isActive(item.href))
+		);
 	}
 
 	return (
@@ -48,8 +54,9 @@ export const NavMenu = () => {
 				<ul className="flex list-none items-center justify-center space-x-1">
 					{MenuList.map((item) => (
 						<li key={item.href}>
-							<Button asChild variant={pathname === item.href ? "secondary" : "ghost"}>
+							<Button asChild variant={isActive(item.href) ? "secondary" : "ghost"}>
 								<a
+									aria-current={isActive(item.href) ? "page" : undefined}
 									href={item.href}
 									target={item.type === "external" ? "_blank" : undefined}
 									rel={item.type === "external" ? "noreferrer" : undefined}

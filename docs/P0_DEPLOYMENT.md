@@ -20,6 +20,10 @@ Next 런타임에는 다음 값을 설정합니다.
 - `SUPABASE_SERVICE_ROLE_KEY`: 서버 전용 키
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
+Supabase 예약 전환 시 Vault에 `crawl_app_base_url`, `crawl_internal_secret`을 등록하고 최초에는
+`crawl_runtime_settings.scheduler_enabled=false`를 유지합니다. Vault의 실제 값은 migration이나
+명령 기록에 남기지 않습니다.
+
 Edge Function에는 같은 `CRAWL_INTERNAL_SECRET`과 `CRAWL_API_BASE_URL`을 설정합니다. secret 값은 명령 기록이나 문서에 남기지 않습니다.
 
 `CRAWL_INTERNAL_SECRET`과 `CRAWL_API_BASE_URL`은 Next 직접 실행 전환 후 1주간 rollback을 위해
@@ -48,12 +52,14 @@ supabase migration repair --status applied 20260310090000
 Supabase Dashboard의 **Authentication > Providers**에서 신규 가입을 비활성화하고, **Authentication > Users**에 개인 계정 한 명만 존재하는지 확인합니다. 해당 사용자의 UUID가 `20260720130000_single_owner_rls.sql`에 고정된 UUID와 일치하지 않으면 배포를 중단하고, 기존 migration을 수정하지 말고 소유자 교체용 migration을 새로 작성합니다.
 
 ```powershell
-supabase functions deploy crawl-source
 supabase db push
+supabase functions deploy crawl-source
 ```
 
-DB와 기존 Edge를 먼저 배포한 다음 `CRAWL_EXECUTION_MODE=edge`인 호환 Next 빌드를 배포합니다.
-호환 경로가 정상인지 확인한 뒤 Vercel 환경 변수를 `next`로 변경하고 다시 배포합니다. 통계 RPC
+DB를 먼저 적용하고 기존 Edge를 배포한 다음 `CRAWL_EXECUTION_MODE=edge`인 호환 Next 빌드를 배포합니다.
+호환 경로가 정상인지 확인한 뒤 Vercel 환경 변수를 `next`로 변경하고 다시 배포합니다. 예약 API와
+Vault 연결을 수동 검증한 다음 scheduler를 활성화하고 GitHub variable
+`CRAWL_SCHEDULER_OWNER=supabase`로 전환합니다. 통계 RPC
 시그니처가 변경되는 배포에서는 DB와 Next 사이의 간격을 최소화합니다. 전환 기간에는
 `supabase/config.toml`의 `verify_jwt = true`와 Auth signup 비활성화 설정을 유지합니다.
 
@@ -66,7 +72,7 @@ DB와 기존 Edge를 먼저 배포한 다음 `CRAWL_EXECUTION_MODE=edge`인 호�
 3. 소유자는 세 스레드 테이블을 조회할 수 있지만 직접 `INSERT/UPDATE/DELETE`할 수 없고 이동 RPC만 실행 가능한지 확인합니다.
 4. `service_role`만 history·filter·lock 테이블과 ingest/lock/clean RPC를 사용할 수 있는지 확인합니다.
 5. 세 소스를 한 번씩 실행해 `insertedCount`, `skippedCount`, `warningCount`, `durationMs`를 확인합니다.
-6. 두 번째 실행에서 중복 URL이 `skippedCount`로 집계되고 `crawl_run_locks`에 global lock이 남지 않는지 확인합니다.
+6. 두 번째 실행에서 중복 URL이 `skippedCount`로 집계되고 종료 후 `crawl:<source>` lock이 남지 않는지 확인합니다.
 7. 개인 계정으로 Main, Quick Save, Trash를 조회하고 Main→Quick Save→Trash→Restore 및 모두 휴지통으로 이동을 확인합니다.
 8. `media`, `youtube` 타입 행과 분류 키워드가 0건이고 세 스레드 테이블에 `sub_url` 컬럼이 없는지 확인합니다.
 
@@ -79,14 +85,16 @@ Next 직접 실행에서 문제가 발생하면 `CRAWL_EXECUTION_MODE=edge`로 �
 
 `CRAWL_EXECUTION_MODE=next`로 1주간 운영하면서 다음 항목을 확인합니다.
 
-1. 네 소스를 각각 두 번 이상 실행하고 적재·중복 제외 결과를 확인합니다.
-2. 동시 실행의 `409`, timeout의 `504`, 일반 소스 실패의 `502` 응답을 확인합니다.
+1. 활성 세 소스를 각각 두 번 이상 실행하고 적재·중복 제외 결과를 확인합니다.
+2. 동일 소스 실행의 `409`, 세 번째 동시 실행의 `429`, timeout의 `504`, 일반 소스 실패의 `502` 응답을 확인합니다.
 3. 실행 이력 dashboard, parser 추세, crawler-health 알림이 정상 집계되는지 확인합니다.
-4. 실패한 실행 뒤 `crawl_run_locks`에 global lock이 남지 않는지 확인합니다.
+4. 실패한 실행 뒤 `crawl_run_locks`에 해당 소스 lock이 남지 않고, 비정상 종료는 TTL 이후 복구되는지 확인합니다.
 
 관찰 기간이 정상적으로 끝난 다음 별도 정리 배포에서 Supabase Edge Function `crawl-source`, 내부
-`POST /api/crawl`, Edge/Deno 전용 helper와 테스트를 제거합니다. 이어서 Vercel과 Supabase에서
-`CRAWL_INTERNAL_SECRET`, Edge의 `CRAWL_API_BASE_URL`을 제거하고 CI의 Edge 검사 명령도 정리합니다.
+`POST /api/crawl`, Edge/Deno 전용 helper와 테스트를 제거합니다. 이어서 Edge Function에만 설정한
+`CRAWL_API_BASE_URL`과 내부 secret 사본을 제거하고 CI의 Edge 검사 명령도 정리합니다. Supabase
+Cron과 GitHub 알림 전달이 Next 내부 API를 호출하므로 Vercel의 `CRAWL_INTERNAL_SECRET`과 Vault의
+`crawl_internal_secret`은 계속 유지합니다.
 
 정리 이후 긴급 rollback이 필요하면 secret manager의 기존 값을 복원하고 이전 호환 Next 빌드와
 Edge Function을 함께 재배포합니다.

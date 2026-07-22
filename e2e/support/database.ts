@@ -32,6 +32,13 @@ export async function clearThreadTables() {
 
 export async function clearCrawlRuns() {
 	const supabase = createAdminClient();
+	const { error: dispatchError } = await supabase
+		.from("crawl_schedule_dispatches")
+		.delete()
+		.not("id", "is", null);
+	if (dispatchError) {
+		throw new Error(`crawl_schedule_dispatches E2E 데이터 초기화 실패: ${dispatchError.message}`);
+	}
 	for (const table of ["crawl_alert_notifications", "crawl_alert_incidents"] as const) {
 		const { error: alertError } = await supabase.from(table).delete().gte("id", 0);
 		if (alertError) {
@@ -41,7 +48,7 @@ export async function clearCrawlRuns() {
 	const { error: lockError } = await supabase
 		.from("crawl_run_locks")
 		.delete()
-		.eq("lock_key", "global-crawl");
+		.not("lock_key", "is", null);
 	if (lockError) {
 		throw new Error(`crawl_run_locks E2E 데이터 초기화 실패: ${lockError.message}`);
 	}
@@ -49,6 +56,43 @@ export async function clearCrawlRuns() {
 	if (error) {
 		throw new Error(`crawl_runs E2E 데이터 초기화 실패: ${error.message}`);
 	}
+}
+
+export async function resetCrawlPolicies() {
+	const supabase = createAdminClient();
+	const policies = [
+		{ source: "arcalive", cooldown_seconds: 7200, recommended_cooldown_seconds: 7200 },
+		{ source: "battlepage", cooldown_seconds: 14400, recommended_cooldown_seconds: 14400 },
+		{ source: "insagirl", cooldown_seconds: 10800, recommended_cooldown_seconds: 10800 },
+	];
+	for (const policy of policies) {
+		const { error } = await supabase
+			.from("crawl_source_policies")
+			.update({
+				schedule_enabled: true,
+				cooldown_seconds: policy.cooldown_seconds,
+				recommended_cooldown_seconds: policy.recommended_cooldown_seconds,
+				updated_at: new Date().toISOString(),
+			})
+			.eq("source", policy.source);
+		if (error) throw new Error(`crawl_source_policies E2E 초기화 실패: ${error.message}`);
+	}
+	const { error: runtimeError } = await supabase
+		.from("crawl_runtime_settings")
+		.update({ scheduler_enabled: false })
+		.eq("id", true);
+	if (runtimeError) {
+		throw new Error(`crawl_runtime_settings E2E 초기화 실패: ${runtimeError.message}`);
+	}
+}
+
+export async function setCrawlSchedulerEnabled(enabled: boolean) {
+	const supabase = createAdminClient();
+	const { error } = await supabase
+		.from("crawl_runtime_settings")
+		.update({ scheduler_enabled: enabled })
+		.eq("id", true);
+	if (error) throw new Error(`crawl scheduler E2E 설정 실패: ${error.message}`);
 }
 
 export async function seedCrawlAlert(source: SeedCrawlRunOptions["source"]) {

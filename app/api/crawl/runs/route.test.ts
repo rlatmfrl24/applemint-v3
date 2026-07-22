@@ -32,7 +32,13 @@ function mockRpc({
 	userId = "owner",
 	isOwner = true,
 	ownerError = null,
-	dashboard = { activeRun: null, sources: [], runs: [] },
+	dashboard = {
+		activeRun: null,
+		activeRuns: [],
+		runtimeSettings: { maxConcurrency: 2, lockTtlSeconds: 60, heartbeatIntervalSeconds: 15 },
+		sources: [],
+		runs: [],
+	},
 	dashboardError = null,
 	alerts = alertsDashboard,
 	alertError = null,
@@ -89,6 +95,12 @@ describe("GET /api/crawl/runs", () => {
 		expect(response.status).toBe(200);
 		expect(await response.json()).toEqual({
 			activeRun: null,
+			activeRuns: [],
+			runtimeSettings: {
+				maxConcurrency: 2,
+				lockTtlSeconds: 60,
+				heartbeatIntervalSeconds: 15,
+			},
 			sources: [],
 			runs: [],
 			...alertsDashboard,

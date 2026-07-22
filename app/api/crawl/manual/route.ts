@@ -3,6 +3,7 @@ import { checkApplemintOwner } from "@/utils/supabase/owner-access";
 import { createClient } from "@/utils/supabase/server";
 import { createServiceRoleClient } from "@/utils/supabase/service-role";
 import { isCrawlTarget } from "../contracts";
+import { resolveCrawlExecutionMode } from "../execution-mode";
 import { hasMinimumInternalSecretLength } from "../internal-auth";
 import { CrawlPipelineError, executeCrawlPipeline } from "../pipeline";
 
@@ -10,22 +11,8 @@ const EDGE_REQUEST_TIMEOUT_MS = 55_000;
 
 export const maxDuration = 60;
 
-type CrawlExecutionMode = "edge" | "next";
-
 function isTimeoutError(error: unknown) {
 	return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
-}
-
-function getExecutionMode(): CrawlExecutionMode {
-	const configuredMode = process.env.CRAWL_EXECUTION_MODE?.toLowerCase();
-	if (!configuredMode || configuredMode === "edge") {
-		return "edge";
-	}
-	if (configuredMode === "next") {
-		return "next";
-	}
-	console.error("[crawl] invalid_execution_mode", { configuredMode });
-	return "edge";
 }
 
 function pipelineErrorResponse(error: CrawlPipelineError) {
@@ -71,7 +58,7 @@ async function invokeLegacyEdge(target: string) {
 				"Content-Type": "application/json",
 				"x-applemint-internal-secret": internalSecret,
 			},
-			body: JSON.stringify({ target }),
+			body: JSON.stringify({ target, trigger: "manual" }),
 			signal: AbortSignal.timeout(EDGE_REQUEST_TIMEOUT_MS),
 		});
 		const data = (await response.json().catch(() => null)) as Record<string, unknown> | null;
@@ -104,7 +91,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 		return NextResponse.json({ error: "지원하지 않는 크롤링 대상입니다." }, { status: 400 });
 	}
 
-	if (getExecutionMode() === "edge") {
+	const executionMode = resolveCrawlExecutionMode();
+	if (!executionMode) {
+		console.error("[crawl] invalid_execution_mode", {
+			configuredMode: process.env.CRAWL_EXECUTION_MODE,
+		});
+		return NextResponse.json(
+			{ error: "크롤링 실행 모드 설정이 올바르지 않습니다." },
+			{ status: 503 }
+		);
+	}
+	if (executionMode === "edge") {
 		return invokeLegacyEdge(body.target);
 	}
 

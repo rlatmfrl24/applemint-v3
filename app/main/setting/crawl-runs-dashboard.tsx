@@ -55,6 +55,12 @@ function formatDuration(value: number | null) {
 	return `${(value / 1000).toFixed(1)}초`;
 }
 
+function formatHours(seconds: number) {
+	return Number.isInteger(seconds / 3600)
+		? `${seconds / 3600}시간`
+		: `${Math.round(seconds / 60)}분`;
+}
+
 function statusVariant(status: CrawlRunStatus) {
 	if (status === "failed" || status === "interrupted") return "destructive" as const;
 	if (status === "partial" || status === "running") return "secondary" as const;
@@ -151,6 +157,12 @@ function SourceCard({
 				</div>
 			</CardHeader>
 			<CardContent className="space-y-1 text-sm">
+				<p>
+					예약 수집: {summary.scheduleEnabled ? "사용" : "중지"} · 최소 간격{" "}
+					{formatHours(summary.cooldownSeconds)}
+				</p>
+				<p>실행 예산: {summary.runBudgetSeconds}초</p>
+				<p>다음 예약 가능: {formatDate(summary.nextEligibleAt)}</p>
 				<p>마지막 성공: {formatDate(summary.lastSuccessAt)}</p>
 				<p>마지막 실패: {formatDate(summary.lastFailureAt)}</p>
 				<p className="text-muted-foreground">
@@ -165,7 +177,9 @@ function SourceCard({
 				) : null}
 				{summary.latest ? (
 					<p className="text-muted-foreground">
-						최근 {summary.latest.extractedCount}건 추출 · {summary.latest.insertedCount}건 저장 ·{" "}
+						최근 {summary.latest.trigger === "scheduled" ? "예약" : "수동"} ·{" "}
+						{summary.latest.extractedCount}건 추출 · {summary.latest.insertedCount}건 저장 · 재시도{" "}
+						{summary.latest.retryCount}건 · 복구 {summary.latest.recoveredCount}건 ·{" "}
 						{formatDuration(summary.latest.durationMs)}
 					</p>
 				) : null}
@@ -241,6 +255,21 @@ function AlertSettings({ settings }: { settings: CrawlAlertSettings }) {
 				</p>
 				<p>동일 장애 재알림 {settings.cooldownSeconds / 3600}시간</p>
 				<p>마지막 평가: {formatDate(settings.lastEvaluatedAt)}</p>
+			</CardContent>
+		</Card>
+	);
+}
+
+function RuntimeSettings({ dashboard }: { dashboard: CrawlRunsDashboardData }) {
+	return (
+		<Card className="mt-4" data-testid="crawl-runtime-settings">
+			<CardHeader className="pb-3">
+				<h3 className="font-semibold">수집 실행 정책</h3>
+			</CardHeader>
+			<CardContent className="grid gap-2 text-sm md:grid-cols-3">
+				<p>최대 동시 소스 {dashboard.runtimeSettings.maxConcurrency}개</p>
+				<p>잠금 TTL {dashboard.runtimeSettings.lockTtlSeconds}초</p>
+				<p>Heartbeat {dashboard.runtimeSettings.heartbeatIntervalSeconds}초</p>
 			</CardContent>
 		</Card>
 	);
@@ -341,7 +370,8 @@ function RunCard({ run }: { run: CrawlRun }) {
 					<Badge variant={statusVariant(run.status)}>{STATUS_LABELS[run.status]}</Badge>
 				</div>
 				<span className="text-muted-foreground text-sm">
-					{formatDate(run.startedAt)} · {formatDuration(run.durationMs)}
+					{run.trigger === "scheduled" ? "예약" : "수동"} · {formatDate(run.startedAt)} ·{" "}
+					{formatDuration(run.durationMs)}
 				</span>
 			</div>
 			<div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
@@ -352,6 +382,9 @@ function RunCard({ run }: { run: CrawlRun }) {
 				<span>경고 {run.warningCount}</span>
 				<span>실패 {run.failureCount}</span>
 			</div>
+			<p className="mt-2 text-muted-foreground text-xs">
+				재시도 {run.retryCount}건 · 복구 {run.recoveredCount}건
+			</p>
 			{run.failureCount > 0 ? (
 				<p className="mt-2 text-muted-foreground text-xs">
 					network {run.networkFailureCount} · parser {run.parserFailureCount} · timeout{" "}
@@ -369,19 +402,19 @@ export function CrawlRunsDashboard({ manualCrawlRunning }: { manualCrawlRunning:
 		queryKey: CRAWL_RUNS_QUERY_KEY,
 		queryFn: () => fetchCrawlRunsDashboard(),
 		refetchInterval: (currentQuery) =>
-			manualCrawlRunning || currentQuery.state.data?.activeRun ? 5000 : false,
+			manualCrawlRunning || (currentQuery.state.data?.activeRuns.length ?? 0) > 0 ? 5000 : false,
 		refetchOnWindowFocus: true,
 	});
 	const dashboard = query.data as CrawlRunsDashboardData | undefined;
 
 	useEffect(() => {
-		if (!dashboard?.activeRun) return;
+		if (!dashboard || dashboard.activeRuns.length === 0) return;
 		const timer = window.setInterval(() => setNow(Date.now()), 1000);
 		return () => window.clearInterval(timer);
-	}, [dashboard?.activeRun]);
+	}, [dashboard]);
 
 	return (
-		<section className="mt-8" aria-labelledby="crawl-operations-heading">
+		<section aria-labelledby="crawl-operations-heading">
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div>
 					<h2 id="crawl-operations-heading">크롤링 운영 현황</h2>
@@ -423,21 +456,21 @@ export function CrawlRunsDashboard({ manualCrawlRunning }: { manualCrawlRunning:
 				</Alert>
 			) : null}
 
-			{dashboard?.activeRun ? (
-				<Alert className="mt-4" data-testid="active-crawl-run">
-					<AlertTitle>{SOURCE_LABELS[dashboard.activeRun.source]} 크롤링 실행 중</AlertTitle>
+			{dashboard?.activeRuns.map((activeRun) => (
+				<Alert className="mt-4" data-testid="active-crawl-run" key={activeRun.id}>
+					<AlertTitle>{SOURCE_LABELS[activeRun.source]} 크롤링 실행 중</AlertTitle>
 					<AlertDescription>
-						시작 {formatDate(dashboard.activeRun.startedAt)} · 경과{" "}
-						{formatDuration(Math.max(0, now - new Date(dashboard.activeRun.startedAt).getTime()))}
+						시작 {formatDate(activeRun.startedAt)} · 경과{" "}
+						{formatDuration(Math.max(0, now - new Date(activeRun.startedAt).getTime()))} · 마지막
+						heartbeat {formatDate(activeRun.lastHeartbeatAt)}
 					</AlertDescription>
 				</Alert>
-			) : null}
+			))}
 
 			{dashboard ? (
 				<>
 					<ActiveAlerts alerts={dashboard.alerts} />
-					<AlertSettings settings={dashboard.alertSettings} />
-					<div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+					<div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
 						{dashboard.sources.map((summary) => (
 							<SourceCard
 								key={summary.source}
@@ -447,6 +480,8 @@ export function CrawlRunsDashboard({ manualCrawlRunning }: { manualCrawlRunning:
 							/>
 						))}
 					</div>
+					<RuntimeSettings dashboard={dashboard} />
+					<AlertSettings settings={dashboard.alertSettings} />
 					<h3 className="mt-8 font-semibold text-lg">최근 실행</h3>
 					{dashboard.runs.length === 0 ? (
 						<p className="mt-3 text-muted-foreground">저장된 크롤링 실행 이력이 없습니다.</p>

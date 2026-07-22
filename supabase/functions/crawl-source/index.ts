@@ -4,7 +4,6 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import {
 	type CrawlTarget,
-	calculateParserTrend,
 	chunkUrlsForHistoryQuery,
 	constantTimeEquals,
 	countActionableCrawlWarnings,
@@ -20,9 +19,7 @@ import {
 	normalizeCrawlApiBaseUrl,
 } from "./helpers.ts";
 
-const CRAWL_LOCK_KEY = "global-crawl";
-const CRAWL_LOCK_TTL_SECONDS = 300;
-const CRAWL_API_TIMEOUT_MS = 90_000;
+const CRAWL_LOCK_TTL_SECONDS = 60;
 const CRAWL_API_BASE_URL = normalizeCrawlApiBaseUrl(Deno.env.get("CRAWL_API_BASE_URL"));
 
 interface CrawlItem {
@@ -71,6 +68,7 @@ interface CrawlApiResponse {
 	warnings: CrawlWarning[];
 	parserObservations: ParserObservation[];
 	retryCount: number;
+	recoveredCount: number;
 	parserValidCount: number;
 	parserMinimumCount: number;
 	durationMs: number;
@@ -82,6 +80,7 @@ interface PreparedCrawlItem extends CrawlItem {
 
 interface CrawlRequestContext {
 	target: CrawlTarget;
+	trigger: "manual" | "scheduled";
 	internalSecret: string;
 	supabase: SupabaseClient;
 }
@@ -91,6 +90,21 @@ type CrawlErrorStage = "source" | "filter" | "history" | "ingest" | "unknown";
 interface CrawlRunHandle {
 	runId: string;
 	lockToken: string;
+	lockKey: string;
+	runBudgetSeconds: number;
+	heartbeatIntervalSeconds: number;
+}
+
+interface CrawlStartResult {
+	acquired?: boolean;
+	runId?: string;
+	activeRunId?: string | null;
+	reason?: "disabled" | "cooldown" | "source-busy" | "capacity";
+	nextEligibleAt?: string | null;
+	retryAfterSeconds?: number;
+	lockKey?: string;
+	runBudgetSeconds?: number;
+	heartbeatIntervalSeconds?: number;
 }
 
 interface ProcessedCrawl {
@@ -120,10 +134,10 @@ class PipelineError extends Error {
 	}
 }
 
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+const jsonResponse = (body: Record<string, unknown>, status = 200, headers?: HeadersInit) =>
 	new Response(JSON.stringify(body), {
 		status,
-		headers: { "Content-Type": "application/json" },
+		headers: { "Content-Type": "application/json", ...headers },
 	});
 
 const getErrorMessage = (error: unknown) =>
@@ -145,6 +159,7 @@ function normalizeCrawlData(
 			? responseBody.parserObservations
 			: [],
 		retryCount: Number(responseBody.retryCount ?? 0),
+		recoveredCount: Number(responseBody.recoveredCount ?? 0),
 		parserValidCount: Number(responseBody.parserValidCount ?? 0),
 		parserMinimumCount: Number(responseBody.parserMinimumCount ?? 0),
 		durationMs: Number(responseBody.durationMs ?? 0),
@@ -191,7 +206,10 @@ async function createRequestContext(request: Request): Promise<CrawlRequestConte
 		return jsonResponse({ error: "Unauthorized internal request" }, 401);
 	}
 
-	const body = (await request.json().catch(() => null)) as { target?: unknown } | null;
+	const body = (await request.json().catch(() => null)) as {
+		target?: unknown;
+		trigger?: unknown;
+	} | null;
 	if (!isCrawlTarget(body?.target)) {
 		return jsonResponse({ error: "Unsupported crawl target" }, 400);
 	}
@@ -204,6 +222,7 @@ async function createRequestContext(request: Request): Promise<CrawlRequestConte
 
 	return {
 		target: body.target,
+		trigger: body.trigger === "scheduled" ? "scheduled" : "manual",
 		internalSecret,
 		supabase: createClient(supabaseUrl, supabaseAnonKey, {
 			global: {
@@ -215,7 +234,12 @@ async function createRequestContext(request: Request): Promise<CrawlRequestConte
 	};
 }
 
-async function fetchCrawlData(target: CrawlTarget, internalSecret: string) {
+async function fetchCrawlData(
+	target: CrawlTarget,
+	internalSecret: string,
+	runBudgetSeconds: number,
+	signal: AbortSignal
+) {
 	if (!CRAWL_API_BASE_URL) {
 		throw new HttpError("CRAWL_API_BASE_URL is not configured", 503);
 	}
@@ -229,8 +253,8 @@ async function fetchCrawlData(target: CrawlTarget, internalSecret: string) {
 				"Content-Type": "application/json",
 				"x-applemint-internal-secret": internalSecret,
 			},
-			body: JSON.stringify({ target }),
-			signal: AbortSignal.timeout(CRAWL_API_TIMEOUT_MS),
+			body: JSON.stringify({ target, budgetMs: runBudgetSeconds * 1000 }),
+			signal,
 		});
 	} catch (error) {
 		const timeout =
@@ -306,8 +330,17 @@ async function prepareItems(
 	return { items, existingCount: existingUrls.size };
 }
 
-async function processCrawl(context: CrawlRequestContext): Promise<ProcessedCrawl> {
-	const crawlData = await fetchCrawlData(context.target, context.internalSecret);
+async function processCrawl(
+	context: CrawlRequestContext,
+	handle: CrawlRunHandle,
+	signal: AbortSignal
+): Promise<ProcessedCrawl> {
+	const crawlData = await fetchCrawlData(
+		context.target,
+		context.internalSecret,
+		handle.runBudgetSeconds,
+		signal
+	);
 	let filterList: FilterKeyword[];
 	try {
 		filterList = await loadFilterKeywords(context.supabase);
@@ -338,12 +371,63 @@ async function processCrawl(context: CrawlRequestContext): Promise<ProcessedCraw
 	};
 }
 
+const SCHEDULED_SKIP_REASONS = new Set(["disabled", "cooldown", "source-busy"]);
+
+function createAdmissionResponse(
+	result: CrawlStartResult,
+	target: CrawlTarget,
+	trigger: "manual" | "scheduled"
+) {
+	if (result.acquired) return null;
+	const reason = result.reason ?? "source-busy";
+	if (trigger === "scheduled" && SCHEDULED_SKIP_REASONS.has(reason)) {
+		return jsonResponse({
+			status: "skipped",
+			target,
+			reason,
+			nextEligibleAt: result.nextEligibleAt ?? null,
+			activeRunId: result.activeRunId ?? null,
+		});
+	}
+	if (trigger === "scheduled" && reason === "capacity") {
+		const retryAfterSeconds = Number(result.retryAfterSeconds ?? 30);
+		return jsonResponse({ status: "deferred", target, reason, retryAfterSeconds }, 429, {
+			"Retry-After": String(retryAfterSeconds),
+		});
+	}
+	return jsonResponse(
+		{
+			error:
+				reason === "capacity"
+					? "허용된 최대 크롤링 동시성에 도달했습니다."
+					: "같은 소스의 크롤링 작업이 이미 실행 중입니다.",
+			activeRunId: result.activeRunId ?? null,
+		},
+		409
+	);
+}
+
+function createRunHandle(result: CrawlStartResult, target: CrawlTarget, lockToken: string) {
+	if (typeof result.runId !== "string") {
+		throw new Error("Crawl run could not be created.");
+	}
+	return {
+		runId: result.runId,
+		lockToken,
+		lockKey: result.lockKey ?? `crawl:${target}`,
+		runBudgetSeconds: Number(result.runBudgetSeconds ?? 45),
+		heartbeatIntervalSeconds: Number(result.heartbeatIntervalSeconds ?? 15),
+	};
+}
+
 async function beginCrawlRun(
 	supabase: SupabaseClient,
-	target: CrawlTarget
+	target: CrawlTarget,
+	trigger: "manual" | "scheduled"
 ): Promise<CrawlRunHandle | Response> {
 	const lockToken = crypto.randomUUID();
-	const { data, error } = await supabase.rpc("begin_crawl_run", {
+	const rpcName = trigger === "scheduled" ? "begin_scheduled_crawl_run" : "begin_crawl_run";
+	const { data, error } = await supabase.rpc(rpcName, {
 		p_source: target,
 		p_lock_token: lockToken,
 		p_ttl_seconds: CRAWL_LOCK_TTL_SECONDS,
@@ -352,25 +436,57 @@ async function beginCrawlRun(
 		throw error;
 	}
 
-	const result = (data ?? {}) as {
-		acquired?: boolean;
-		runId?: string;
-		activeRunId?: string | null;
-	};
-	if (!result.acquired) {
-		return jsonResponse(
-			{
-				error: "다른 크롤링 작업이 이미 실행 중입니다.",
-				activeRunId: result.activeRunId ?? null,
-			},
-			409
-		);
-	}
-	if (typeof result.runId !== "string") {
-		throw new Error("Crawl run could not be created.");
-	}
+	const result = (data ?? {}) as CrawlStartResult;
+	const admissionResponse = createAdmissionResponse(result, target, trigger);
+	if (admissionResponse) return admissionResponse;
+	return createRunHandle(result, target, lockToken);
+}
 
-	return { runId: result.runId, lockToken };
+function startLeaseHeartbeat(
+	supabase: SupabaseClient,
+	handle: CrawlRunHandle,
+	abortController: AbortController
+) {
+	let consecutiveErrors = 0;
+	let inFlight: Promise<void> | null = null;
+	let leaseFailure: Error | null = null;
+	const timer = setInterval(() => {
+		if (inFlight || abortController.signal.aborted) return;
+		inFlight = (async () => {
+			const { data, error } = await supabase.rpc("heartbeat_crawl_run", {
+				p_run_id: handle.runId,
+				p_lock_token: handle.lockToken,
+			});
+			if (error) {
+				consecutiveErrors += 1;
+				console.error(
+					`[crawl-source] heartbeat failed run=${handle.runId} consecutive=${consecutiveErrors}: ${error.message}`
+				);
+				if (consecutiveErrors >= 2) {
+					leaseFailure = new Error("크롤링 잠금 heartbeat가 연속으로 실패했습니다.");
+					leaseFailure.name = "CrawlLeaseError";
+					abortController.abort(leaseFailure);
+				}
+				return;
+			}
+			consecutiveErrors = 0;
+			if (!((data ?? {}) as { renewed?: boolean }).renewed) {
+				leaseFailure = new Error("크롤링 잠금 소유권을 잃었습니다.");
+				leaseFailure.name = "CrawlLeaseError";
+				abortController.abort(leaseFailure);
+			}
+		})().finally(() => {
+			inFlight = null;
+		});
+	}, handle.heartbeatIntervalSeconds * 1000);
+
+	return {
+		getFailure: () => leaseFailure,
+		stop: async () => {
+			clearInterval(timer);
+			if (inFlight) await inFlight;
+		},
+	};
 }
 
 function getCrawlDataFromError(error: unknown) {
@@ -402,11 +518,11 @@ function createRunResult(
 		: [];
 	const retryCount = Math.max(0, Number(crawlData?.retryCount ?? 0));
 	const failureCounts = countCrawlFailureKinds(failures);
-	const parserTrend = calculateParserTrend(parserObservations, retryCount);
 
 	return {
 		status,
 		retryCount,
+		recoveredCount: Math.max(0, Number(crawlData?.recoveredCount ?? 0)),
 		attemptedCount: Math.max(0, Number(crawlData?.attempted ?? 0)),
 		succeededCount: Math.max(0, Number(crawlData?.succeeded ?? 0)),
 		extractedCount: Array.isArray(crawlData?.items) ? crawlData.items.length : 0,
@@ -415,7 +531,8 @@ function createRunResult(
 		warningCount: countActionableCrawlWarnings(warnings),
 		failureCount: failures.length,
 		...failureCounts,
-		...parserTrend,
+		parserValidCount: Math.max(0, Number(crawlData?.parserValidCount ?? 0)),
+		parserMinimumCount: Math.max(0, Number(crawlData?.parserMinimumCount ?? 0)),
 		warnings,
 		failures,
 		parserObservations,
@@ -440,10 +557,10 @@ async function finishCrawlRun(
 	return (data ?? {}) as { runId?: string; status?: string; durationMs?: number };
 }
 
-async function releaseCrawlLockFallback(supabase: SupabaseClient, lockToken: string) {
+async function releaseCrawlLockFallback(supabase: SupabaseClient, handle: CrawlRunHandle) {
 	const { error } = await supabase.rpc("release_crawl_lock", {
-		p_lock_key: CRAWL_LOCK_KEY,
-		p_lock_token: lockToken,
+		p_lock_key: handle.lockKey,
+		p_lock_token: handle.lockToken,
 	});
 	if (error) {
 		console.error(`[crawl-source] lock release fallback failed: ${error.message}`);
@@ -467,18 +584,35 @@ async function handleRequest(request: Request) {
 			return context;
 		}
 
-		const run = await beginCrawlRun(context.supabase, context.target);
+		const run = await beginCrawlRun(context.supabase, context.target, context.trigger);
 		if (run instanceof Response) {
 			return run;
 		}
 
+		const abortController = new AbortController();
+		const budgetTimer = setTimeout(
+			() => {
+				abortController.abort(new DOMException("Crawl run budget exceeded.", "TimeoutError"));
+			},
+			run.runBudgetSeconds * 1000 + 5000
+		);
+		const heartbeat = startLeaseHeartbeat(context.supabase, run, abortController);
+		let heartbeatStopped = false;
+		const stopHeartbeat = async () => {
+			if (heartbeatStopped) return;
+			heartbeatStopped = true;
+			await heartbeat.stop();
+		};
 		let finalized = false;
 		try {
-			const processed = await processCrawl(context);
+			const processed = await processCrawl(context, run, abortController.signal);
+			const leaseFailure = heartbeat.getFailure();
+			if (leaseFailure) throw leaseFailure;
 			const status = getCompletedRunStatus(
 				processed.crawlData.failures,
 				processed.crawlData.warnings
 			);
+			await stopHeartbeat();
 			const completion = await finishCrawlRun(
 				context.supabase,
 				run,
@@ -504,6 +638,7 @@ async function handleRequest(request: Request) {
 				durationMs: Number(completion.durationMs ?? 0),
 			});
 		} catch (error) {
+			await stopHeartbeat();
 			const status = getErrorStatus(error);
 			const crawlData = getCrawlDataFromError(error);
 			try {
@@ -530,8 +665,10 @@ async function handleRequest(request: Request) {
 				status
 			);
 		} finally {
+			clearTimeout(budgetTimer);
+			await stopHeartbeat();
 			if (!finalized) {
-				await releaseCrawlLockFallback(context.supabase, run.lockToken);
+				await releaseCrawlLockFallback(context.supabase, run);
 			}
 		}
 	} catch (error) {

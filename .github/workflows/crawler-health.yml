@@ -34,10 +34,10 @@ jobs:
         with:
           node-version: 24.x
 
-      - name: Evaluate crawler health and deliver issues
+      - name: Deliver crawler health issues
         env:
           DELIVERY_TEST: ${{ inputs.delivery_test || 'false' }}
           GITHUB_TOKEN: ${{ github.token }}
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+          CRAWL_INTERNAL_SECRET: ${{ secrets.CRAWL_INTERNAL_SECRET }}
         run: node scripts/crawler-health/monitor.mjs

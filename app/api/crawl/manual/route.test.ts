@@ -192,6 +192,25 @@ describe("POST /api/crawl/manual", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
+	it("실행 모드를 생략하면 Next 직접 실행을 사용한다", async () => {
+		vi.stubEnv("CRAWL_EXECUTION_MODE", "");
+		executeCrawlPipelineMock.mockResolvedValue({ runId: "43", status: "succeeded" });
+
+		const response = await POST(createRequest("arcalive"));
+
+		expect(response.status).toBe(200);
+		expect(executeCrawlPipelineMock).toHaveBeenCalledOnce();
+	});
+
+	it("잘못된 실행 모드는 503으로 닫힌다", async () => {
+		vi.stubEnv("CRAWL_EXECUTION_MODE", "legacy");
+
+		const response = await POST(createRequest("arcalive"));
+
+		expect(response.status).toBe(503);
+		expect(executeCrawlPipelineMock).not.toHaveBeenCalled();
+	});
+
 	it("next 모드의 lock 충돌은 기존 409 응답 계약을 유지한다", async () => {
 		vi.stubEnv("CRAWL_EXECUTION_MODE", "next");
 		executeCrawlPipelineMock.mockRejectedValue(

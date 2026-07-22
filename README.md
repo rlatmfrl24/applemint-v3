@@ -39,13 +39,13 @@
 - 소스별 크롤링 결과 수집 후 중복 제거 및 키워드 기반 타입 분류
 - `new-threads` 무한 스크롤 목록 + 타입별 통계/필터
 - `Quick Save` 이동, `Trash` 이동/복원 워크플로우
-- 설정 페이지에서 수동 크롤링, 최근 90일 실행 이력·파서 추세 확인 및 신규 스레드 일괄 정리
+- 설정의 기능별 화면에서 소스별 예약 주기·수동 수집, 최근 90일 실행 이력, 신규 글 일괄 정리
 
 ## 아키텍처 개요
 
-1. UI(`/main/setting`)에서 수동 크롤링 호출
-2. `POST /api/crawl/manual`이 DB의 단일 소유자 권한을 확인하고 Next 크롤링 파이프라인 실행
-3. Next가 `begin_crawl_run`으로 global DB lock과 실행 이력을 원자적으로 생성하고 소스 크롤러 실행
+1. UI(`/main/setting/crawling`)에서 정책을 수정하거나 수동 크롤링 호출
+2. Supabase Cron이 5분마다 cooldown과 가용 동시성을 확인해 Next 예약 API를 비동기로 호출
+3. DB가 소스별 cooldown, source lock, 최대 2개 동시 실행을 원자적으로 판정
 4. 크롤링 결과를 `filter-keyword` 기준으로 필터링/타입 분류
 5. `ingest_crawl_items` RPC가 `crawl-history` claim과 `new-threads` 적재를 하나의 트랜잭션으로 확정
 6. `finish_crawl_run`이 결과 저장과 lock 해제를 원자적으로 완료
@@ -55,8 +55,8 @@
 전환은 `next`로 진행하며, 1주간 rollback 경로를 유지한 뒤 Edge Function과 내부 `/api/crawl`을
 제거합니다.
 
-수동 크롤링은 완료 응답을 기다리는 동기 방식이며 global DB lock으로 중복 실행을 방지합니다.
-현재 단일 소유자·단일 실행 구조에서는 별도 작업 큐를 사용하지 않습니다.
+수동 크롤링은 cooldown을 우회하지만 동일 소스 중복과 최대 동시성 제한은 지킵니다. 예약 실행,
+heartbeat, 비정상 종료 복구와 DB 작업 큐 도입 기준은 `docs/CRAWL_SCHEDULING.md`를 참고합니다.
 
 ## 프로젝트 구조
 
@@ -217,12 +217,14 @@ erDiagram
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (서버 전용)
 - `SUPABASE_URL` (manual crawl fallback)
-- `CRAWL_EXECUTION_MODE` (`edge` 또는 `next`; 1주간 전환 후 `next` 고정)
-- `CRAWL_INTERNAL_SECRET` (전환 기간에만 Next/Edge에 동일하게 설정하는 32바이트 이상 secret)
+- `CRAWL_EXECUTION_MODE` (`edge` 또는 `next`; Supabase 예약 전환은 `next` 사용)
+- `CRAWL_INTERNAL_SECRET` (Next/Edge, Supabase Vault, 운영 workflow가 공유하는 32바이트 이상 secret)
 - `CRAWL_API_BASE_URL` (전환 기간의 Edge Function -> 내부 크롤링 API 주소)
 - `DEBUG_CRAWL`, `LOG_LEVEL`
 - `GITHUB_TOKEN` 또는 `GH_TOKEN` (보안 스크립트 실행 시)
-- GitHub Actions variable `SUPABASE_URL`, secret `SUPABASE_SERVICE_ROLE_KEY` (Crawler Health workflow)
+- Supabase Vault `crawl_app_base_url`, `crawl_internal_secret` (정기 예약 호출)
+- GitHub Actions variable `APP_BASE_URL`, `CRAWL_SCHEDULER_OWNER`와 secret `CRAWL_INTERNAL_SECRET`
+  (수동 복구 및 Crawler Health 알림 전달 workflow)
 
 Applemint는 migration에 고정한 단일 Supabase Auth 계정만 사용할 수 있습니다. 신규 가입은 비활성화하며 목록 조회는 소유자에게만 허용되고, 스레드 변경은 소유자 확인이 포함된 RPC를 통해서만 수행합니다.
 

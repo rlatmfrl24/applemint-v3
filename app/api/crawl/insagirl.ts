@@ -1,5 +1,6 @@
 import type { CrawlItemType } from "@/lib/type-defs";
 import {
+	type CrawlAdapterOptions,
 	type CrawlFailure,
 	type CrawlSourceResult,
 	type CrawlWarning,
@@ -18,9 +19,14 @@ interface InsagirlPageResult {
 	parserObservations: CrawlSourceResult["parserObservations"];
 }
 
-async function crawlInsagirlTarget(url: string, index: number): Promise<InsagirlPageResult> {
+async function crawlInsagirlTarget(
+	url: string,
+	index: number,
+	signal?: AbortSignal
+): Promise<InsagirlPageResult> {
 	try {
 		const response = await fetchWithTimeout(url, {
+			signal,
 			headers: {
 				accept: "application/json,text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 			},
@@ -56,13 +62,18 @@ async function crawlInsagirlTarget(url: string, index: number): Promise<Insagirl
 	}
 }
 
-export async function crawlInsagirl(): Promise<CrawlSourceResult> {
-	const targets = [
-		"https://insagirl-hrm.appspot.com/json2/1/1/2/",
-		"https://insagirl-hrm.appspot.com/json2/2/1/2/",
-	];
+const INSAGIRL_TARGETS = [
+	"https://insagirl-hrm.appspot.com/json2/1/1/2/",
+	"https://insagirl-hrm.appspot.com/json2/2/1/2/",
+];
 
-	const results = await Promise.all(targets.map(crawlInsagirlTarget));
+export async function crawlInsagirl(options: CrawlAdapterOptions = {}): Promise<CrawlSourceResult> {
+	const requestedUrls = new Set(options.urls ?? INSAGIRL_TARGETS);
+	const targets = INSAGIRL_TARGETS.filter((url) => requestedUrls.has(url));
+
+	const results = await Promise.all(
+		targets.map((url, index) => crawlInsagirlTarget(url, index, options.signal))
+	);
 
 	const failures = results.flatMap((result) => (result.failure ? [result.failure] : []));
 	const warnings = results.flatMap((result) => result.warnings);
@@ -76,6 +87,7 @@ export async function crawlInsagirl(): Promise<CrawlSourceResult> {
 
 	return {
 		items: Array.from(dedupedItems.values()),
+		attemptedUrls: targets,
 		attempted: targets.length,
 		succeeded: targets.length - failures.length,
 		failures,

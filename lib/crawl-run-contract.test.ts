@@ -16,6 +16,12 @@ describe("crawl run dashboard contract", () => {
 		expect(
 			isCrawlRunsDashboard({
 				activeRun: null,
+				activeRuns: [],
+				runtimeSettings: {
+					maxConcurrency: 2,
+					lockTtlSeconds: 60,
+					heartbeatIntervalSeconds: 15,
+				},
 				sources: [],
 				runs: [],
 				alerts: [],
