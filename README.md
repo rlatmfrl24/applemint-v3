@@ -44,12 +44,19 @@
 ## 아키텍처 개요
 
 1. UI(`/main/setting`)에서 수동 크롤링 호출
-2. `POST /api/crawl/manual`이 DB의 단일 소유자 권한을 확인한 뒤 Supabase Edge Function(`crawl-source`) 호출
-3. Edge Function이 `begin_crawl_run`으로 global DB lock과 실행 이력을 원자적으로 생성하고 `POST /api/crawl` 내부 API 호출
+2. `POST /api/crawl/manual`이 DB의 단일 소유자 권한을 확인하고 Next 크롤링 파이프라인 실행
+3. Next가 `begin_crawl_run`으로 global DB lock과 실행 이력을 원자적으로 생성하고 소스 크롤러 실행
 4. 크롤링 결과를 `filter-keyword` 기준으로 필터링/타입 분류
 5. `ingest_crawl_items` RPC가 `crawl-history` claim과 `new-threads` 적재를 하나의 트랜잭션으로 확정
 6. `finish_crawl_run`이 결과 저장과 lock 해제를 원자적으로 완료
 7. UI는 스레드 API와 `GET /api/crawl/runs`로 목록·운영 이력을 조회
+
+전환 기간에는 `CRAWL_EXECUTION_MODE=edge`로 기존 Edge Function 경로를 사용할 수 있습니다. 운영
+전환은 `next`로 진행하며, 1주간 rollback 경로를 유지한 뒤 Edge Function과 내부 `/api/crawl`을
+제거합니다.
+
+수동 크롤링은 완료 응답을 기다리는 동기 방식이며 global DB lock으로 중복 실행을 방지합니다.
+현재 단일 소유자·단일 실행 구조에서는 별도 작업 큐를 사용하지 않습니다.
 
 ## 프로젝트 구조
 
@@ -149,9 +156,10 @@ erDiagram
 
 - 현재 스키마는 명시적 FK 제약보다 PostgreSQL RPC(`move_thread`, `bulk_move_new_threads_to_trash`)로 이동 원자성을 유지합니다.
 - `new-threads.tag`는 배열 성격의 태그 데이터를 저장합니다.
-- `crawl-history`는 `(crawl_source, url)` 유니크 인덱스로 중복 유입을 방지합니다.
+- `crawl-history`는 `(crawl_source, url)` 유니크 인덱스로 중복 유입을 영구적으로 방지합니다. 사용자 목록에서 삭제된 URL도 재수집하지 않으며, 기간 만료 삭제·아카이브·월별 파티셔닝을 적용하지 않습니다.
 - `crawl_runs`는 재시도를 포함한 한 번의 실행을 한 행으로 보존하며 90일이 지난 이력은 매일 03:15 KST에 정리합니다.
 - `crawl_alert_incidents`와 `crawl_alert_notifications`는 소스 장애 상태와 GitHub Issue 전달 outbox를 보존합니다.
+- `crawl-history` 용량 측정, 백업·복구, 성능 검증 절차는 [`docs/CRAWL_HISTORY_RETENTION.md`](docs/CRAWL_HISTORY_RETENTION.md)를 참고합니다.
 - 장애 감지 기준과 운영 절차는 [`docs/CRAWLER_ALERT_OPERATIONS.md`](docs/CRAWLER_ALERT_OPERATIONS.md)를 참고합니다.
 - 통계 API는 `new-threads` 기반 RPC(`get_new_threads_stats`)를 사용합니다.
 
@@ -169,7 +177,7 @@ erDiagram
 - 소스 장애 대비 재시도/로그 전략 유지 (`retryOperation`, `logger.ts`)
 
 ### 2) 데이터 분류/필터 정책 관리
-- 타입 분류 기준은 `supabase/functions/crawl-source/index.ts`의 `defineType`에서 처리
+- 타입 분류 기준은 `app/api/crawl/pipeline-helpers.ts`의 `defineType`에서 처리
 - 무시 키워드/분류 키워드는 DB `filter-keyword` 테이블에서 제어
 
 ### 3) 조회 성능 및 통계 로직
@@ -209,8 +217,9 @@ erDiagram
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (서버 전용)
 - `SUPABASE_URL` (manual crawl fallback)
-- `CRAWL_INTERNAL_SECRET` (Next/Edge에 동일하게 설정하는 32바이트 이상 내부 secret)
-- `CRAWL_API_BASE_URL` (Edge Function -> 내부 크롤링 API 주소)
+- `CRAWL_EXECUTION_MODE` (`edge` 또는 `next`; 1주간 전환 후 `next` 고정)
+- `CRAWL_INTERNAL_SECRET` (전환 기간에만 Next/Edge에 동일하게 설정하는 32바이트 이상 secret)
+- `CRAWL_API_BASE_URL` (전환 기간의 Edge Function -> 내부 크롤링 API 주소)
 - `DEBUG_CRAWL`, `LOG_LEVEL`
 - `GITHUB_TOKEN` 또는 `GH_TOKEN` (보안 스크립트 실행 시)
 - GitHub Actions variable `SUPABASE_URL`, secret `SUPABASE_SERVICE_ROLE_KEY` (Crawler Health workflow)

@@ -1,36 +1,65 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { checkApplemintOwner } from "@/utils/supabase/owner-access";
 import { createClient } from "@/utils/supabase/server";
+import { createServiceRoleClient } from "@/utils/supabase/service-role";
 import { isCrawlTarget } from "../contracts";
 import { hasMinimumInternalSecretLength } from "../internal-auth";
+import { CrawlPipelineError, executeCrawlPipeline } from "../pipeline";
 
-const EDGE_REQUEST_TIMEOUT_MS = 120_000;
+const EDGE_REQUEST_TIMEOUT_MS = 55_000;
+
+export const maxDuration = 60;
+
+type CrawlExecutionMode = "edge" | "next";
 
 function isTimeoutError(error: unknown) {
 	return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+function getExecutionMode(): CrawlExecutionMode {
+	const configuredMode = process.env.CRAWL_EXECUTION_MODE?.toLowerCase();
+	if (!configuredMode || configuredMode === "edge") {
+		return "edge";
+	}
+	if (configuredMode === "next") {
+		return "next";
+	}
+	console.error("[crawl] invalid_execution_mode", { configuredMode });
+	return "edge";
+}
+
+function pipelineErrorResponse(error: CrawlPipelineError) {
+	if (error.httpStatus === 409) {
+		return NextResponse.json(
+			{
+				error: error.message,
+				activeRunId: error.activeRunId ?? null,
+			},
+			{ status: 409 }
+		);
+	}
+
+	const message =
+		error.httpStatus === 504 ? "크롤링 요청 시간이 초과되었습니다." : "크롤링 처리에 실패했습니다.";
+	return NextResponse.json(
+		{
+			...(error.runId ? { runId: error.runId, status: "failed" } : {}),
+			error: message,
+		},
+		{ status: error.httpStatus }
+	);
+}
+
+async function invokeLegacyEdge(target: string) {
 	const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 	const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 	const internalSecret = process.env.CRAWL_INTERNAL_SECRET;
-
-	const supabase = await createClient();
-	const ownerAccess = await checkApplemintOwner(supabase);
-	if (ownerAccess.kind !== "owner") {
-		return NextResponse.json({ error: ownerAccess.message }, { status: ownerAccess.status });
-	}
 
 	if (!supabaseUrl || !serviceRoleKey || !hasMinimumInternalSecretLength(internalSecret)) {
 		return NextResponse.json(
 			{ error: "수동 크롤링 서버 설정이 완료되지 않았습니다." },
 			{ status: 503 }
 		);
-	}
-
-	const body = (await request.json().catch(() => null)) as { target?: unknown } | null;
-	if (!isCrawlTarget(body?.target)) {
-		return NextResponse.json({ error: "지원하지 않는 크롤링 대상입니다." }, { status: 400 });
 	}
 
 	try {
@@ -42,7 +71,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 				"Content-Type": "application/json",
 				"x-applemint-internal-secret": internalSecret,
 			},
-			body: JSON.stringify({ target: body.target }),
+			body: JSON.stringify({ target }),
 			signal: AbortSignal.timeout(EDGE_REQUEST_TIMEOUT_MS),
 		});
 		const data = (await response.json().catch(() => null)) as Record<string, unknown> | null;
@@ -60,5 +89,48 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 			error instanceof Error ? error.message : "Unknown error"
 		);
 		return NextResponse.json({ error: "크롤러 API 호출에 실패했습니다." }, { status: 500 });
+	}
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+	const supabase = await createClient();
+	const ownerAccess = await checkApplemintOwner(supabase);
+	if (ownerAccess.kind !== "owner") {
+		return NextResponse.json({ error: ownerAccess.message }, { status: ownerAccess.status });
+	}
+
+	const body = (await request.json().catch(() => null)) as { target?: unknown } | null;
+	if (!isCrawlTarget(body?.target)) {
+		return NextResponse.json({ error: "지원하지 않는 크롤링 대상입니다." }, { status: 400 });
+	}
+
+	if (getExecutionMode() === "edge") {
+		return invokeLegacyEdge(body.target);
+	}
+
+	let serviceRoleClient: ReturnType<typeof createServiceRoleClient>;
+	try {
+		serviceRoleClient = createServiceRoleClient();
+	} catch (error) {
+		console.error("[crawl] next_configuration_failed", {
+			message: error instanceof Error ? error.message : "Unknown error",
+		});
+		return NextResponse.json(
+			{ error: "수동 크롤링 서버 설정이 완료되지 않았습니다." },
+			{ status: 503 }
+		);
+	}
+
+	try {
+		const result = await executeCrawlPipeline(body.target, serviceRoleClient);
+		return NextResponse.json(result);
+	} catch (error) {
+		if (error instanceof CrawlPipelineError) {
+			return pipelineErrorResponse(error);
+		}
+		console.error("[crawl] unexpected_request_failure", {
+			message: error instanceof Error ? error.message : "Unknown error",
+		});
+		return NextResponse.json({ error: "크롤링 처리에 실패했습니다." }, { status: 500 });
 	}
 }
