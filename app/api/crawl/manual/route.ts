@@ -8,7 +8,7 @@ import { CrawlPipelineError, executeCrawlPipeline } from "../pipeline";
 
 const EDGE_REQUEST_TIMEOUT_MS = 120_000;
 
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 type CrawlExecutionMode = "edge" | "next";
 

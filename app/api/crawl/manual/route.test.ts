@@ -34,7 +34,7 @@ vi.mock("../pipeline", () => {
 });
 
 import { CrawlPipelineError } from "../pipeline";
-import { POST } from "./route";
+import { maxDuration, POST } from "./route";
 
 const INTERNAL_SECRET = "0123456789abcdef0123456789abcdef";
 
@@ -67,6 +67,10 @@ function mockAccess({
 }
 
 describe("POST /api/crawl/manual", () => {
+	it("함수 실행 제한은 Edge 요청 timeout보다 길다", () => {
+		expect(maxDuration * 1000).toBeGreaterThan(120_000);
+	});
+
 	beforeEach(() => {
 		vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://project.supabase.co");
 		vi.stubEnv("SUPABASE_URL", "https://project.supabase.co");
