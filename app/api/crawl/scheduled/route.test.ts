@@ -57,7 +57,9 @@ describe("POST /api/crawl/scheduled", () => {
 	});
 
 	it("내부 secret과 활성 target을 검증한다", async () => {
-		expect((await POST(request("arcalive", "wrong"))).status).toBe(401);
+		const unauthorized = await POST(request("arcalive", "wrong"));
+		expect(unauthorized.status).toBe(401);
+		expect(await unauthorized.json()).toMatchObject({ reason: "invalid-secret" });
 		expect((await POST(request("issuelink"))).status).toBe(400);
 	});
 
@@ -91,6 +93,7 @@ describe("POST /api/crawl/scheduled", () => {
 		const response = await POST(request("arcalive"));
 
 		expect(response.status).toBe(503);
+		expect(await response.json()).toMatchObject({ reason: "configuration-invalid" });
 		expect(executeCrawlPipelineMock).not.toHaveBeenCalled();
 	});
 

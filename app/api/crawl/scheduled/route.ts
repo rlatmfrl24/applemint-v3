@@ -101,12 +101,18 @@ export async function POST(request: NextRequest) {
 	const expectedSecret = process.env.CRAWL_INTERNAL_SECRET;
 	if (!hasMinimumInternalSecretLength(expectedSecret)) {
 		return NextResponse.json(
-			{ error: "예약 크롤링 인증 설정이 완료되지 않았습니다." },
+			{
+				error: "예약 크롤링 인증 설정이 완료되지 않았습니다.",
+				reason: "configuration-missing",
+			},
 			{ status: 503 }
 		);
 	}
 	if (!hasValidInternalSecret(request.headers.get("x-applemint-internal-secret"), expectedSecret)) {
-		return NextResponse.json({ error: "인증되지 않은 예약 크롤링 요청입니다." }, { status: 401 });
+		return NextResponse.json(
+			{ error: "인증되지 않은 예약 크롤링 요청입니다.", reason: "invalid-secret" },
+			{ status: 401 }
+		);
 	}
 
 	const body = (await request.json().catch(() => null)) as { target?: unknown } | null;
@@ -119,7 +125,10 @@ export async function POST(request: NextRequest) {
 			configuredMode: process.env.CRAWL_EXECUTION_MODE,
 		});
 		return NextResponse.json(
-			{ error: "크롤링 실행 모드 설정이 올바르지 않습니다." },
+			{
+				error: "크롤링 실행 모드 설정이 올바르지 않습니다.",
+				reason: "configuration-invalid",
+			},
 			{ status: 503 }
 		);
 	}
