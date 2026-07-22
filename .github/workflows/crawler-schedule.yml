@@ -1,0 +1,35 @@
+name: Crawler Schedule
+
+on:
+  schedule:
+    - cron: "17,47 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crawler-schedule
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    name: crawl due sources
+    if: github.event_name == 'workflow_dispatch' || vars.CRAWL_SCHEDULER_OWNER == 'github'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+
+      - name: Crawl due sources
+        env:
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+          CRAWL_INTERNAL_SECRET: ${{ secrets.CRAWL_INTERNAL_SECRET }}
+        run: node scripts/crawler-schedule/run.mjs

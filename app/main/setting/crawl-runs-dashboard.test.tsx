@@ -28,10 +28,13 @@ function createRun(overrides: Partial<CrawlRun> = {}): CrawlRun {
 		id: "1",
 		source: "arcalive",
 		status: "partial",
+		trigger: "manual",
 		startedAt: "2026-07-21T03:00:00.000Z",
 		finishedAt: "2026-07-21T03:00:07.000Z",
+		lastHeartbeatAt: null,
 		durationMs: 7000,
 		retryCount: 1,
+		recoveredCount: 0,
 		attemptedCount: 6,
 		succeededCount: 3,
 		extractedCount: 8,
@@ -102,6 +105,11 @@ function createSourceSummary(
 	if (!run) {
 		return {
 			source,
+			scheduleEnabled: true,
+			cooldownSeconds: 10800,
+			runBudgetSeconds: 45,
+			lastFinishedAt: null,
+			nextEligibleAt: null,
 			activeAlertCount: 0,
 			lastSuccessAt: null,
 			lastFailureAt: null,
@@ -112,16 +120,24 @@ function createSourceSummary(
 	const trendStatus = run.status === "running" ? "interrupted" : run.status;
 	return {
 		source,
+		scheduleEnabled: true,
+		cooldownSeconds: 10800,
+		runBudgetSeconds: 45,
+		lastFinishedAt: run.finishedAt,
+		nextEligibleAt: "2026-07-21T06:00:07.000Z",
 		activeAlertCount: index === 0 ? 1 : 0,
 		lastSuccessAt: "2026-07-21T03:00:07.000Z",
 		lastFailureAt: index === 0 ? "2026-07-21T03:00:07.000Z" : null,
 		latest: {
 			id: String(index + 1),
 			status: run.status,
+			trigger: run.trigger,
 			startedAt: run.startedAt,
 			durationMs: run.durationMs,
 			extractedCount: run.extractedCount,
 			insertedCount: run.insertedCount,
+			retryCount: run.retryCount,
+			recoveredCount: run.recoveredCount,
 		},
 		trend: [
 			{
@@ -175,6 +191,22 @@ describe("CrawlRunsDashboard", () => {
 				status: "running",
 				startedAt: new Date().toISOString(),
 				staleAfter: new Date(Date.now() + 300_000).toISOString(),
+				lastHeartbeatAt: new Date().toISOString(),
+			},
+			activeRuns: [
+				{
+					id: "5",
+					source: "battlepage",
+					status: "running",
+					startedAt: new Date().toISOString(),
+					staleAfter: new Date(Date.now() + 300_000).toISOString(),
+					lastHeartbeatAt: new Date().toISOString(),
+				},
+			],
+			runtimeSettings: {
+				maxConcurrency: 2,
+				lockTtlSeconds: 60,
+				heartbeatIntervalSeconds: 15,
 			},
 			sources: sources.map((source, index) => createSourceSummary(source, index, runs)),
 			runs,
@@ -220,8 +252,19 @@ describe("CrawlRunsDashboard", () => {
 	it("이력이 없을 때 empty 상태를 렌더링한다", () => {
 		const html = renderDashboard({
 			activeRun: null,
+			activeRuns: [],
+			runtimeSettings: {
+				maxConcurrency: 2,
+				lockTtlSeconds: 60,
+				heartbeatIntervalSeconds: 15,
+			},
 			sources: sources.map((source) => ({
 				source,
+				scheduleEnabled: true,
+				cooldownSeconds: 10800,
+				runBudgetSeconds: 45,
+				lastFinishedAt: null,
+				nextEligibleAt: null,
 				activeAlertCount: 0,
 				lastSuccessAt: null,
 				lastFailureAt: null,

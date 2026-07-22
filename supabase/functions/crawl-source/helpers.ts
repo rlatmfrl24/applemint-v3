@@ -22,6 +22,7 @@ export function createTransportFailureData(
 		warnings: [],
 		parserObservations: [],
 		retryCount: 0,
+		recoveredCount: 0,
 		parserValidCount: 0,
 		parserMinimumCount: 0,
 		durationMs: 0,

@@ -1,6 +1,7 @@
 import type { CrawlItemType } from "@/lib/type-defs";
 import { parseArcaliveHtml } from "./arcalive-parser";
 import {
+	type CrawlAdapterOptions,
 	type CrawlFailure,
 	type CrawlSourceResult,
 	type CrawlWarning,
@@ -11,11 +12,16 @@ import { fetchWithTimeout } from "./fetch-with-timeout";
 import { debugLog } from "./logger";
 import { adaptParserOutcome } from "./parser-adapter";
 
-export async function crawlArcalive(): Promise<CrawlSourceResult> {
+const ARCALIVE_TARGETS = Array.from(
+	{ length: 3 },
+	(_, index) => `https://arca.live/b/iloveanimal?mode=best&p=${index + 1}`
+);
+
+export async function crawlArcalive(options: CrawlAdapterOptions = {}): Promise<CrawlSourceResult> {
 	debugLog("[Arcalive] 크롤링 시작");
 
-	const target = "https://arca.live/b/iloveanimal?mode=best";
-	const targetList = Array.from({ length: 3 }, (_, index) => `${target}&p=${index + 1}`);
+	const requestedUrls = new Set(options.urls ?? ARCALIVE_TARGETS);
+	const targetList = ARCALIVE_TARGETS.filter((url) => requestedUrls.has(url));
 	const detectedList: CrawlItemType[][] = [];
 	const failures: CrawlFailure[] = [];
 	const warnings: CrawlWarning[] = [];
@@ -27,7 +33,7 @@ export async function crawlArcalive(): Promise<CrawlSourceResult> {
 		debugLog(`[Arcalive] 페이지 ${index + 1} 크롤링 시작`);
 
 		try {
-			const response = await fetchWithTimeout(url);
+			const response = await fetchWithTimeout(url, { signal: options.signal });
 			if (!response.ok) {
 				throw new Error(`HTTP ${response.status} ${response.statusText}`);
 			}
@@ -58,6 +64,7 @@ export async function crawlArcalive(): Promise<CrawlSourceResult> {
 
 	return {
 		items,
+		attemptedUrls: targetList,
 		attempted: targetList.length,
 		succeeded,
 		failures,

@@ -5,8 +5,8 @@ const runtimeEnv = {
 	NODE_ENV: "test" as const,
 	GITHUB_REPOSITORY: "rlatmfrl24/applemint-v3",
 	GITHUB_TOKEN: "github-test-token",
-	SUPABASE_URL: "https://project.supabase.co",
-	SUPABASE_SERVICE_ROLE_KEY: "service-role-test-key",
+	APP_BASE_URL: "https://applemint.example",
+	CRAWL_INTERNAL_SECRET: "0123456789abcdef0123456789abcdef",
 };
 
 function notification(event = "opened") {
@@ -43,14 +43,16 @@ function json(data: unknown, status = 200) {
 	});
 }
 
-function respondToSupabase(url: URL, notifications: unknown[]) {
-	if (url.pathname.endsWith("/evaluate_crawl_alerts")) return json({ activeIncidentCount: 1 });
-	if (url.pathname.endsWith("/get_pending_crawl_alert_notifications")) {
-		return json(notifications);
-	}
-	if (url.pathname.endsWith("/complete_crawl_alert_notification")) return json(true);
-	if (url.pathname.endsWith("/fail_crawl_alert_notification")) return json(true);
-	return null;
+function respondToNotificationApi(
+	url: URL,
+	body: Record<string, unknown>,
+	notifications: unknown[]
+) {
+	if (!url.pathname.endsWith("/api/crawl/alerts/notifications")) return null;
+	if (body.action === "list") return json({ notifications });
+	if (body.action === "complete") return json({ completed: true });
+	if (body.action === "fail") return json({ failed: true });
+	return json({ error: "invalid" }, 400);
 }
 
 function respondToGitHub(
@@ -86,8 +88,8 @@ function createApiMock(notifications: unknown[]) {
 		const body = typeof init?.body === "string" ? JSON.parse(init.body) : null;
 		calls.push({ url: url.toString(), method, body });
 
-		if (url.hostname.endsWith("supabase.co")) {
-			const response = respondToSupabase(url, notifications);
+		if (url.hostname === "applemint.example") {
+			const response = respondToNotificationApi(url, body ?? {}, notifications);
 			if (response) return response;
 		}
 		const response = respondToGitHub(url, method, body, issues);
@@ -103,7 +105,7 @@ function createCollectionFailureMock() {
 	const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
 		const url = new URL(typeof input === "string" ? input : input.toString());
 		const method = init?.method ?? "GET";
-		if (url.hostname.endsWith("supabase.co")) {
+		if (url.hostname === "applemint.example") {
 			return new Response("secret database error", { status: 503 });
 		}
 		if (url.pathname.includes("/labels/")) return json({ name: "crawler-health" });
@@ -150,12 +152,13 @@ describe("crawler health monitor", () => {
 		);
 		expect(issueCreates).toHaveLength(1);
 		expect(issues[0].body).toContain("applemint-crawl-alert:20");
-		const completeCall = calls.find((call) =>
-			call.url.includes("complete_crawl_alert_notification")
+		const completeCall = calls.find(
+			(call) => (call.body as { action?: string } | null)?.action === "complete"
 		);
 		expect(completeCall?.body).toMatchObject({
-			p_notification_id: "10",
-			p_github_issue_number: 100,
+			action: "complete",
+			notificationId: "10",
+			githubIssueNumber: 100,
 		});
 	});
 
@@ -185,7 +188,7 @@ describe("crawler health monitor", () => {
 		);
 	});
 
-	it("Supabase 수집 실패를 상세 오류 없이 단일 monitor Issue로 전환한다", async () => {
+	it("내부 알림 API 실패를 상세 오류 없이 단일 monitor Issue로 전환한다", async () => {
 		const { fetchMock, bodies } = createCollectionFailureMock();
 
 		await expect(

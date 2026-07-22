@@ -67,7 +67,7 @@ reset role;
 select is(
 	(select value ->> 'acquired' from p2_run_state where key = 'first'),
 	'true',
-	'begin RPC acquires the global lock'
+	'begin RPC acquires the source lock'
 );
 select is(
 	(
@@ -94,8 +94,8 @@ reset role;
 
 select is(
 	(select value ->> 'acquired' from p2_run_state where key = 'second'),
-	'false',
-	'competing begin RPC reports a lock conflict'
+	'true',
+	'a different source can acquire a parallel lock'
 );
 select is(
 	(
@@ -106,8 +106,8 @@ select is(
 			'10000000-0000-4000-8000-000000000002'::uuid
 		)
 	),
-	1::bigint,
-	'lock conflict does not create another history row'
+	2::bigint,
+	'parallel source lock creates a second history row'
 );
 
 set local role service_role;
@@ -171,10 +171,18 @@ select is(
 	'failure causes and JSON details are preserved'
 );
 select is(
-	(select count(*) from public.crawl_run_locks where lock_key = 'global-crawl'),
+	(select count(*) from public.crawl_run_locks where lock_key = 'crawl:arcalive'),
 	0::bigint,
-	'finish RPC releases the matching lock'
+	'finish RPC releases only its matching source lock'
 );
+
+set local role service_role;
+select public.finish_crawl_run(
+	(select (value ->> 'runId')::bigint from p2_run_state where key = 'second'),
+	'10000000-0000-4000-8000-000000000002'::uuid,
+	'{"status":"succeeded"}'::jsonb
+);
+reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '22222222-2222-4222-8222-222222222222', true);
@@ -207,7 +215,7 @@ values (
 );
 insert into public.crawl_run_locks (lock_key, lock_token, locked_until)
 values (
-	'global-crawl',
+	'crawl:insagirl',
 	'10000000-0000-4000-8000-000000000003'::uuid,
 	now() - interval '5 minutes'
 );

@@ -1,6 +1,7 @@
 import type { CrawlItemType } from "@/lib/type-defs";
 import { parseBattlepageHtml } from "./battlepage-parser";
 import {
+	type CrawlAdapterOptions,
 	type CrawlFailure,
 	type CrawlSourceResult,
 	type CrawlWarning,
@@ -18,19 +19,24 @@ interface BattlepagePageResult {
 	parserObservations: CrawlSourceResult["parserObservations"];
 }
 
-export async function crawlBattlepage(): Promise<CrawlSourceResult> {
+const BATTLEPAGE_TARGETS = Array.from({ length: 5 }, (_, index) => [
+	`https://v12.battlepage.com/??=Board.Humor.Table&page=${index + 1}`,
+	`https://v12.battlepage.com/??=Board.ETC.Table&page=${index + 1}`,
+]).flat();
+
+export async function crawlBattlepage(
+	options: CrawlAdapterOptions = {}
+): Promise<CrawlSourceResult> {
 	debugLog("[Battlepage] 크롤링 시작");
 
-	const baseUrl = "https://v12.battlepage.com";
-	const targetList = Array.from({ length: 5 }, (_, index) => [
-		`${baseUrl}/??=Board.Humor.Table&page=${index + 1}`,
-		`${baseUrl}/??=Board.ETC.Table&page=${index + 1}`,
-	]).flat();
+	const requestedUrls = new Set(options.urls ?? BATTLEPAGE_TARGETS);
+	const targetList = BATTLEPAGE_TARGETS.filter((url) => requestedUrls.has(url));
 
 	const results = await Promise.all(
 		targetList.map(async (url, index): Promise<BattlepagePageResult> => {
 			try {
 				const response = await fetchWithTimeout(url, {
+					signal: options.signal,
 					headers: {
 						accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 					},
@@ -66,6 +72,7 @@ export async function crawlBattlepage(): Promise<CrawlSourceResult> {
 
 	return {
 		items,
+		attemptedUrls: targetList,
 		attempted: targetList.length,
 		succeeded: targetList.length - failures.length,
 		failures,

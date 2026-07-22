@@ -4,6 +4,10 @@ import { runCrawlerWithRetry } from "./crawl-runner";
 import { hasMinimumInternalSecretLength, hasValidInternalSecret } from "./internal-auth";
 import { infoLog } from "./logger";
 
+const DEFAULT_CRAWL_BUDGET_MS = 45_000;
+
+export const maxDuration = 60;
+
 function emptyExecutionResult(): CrawlExecutionResult {
 	return {
 		items: [],
@@ -13,6 +17,7 @@ function emptyExecutionResult(): CrawlExecutionResult {
 		warnings: [],
 		parserObservations: [],
 		retryCount: 0,
+		recoveredCount: 0,
 		parserValidCount: 0,
 		parserMinimumCount: 0,
 	};
@@ -33,16 +38,28 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({ error: "인증되지 않은 내부 요청입니다." }, { status: 401 });
 	}
 
-	const body = (await request.json().catch(() => null)) as { target?: unknown } | null;
+	const body = (await request.json().catch(() => null)) as {
+		target?: unknown;
+		budgetMs?: unknown;
+	} | null;
 	if (!isCrawlTarget(body?.target)) {
 		return NextResponse.json({ error: "지원하지 않는 크롤링 대상입니다." }, { status: 400 });
 	}
 
 	const target = body.target;
+	const budgetMs =
+		typeof body.budgetMs === "number" &&
+		Number.isInteger(body.budgetMs) &&
+		body.budgetMs >= 15_000 &&
+		body.budgetMs <= 50_000
+			? body.budgetMs
+			: DEFAULT_CRAWL_BUDGET_MS;
 	infoLog(`[Crawl API] ${target} 크롤링 시작`);
 
 	try {
-		const result = await runCrawlerWithRetry(target);
+		const result = await runCrawlerWithRetry(target, undefined, undefined, {
+			signal: AbortSignal.timeout(budgetMs),
+		});
 		const durationMs = Date.now() - startTime;
 
 		if (result.succeeded === 0) {

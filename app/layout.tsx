@@ -15,7 +15,7 @@ export const metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
 	return (
-		<html lang="en" className={GeistSans.className} suppressHydrationWarning>
+		<html lang="ko" className={GeistSans.className} suppressHydrationWarning>
 			<body className="bg-background text-foreground">
 				<ThemeProvider
 					attribute="class"

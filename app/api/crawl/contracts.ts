@@ -32,6 +32,7 @@ interface ParserObservation {
 
 export interface CrawlSourceResult {
 	items: CrawlItemType[];
+	attemptedUrls?: string[];
 	attempted: number;
 	succeeded: number;
 	failures: CrawlFailure[];
@@ -59,36 +60,98 @@ export interface CrawlExecutionResult {
 	warnings: CrawlAttemptWarning[];
 	parserObservations: CrawlAttemptParserObservation[];
 	retryCount: number;
+	recoveredCount: number;
 	parserValidCount: number;
 	parserMinimumCount: number;
 }
 
+export interface CrawlAdapterOptions {
+	urls?: readonly string[];
+	signal?: AbortSignal;
+}
+
+function withAttempt<T extends { url: string }>(value: T, attempt: number) {
+	return { ...value, attempt };
+}
+
+function getAttemptedUrls(result: CrawlSourceResult) {
+	return (
+		result.attemptedUrls ??
+		Array.from(
+			new Set([
+				...result.failures.map((failure) => failure.url),
+				...result.parserObservations.map((observation) => observation.url),
+			])
+		)
+	);
+}
+
+function applyAttemptResult(
+	result: CrawlSourceResult,
+	attempt: number,
+	failures: Map<string, CrawlAttemptFailure>,
+	warnings: Map<string, CrawlAttemptWarning[]>,
+	observations: Map<string, CrawlAttemptParserObservation>
+) {
+	for (const url of getAttemptedUrls(result)) {
+		failures.delete(url);
+		warnings.delete(url);
+		observations.delete(url);
+	}
+	for (const failure of result.failures) {
+		failures.set(failure.url, withAttempt(failure, attempt));
+	}
+	for (const warning of result.warnings) {
+		const current = warnings.get(warning.url) ?? [];
+		current.push(withAttempt(warning, attempt));
+		warnings.set(warning.url, current);
+	}
+	for (const observation of result.parserObservations) {
+		observations.set(observation.url, withAttempt(observation, attempt));
+	}
+}
+
+function wasRetried(url: string, attempts: CrawlSourceResult[]) {
+	return attempts.slice(1).some((result) => getAttemptedUrls(result).includes(url));
+}
+
 export function aggregateCrawlAttempts(attempts: CrawlSourceResult[]): CrawlExecutionResult {
-	const finalAttempt = attempts.at(-1);
-	const finalObservations = finalAttempt?.parserObservations ?? [];
+	const failures = new Map<string, CrawlAttemptFailure>();
+	const warnings = new Map<string, CrawlAttemptWarning[]>();
+	const observations = new Map<string, CrawlAttemptParserObservation>();
+	const initialFailedUrls = new Set(attempts[0]?.failures.map((failure) => failure.url) ?? []);
+
+	for (let index = 0; index < attempts.length; index += 1) {
+		applyAttemptResult(attempts[index], index + 1, failures, warnings, observations);
+	}
+
+	const terminalFailures = Array.from(failures.values());
+	const terminalObservations = Array.from(observations.values());
+	const terminalFailureUrls = new Set(terminalFailures.map((failure) => failure.url));
+	const recoveredCount = Array.from(initialFailedUrls).filter(
+		(url) => !terminalFailureUrls.has(url) && wasRetried(url, attempts)
+	).length;
+	const dedupedItems = new Map<string, CrawlItemType>();
+	for (const item of attempts.flatMap((attempt) => attempt.items)) {
+		if (item.url && !dedupedItems.has(item.url)) {
+			dedupedItems.set(item.url, item);
+		}
+	}
 
 	return {
-		items: finalAttempt?.items ?? [],
+		items: Array.from(dedupedItems.values()),
 		attempted: attempts.reduce((total, attempt) => total + attempt.attempted, 0),
 		succeeded: attempts.reduce((total, attempt) => total + attempt.succeeded, 0),
-		failures: attempts.flatMap((attempt, index) =>
-			attempt.failures.map((failure) => ({ ...failure, attempt: index + 1 }))
-		),
-		warnings: attempts.flatMap((attempt, index) =>
-			attempt.warnings.map((warning) => ({ ...warning, attempt: index + 1 }))
-		),
-		parserObservations: attempts.flatMap((attempt, index) =>
-			(attempt.parserObservations ?? []).map((observation) => ({
-				...observation,
-				attempt: index + 1,
-			}))
-		),
-		retryCount: Math.max(0, attempts.length - 1),
-		parserValidCount: finalObservations.reduce(
+		failures: terminalFailures,
+		warnings: Array.from(warnings.values()).flat(),
+		parserObservations: terminalObservations,
+		retryCount: attempts.slice(1).reduce((total, attempt) => total + attempt.attempted, 0),
+		recoveredCount,
+		parserValidCount: terminalObservations.reduce(
 			(total, observation) => total + observation.validCount,
 			0
 		),
-		parserMinimumCount: finalObservations.reduce(
+		parserMinimumCount: terminalObservations.reduce(
 			(total, observation) =>
 				observation.status === "empty" ? total : total + observation.minimumItems,
 			0

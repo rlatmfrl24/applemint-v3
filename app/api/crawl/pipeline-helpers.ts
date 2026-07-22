@@ -114,6 +114,7 @@ export function createRunResult(
 	return {
 		status,
 		retryCount: Math.max(0, Number(crawlData?.retryCount ?? 0)),
+		recoveredCount: Math.max(0, Number(crawlData?.recoveredCount ?? 0)),
 		attemptedCount: Math.max(0, Number(crawlData?.attempted ?? 0)),
 		succeededCount: Math.max(0, Number(crawlData?.succeeded ?? 0)),
 		extractedCount: crawlData?.items.length ?? 0,

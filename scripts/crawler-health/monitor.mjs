@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { appendFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
@@ -109,10 +110,10 @@ function validateRuntime(env) {
 	const githubToken = safeString(env.GITHUB_TOKEN, /^.{1,}$/u);
 	if (!repository || !githubToken) throw new Error("missing_github_configuration");
 
-	let supabaseUrl = null;
-	if (env.SUPABASE_URL) {
+	let appBaseUrl = null;
+	if (env.APP_BASE_URL) {
 		try {
-			const parsed = new URL(env.SUPABASE_URL);
+			const parsed = new URL(env.APP_BASE_URL);
 			const local = ["127.0.0.1", "localhost"].includes(parsed.hostname);
 			if ((parsed.protocol !== "https:" && !local) || parsed.username || parsed.password) {
 				throw new Error("invalid");
@@ -120,9 +121,9 @@ function validateRuntime(env) {
 			parsed.pathname = "";
 			parsed.search = "";
 			parsed.hash = "";
-			supabaseUrl = parsed.toString().replace(/\/$/u, "");
+			appBaseUrl = parsed.toString().replace(/\/$/u, "");
 		} catch {
-			throw new Error("invalid_supabase_url");
+			throw new Error("invalid_app_base_url");
 		}
 	}
 
@@ -130,8 +131,8 @@ function validateRuntime(env) {
 		repository,
 		repositoryOwner: repository.split("/")[0],
 		githubToken,
-		supabaseUrl,
-		serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
+		appBaseUrl,
+		internalSecret: env.CRAWL_INTERNAL_SECRET,
 	};
 }
 
@@ -155,21 +156,27 @@ async function githubRequest(runtime, path, options = {}, fetchImplementation = 
 	return response.json();
 }
 
-async function supabaseRpc(runtime, name, body, fetchImplementation = fetch) {
-	if (!runtime.supabaseUrl || !runtime.serviceRoleKey) {
-		throw new Error("missing_supabase_configuration");
+async function notificationApi(runtime, body, fetchImplementation = fetch) {
+	if (
+		!runtime.appBaseUrl ||
+		typeof runtime.internalSecret !== "string" ||
+		Buffer.byteLength(runtime.internalSecret, "utf8") < 32
+	) {
+		throw new Error("missing_notification_api_configuration");
 	}
-	const response = await fetchImplementation(`${runtime.supabaseUrl}/rest/v1/rpc/${name}`, {
-		method: "POST",
-		headers: {
-			apikey: runtime.serviceRoleKey,
-			Authorization: `Bearer ${runtime.serviceRoleKey}`,
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify(body),
-	});
-	if (!response.ok) throw new Error(`supabase_rpc_${name}_${response.status}`);
-	return response.status === 204 ? null : response.json();
+	const response = await fetchImplementation(
+		`${runtime.appBaseUrl}/api/crawl/alerts/notifications`,
+		{
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"x-applemint-internal-secret": runtime.internalSecret,
+			},
+			body: JSON.stringify(body),
+		}
+	);
+	if (!response.ok) throw new Error(`notification_api_${response.status}`);
+	return response.json();
 }
 
 async function ensureLabel(runtime, label, fetchImplementation) {
@@ -334,7 +341,7 @@ async function setMonitorUnavailable(runtime, unavailable, fetchImplementation) 
 			`<!-- ${MONITOR_MARKER} -->`,
 			"## 크롤러 상태 확인 실패",
 			"",
-			"Supabase의 크롤링 실행 이력을 확인하지 못했습니다.",
+			"Applemint의 크롤러 알림 상태를 확인하지 못했습니다.",
 			"상세 오류와 인증 정보는 공개 Issue에 기록하지 않습니다.",
 		].join("\n");
 		const result = issue
@@ -372,7 +379,10 @@ async function setMonitorUnavailable(runtime, unavailable, fetchImplementation) 
 		await githubRequest(
 			runtime,
 			`/repos/${runtime.repository}/issues/${issue.number}/comments`,
-			{ method: "POST", body: JSON.stringify({ body: "Supabase 상태 확인이 정상화되었습니다." }) },
+			{
+				method: "POST",
+				body: JSON.stringify({ body: "Applemint 알림 상태 확인이 정상화되었습니다." }),
+			},
 			fetchImplementation
 		);
 		await githubRequest(
@@ -450,13 +460,12 @@ export async function runCrawlerHealthMonitor({
 
 	let notifications;
 	try {
-		await supabaseRpc(runtime, "evaluate_crawl_alerts", {}, fetchImplementation);
-		notifications = await supabaseRpc(
+		const response = await notificationApi(
 			runtime,
-			"get_pending_crawl_alert_notifications",
-			{ p_limit: 100 },
+			{ action: "list", limit: 100 },
 			fetchImplementation
 		);
+		notifications = response?.notifications;
 		if (!Array.isArray(notifications)) throw new Error("invalid_notification_response");
 		await setMonitorUnavailable(runtime, false, fetchImplementation);
 	} catch (error) {
@@ -471,25 +480,28 @@ export async function runCrawlerHealthMonitor({
 		try {
 			if (!notificationId) throw new Error("invalid_notification");
 			const issue = await createOrUpdateIncidentIssue(runtime, notification, fetchImplementation);
-			const completed = await supabaseRpc(
+			const completed = await notificationApi(
 				runtime,
-				"complete_crawl_alert_notification",
 				{
-					p_notification_id: notificationId,
-					p_github_issue_number: issue.number,
-					p_github_issue_url: issue.url,
+					action: "complete",
+					notificationId,
+					githubIssueNumber: issue.number,
+					githubIssueUrl: issue.url,
 				},
 				fetchImplementation
 			);
-			if (completed !== true) throw new Error("notification_already_completed");
+			if (completed?.completed !== true) throw new Error("notification_already_completed");
 			processed += 1;
 		} catch {
 			failed += 1;
 			if (notificationId) {
-				await supabaseRpc(
+				await notificationApi(
 					runtime,
-					"fail_crawl_alert_notification",
-					{ p_notification_id: notificationId, p_error_code: "github_delivery_failed" },
+					{
+						action: "fail",
+						notificationId,
+						errorCode: "github_delivery_failed",
+					},
 					fetchImplementation
 				).catch(() => null);
 			}

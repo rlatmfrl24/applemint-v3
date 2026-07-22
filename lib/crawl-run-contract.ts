@@ -2,6 +2,7 @@ const CRAWL_SOURCES = ["arcalive", "battlepage", "insagirl"] as const;
 
 export type CrawlSource = (typeof CRAWL_SOURCES)[number];
 export type CrawlRunStatus = "running" | "succeeded" | "partial" | "failed" | "interrupted";
+type CrawlRunTrigger = "manual" | "scheduled";
 export type CrawlAlertSignal =
 	| "parser-failure"
 	| "parser-volume-drop"
@@ -35,10 +36,13 @@ export interface CrawlRun {
 	id: string;
 	source: CrawlSource;
 	status: CrawlRunStatus;
+	trigger: CrawlRunTrigger;
 	startedAt: string;
 	finishedAt: string | null;
+	lastHeartbeatAt: string | null;
 	durationMs: number | null;
 	retryCount: number;
+	recoveredCount: number;
 	attemptedCount: number;
 	succeededCount: number;
 	extractedCount: number;
@@ -64,6 +68,7 @@ interface ActiveCrawlRun {
 	status: "running";
 	startedAt: string;
 	staleAfter: string;
+	lastHeartbeatAt: string | null;
 }
 
 interface CrawlRunTrendPoint {
@@ -78,16 +83,24 @@ interface CrawlRunTrendPoint {
 
 export interface CrawlSourceSummary {
 	source: CrawlSource;
+	scheduleEnabled: boolean;
+	cooldownSeconds: number;
+	runBudgetSeconds: number;
+	lastFinishedAt: string | null;
+	nextEligibleAt: string | null;
 	activeAlertCount: number;
 	lastSuccessAt: string | null;
 	lastFailureAt: string | null;
 	latest: {
 		id: string;
 		status: CrawlRunStatus;
+		trigger: CrawlRunTrigger;
 		startedAt: string;
 		durationMs: number | null;
 		extractedCount: number;
 		insertedCount: number;
+		retryCount: number;
+		recoveredCount: number;
 	} | null;
 	trend: CrawlRunTrendPoint[];
 }
@@ -130,6 +143,12 @@ export interface CrawlAlertSettings {
 
 export interface CrawlRunsDashboard {
 	activeRun: ActiveCrawlRun | null;
+	activeRuns: ActiveCrawlRun[];
+	runtimeSettings: {
+		maxConcurrency: number;
+		lockTtlSeconds: number;
+		heartbeatIntervalSeconds: number;
+	};
 	sources: CrawlSourceSummary[];
 	runs: CrawlRun[];
 	alerts: CrawlAlertIncident[];
@@ -153,6 +172,7 @@ export function isCrawlRunsDashboard(value: unknown): value is CrawlRunsDashboar
 	}
 	const dashboard = value as Record<string, unknown>;
 	const settings = dashboard.alertSettings as Record<string, unknown> | null;
+	const runtimeSettings = dashboard.runtimeSettings as Record<string, unknown> | null;
 	const validSettings =
 		settings !== null &&
 		typeof settings === "object" &&
@@ -167,9 +187,15 @@ export function isCrawlRunsDashboard(value: unknown): value is CrawlRunsDashboar
 			"cooldownSeconds",
 		].every((key) => typeof settings[key] === "number" && Number.isFinite(settings[key]));
 	return (
+		Array.isArray(dashboard.activeRuns) &&
 		Array.isArray(dashboard.sources) &&
 		Array.isArray(dashboard.runs) &&
 		Array.isArray(dashboard.alerts) &&
+		runtimeSettings !== null &&
+		typeof runtimeSettings === "object" &&
+		["maxConcurrency", "lockTtlSeconds", "heartbeatIntervalSeconds"].every(
+			(key) => typeof runtimeSettings[key] === "number" && Number.isFinite(runtimeSettings[key])
+		) &&
 		validSettings
 	);
 }

@@ -5,6 +5,12 @@ describe("crawl runs client", () => {
 	it("정상 dashboard 응답을 반환한다", async () => {
 		const dashboard = {
 			activeRun: null,
+			activeRuns: [],
+			runtimeSettings: {
+				maxConcurrency: 2,
+				lockTtlSeconds: 60,
+				heartbeatIntervalSeconds: 15,
+			},
 			sources: [],
 			runs: [],
 			alerts: [],

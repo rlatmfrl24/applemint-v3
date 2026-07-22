@@ -21,6 +21,7 @@ function createExecutionResult(
 		warnings: [],
 		parserObservations: [],
 		retryCount: 0,
+		recoveredCount: 0,
 		parserValidCount: 1,
 		parserMinimumCount: 1,
 		...overrides,
@@ -30,19 +31,32 @@ function createExecutionResult(
 function createSupabaseMock({
 	lockAcquired = true,
 	finishError = false,
+	admissionReason = "source-busy",
+	heartbeatRenewed = true,
 }: {
 	lockAcquired?: boolean;
 	finishError?: boolean;
+	admissionReason?: "disabled" | "cooldown" | "source-busy" | "capacity";
+	heartbeatRenewed?: boolean;
 } = {}) {
 	const rpc = vi.fn(async (name: string, parameters: Record<string, unknown>) => {
 		switch (name) {
 			case "begin_crawl_run":
+			case "begin_scheduled_crawl_run":
 				return {
 					data: lockAcquired
-						? { acquired: true, runId: "42" }
-						: { acquired: false, activeRunId: "41" },
+						? {
+								acquired: true,
+								runId: "42",
+								lockKey: "crawl:arcalive",
+								runBudgetSeconds: 45,
+								heartbeatIntervalSeconds: 15,
+							}
+						: { acquired: false, activeRunId: "41", reason: admissionReason },
 					error: null,
 				};
+			case "heartbeat_crawl_run":
+				return { data: { renewed: heartbeatRenewed }, error: null };
 			case "ingest_crawl_items":
 				return { data: { insertedCount: 1, skippedCount: 0 }, error: null };
 			case "finish_crawl_run":
@@ -153,6 +167,69 @@ describe("executeCrawlPipeline", () => {
 		expect(runCrawler).not.toHaveBeenCalled();
 	});
 
+	it("예약 실행의 cooldown 판정을 구조화된 admission 오류로 전달한다", async () => {
+		const { client, rpc } = createSupabaseMock({
+			lockAcquired: false,
+			admissionReason: "cooldown",
+		});
+
+		const error = await executeCrawlPipeline("arcalive", client, vi.fn(), {
+			trigger: "scheduled",
+		}).catch((result: unknown) => result);
+
+		expect(error).toMatchObject({ httpStatus: 409, admissionReason: "cooldown" });
+		expect(rpc).toHaveBeenCalledWith(
+			"begin_scheduled_crawl_run",
+			expect.objectContaining({ p_source: "arcalive" })
+		);
+	});
+
+	it("실행 예산이 끝나면 source 작업을 중단하고 504로 종료한다", async () => {
+		vi.useFakeTimers();
+		const { client, rpc } = createSupabaseMock();
+		const runCrawler = vi.fn(
+			(_target, options?: { signal?: AbortSignal }) =>
+				new Promise<CrawlExecutionResult>((_resolve, reject) => {
+					options?.signal?.addEventListener("abort", () => reject(options.signal?.reason), {
+						once: true,
+					});
+				})
+		);
+
+		const execution = executeCrawlPipeline("arcalive", client, runCrawler).catch(
+			(result: unknown) => result
+		);
+		await vi.advanceTimersByTimeAsync(45_000);
+		const error = await execution;
+
+		expect(error).toMatchObject({ httpStatus: 504, runId: "42" });
+		expect(rpc).toHaveBeenCalledWith("heartbeat_crawl_run", expect.anything());
+		vi.useRealTimers();
+	});
+
+	it("heartbeat가 lease 상실을 반환하면 실행을 즉시 중단한다", async () => {
+		vi.useFakeTimers();
+		const { client, rpc } = createSupabaseMock({ heartbeatRenewed: false });
+		const runCrawler = vi.fn(
+			(_target, options?: { signal?: AbortSignal }) =>
+				new Promise<CrawlExecutionResult>((_resolve, reject) => {
+					options?.signal?.addEventListener("abort", () => reject(options.signal?.reason), {
+						once: true,
+					});
+				})
+		);
+
+		const execution = executeCrawlPipeline("arcalive", client, runCrawler).catch(
+			(result: unknown) => result
+		);
+		await vi.advanceTimersByTimeAsync(15_000);
+		const error = await execution;
+
+		expect(error).toMatchObject({ httpStatus: 500, runId: "42" });
+		expect(rpc).toHaveBeenCalledWith("heartbeat_crawl_run", expect.anything());
+		vi.useRealTimers();
+	});
+
 	it("모든 소스가 timeout이면 실패 이력을 종료하고 504를 반환한다", async () => {
 		const { client, rpc } = createSupabaseMock();
 		const runCrawler = vi.fn().mockResolvedValue(
@@ -193,7 +270,7 @@ describe("executeCrawlPipeline", () => {
 		).rejects.toMatchObject({ httpStatus: 500, stage: "unknown", runId: "42" });
 		expect(rpc).toHaveBeenCalledWith(
 			"release_crawl_lock",
-			expect.objectContaining({ p_lock_key: "global-crawl" })
+			expect.objectContaining({ p_lock_key: "crawl:arcalive" })
 		);
 	});
 });
