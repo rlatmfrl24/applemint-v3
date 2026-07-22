@@ -25,17 +25,35 @@ function parseDetectedUrl(href: string) {
 
 function collectRecordItems(rawItem: unknown, items: Map<string, CrawlItemType>) {
 	if (typeof rawItem !== "string") {
-		return { candidateCount: 0, discardedCount: 1, nonSyncRecordCount: 1 };
+		return {
+			candidateCount: 0,
+			discardedCount: 1,
+			ignoredCount: 0,
+			duplicateCount: 0,
+			nonSyncRecordCount: 1,
+		};
 	}
 
 	const segments = rawItem.split("|");
 	if (segments[1] === "syncwatch") {
-		return { candidateCount: 0, discardedCount: 0, nonSyncRecordCount: 0 };
+		return {
+			candidateCount: 0,
+			discardedCount: 0,
+			ignoredCount: 1,
+			duplicateCount: 0,
+			nonSyncRecordCount: 0,
+		};
 	}
 
 	const rawString = segments.slice(2).join("|").trim();
 	if (!rawString) {
-		return { candidateCount: 0, discardedCount: 1, nonSyncRecordCount: 1 };
+		return {
+			candidateCount: 0,
+			discardedCount: 1,
+			ignoredCount: 0,
+			duplicateCount: 0,
+			nonSyncRecordCount: 1,
+		};
 	}
 
 	const detectedUrls = linkify.find(rawString);
@@ -44,16 +62,27 @@ function collectRecordItems(rawItem: unknown, items: Map<string, CrawlItemType>)
 		.replace(/\s+/g, " ")
 		.trim();
 	let discardedCount = 0;
+	let duplicateCount = 0;
 	for (const detectedUrl of detectedUrls) {
 		const url = parseDetectedUrl(detectedUrl.href);
-		if (!url || !title || items.has(url.href)) {
+		if (!url) {
 			discardedCount += 1;
+			continue;
+		}
+
+		const normalizedTitle = title || null;
+		const existing = items.get(url.href);
+		if (existing) {
+			duplicateCount += 1;
+			if (!existing.title && normalizedTitle) {
+				items.set(url.href, { ...existing, title: normalizedTitle });
+			}
 			continue;
 		}
 
 		items.set(url.href, {
 			url: url.href,
-			title,
+			title: normalizedTitle,
 			description: "",
 			host: url.hostname,
 			tag: ["insagirl"],
@@ -63,6 +92,8 @@ function collectRecordItems(rawItem: unknown, items: Map<string, CrawlItemType>)
 	return {
 		candidateCount: detectedUrls.length,
 		discardedCount,
+		ignoredCount: 0,
+		duplicateCount,
 		nonSyncRecordCount: 1,
 	};
 }
@@ -83,12 +114,16 @@ export function parseInsagirlPayload(payload: unknown): ParserOutcome {
 	const items = new Map<string, CrawlItemType>();
 	let candidateCount = 0;
 	let discardedCount = 0;
+	let ignoredCount = 0;
+	let duplicateCount = 0;
 	let nonSyncRecordCount = 0;
 
 	for (const rawItem of payload.v) {
 		const metrics = collectRecordItems(rawItem, items);
 		candidateCount += metrics.candidateCount;
 		discardedCount += metrics.discardedCount;
+		ignoredCount += metrics.ignoredCount;
+		duplicateCount += metrics.duplicateCount;
 		nonSyncRecordCount += metrics.nonSyncRecordCount;
 	}
 
@@ -102,6 +137,8 @@ export function parseInsagirlPayload(payload: unknown): ParserOutcome {
 			message: "Insagirl 게시물 후보가 모두 URL 또는 필수 필드 검증에 실패했습니다.",
 			candidateCount,
 			discardedCount,
+			ignoredCount,
+			duplicateCount,
 			minimumItems: INSAGIRL_MINIMUM_ITEMS,
 		});
 	}
@@ -110,6 +147,8 @@ export function parseInsagirlPayload(payload: unknown): ParserOutcome {
 		items: Array.from(items.values()),
 		candidateCount,
 		discardedCount,
+		ignoredCount,
+		duplicateCount,
 		minimumItems: INSAGIRL_MINIMUM_ITEMS,
 		source: "Insagirl",
 	});

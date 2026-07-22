@@ -7,7 +7,6 @@ import {
 	type CrawlTarget,
 } from "./contracts";
 import { crawlInsagirl } from "./insagirl";
-import { crawlIssuelink } from "./issuelink";
 import { debugLog } from "./logger";
 
 type Crawler = () => Promise<CrawlSourceResult>;
@@ -16,7 +15,6 @@ const CRAWLERS: Record<CrawlTarget, Crawler> = {
 	arcalive: crawlArcalive,
 	battlepage: crawlBattlepage,
 	insagirl: crawlInsagirl,
-	issuelink: crawlIssuelink,
 };
 
 export async function runCrawlerWithRetry(

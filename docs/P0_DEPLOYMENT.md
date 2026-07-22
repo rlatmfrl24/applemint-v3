@@ -65,7 +65,7 @@ DB와 기존 Edge를 먼저 배포한 다음 `CRAWL_EXECUTION_MODE=edge`인 호�
 2. 비소유자 JWT가 세 스레드 테이블을 조회할 수 없고 이동·통계 RPC에서 `42501`을 받는지 확인합니다.
 3. 소유자는 세 스레드 테이블을 조회할 수 있지만 직접 `INSERT/UPDATE/DELETE`할 수 없고 이동 RPC만 실행 가능한지 확인합니다.
 4. `service_role`만 history·filter·lock 테이블과 ingest/lock/clean RPC를 사용할 수 있는지 확인합니다.
-5. 네 소스를 한 번씩 실행해 `insertedCount`, `skippedCount`, `warningCount`, `durationMs`를 확인합니다.
+5. 세 소스를 한 번씩 실행해 `insertedCount`, `skippedCount`, `warningCount`, `durationMs`를 확인합니다.
 6. 두 번째 실행에서 중복 URL이 `skippedCount`로 집계되고 `crawl_run_locks`에 global lock이 남지 않는지 확인합니다.
 7. 개인 계정으로 Main, Quick Save, Trash를 조회하고 Main→Quick Save→Trash→Restore 및 모두 휴지통으로 이동을 확인합니다.
 8. `media`, `youtube` 타입 행과 분류 키워드가 0건이고 세 스레드 테이블에 `sub_url` 컬럼이 없는지 확인합니다.

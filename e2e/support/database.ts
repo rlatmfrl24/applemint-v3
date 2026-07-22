@@ -84,7 +84,7 @@ export async function seedCrawlAlert(source: SeedCrawlRunOptions["source"]) {
 }
 
 interface SeedCrawlRunOptions {
-	source: "arcalive" | "battlepage" | "insagirl" | "issuelink";
+	source: "arcalive" | "battlepage" | "insagirl";
 	status: "running" | "succeeded" | "partial" | "failed";
 	startedAt: string;
 	staleAfter?: string;

@@ -22,9 +22,8 @@ describe("parseArcaliveHtml", () => {
 
 		expect(result.status).toBe("ok");
 		expect(result.items).toHaveLength(ARCALIVE_MINIMUM_ITEMS);
-		expect(result.warnings).toContainEqual(
-			expect.objectContaining({ code: "discarded-items", count: 2 })
-		);
+		expect(result.warnings).toEqual([]);
+		expect(result.ignoredCount).toBe(2);
 		for (const item of result.items) {
 			expect(item.url).toMatch(/^https:\/\/arca\.live\/b\/iloveanimal\/\d+$/);
 			expect(item.title?.trim()).toBeTruthy();
@@ -49,7 +48,27 @@ describe("parseArcaliveHtml", () => {
 		`);
 
 		expect(result.items.map((item) => item.url)).toEqual(["https://arca.live/b/iloveanimal/1"]);
-		expect(result.discardedCount).toBe(2);
+		expect(result.discardedCount).toBe(1);
+		expect(result.duplicateCount).toBe(1);
+	});
+
+	it("공지와 필터링 행은 제외 진단 없이 무시한다", () => {
+		const result = parseArcaliveHtml(`
+			<div class="list-table table">
+				<a class="vrow column notice" href="/b/iloveanimal/10"><span class="title">공지</span></a>
+				<a class="vrow column filtered" href="/b/iloveanimal/11"><span class="title">필터링됨</span></a>
+				${Array.from({ length: ARCALIVE_MINIMUM_ITEMS }, (_, index) =>
+					arcaliveRow(`/b/iloveanimal/${index + 100}`, `정상 게시물 ${index + 1}`)
+				).join("")}
+			</div>
+		`);
+
+		expect(result).toMatchObject({
+			status: "ok",
+			ignoredCount: 2,
+			discardedCount: 0,
+			warnings: [],
+		});
 	});
 
 	it("공식 빈 목록 표시는 empty warning으로 구분한다", () => {
@@ -60,7 +79,7 @@ describe("parseArcaliveHtml", () => {
 		expect(result).toMatchObject({
 			status: "empty",
 			items: [],
-			warnings: [{ code: "empty-list", count: 0 }],
+			warnings: [{ code: "empty-list", severity: "info", count: 0 }],
 		});
 	});
 
@@ -83,6 +102,7 @@ describe("parseArcaliveHtml", () => {
 		`);
 		expect(allInvalid).toMatchObject({
 			status: "failure",
+			warnings: [],
 			failure: { code: "all-items-invalid" },
 		});
 
@@ -98,5 +118,6 @@ describe("parseArcaliveHtml", () => {
 			"discarded-items",
 			"below-minimum-items",
 		]);
+		expect(partial.warnings.map((warning) => warning.severity)).toEqual(["info", "warning"]);
 	});
 });

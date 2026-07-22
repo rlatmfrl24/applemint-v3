@@ -23,6 +23,7 @@ test("최근 실행·소스 추세와 부분 실패 상세를 표시한다", asy
 			{
 				url: "https://arca.live/page/1",
 				code: "below-minimum-items",
+				severity: "warning",
 				message: "최소 건수 미달",
 				count: 8,
 				attempt: 2,
@@ -44,6 +45,8 @@ test("최근 실행·소스 추세와 부분 실패 상세를 표시한다", asy
 				candidateCount: 8,
 				validCount: 8,
 				discardedCount: 0,
+				ignoredCount: 0,
+				duplicateCount: 0,
 				minimumItems: 10,
 				attempt: 2,
 			},

@@ -69,8 +69,32 @@ function countCrawlFailureKinds(failures: CrawlExecutionResult["failures"]) {
 	return { networkFailureCount, parserFailureCount, timeoutFailureCount };
 }
 
+interface CrawlWarningLike {
+	code?: unknown;
+	severity?: unknown;
+}
+
+function isActionableCrawlWarning(warning: CrawlWarningLike) {
+	if (warning.severity === "warning") {
+		return true;
+	}
+	if (warning.severity === "info") {
+		return false;
+	}
+
+	return warning.code === "below-minimum-items" || warning.code === "high-discard-rate";
+}
+
+export function countActionableCrawlWarnings(warnings: CrawlWarningLike[]) {
+	return warnings.filter(isActionableCrawlWarning).length;
+}
+
+export function countCrawlWarnings(failures: unknown[], warnings: CrawlWarningLike[]) {
+	return failures.length + countActionableCrawlWarnings(warnings);
+}
+
 export function getCompletedRunStatus(crawlData: CrawlExecutionResult) {
-	return crawlData.failures.length > 0 || crawlData.warnings.length > 0
+	return crawlData.failures.length > 0 || countActionableCrawlWarnings(crawlData.warnings) > 0
 		? ("partial" as const)
 		: ("succeeded" as const);
 }
@@ -95,7 +119,7 @@ export function createRunResult(
 		extractedCount: crawlData?.items.length ?? 0,
 		insertedCount: Math.max(0, insertedCount),
 		skippedCount: Math.max(0, skippedCount),
-		warningCount: warnings.length,
+		warningCount: countActionableCrawlWarnings(warnings),
 		failureCount: failures.length,
 		...countCrawlFailureKinds(failures),
 		parserValidCount: Math.max(0, Number(crawlData?.parserValidCount ?? 0)),

@@ -7,6 +7,7 @@ import {
 	calculateParserTrend,
 	chunkUrlsForHistoryQuery,
 	constantTimeEquals,
+	countActionableCrawlWarnings,
 	countCrawlFailureKinds,
 	countCrawlWarnings,
 	createTransportFailureData,
@@ -42,7 +43,8 @@ interface CrawlFailure {
 
 interface CrawlWarning {
 	url: string;
-	code: "empty-list" | "below-minimum-items" | "discarded-items";
+	code: "empty-list" | "below-minimum-items" | "discarded-items" | "high-discard-rate";
+	severity?: "info" | "warning";
 	message: string;
 	count: number;
 	attempt?: number;
@@ -54,6 +56,8 @@ interface ParserObservation {
 	candidateCount: number;
 	validCount: number;
 	discardedCount: number;
+	ignoredCount?: number;
+	duplicateCount?: number;
 	minimumItems: number;
 	attempt?: number;
 }
@@ -408,7 +412,7 @@ function createRunResult(
 		extractedCount: Array.isArray(crawlData?.items) ? crawlData.items.length : 0,
 		insertedCount: Math.max(0, insertedCount),
 		skippedCount: Math.max(0, skippedCount),
-		warningCount: warnings.length,
+		warningCount: countActionableCrawlWarnings(warnings),
 		failureCount: failures.length,
 		...failureCounts,
 		...parserTrend,

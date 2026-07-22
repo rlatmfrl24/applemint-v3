@@ -5,13 +5,11 @@ const crawlerMocks = vi.hoisted(() => ({
 	arcalive: vi.fn(),
 	battlepage: vi.fn(),
 	insagirl: vi.fn(),
-	issuelink: vi.fn(),
 }));
 
 vi.mock("./arcalive", () => ({ crawlArcalive: crawlerMocks.arcalive }));
 vi.mock("./battlepage", () => ({ crawlBattlepage: crawlerMocks.battlepage }));
 vi.mock("./insagirl", () => ({ crawlInsagirl: crawlerMocks.insagirl }));
-vi.mock("./issuelink", () => ({ crawlIssuelink: crawlerMocks.issuelink }));
 
 import { POST } from "./route";
 
@@ -40,6 +38,7 @@ describe("POST /api/crawl", () => {
 				{
 					url: "https://example.com/1",
 					code: "below-minimum-items",
+					severity: "warning",
 					message: "below minimum",
 					count: 1,
 				},
@@ -51,6 +50,8 @@ describe("POST /api/crawl", () => {
 					candidateCount: 1,
 					validCount: 1,
 					discardedCount: 0,
+					ignoredCount: 0,
+					duplicateCount: 0,
 					minimumItems: 10,
 				},
 			],
@@ -71,6 +72,12 @@ describe("POST /api/crawl", () => {
 
 	it("잘못된 target은 400을 반환한다", async () => {
 		const response = await POST(createRequest("unknown"));
+
+		expect(response.status).toBe(400);
+	});
+
+	it("제거된 IssueLink target은 400을 반환한다", async () => {
+		const response = await POST(createRequest("issuelink"));
 
 		expect(response.status).toBe(400);
 	});
@@ -190,6 +197,8 @@ describe("POST /api/crawl", () => {
 						candidateCount: 12,
 						validCount: 12,
 						discardedCount: 0,
+						ignoredCount: 0,
+						duplicateCount: 0,
 						minimumItems: 10,
 					},
 				],

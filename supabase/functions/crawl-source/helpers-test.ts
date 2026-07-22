@@ -4,6 +4,7 @@ import {
 	calculateParserTrend,
 	chunkUrlsForHistoryQuery,
 	constantTimeEquals,
+	countActionableCrawlWarnings,
 	countCrawlFailureKinds,
 	countCrawlWarnings,
 	createTransportFailureData,
@@ -39,6 +40,7 @@ Deno.test("internal secret requires at least 32 UTF-8 bytes", () => {
 
 Deno.test("crawl target validation is allowlist based", () => {
 	assert(isCrawlTarget("arcalive"), "known target should pass");
+	assert(!isCrawlTarget("issuelink"), "removed target should fail");
 	assert(!isCrawlTarget("unknown"), "unknown target should fail");
 });
 
@@ -80,8 +82,14 @@ Deno.test("URL deduplication keeps the first item", () => {
 	assert(result[0].title === "first", "first item should win");
 });
 
-Deno.test("crawl warning count includes partial failures and parser warnings", () => {
-	assert(countCrawlWarnings([{}], [{}, {}]) === 3, "all warning conditions should be counted");
+Deno.test("crawl warning count excludes informational diagnostics", () => {
+	const warnings = [
+		{ code: "discarded-items", severity: "info" },
+		{ code: "below-minimum-items", severity: "warning" },
+		{ code: "empty-list" },
+	];
+	assert(countActionableCrawlWarnings(warnings) === 1, "only actionable warnings should count");
+	assert(countCrawlWarnings([{}], warnings) === 2, "partial failures should also count");
 });
 
 Deno.test("synthetic transport failures count the internal request as an attempt", () => {
@@ -123,10 +131,21 @@ Deno.test("parser trend uses only the final attempt and excludes explicit empty 
 	assert(trend.parserMinimumCount === 10, "empty pages should not add a minimum");
 });
 
-Deno.test("completed runs with warnings or failures are partial", () => {
+Deno.test("completed runs ignore informational diagnostics", () => {
 	assert(getCompletedRunStatus([], []) === "succeeded", "clean run should succeed");
 	assert(getCompletedRunStatus([{}], []) === "partial", "failure should make a partial run");
-	assert(getCompletedRunStatus([], [{}]) === "partial", "warning should make a partial run");
+	assert(
+		getCompletedRunStatus([], [{ code: "discarded-items", severity: "info" }]) === "succeeded",
+		"informational diagnostics should not make a partial run"
+	);
+	assert(
+		getCompletedRunStatus([], [{ code: "below-minimum-items", severity: "warning" }]) === "partial",
+		"actionable warnings should make a partial run"
+	);
+	assert(
+		getCompletedRunStatus([], [{ code: "below-minimum-items" }]) === "partial",
+		"historical warnings without severity should use their code"
+	);
 });
 
 Deno.test("history query chunks limit both item count and encoded URL length", () => {

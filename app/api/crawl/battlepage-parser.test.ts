@@ -23,7 +23,7 @@ describe("parseBattlepageHtml", () => {
 		expect(result.items).toHaveLength(BATTLEPAGE_MINIMUM_ITEMS);
 		for (const item of result.items) {
 			expect(item.url).toMatch(
-				/^https:\/\/v12\.battlepage\.com\/\?\?=Board\.(?:Humor|ETC)\.View&no=\d+$/
+				/^https:\/\/v12\.battlepage\.com\/\?\?=Board\.(?:Humor|Etc)\.View&no=\d+$/
 			);
 			expect(item.url).not.toContain("page=");
 			expect(item.title?.trim()).toBeTruthy();
@@ -36,7 +36,7 @@ describe("parseBattlepageHtml", () => {
 		expect(parseBattlepageHtml(emptyFixture)).toMatchObject({
 			status: "empty",
 			items: [],
-			warnings: [{ code: "empty-list", count: 0 }],
+			warnings: [{ code: "empty-list", severity: "info", count: 0 }],
 		});
 	});
 
@@ -52,7 +52,8 @@ describe("parseBattlepageHtml", () => {
 		expect(result.items.map((item) => item.url)).toEqual([
 			"https://v12.battlepage.com/??=Board.Humor.View&no=10",
 		]);
-		expect(result.discardedCount).toBe(2);
+		expect(result.discardedCount).toBe(1);
+		expect(result.duplicateCount).toBe(1);
 	});
 
 	it("container 누락과 marker 없는 빈 구조를 parser failure로 처리한다", () => {
@@ -76,6 +77,7 @@ describe("parseBattlepageHtml", () => {
 
 		expect(result).toMatchObject({
 			status: "failure",
+			warnings: [],
 			candidateCount: 2,
 			discardedCount: 2,
 			failure: { code: "all-items-invalid" },
@@ -96,5 +98,24 @@ describe("parseBattlepageHtml", () => {
 			"discarded-items",
 			"below-minimum-items",
 		]);
+		expect(result.warnings.map((warning) => warning.severity)).toEqual(["info", "warning"]);
+	});
+
+	it("최소 후보 이상에서 절반 이상 제외되면 높은 제외율을 경고한다", () => {
+		const result = parseBattlepageHtml(`
+			<div class="ListTable">
+				${battlepageRow("/??=Board.Etc.View&no=10", "정상 게시물")}
+				${battlepageRow("broken-1", "손상 1")}
+				${battlepageRow("broken-2", "손상 2")}
+				${battlepageRow("broken-3", "손상 3")}
+				${battlepageRow("broken-4", "손상 4")}
+			</div>
+		`);
+
+		expect(result.warnings).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "high-discard-rate", severity: "warning", count: 4 }),
+			])
+		);
 	});
 });

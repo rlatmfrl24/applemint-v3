@@ -111,6 +111,35 @@ describe("executeCrawlPipeline", () => {
 		);
 	});
 
+	it("정보성 parser 진단은 성공 상태와 경고 수를 오염시키지 않는다", async () => {
+		const { client, rpc } = createSupabaseMock();
+		const runCrawler = vi.fn().mockResolvedValue(
+			createExecutionResult({
+				warnings: [
+					{
+						url: "https://example.com",
+						code: "discarded-items",
+						severity: "info",
+						message: "ignored",
+						count: 3,
+						attempt: 1,
+					},
+				],
+			})
+		);
+
+		await expect(executeCrawlPipeline("arcalive", client, runCrawler)).resolves.toMatchObject({
+			status: "succeeded",
+			warningCount: 0,
+		});
+		expect(rpc).toHaveBeenCalledWith(
+			"finish_crawl_run",
+			expect.objectContaining({
+				p_result: expect.objectContaining({ status: "succeeded", warningCount: 0 }),
+			})
+		);
+	});
+
 	it("global lock을 얻지 못하면 실행하지 않고 409와 activeRunId를 반환한다", async () => {
 		const { client } = createSupabaseMock({ lockAcquired: false });
 		const runCrawler = vi.fn();

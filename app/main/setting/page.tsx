@@ -123,11 +123,10 @@ export default function SettingPage() {
 	return (
 		<div className="flex h-full w-full flex-1 flex-col">
 			<h2>Manual Crawling</h2>
-			<div className="mt-4 grid grid-cols-4 gap-2">
+			<div className="mt-4 grid grid-cols-3 gap-2">
 				{crawlerTrigger("Crawl Arcalive", "arcalive")}
 				{crawlerTrigger("Crawl Battlepage", "battlepage")}
 				{crawlerTrigger("Crawl Insagirl", "insagirl")}
-				{crawlerTrigger("Crawl IssueLink", "issuelink")}
 			</div>
 			<p className="mt-4">Crawl Result</p>
 			<Textarea

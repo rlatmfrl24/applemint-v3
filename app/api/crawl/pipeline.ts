@@ -6,6 +6,7 @@ import { runCrawlerWithRetry } from "./crawl-runner";
 import {
 	type CrawlErrorStage,
 	chunkUrlsForHistoryQuery,
+	countCrawlWarnings,
 	createRunResult,
 	dedupeByUrl,
 	defineType,
@@ -254,7 +255,7 @@ export async function executeCrawlPipeline(
 			target,
 			insertedCount,
 			skippedCount,
-			warningCount: crawlData.failures.length + crawlData.warnings.length,
+			warningCount: countCrawlWarnings(crawlData.failures, crawlData.warnings),
 			durationMs,
 		};
 	} catch (error) {

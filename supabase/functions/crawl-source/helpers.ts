@@ -1,4 +1,4 @@
-export const CRAWL_TARGETS = ["arcalive", "battlepage", "insagirl", "issuelink"] as const;
+export const CRAWL_TARGETS = ["arcalive", "battlepage", "insagirl"] as const;
 
 export type CrawlTarget = (typeof CRAWL_TARGETS)[number];
 
@@ -74,8 +74,28 @@ export function dedupeByUrl<T extends { url: string }>(items: T[]) {
 	return Array.from(deduped.values());
 }
 
-export function countCrawlWarnings(failures: unknown[], warnings: unknown[]) {
-	return failures.length + warnings.length;
+export interface CrawlWarningLike {
+	code?: unknown;
+	severity?: unknown;
+}
+
+export function isActionableCrawlWarning(warning: CrawlWarningLike) {
+	if (warning.severity === "warning") {
+		return true;
+	}
+	if (warning.severity === "info") {
+		return false;
+	}
+
+	return warning.code === "below-minimum-items" || warning.code === "high-discard-rate";
+}
+
+export function countActionableCrawlWarnings(warnings: CrawlWarningLike[]) {
+	return warnings.filter(isActionableCrawlWarning).length;
+}
+
+export function countCrawlWarnings(failures: unknown[], warnings: CrawlWarningLike[]) {
+	return failures.length + countActionableCrawlWarnings(warnings);
 }
 
 export interface CrawlFailureLike {
@@ -129,8 +149,10 @@ export function calculateParserTrend(observations: ParserObservationLike[], retr
 	};
 }
 
-export function getCompletedRunStatus(failures: unknown[], warnings: unknown[]) {
-	return failures.length > 0 || warnings.length > 0 ? "partial" : "succeeded";
+export function getCompletedRunStatus(failures: unknown[], warnings: CrawlWarningLike[]) {
+	return failures.length > 0 || countActionableCrawlWarnings(warnings) > 0
+		? "partial"
+		: "succeeded";
 }
 
 export function normalizeCrawlApiBaseUrl(value: string | undefined) {

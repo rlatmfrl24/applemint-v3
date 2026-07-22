@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CrawlExecutionResult } from "./contracts";
 import {
 	chunkUrlsForHistoryQuery,
+	countActionableCrawlWarnings,
 	createRunResult,
 	dedupeByUrl,
 	defineType,
@@ -59,7 +60,7 @@ describe("crawl pipeline helpers", () => {
 		).toBe(true);
 	});
 
-	it("실패 또는 경고가 있는 완료 실행은 partial로 기록한다", () => {
+	it("정보성 제외는 성공으로, 조치 가능한 경고는 partial로 기록한다", () => {
 		expect(getCompletedRunStatus(createExecutionResult())).toBe("succeeded");
 		expect(
 			getCompletedRunStatus(
@@ -68,6 +69,7 @@ describe("crawl pipeline helpers", () => {
 						{
 							url: "https://example.com",
 							code: "empty-list",
+							severity: "info",
 							message: "empty",
 							count: 0,
 							attempt: 1,
@@ -75,7 +77,29 @@ describe("crawl pipeline helpers", () => {
 					],
 				})
 			)
+		).toBe("succeeded");
+		expect(
+			getCompletedRunStatus(
+				createExecutionResult({
+					warnings: [
+						{
+							url: "https://example.com",
+							code: "below-minimum-items",
+							severity: "warning",
+							message: "below minimum",
+							count: 1,
+							attempt: 1,
+						},
+					],
+				})
+			)
 		).toBe("partial");
+		expect(
+			countActionableCrawlWarnings([
+				{ code: "discarded-items", severity: "info" },
+				{ code: "below-minimum-items", severity: "warning" },
+			])
+		).toBe(1);
 	});
 
 	it("실행 이력 집계에서 timeout을 network와 중복 집계하지 않는다", () => {

@@ -15,7 +15,7 @@ select is(
 select ok(
 	not has_function_privilege(
 		'anon',
-		'public.list_thread_page(text,integer,timestamp with time zone,bigint,text,text)',
+		'public.list_thread_page(text,integer,timestamp with time zone,bigint,text)',
 		'EXECUTE'
 	),
 	'anon cannot list thread pages'
@@ -23,7 +23,7 @@ select ok(
 select ok(
 	has_function_privilege(
 		'authenticated',
-		'public.list_thread_page(text,integer,timestamp with time zone,bigint,text,text)',
+		'public.list_thread_page(text,integer,timestamp with time zone,bigint,text)',
 		'EXECUTE'
 	),
 	'authenticated can execute the owner-protected list RPC'
@@ -31,7 +31,7 @@ select ok(
 select ok(
 	not has_function_privilege(
 		'service_role',
-		'public.list_thread_page(text,integer,timestamp with time zone,bigint,text,text)',
+		'public.list_thread_page(text,integer,timestamp with time zone,bigint,text)',
 		'EXECUTE'
 	),
 	'service role cannot use the owner list RPC'
@@ -85,7 +85,7 @@ to authenticated;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
 select lives_ok(
-	$$select * from public.list_thread_page('new-threads', 2, null, null, 'p1-pagination', null)$$,
+	$$select * from public.list_thread_page('new-threads', 2, null, null, 'p1-pagination')$$,
 	'owner can list a thread page'
 );
 select is(
@@ -93,7 +93,7 @@ select is(
 		select array_agg(id order by created_at desc, id desc)
 		from (
 			select id, created_at
-			from public.list_thread_page('new-threads', 2, null, null, 'p1-pagination', null)
+			from public.list_thread_page('new-threads', 2, null, null, 'p1-pagination')
 			order by created_at desc, id desc
 			limit 2
 		) as first_page
@@ -112,7 +112,7 @@ select is(
 
 insert into p1_new_thread_results (stage, id, created_at, url)
 select 'first', id, created_at, url
-from public.list_thread_page('new-threads', 2, null, null, 'p1-pagination', null)
+from public.list_thread_page('new-threads', 2, null, null, 'p1-pagination')
 order by created_at desc, id desc
 limit 2;
 
@@ -141,8 +141,7 @@ cross join lateral public.list_thread_page(
 	100,
 	cursor_state.created_at,
 	cursor_state.id,
-	'p1-pagination',
-	null
+	'p1-pagination'
 ) as page
 where cursor_state.key = 'new-threads';
 
@@ -170,7 +169,7 @@ select ok(
 select ok(
 	exists (
 		select 1
-		from public.list_thread_page('new-threads', 24, null, null, 'p1-pagination', null)
+		from public.list_thread_page('new-threads', 24, null, null, 'p1-pagination')
 		where url = 'https://p1.test/ingested'
 	),
 	'a refreshed first page includes the newly ingested item'
@@ -202,8 +201,7 @@ cross join lateral public.list_thread_page(
 	100,
 	cursor_state.created_at,
 	cursor_state.id,
-	'p1-pagination',
-	null
+	'p1-pagination'
 ) as page
 where cursor_state.key = 'new-threads';
 
@@ -222,7 +220,7 @@ select ok(
 select ok(
 	exists (
 		select 1
-		from public.list_thread_page('new-threads', 24, null, null, 'p1-pagination', null)
+		from public.list_thread_page('new-threads', 24, null, null, 'p1-pagination')
 		where url = 'https://p1.test/restored'
 	),
 	'a refreshed first page includes the restored item'
@@ -269,7 +267,7 @@ begin
 		insert into p1_quick_results (id, created_at)
 		select id, created_at
 		from public.list_thread_page(
-			'quick-save', 24, v_cursor_created_at, v_cursor_id, 'p1-page-depth', null
+			'quick-save', 24, v_cursor_created_at, v_cursor_id, 'p1-page-depth'
 		)
 		order by created_at desc, id desc
 		limit 24;
@@ -294,7 +292,7 @@ begin
 		insert into p1_trash_results (id, created_at)
 		select id, created_at
 		from public.list_thread_page(
-			'trash', 24, v_cursor_created_at, v_cursor_id, 'p1-page-depth', null
+			'trash', 24, v_cursor_created_at, v_cursor_id, 'p1-page-depth'
 		)
 		order by created_at desc, id desc
 		limit 24;

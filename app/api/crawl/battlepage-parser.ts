@@ -8,7 +8,7 @@ import {
 } from "./parser-contracts";
 
 const BATTLEPAGE_BASE_URL = "https://v12.battlepage.com";
-const ALLOWED_BOARDS = new Set(["Board.Humor.View", "Board.ETC.View"]);
+const ALLOWED_BOARDS = new Set(["Board.Humor.View", "Board.Etc.View"]);
 const EMPTY_LIST_TEXT = /검색된 게시물이 없습니다/;
 
 export const BATTLEPAGE_MINIMUM_ITEMS = 5;
@@ -63,12 +63,17 @@ export function parseBattlepageHtml(html: string): ParserOutcome {
 
 	const items = new Map<string, CrawlItemType>();
 	let discardedCount = 0;
+	let duplicateCount = 0;
 	candidates.each((_index, element) => {
 		const href = $(element).find("a[href]").first().attr("href");
 		const title = ($(element).attr("title") ?? "").replace(/\s+/g, " ").trim();
 		const url = href ? parsePostUrl(href) : null;
-		if (!url || !title || items.has(url)) {
+		if (!url || !title) {
 			discardedCount += 1;
+			return;
+		}
+		if (items.has(url)) {
+			duplicateCount += 1;
 			return;
 		}
 
@@ -87,6 +92,7 @@ export function parseBattlepageHtml(html: string): ParserOutcome {
 			message: "Battlepage 게시물 후보가 모두 URL 또는 필수 필드 검증에 실패했습니다.",
 			candidateCount,
 			discardedCount,
+			duplicateCount,
 			minimumItems: BATTLEPAGE_MINIMUM_ITEMS,
 		});
 	}
@@ -95,6 +101,7 @@ export function parseBattlepageHtml(html: string): ParserOutcome {
 		items: Array.from(items.values()),
 		candidateCount,
 		discardedCount,
+		duplicateCount,
 		minimumItems: BATTLEPAGE_MINIMUM_ITEMS,
 		source: "Battlepage",
 	});

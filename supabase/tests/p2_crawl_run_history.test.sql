@@ -190,8 +190,8 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
 select is(
 	jsonb_array_length(public.get_crawl_runs_dashboard(20, 20) -> 'sources'),
-	4,
-	'owner dashboard always contains all four sources'
+	3,
+	'owner dashboard always contains the three active sources'
 );
 reset role;
 
@@ -217,7 +217,7 @@ insert into p2_run_state (key, value)
 values (
 	'after-stale',
 	public.begin_crawl_run(
-		'issuelink',
+		'arcalive',
 		'10000000-0000-4000-8000-000000000004'::uuid,
 		300
 	)

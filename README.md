@@ -24,7 +24,7 @@
 - 표준 `fetch`와 요청별 timeout
 - `cheerio` HTML 파싱
 - `linkifyjs` URL 추출
-- 소스별 크롤러 모듈 분리 (`arcalive`, `battlepage`, `insagirl`, `issuelink`)
+- 소스별 크롤러 모듈 분리 (`arcalive`, `battlepage`, `insagirl`)
 
 ### 품질 / 보안 유지보수
 - `Biome 2.4.7` 포맷·린트·정적 검사
@@ -170,7 +170,8 @@ erDiagram
 - `app/api/crawl/<source>.ts`에서 요청 결과를 공통 파서 계약에 연결
 - `app/api/crawl/route.ts` 스위치에 타겟 등록
 - 반환 타입은 `{items, attempted, succeeded, failures, warnings, parserObservations}` 구조를 유지
-- 정상 빈 목록은 `empty-list`, 최소 추출 건수 미달은 `below-minimum-items` warning으로 기록하며 구조 변경은 parser failure로 구분
+- 정상 빈 목록·일부 제외는 `info`, 최소 추출 건수 미달·높은 제외율은 `warning`으로 기록하며 구조 변경은 parser failure로 구분
+- `partial`은 actionable warning 또는 부분 failure가 있을 때만 사용하고 정보성 진단만 있으면 `succeeded`로 기록
 - 파서 변경 시 `app/api/crawl/fixtures`의 정제 fixture와 source별 parser 테스트를 함께 갱신
 - 파서 최소 건수 변경 시 observation과 설정 화면의 추세 기준도 함께 검증
 - 소스 장애 대비 재시도/로그 전략 유지 (`retryOperation`, `logger.ts`)

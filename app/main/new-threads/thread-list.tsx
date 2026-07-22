@@ -73,15 +73,7 @@ export const ThreadList = () => {
 		const params: ThreadListFilterParam[] = [];
 
 		if (selectedType !== "all") {
-			if (selectedType.startsWith("issuelink::")) {
-				const category = selectedType.split("::")[1] ?? "";
-				params.push({ key: "filterType", value: "issuelink" });
-				if (category) {
-					params.push({ key: "issuelinkCategory", value: category });
-				}
-			} else {
-				params.push({ key: "filterType", value: selectedType });
-			}
+			params.push({ key: "filterType", value: selectedType });
 		}
 
 		return params;

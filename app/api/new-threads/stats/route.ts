@@ -19,11 +19,9 @@ export async function GET(request: NextRequest) {
 
 		const { searchParams } = new URL(request.url);
 		const filterType = searchParams.get("filterType");
-		const issuelinkCategory = searchParams.get("issuelinkCategory");
 
 		const { data, error } = await supabase.rpc("get_new_threads_stats", {
 			in_filter_type: filterType,
-			in_issuelink_category: issuelinkCategory,
 		});
 
 		if (error) {

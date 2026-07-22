@@ -9,7 +9,7 @@ import type {
 } from "@/lib/crawl-run-contract";
 import { CRAWL_RUNS_QUERY_KEY, CrawlRunsDashboard } from "./crawl-runs-dashboard";
 
-const sources: CrawlSource[] = ["arcalive", "battlepage", "insagirl", "issuelink"];
+const sources: CrawlSource[] = ["arcalive", "battlepage", "insagirl"];
 
 const alertSettings = {
 	parserFailureStreak: 2,
@@ -48,6 +48,7 @@ function createRun(overrides: Partial<CrawlRun> = {}): CrawlRun {
 			{
 				url: "https://example.com/page",
 				code: "below-minimum-items",
+				severity: "warning",
 				message: "최소 미달",
 				attempt: 2,
 			},
@@ -68,6 +69,8 @@ function createRun(overrides: Partial<CrawlRun> = {}): CrawlRun {
 				candidateCount: 9,
 				validCount: 8,
 				discardedCount: 1,
+				ignoredCount: 0,
+				duplicateCount: 0,
 				minimumItems: 10,
 				attempt: 2,
 			},
@@ -154,10 +157,16 @@ describe("CrawlRunsDashboard", () => {
 				id: "3",
 				source: "insagirl",
 				status: "failed",
+				warnings: [
+					{
+						code: "discarded-items",
+						message: "과거 정보성 진단",
+					},
+				],
 				errorStage: "ingest",
 				errorMessage: "DB 적재 실패",
 			}),
-			createRun({ id: "4", source: "issuelink", status: "interrupted", durationMs: null }),
+			createRun({ id: "4", source: "arcalive", status: "interrupted", durationMs: null }),
 		];
 		const dashboard: CrawlRunsDashboardData = {
 			activeRun: {
@@ -201,6 +210,7 @@ describe("CrawlRunsDashboard", () => {
 		expect(html).toContain("중단됨");
 		expect(html).toContain("경고·실패 상세보기");
 		expect(html).toContain("below-minimum-items");
+		expect(html).toContain("info · discarded-items");
 		expect(html).toContain("DB 적재 실패");
 		expect(html).toContain("Arcalive 장애 감지");
 		expect(html).toContain("GitHub Issue #123");
