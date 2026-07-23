@@ -14,11 +14,8 @@ describe("proxy", () => {
 		updateSessionMock.mockResolvedValue(NextResponse.next());
 	});
 
-	it.each([
-		"/api/crawl",
-		"/api/crawl/alerts/notifications",
-		"/api/crawl/scheduled",
-	])("내부 크롤링 API %s는 세션 proxy를 우회해 원본 요청 헤더를 보존한다", async (pathname) => {
+	it("예약 크롤링 API는 세션 proxy를 우회해 원본 요청 헤더를 보존한다", async () => {
+		const pathname = "/api/crawl/scheduled";
 		const request = new NextRequest(`http://localhost${pathname}`, {
 			method: "POST",
 			headers: {

@@ -1,10 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
-import {
-	isThreadState,
-	legacyTableToThreadState,
-	type ThreadTableName,
-} from "@/lib/thread-list-contract";
+import { isThreadState } from "@/lib/thread-list-contract";
 import type { ThreadItemType, ThreadState } from "@/lib/type-defs";
 import { checkApplemintOwner } from "@/utils/supabase/owner-access";
 import { createClient } from "@/utils/supabase/server";
@@ -18,11 +14,6 @@ export interface ThreadCursor {
 	v: 1;
 	state: ThreadState;
 	stateChangedAt: string;
-	id: string;
-}
-
-export interface LegacyThreadCursor {
-	createdAt: string;
 	id: string;
 }
 
@@ -60,23 +51,6 @@ export function decodeThreadCursor(value: string, expectedState?: ThreadState): 
 		if (expectedState && parsed.state !== expectedState) throw new Error("Cursor state mismatch.");
 		const normalized = normalizeCursorFields(parsed.stateChangedAt, parsed.id);
 		return { v: 1, state: parsed.state, stateChangedAt: normalized.timestamp, id: normalized.id };
-	} catch {
-		throw new Error("Invalid thread cursor.");
-	}
-}
-
-export function encodeLegacyThreadCursor(cursor: LegacyThreadCursor) {
-	return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
-}
-
-export function decodeLegacyThreadCursor(value: string): LegacyThreadCursor {
-	if (!value || value.length > MAX_CURSOR_LENGTH) throw new Error("Invalid thread cursor.");
-	try {
-		const parsed = JSON.parse(
-			Buffer.from(value, "base64url").toString("utf8")
-		) as Partial<LegacyThreadCursor>;
-		const normalized = normalizeCursorFields(parsed.createdAt, parsed.id);
-		return { createdAt: normalized.timestamp, id: normalized.id };
 	} catch {
 		throw new Error("Invalid thread cursor.");
 	}
@@ -153,52 +127,6 @@ export async function handleThreadsListGet(request: NextRequest) {
 		return NextResponse.json({ items, nextCursor });
 	} catch (error) {
 		console.error("스레드 목록 조회 실패", error);
-		return NextResponse.json({ error: "스레드 목록을 불러오지 못했습니다." }, { status: 500 });
-	}
-}
-
-export async function handleLegacyThreadListGet(request: NextRequest, table: ThreadTableName) {
-	try {
-		const access = await ownerResponse();
-		if (access.response) return access.response;
-		const { searchParams } = new URL(request.url);
-		const cursorValue = searchParams.get("cursor");
-		let cursor: LegacyThreadCursor | null = null;
-		try {
-			cursor = cursorValue ? decodeLegacyThreadCursor(cursorValue) : null;
-		} catch {
-			return NextResponse.json({ error: "올바르지 않은 목록 커서입니다." }, { status: 400 });
-		}
-		const limit = parseLimit(searchParams);
-		const { data, error } = await loadThreadPage(access.supabase, legacyTableToThreadState(table), {
-			limit,
-			cursor: cursor
-				? {
-						v: 1,
-						state: legacyTableToThreadState(table),
-						stateChangedAt: cursor.createdAt,
-						id: cursor.id,
-					}
-				: null,
-			filterType: getOptionalParam(searchParams, "filterType"),
-		});
-		if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-		const rows = (data ?? []) as ThreadItemType[];
-		const hasMore = rows.length > limit;
-		const items = (hasMore ? rows.slice(0, limit) : rows).map(
-			({ state_changed_at, state, ...item }) => ({
-				...item,
-				created_at: state_changed_at,
-			})
-		);
-		const lastItem = items.at(-1);
-		const nextCursor =
-			hasMore && lastItem
-				? encodeLegacyThreadCursor({ createdAt: lastItem.created_at, id: String(lastItem.id) })
-				: null;
-		return NextResponse.json({ items, nextCursor });
-	} catch (error) {
-		console.error(`${table} 호환 목록 조회 실패`, error);
 		return NextResponse.json({ error: "스레드 목록을 불러오지 못했습니다." }, { status: 500 });
 	}
 }

@@ -38,12 +38,12 @@ select is(
 	'first ingest creates one permanent history row'
 );
 select is(
-	(select count(*) from public."new-threads" where url = 'https://retention.test/permanent'),
+	(select count(*) from public.threads where url = 'https://retention.test/permanent' and state = 'inbox'),
 	1::bigint,
 	'first ingest creates one visible thread'
 );
 
-delete from public."new-threads" where url = 'https://retention.test/permanent';
+delete from public.threads where url = 'https://retention.test/permanent';
 
 set local role service_role;
 select is(
@@ -70,7 +70,7 @@ select is(
 	'repeated ingest preserves exactly one history row'
 );
 select is(
-	(select count(*) from public."new-threads" where url = 'https://retention.test/permanent'),
+	(select count(*) from public.threads where url = 'https://retention.test/permanent'),
 	0::bigint,
 	'repeated ingest does not recreate the removed visible thread'
 );

@@ -136,7 +136,6 @@ test("최근 실행·소스 추세와 부분 실패 상세를 운영 화면에 �
 	await expect(page.getByTestId("crawl-trend-arcalive")).toBeVisible();
 	await expect(page.getByTestId("crawl-run")).toHaveCount(1);
 	await expect(page.getByTestId("active-crawl-alerts")).toContainText("Arcalive 장애 감지");
-	await expect(page.getByTestId("active-crawl-alerts")).toContainText("GitHub Issue #123");
 	await expect(page.getByTestId("crawl-alert-settings")).toContainText("성공 실행 없음 48시간");
 	await page.getByText("경고·실패 상세보기").click();
 	await expect(page.getByText(/timeout · timed out/u)).toBeVisible();

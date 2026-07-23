@@ -4,8 +4,6 @@ do $$
 begin
 	if exists (select 1 from pg_roles where rolname = 'p0_concurrent_ingest_login') then
 		execute 'revoke execute on function public.ingest_crawl_items(text, jsonb) from p0_concurrent_ingest_login';
-		execute 'revoke select, insert, delete on public."new-threads" from p0_concurrent_ingest_login';
-		execute 'revoke usage, select on sequence public."new-threads_id_seq" from p0_concurrent_ingest_login';
 		execute 'revoke select, insert, delete on public."crawl-history", public.threads from p0_concurrent_ingest_login';
 		execute 'revoke usage, select on sequence public."crawl-history_id_seq", public.threads_id_seq from p0_concurrent_ingest_login';
 		execute 'drop role p0_concurrent_ingest_login';

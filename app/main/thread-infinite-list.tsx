@@ -7,8 +7,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { flattenThreadPages, type ThreadListFilterParam } from "@/lib/thread-list-contract";
 import { threadListOptions } from "@/lib/thread-query-options";
 import type { ThreadItemType, ThreadState } from "@/lib/type-defs";
-import { ThreadLoading } from "./new-threads/thread-loading";
 import NoDataBox from "./no-data";
+import { ThreadLoading } from "./threads/thread-loading";
 
 const EMPTY_FILTERS: ThreadListFilterParam[] = [];
 

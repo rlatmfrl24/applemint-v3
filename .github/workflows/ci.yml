@@ -2,10 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [develop, master]
+    branches: [master]
   pull_request:
-    branches: [develop, master]
-  workflow_dispatch:
+    branches: [master]
 
 permissions:
   contents: read
@@ -40,11 +39,6 @@ jobs:
 
       - name: Verify dead-code checks without E2E runtime
         run: pnpm deadcode
-
-      - name: Set up Deno
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.3.7
 
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v2

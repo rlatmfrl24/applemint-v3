@@ -14,14 +14,12 @@
 		"lint": "biome lint . --error-on-warnings",
 		"lint:fix": "biome lint --write .",
 		"deadcode": "knip",
-		"check": "biome check . --error-on-warnings && pnpm deadcode && pnpm typecheck && pnpm check:edge",
-		"ci": "pnpm run check && pnpm test:coverage && pnpm test:edge && pnpm test:db && pnpm build",
+		"check": "biome check . --error-on-warnings && pnpm deadcode && pnpm typecheck",
+		"ci": "pnpm run check && pnpm test:coverage && pnpm test:db && pnpm build",
 		"test": "vitest run",
 		"test:coverage": "vitest run --coverage",
 		"test:db": "supabase test db",
-		"test:edge": "deno test --config supabase/functions/deno.json --lock deno.lock --frozen supabase/functions/crawl-source/helpers-test.ts",
 		"typecheck": "tsc --noEmit --incremental false",
-		"check:edge": "deno check --config supabase/functions/deno.json --lock deno.lock --frozen supabase/functions/crawl-source/index.ts",
 		"e2e:prepare": "node scripts/e2e/prepare-local.mjs",
 		"test:e2e": "pnpm run e2e:prepare && playwright test",
 		"test:e2e:run": "playwright test",
@@ -30,9 +28,7 @@
 		"security:collect-alerts": "node scripts/security/collect-alerts.mjs",
 		"security:baseline": "node scripts/security/create-baseline.mjs",
 		"security:gate": "node scripts/security/security-gate.mjs",
-		"security:overrides": "node scripts/security/check-overrides.mjs",
-		"crawler:health": "node scripts/crawler-health/monitor.mjs",
-		"crawler:schedule": "node scripts/crawler-schedule/run.mjs"
+		"security:overrides": "node scripts/security/check-overrides.mjs"
 	},
 	"dependencies": {
 		"@radix-ui/react-alert-dialog": "^1.1.15",

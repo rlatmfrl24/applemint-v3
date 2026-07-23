@@ -13,7 +13,6 @@ const alertsDashboard = {
 		transportWindow: 3,
 		transportErrorRatio: 0.5,
 		transportMinFailures: 2,
-		cooldownSeconds: 86400,
 		lastEvaluatedAt: null,
 	},
 };
