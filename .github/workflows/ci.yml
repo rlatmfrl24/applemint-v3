@@ -17,10 +17,20 @@ jobs:
     name: verify
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      SUPABASE_DB_IMAGE: ghcr.io/supabase/postgres:15.6.1.118
+      SUPABASE_DB_IMAGE_ARCHIVE: ${{ runner.temp }}/supabase-postgres-15.6.1.118.tar
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Restore Supabase database image
+        id: supabase-db-image-cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.SUPABASE_DB_IMAGE_ARCHIVE }}
+          key: supabase-postgres-${{ runner.os }}-15.6.1.118-v1
 
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v2
@@ -31,6 +41,9 @@ jobs:
         shell: bash
         run: |
           nohup bash -c '
+            if [[ -f "$SUPABASE_DB_IMAGE_ARCHIVE" ]]; then
+              docker load --input "$SUPABASE_DB_IMAGE_ARCHIVE"
+            fi
             supabase db start > "$RUNNER_TEMP/supabase-db-start.log" 2>&1
             echo "$?" > "$RUNNER_TEMP/supabase-db-start.status"
           ' >/dev/null 2>&1 &
@@ -66,3 +79,7 @@ jobs:
 
       - name: Run required verification
         run: pnpm verify
+
+      - name: Prepare Supabase database image cache
+        if: success() && steps.supabase-db-image-cache.outputs.cache-hit != 'true'
+        run: docker save "$SUPABASE_DB_IMAGE" --output "$SUPABASE_DB_IMAGE_ARCHIVE"
