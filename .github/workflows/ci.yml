@@ -22,29 +22,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Restore Supabase test images
-        id: supabase-test-images-cache
-        uses: actions/cache@v5
-        with:
-          path: ${{ runner.temp }}/supabase-test-images-2.109.1.tar
-          key: supabase-test-images-${{ runner.os }}-2.109.1-v1
-
-      - name: Set up Supabase CLI
-        uses: supabase/setup-cli@v2
-        with:
-          version: 2.109.1
-
-      - name: Start database-only Supabase
-        shell: bash
-        run: |
-          nohup bash -c '
-            if [[ -f "$RUNNER_TEMP/supabase-test-images-2.109.1.tar" ]]; then
-              docker load --input "$RUNNER_TEMP/supabase-test-images-2.109.1.tar"
-            fi
-            supabase db start > "$RUNNER_TEMP/supabase-db-start.log" 2>&1
-            echo "$?" > "$RUNNER_TEMP/supabase-db-start.status"
-          ' >/dev/null 2>&1 &
-
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -59,30 +36,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Wait for database-only Supabase
-        shell: bash
-        run: |
-          for _ in {1..180}; do
-            if [[ -f "$RUNNER_TEMP/supabase-db-start.status" ]]; then
-              status="$(cat "$RUNNER_TEMP/supabase-db-start.status")"
-              cat "$RUNNER_TEMP/supabase-db-start.log"
-              exit "$status"
-            fi
-            sleep 1
-          done
-          cat "$RUNNER_TEMP/supabase-db-start.log"
-          echo "Timed out while starting database-only Supabase." >&2
-          exit 1
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v2
+        with:
+          version: 2.109.1
+
+      - name: Start database-only Supabase
+        run: supabase db start
 
       - name: Run required verification
         run: pnpm verify
-
-      - name: Prepare Supabase test image cache
-        if: success() && steps.supabase-test-images-cache.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          mapfile -t images < <(
-            docker image ls --format '{{.Repository}}:{{.Tag}}' |
-              grep '^ghcr.io/supabase/'
-          )
-          docker save "${images[@]}" --output "$RUNNER_TEMP/supabase-test-images-2.109.1.tar"
