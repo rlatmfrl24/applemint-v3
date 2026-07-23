@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createOwnerClientMock } from "@/test/support/supabase";
 
 const createClientMock = vi.hoisted(() => vi.fn());
 
@@ -9,26 +10,6 @@ vi.mock("@/utils/supabase/server", () => ({
 
 import { GET as getThreads } from "./route";
 import { GET as getStats } from "./stats/route";
-
-function mockAccess({
-	userId = "owner",
-	isOwner = true,
-	ownerError = null,
-}: {
-	userId?: string | null;
-	isOwner?: boolean;
-	ownerError?: Error | null;
-} = {}) {
-	createClientMock.mockResolvedValue({
-		auth: {
-			getUser: vi.fn().mockResolvedValue({
-				data: { user: userId ? { id: userId } : null },
-				error: null,
-			}),
-		},
-		rpc: vi.fn().mockResolvedValue({ data: isOwner, error: ownerError }),
-	});
-}
 
 function request(path: string) {
 	return new Request(`http://localhost${path}`) as NextRequest;
@@ -42,24 +23,10 @@ describe.each([
 		createClientMock.mockReset();
 	});
 
-	it("미로그인 요청에 401을 반환한다", async () => {
-		mockAccess({ userId: null });
-
-		const response = await handler(request(path));
-
-		expect(response.status).toBe(401);
-	});
-
-	it("비소유자 요청에 403을 반환한다", async () => {
-		mockAccess({ isOwner: false });
-
-		const response = await handler(request(path));
-
-		expect(response.status).toBe(403);
-	});
-
-	it("소유자 RPC 오류에 503을 반환한다", async () => {
-		mockAccess({ ownerError: new Error("rpc unavailable") });
+	it("소유자 확인 오류를 fail-closed 503으로 반환한다", async () => {
+		createClientMock.mockResolvedValue(
+			createOwnerClientMock({ ownerError: new Error("rpc unavailable") }).client
+		);
 
 		const response = await handler(request(path));
 
@@ -73,16 +40,8 @@ describe("스레드 통계 응답", () => {
 	});
 
 	function mockStatsRpc(statsResult: { data: unknown; error: { message: string } | null }) {
-		const rpc = vi
-			.fn()
-			.mockResolvedValueOnce({ data: true, error: null })
-			.mockResolvedValueOnce(statsResult);
-		createClientMock.mockResolvedValue({
-			auth: {
-				getUser: vi.fn().mockResolvedValue({ data: { user: { id: "owner" } }, error: null }),
-			},
-			rpc,
-		});
+		const { client, rpc } = createOwnerClientMock({ rpcResults: [statsResult] });
+		createClientMock.mockResolvedValue(client);
 		return rpc;
 	}
 

@@ -5,7 +5,7 @@
 1. `critical`·`high` 경고는 배포와 병합을 중단하고 패치 버전과 영향 경로를 확인합니다.
 2. 직접 의존성을 우선 갱신하고, 전이 의존성 override는 상위 패키지 갱신이 불가능할 때만 사용합니다.
 3. `pnpm why <package>`와 `pnpm audit --audit-level high`로 취약 경로가 사라졌는지 확인합니다.
-4. 전체 CI와 운영 smoke test가 통과한 후 master에 반영합니다.
+4. `pnpm verify`와 사용자가 수행하는 운영 smoke 확인이 끝난 후 master에 반영합니다. 자동화에서는 smoke와 Playwright E2E를 실행하지 않습니다.
 5. GitHub alert가 종료된 것을 확인한 뒤 중복 Dependabot PR을 superseded로 닫습니다.
 
 medium 경고는 14일 안에 수정하거나, 기준선 PR에 영향 범위와 위험 수용 근거를 남깁니다. 기준선은 경고를 숨기지 않으며 신규·해결 경고를 비교하기 위한 기록입니다.
@@ -53,4 +53,4 @@ override가 꼭 필요한 경우 `security/package-overrides.json`에 다음을 
 - 마지막 검토일과 90일 이내의 다음 검토일
 - 상위 패키지 갱신 등 구체적인 제거 조건
 
-검토 시 override를 제거한 상태로 lockfile을 다시 계산하고 audit와 전체 CI를 실행합니다. 안전 버전이 자연스럽게 선택되면 override와 등록 내역을 함께 삭제합니다.
+검토 시 override를 제거한 상태로 lockfile을 다시 계산하고 audit와 `pnpm verify`를 실행합니다. 안전 버전이 자연스럽게 선택되면 override와 등록 내역을 함께 삭제합니다.

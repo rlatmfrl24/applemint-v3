@@ -1,3 +1,4 @@
+-- Cross-session ingest serialization contract.
 create extension if not exists dblink with schema extensions;
 
 do $$

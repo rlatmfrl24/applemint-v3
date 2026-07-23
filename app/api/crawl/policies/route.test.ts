@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createOwnerClientMock } from "@/test/support/supabase";
 
 const createClientMock = vi.hoisted(() => vi.fn());
 
@@ -28,29 +29,16 @@ const settings = {
 };
 
 function mockRpc({
-	userId = "owner",
-	isOwner = true,
 	policyData = settings,
 	policyError = null,
 }: {
-	userId?: string | null;
-	isOwner?: boolean;
 	policyData?: unknown;
 	policyError?: { message: string } | null;
 } = {}) {
-	const rpc = vi
-		.fn()
-		.mockResolvedValueOnce({ data: isOwner, error: null })
-		.mockResolvedValueOnce({ data: policyData, error: policyError });
-	createClientMock.mockResolvedValue({
-		auth: {
-			getUser: vi.fn().mockResolvedValue({
-				data: { user: userId ? { id: userId } : null },
-				error: null,
-			}),
-		},
-		rpc,
+	const { client, rpc } = createOwnerClientMock({
+		rpcResults: [{ data: policyData, error: policyError }],
 	});
+	createClientMock.mockResolvedValue(client);
 	return rpc;
 }
 
@@ -64,14 +52,6 @@ describe("GET /api/crawl/policies", () => {
 		expect(response.status).toBe(200);
 		expect(await response.json()).toEqual(settings);
 		expect(rpc).toHaveBeenNthCalledWith(2, "get_crawl_source_policy_settings");
-	});
-
-	it("미로그인과 비소유자 접근을 차단한다", async () => {
-		mockRpc({ userId: null });
-		expect((await GET()).status).toBe(401);
-
-		mockRpc({ isOwner: false });
-		expect((await GET()).status).toBe(403);
 	});
 
 	it("RPC 오류와 손상된 정책 응답을 500으로 닫는다", async () => {

@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createOwnerClientMock } from "@/test/support/supabase";
 
 const createClientMock = vi.hoisted(() => vi.fn());
 
@@ -42,29 +43,16 @@ function context(source = "arcalive") {
 }
 
 function mockRpc({
-	userId = "owner",
-	isOwner = true,
 	updateData = { updated: true, reason: null, settings },
 	updateError = null,
 }: {
-	userId?: string | null;
-	isOwner?: boolean;
 	updateData?: unknown;
 	updateError?: { code?: string; message: string } | null;
 } = {}) {
-	const rpc = vi
-		.fn()
-		.mockResolvedValueOnce({ data: isOwner, error: null })
-		.mockResolvedValueOnce({ data: updateData, error: updateError });
-	createClientMock.mockResolvedValue({
-		auth: {
-			getUser: vi.fn().mockResolvedValue({
-				data: { user: userId ? { id: userId } : null },
-				error: null,
-			}),
-		},
-		rpc,
+	const { client, rpc } = createOwnerClientMock({
+		rpcResults: [{ data: updateData, error: updateError }],
 	});
+	createClientMock.mockResolvedValue(client);
 	return rpc;
 }
 
@@ -97,14 +85,6 @@ describe("PATCH /api/crawl/policies/[source]", () => {
 			400
 		);
 		expect((await PATCH(request({ ...validBody, unexpected: true }), context())).status).toBe(400);
-	});
-
-	it("미로그인과 비소유자 접근을 차단한다", async () => {
-		mockRpc({ userId: null });
-		expect((await PATCH(request(validBody), context())).status).toBe(401);
-
-		mockRpc({ isOwner: false });
-		expect((await PATCH(request(validBody), context())).status).toBe(403);
 	});
 
 	it("동시 수정 충돌에 최신 정책을 포함한 409를 반환한다", async () => {

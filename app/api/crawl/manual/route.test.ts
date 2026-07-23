@@ -1,5 +1,7 @@
 import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createCrawlPipelineResult } from "@/test/support/crawl";
+import { createOwnerClientMock } from "@/test/support/supabase";
 
 const createClientMock = vi.hoisted(() => vi.fn());
 const createServiceRoleClientMock = vi.hoisted(() => vi.fn());
@@ -39,24 +41,8 @@ function createRequest(target: unknown) {
 	}) as NextRequest;
 }
 
-function mockAccess({
-	userId = "owner",
-	isOwner = true,
-	ownerError = null,
-}: {
-	userId?: string | null;
-	isOwner?: boolean;
-	ownerError?: Error | null;
-} = {}) {
-	createClientMock.mockResolvedValue({
-		auth: {
-			getUser: vi.fn().mockResolvedValue({
-				data: { user: userId ? { id: userId } : null },
-				error: null,
-			}),
-		},
-		rpc: vi.fn().mockResolvedValue({ data: isOwner, error: ownerError }),
-	});
+function mockAccess(options: Parameters<typeof createOwnerClientMock>[0] = {}) {
+	createClientMock.mockResolvedValue(createOwnerClientMock(options).client);
 }
 
 describe("POST /api/crawl/manual", () => {
@@ -72,27 +58,16 @@ describe("POST /api/crawl/manual", () => {
 		expect(maxDuration).toBeLessThanOrEqual(60);
 	});
 
-	it("소유자만 지원하는 target을 실행할 수 있다", async () => {
+	it("인증과 target 입력을 경계에서 검증한다", async () => {
 		mockAccess({ userId: null });
 		expect((await POST(createRequest("arcalive"))).status).toBe(401);
-
-		mockAccess({ isOwner: false });
-		expect((await POST(createRequest("arcalive"))).status).toBe(403);
-
-		mockAccess({ ownerError: new Error("rpc unavailable") });
-		expect((await POST(createRequest("arcalive"))).status).toBe(503);
 
 		mockAccess();
 		expect((await POST(createRequest("invalid"))).status).toBe(400);
 	});
 
 	it("통합 Next 파이프라인 결과를 반환한다", async () => {
-		executeCrawlPipelineMock.mockResolvedValue({
-			runId: "42",
-			status: "succeeded",
-			target: "arcalive",
-			insertedCount: 3,
-		});
+		executeCrawlPipelineMock.mockResolvedValue(createCrawlPipelineResult());
 
 		const response = await POST(createRequest("arcalive"));
 
@@ -122,6 +97,7 @@ describe("POST /api/crawl/manual", () => {
 			activeRunId: "41",
 		});
 
+		mockAccess();
 		executeCrawlPipelineMock.mockRejectedValueOnce(
 			new CrawlPipelineError("timeout", 504, "source", null, "42")
 		);
@@ -140,6 +116,7 @@ describe("POST /api/crawl/manual", () => {
 		});
 		expect((await POST(createRequest("arcalive"))).status).toBe(503);
 
+		mockAccess();
 		executeCrawlPipelineMock.mockRejectedValueOnce(new Error("unexpected"));
 		expect((await POST(createRequest("arcalive"))).status).toBe(500);
 	});

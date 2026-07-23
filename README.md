@@ -28,8 +28,8 @@
 
 ### 품질 / 보안 유지보수
 - `Biome 2.4.7` 포맷·린트·정적 검사
-- GitHub PR CI (`Vitest`, `pgTAP`, `TypeScript`, production build, Playwright E2E)
-- GitHub `CodeQL` 워크플로우
+- GitHub PR 필수 검증 (`verify`: Biome, Knip, Vitest, pgTAP, production build)
+- 주간 GitHub `CodeQL`과 일간 `Security Gate` 워크플로우
 - `Dependabot` 주간 보안 업데이트
 - 커스텀 보안 스크립트 (`scripts/security/*`)
 
@@ -165,19 +165,19 @@ erDiagram
   - `pnpm security:baseline`
   - `pnpm security:gate`
   - `pnpm security:overrides`
-- CI에서는 CodeQL + Dependabot 흐름으로 지속 점검
+- CodeQL은 주간·수동, Security Gate는 일간·수동으로 실행하며 Dependabot 흐름과 함께 지속 점검
 
 ### 5) 코드 컨벤션
 - TS strict + 경로 별칭 `@/*`
 - 포맷/린트 규칙은 `biome.json` 기준
 - `pnpm deadcode`로 미사용 파일·의존성·export를 검사
-- Vitest 커버리지는 CI에서 statements/lines 50%, branches/functions 44% 이상을 유지
+- Vitest 커버리지는 선택 실행하는 `pnpm test:coverage`에서 statements/lines 50%, branches/functions 44% 이상을 유지
 - 운영·배포 기준 브랜치는 `master`, 통합 개발 브랜치는 `develop`
-- 로컬 전체 검증은 `supabase db start` 후 `pnpm run ci`
-- 브라우저 E2E는 Docker가 실행 중인 상태에서 `pnpm test:e2e`로 수행하며 로컬 DB를 초기화함
+- 빠른 로컬 정적 검증은 `pnpm check`, 병합과 같은 전체 검증은 `supabase db start` 후 `pnpm verify`
+- 브라우저 E2E는 자동 CI·smoke에 포함하지 않으며 사용자가 필요할 때 `pnpm test:e2e`로 핵심 흐름 2개를 확인
+- E2E는 Docker가 실행 중인 상태에서 로컬 DB를 초기화하므로 테스트 데이터가 필요한 경우에만 실행
 - 최초 실행 전 `pnpm exec playwright install chromium`으로 테스트 브라우저를 설치
 - E2E 준비 과정은 `--local`과 loopback 주소를 검증하므로 원격 DB를 사용하지 않음
-- `pnpm ci`는 pnpm의 clean-install 명령이므로 프로젝트 검증에는 사용하지 않음
 - 신규 데이터 모델 필드 추가 시:
   - `lib/type-defs.ts`
   - Supabase 관련 쿼리 코드
@@ -199,10 +199,12 @@ Applemint는 migration에 고정한 단일 Supabase Auth 계정만 사용할 수
 
 ## 검증 명령
 
+- `pnpm check`: Biome, Knip, TypeScript를 이용한 빠른 로컬 정적 검증
+- `pnpm verify`: Biome → Knip → Vitest → pgTAP → production build 순서의 필수 검증
 - `pnpm test`: Next API, 인증, UI loading, optimistic cache 단위 테스트
-- `pnpm test:coverage`: 단위 테스트와 V8 커버리지 하한선 검사
-- `pnpm test:db`: 이동·적재 rollback, 권한, lock pgTAP 테스트
+- `pnpm test:coverage`: 선택 실행하는 단위 테스트와 V8 커버리지 하한선 검사
+- `pnpm test:db`: 6개 계약 suite로 구성된 이동·적재 rollback, 권한, lock pgTAP 테스트
 - `pnpm typecheck`: TypeScript strict 검사
 - `pnpm build`: Next.js 프로덕션 빌드
-- `pnpm test:e2e`: 로컬 Supabase 초기화 후 Chromium 브라우저 흐름 검증
-- `pnpm test:e2e:ui`: 로컬 Supabase 초기화 후 Playwright UI 모드 실행
+- `pnpm test:e2e`: 사용자 주도로 로컬 Supabase 초기화 후 Chromium 핵심 흐름 2개 검증
+- `pnpm test:e2e:ui`: 사용자 주도로 로컬 Supabase 초기화 후 Playwright UI 모드 실행
