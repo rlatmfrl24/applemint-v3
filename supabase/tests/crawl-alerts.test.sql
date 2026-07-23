@@ -1,3 +1,4 @@
+-- Crawl alert evaluation and owner dashboard contract.
 begin;
 
 select plan(16);

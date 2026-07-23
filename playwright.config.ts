@@ -30,24 +30,20 @@ export default defineConfig({
 	testDir: "./e2e",
 	fullyParallel: false,
 	workers: 1,
-	retries: process.env.CI ? 1 : 0,
+	retries: 0,
 	timeout: 30_000,
 	expect: {
 		timeout: 7_500,
 	},
-	reporter: process.env.CI
-		? [["line"], ["html", { open: "never" }]]
-		: [["list"], ["html", { open: "never" }]],
+	reporter: [["list"]],
 	use: {
 		baseURL: runtime.baseUrl,
-		trace: "on-first-retry",
+		trace: "off",
 		screenshot: "only-on-failure",
-		video: "retain-on-failure",
+		video: "off",
 	},
 	webServer: {
-		command: process.env.CI
-			? "pnpm exec next start -p 3100"
-			: "pnpm exec next dev --turbopack -p 3100",
+		command: "pnpm exec next dev --turbopack -p 3100",
 		url: runtime.baseUrl,
 		reuseExistingServer: false,
 		timeout: 120_000,

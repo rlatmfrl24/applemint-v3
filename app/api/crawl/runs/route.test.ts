@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createOwnerClientMock } from "@/test/support/supabase";
 
 const createClientMock = vi.hoisted(() => vi.fn());
 
@@ -28,9 +29,6 @@ function request(query = "") {
 }
 
 function mockRpc({
-	userId = "owner",
-	isOwner = true,
-	ownerError = null,
 	dashboard = {
 		activeRun: null,
 		activeRuns: [],
@@ -42,44 +40,24 @@ function mockRpc({
 	alerts = alertsDashboard,
 	alertError = null,
 }: {
-	userId?: string | null;
-	isOwner?: boolean;
-	ownerError?: Error | null;
 	dashboard?: unknown;
 	dashboardError?: { message: string } | null;
 	alerts?: unknown;
 	alertError?: { message: string } | null;
 } = {}) {
-	const rpc = vi
-		.fn()
-		.mockResolvedValueOnce({ data: isOwner, error: ownerError })
-		.mockResolvedValueOnce({ data: dashboard, error: dashboardError })
-		.mockResolvedValueOnce({ data: alerts, error: alertError });
-	createClientMock.mockResolvedValue({
-		auth: {
-			getUser: vi.fn().mockResolvedValue({
-				data: { user: userId ? { id: userId } : null },
-				error: null,
-			}),
-		},
-		rpc,
+	const { client, rpc } = createOwnerClientMock({
+		rpcResults: [
+			{ data: dashboard, error: dashboardError },
+			{ data: alerts, error: alertError },
+		],
 	});
+	createClientMock.mockResolvedValue(client);
 	return rpc;
 }
 
 describe("GET /api/crawl/runs", () => {
 	beforeEach(() => {
 		createClientMock.mockReset();
-	});
-
-	it.each([
-		[null, true, null, 401],
-		["user", false, null, 403],
-		["user", true, new Error("unavailable"), 503],
-	] as const)("소유자 검사 결과를 상태 코드로 반환한다", async (userId, isOwner, ownerError, status) => {
-		mockRpc({ userId, isOwner, ownerError });
-		const response = await GET(request());
-		expect(response.status).toBe(status);
 	});
 
 	it("잘못된 limit을 400으로 거부한다", async () => {

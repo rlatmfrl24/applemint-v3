@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createCrawlPipelineResult } from "@/test/support/crawl";
 
 const createServiceRoleClientMock = vi.hoisted(() => vi.fn());
 const executeCrawlPipelineMock = vi.hoisted(() => vi.fn());
@@ -61,7 +62,7 @@ describe("POST /api/crawl/scheduled", () => {
 	});
 
 	it("통합 Next 파이프라인을 scheduled trigger로 실행한다", async () => {
-		executeCrawlPipelineMock.mockResolvedValue({ runId: "42", status: "succeeded" });
+		executeCrawlPipelineMock.mockResolvedValue(createCrawlPipelineResult({ target: "battlepage" }));
 
 		const response = await POST(request("battlepage"));
 

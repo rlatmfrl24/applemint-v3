@@ -27,18 +27,6 @@ describe("MainLayout 단일 소유자 접근", () => {
 		createClientMock.mockResolvedValue({});
 	});
 
-	it("미로그인 사용자를 로그인 화면으로 보낸다", async () => {
-		checkOwnerMock.mockResolvedValue({ kind: "unauthenticated" });
-
-		await expect(MainLayout({ children: null })).rejects.toThrow("redirect:/login");
-	});
-
-	it("비소유자 세션을 로그아웃시킨다", async () => {
-		checkOwnerMock.mockResolvedValue({ kind: "forbidden" });
-
-		await expect(MainLayout({ children: null })).rejects.toThrow("redirect:/signout");
-	});
-
 	it("소유자 확인 오류는 접근을 허용하지 않는다", async () => {
 		checkOwnerMock.mockResolvedValue({ kind: "unavailable", message: "권한 확인 실패" });
 

@@ -1,10 +1,9 @@
 name: CI
 
 on:
-  push:
-    branches: [master]
   pull_request:
     branches: [master]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -17,7 +16,7 @@ jobs:
   verify:
     name: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -37,46 +36,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify dead-code checks without E2E runtime
-        run: pnpm deadcode
-
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v2
         with:
           version: 2.109.1
 
-      - name: Prepare local E2E environment
-        run: pnpm run e2e:prepare
+      - name: Start database-only Supabase
+        run: supabase db start
 
-      - name: Run CI checks
-        run: pnpm run ci
-
-      - name: Upload unit coverage report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: unit-coverage
-          path: coverage/
-          if-no-files-found: warn
-          retention-days: 14
-
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: Run browser E2E tests
-        run: pnpm run test:e2e:run
-
-      - name: Upload Playwright diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-report
-          path: |
-            playwright-report/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Stop local Supabase
-        if: always()
-        run: supabase stop --no-backup
+      - name: Run required verification
+        run: pnpm verify

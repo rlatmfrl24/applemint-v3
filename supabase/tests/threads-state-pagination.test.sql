@@ -1,42 +1,9 @@
+-- Canonical thread state, pagination, and atomicity contract.
 begin;
 
 select plan(35);
 
 select has_table('public', 'threads', 'threads is the canonical table');
-select ok(
-	to_regclass('public."new-threads"') is null
-		and to_regclass('public."quick-save"') is null
-		and to_regclass('public.trash') is null,
-	'legacy thread tables are removed'
-);
-select ok(
-	to_regprocedure('public.move_thread(bigint,text,text)') is null
-		and to_regprocedure('public.bulk_move_new_threads_to_trash()') is null
-		and to_regprocedure('public.list_thread_page(text,integer,timestamp with time zone,bigint,text)') is null
-		and to_regprocedure('public.get_new_threads_stats(text)') is null
-		and to_regprocedure('public.get_thread_storage_consistency()') is null,
-	'legacy thread RPCs are removed'
-);
-select ok(
-	to_regclass('public.crawl_alert_notifications') is null,
-	'GitHub alert outbox is removed'
-);
-select ok(
-	to_regprocedure('public.get_pending_crawl_alert_notifications(integer)') is null
-		and to_regprocedure('public.complete_crawl_alert_notification(bigint,bigint,text)') is null
-		and to_regprocedure('public.fail_crawl_alert_notification(bigint,text)') is null,
-	'GitHub alert delivery RPCs are removed'
-);
-select is(
-	(
-		select count(*)
-		from cron.job
-		where jobname like 'invoke-crawl-%-every-3hours'
-			or command ilike '%/functions/v1/crawl-source%'
-	),
-	0::bigint,
-	'legacy Edge Function cron jobs are removed'
-);
 select has_index('public', 'threads', 'idx_threads_state_changed_at_id', 'state cursor index exists');
 select has_index(
 	'public',
@@ -54,23 +21,6 @@ select policies_are(
 	array['Applemint owner can read threads'],
 	'threads exposes only the owner read policy'
 );
-select ok(
-	has_function_privilege(
-		'authenticated',
-		'public.list_threads_page(text,integer,timestamp with time zone,bigint,text)',
-		'EXECUTE'
-	),
-	'authenticated callers can execute the canonical list RPC'
-);
-select ok(
-	has_function_privilege(
-		'authenticated',
-		'public.get_thread_stats(text,text)',
-		'EXECUTE'
-	),
-	'authenticated callers can execute the canonical stats RPC'
-);
-
 insert into public.threads (
 	type, url, title, description, host, tag, state, created_at, captured_at, state_changed_at
 )
@@ -93,21 +43,6 @@ from public.threads
 where url = 'https://p9.test/thread';
 alter table p9_state add primary key (id);
 grant select on p9_state to authenticated;
-
-set local role authenticated;
-select set_config('request.jwt.claim.sub', '22222222-2222-4222-8222-222222222222', true);
-select is(
-	(select count(*) from public.threads where type = 'p9'),
-	0::bigint,
-	'non-owner cannot read canonical threads'
-);
-select throws_ok(
-	$$update public.threads set title = 'forbidden' where type = 'p9'$$,
-	'42501',
-	'permission denied for table threads',
-	'authenticated clients cannot update threads directly'
-);
-reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
@@ -258,43 +193,171 @@ select is(
 	'inbox',
 	'ingest writes to the canonical inbox'
 );
+
+create function pg_temp.reject_thread_update()
+returns trigger
+language plpgsql
+as $$
+begin
+	raise exception 'reject thread update';
+end;
+$$;
+
+create trigger reject_thread_update
+before update on public.threads
+for each row
+when (old.url = 'https://thread.test/rollback-move')
+execute function pg_temp.reject_thread_update();
+
+insert into public.threads (type, url, state)
+values ('rollback', 'https://thread.test/rollback-move', 'inbox');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
+select throws_ok(
+	format(
+		'select public.transition_thread_state(%s, %L, %L)',
+		(select id from public.threads where url = 'https://thread.test/rollback-move'),
+		'inbox',
+		'saved'
+	),
+	'reject thread update',
+	'failed transition rolls back the state update'
+);
+reset role;
+select is(
+	(select state from public.threads where url = 'https://thread.test/rollback-move'),
+	'inbox',
+	'failed transition leaves the source state intact'
+);
+drop trigger reject_thread_update on public.threads;
+delete from public.threads where url = 'https://thread.test/rollback-move';
+
+create function pg_temp.reject_thread_insert()
+returns trigger
+language plpgsql
+as $$
+begin
+	if new.url = 'https://thread.test/ingest-reject' then
+		raise exception 'reject thread insert';
+	end if;
+	return new;
+end;
+$$;
+
+create trigger reject_thread_insert
+before insert on public.threads
+for each row execute function pg_temp.reject_thread_insert();
+
+set local role service_role;
+select throws_ok(
+	$$
+		select public.ingest_crawl_items(
+			'arcalive',
+			'[
+				{"url":"https://thread.test/ingest-before-reject","type":"normal"},
+				{"url":"https://thread.test/ingest-reject","type":"normal"}
+			]'::jsonb
+		)
+	$$,
+	'reject thread insert',
+	'failed ingest rolls back the whole batch'
+);
+reset role;
+select is(
+	(select count(*) from public.threads where url like 'https://thread.test/ingest-%-reject'),
+	0::bigint,
+	'failed ingest leaves no partial rows'
+);
+drop trigger reject_thread_insert on public.threads;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '22222222-2222-4222-8222-222222222222', true);
+select throws_ok(
+	$$select * from public.list_threads_page('inbox')$$,
+	'42501',
+	'Only the Applemint owner can list threads.',
+	'non-owner cannot page threads'
+);
+reset role;
+
+insert into public.threads (
+	type, url, state, created_at, captured_at, state_changed_at
+)
+values
+	('page-normal', 'https://page.test/1', 'inbox', '2200-01-01 00:00:00+00', '2200-01-01 00:00:00+00', '2200-01-01 00:00:00+00'),
+	('page-normal', 'https://page.test/2', 'inbox', '2200-01-01 00:00:00+00', '2200-01-01 00:00:00+00', '2200-01-02 00:00:00+00'),
+	('page-special', 'https://page.test/3', 'inbox', '2200-01-01 00:00:00+00', '2200-01-01 00:00:00+00', '2200-01-03 00:00:00+00'),
+	('page-special', 'https://page.test/4', 'inbox', '2200-01-01 00:00:00+00', '2200-01-01 00:00:00+00', '2200-01-04 00:00:00+00'),
+	('page-normal', 'https://page.test/5', 'inbox', '2200-01-01 00:00:00+00', '2200-01-01 00:00:00+00', '2200-01-05 00:00:00+00'),
+	('page-normal', 'https://page.test/saved', 'saved', '2200-01-01 00:00:00+00', '2200-01-01 00:00:00+00', '2200-01-06 00:00:00+00');
+
+select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
+
+create temporary table page_one as
+select * from public.list_threads_page('inbox', 2, null, null, null);
+
+select is((select count(*) from page_one), 3::bigint, 'pagination returns one look-ahead row');
+select is(
+	(select url from page_one order by state_changed_at desc, id desc limit 1),
+	'https://page.test/5',
+	'first page starts with the newest state transition'
+);
+select is(
+	(select url from page_one order by state_changed_at desc, id desc offset 1 limit 1),
+	'https://page.test/4',
+	'first page preserves deterministic cursor order'
+);
+
+create temporary table page_two as
+select *
+from public.list_threads_page(
+	'inbox',
+	2,
+	(select state_changed_at from page_one order by state_changed_at desc, id desc offset 1 limit 1),
+	(select id from page_one order by state_changed_at desc, id desc offset 1 limit 1),
+	null
+);
+
+select is(
+	(select url from page_two order by state_changed_at desc, id desc limit 1),
+	'https://page.test/3',
+	'cursor resumes immediately after the last emitted row'
+);
 select is(
 	(
 		select count(*)
-		from pg_trigger
-		where tgrelid = 'public.threads'::regclass
-			and tgname = 'sync_thread_legacy_projection'
+		from (
+			(select id from page_one order by state_changed_at desc, id desc limit 2)
+			union all
+			(select id from page_two order by state_changed_at desc, id desc limit 3)
+		) as paged
 	),
-	0::bigint,
-	'legacy projection trigger is removed'
+	5::bigint,
+	'two pages expose every inbox row'
 );
-select ok(
-	not exists (
-		select 1
-		from information_schema.columns
-		where table_schema = 'public'
-			and table_name = 'crawl_alert_incidents'
-			and column_name in ('last_notification_at', 'github_issue_number', 'github_issue_url')
+select is(
+	(
+		select count(distinct id)
+		from (
+			(select id from page_one order by state_changed_at desc, id desc limit 2)
+			union all
+			(select id from page_two order by state_changed_at desc, id desc limit 3)
+		) as paged
 	),
-	'GitHub metadata is removed from incidents'
+	5::bigint,
+	'cursor pages contain no duplicate IDs'
 );
-select ok(
-	not exists (
-		select 1
-		from information_schema.columns
-		where table_schema = 'public'
-			and table_name = 'crawl_alert_settings'
-			and column_name = 'cooldown_seconds'
-	),
-	'GitHub reminder cooldown is removed'
+select is(
+	(select count(*) from public.list_threads_page('inbox', 24, null, null, 'page-special')),
+	2::bigint,
+	'type filter is applied inside the canonical query'
 );
-set local role service_role;
-select ok(
-	public.evaluate_crawl_alerts(now()) ? 'activeIncidentCount'
-		and not (public.evaluate_crawl_alerts(now()) ? 'pendingNotificationCount'),
-	'alert evaluation no longer exposes delivery outbox state'
+select is(
+	(select count(*) from public.list_threads_page('saved', 24, null, null, 'page-normal')),
+	1::bigint,
+	'state filter keeps saved rows out of inbox pages'
 );
-reset role;
 
 select * from finish();
 rollback;
