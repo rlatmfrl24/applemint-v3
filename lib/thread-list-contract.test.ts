@@ -10,6 +10,10 @@ describe("thread list contract", () => {
 			title: "bigint",
 			description: null,
 			host: "example.com",
+			state: "inbox" as const,
+			created_at: "2026-07-20T00:00:00.000Z",
+			captured_at: "2026-07-20T00:00:00.000Z",
+			state_changed_at: "2026-07-20T00:00:00.000Z",
 		};
 
 		expect(
@@ -28,6 +32,10 @@ describe("thread list contract", () => {
 			title: "two",
 			description: null,
 			host: "example.com",
+			state: "inbox" as const,
+			created_at: "2026-07-20T00:00:00.000Z",
+			captured_at: "2026-07-20T00:00:00.000Z",
+			state_changed_at: "2026-07-20T00:00:00.000Z",
 		};
 		const second = { ...first, id: "1", url: "https://example.com/1" };
 

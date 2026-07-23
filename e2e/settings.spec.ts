@@ -194,7 +194,7 @@ for (const scenario of [
 }
 
 test("대상 개수를 확인한 뒤 신규 글을 일괄 이동한다", async ({ page }) => {
-	await seedThreads("new-threads", 3, { prefix: "bulk-move" });
+	await seedThreads("inbox", 3, { prefix: "bulk-move" });
 	await page.goto("/main/setting/data");
 	await expect(page.getByTestId("new-thread-total-count")).toHaveText("3");
 
@@ -204,7 +204,7 @@ test("대상 개수를 확인한 뒤 신규 글을 일괄 이동한다", async (
 		page.getByText("신규 글 3개를 휴지통으로 이동합니다. 계속하시겠습니까?")
 	).toBeVisible();
 	await page.getByRole("button", { name: "취소" }).click();
-	expect(await countThreads("new-threads")).toBe(3);
+	expect(await countThreads("inbox")).toBe(3);
 
 	await page.getByRole("button", { name: "모두 휴지통으로 이동" }).click();
 	await page.getByRole("button", { name: "이동 진행" }).click();
@@ -212,7 +212,7 @@ test("대상 개수를 확인한 뒤 신규 글을 일괄 이동한다", async (
 		"3개의 신규 글"
 	);
 	await expect(page.getByTestId("new-thread-total-count")).toHaveText("0");
-	expect(await countThreads("new-threads")).toBe(0);
+	expect(await countThreads("inbox")).toBe(0);
 	expect(await countThreads("trash")).toBe(3);
 });
 

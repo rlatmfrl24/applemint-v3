@@ -2,7 +2,7 @@
 
 ## 정책
 
-`public."crawl-history"`는 운영 로그가 아니라 `(crawl_source, url)` 기준의 영구 중복 방지 집합이다. `new-threads`, `quick-save`, `trash`에서 사용자가 항목을 삭제해도 이력은 삭제하지 않으며, 같은 소스에서 같은 URL이 다시 발견되어도 재수집하지 않는다.
+`public."crawl-history"`는 운영 로그가 아니라 `(crawl_source, url)` 기준의 영구 중복 방지 집합이다. `threads`에서 사용자가 항목을 삭제해도 이력은 삭제하지 않으며, 같은 소스에서 같은 URL이 다시 발견되어도 재수집하지 않는다.
 
 - 보존 기간: 영구
 - 만료 처리: 삭제·아카이브 없음

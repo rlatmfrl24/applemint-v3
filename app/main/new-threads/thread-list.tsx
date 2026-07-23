@@ -1,11 +1,12 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { ThreadListFilterParam } from "@/lib/thread-list-contract";
+import { threadStatsOptions } from "@/lib/thread-query-options";
 import { ThreadInfiniteList } from "../thread-infinite-list";
 import { QuickSaveButton } from "./quick-save-button";
 import { DefaultThreadItem } from "./thread-item";
@@ -79,23 +80,7 @@ export const ThreadList = () => {
 		return params;
 	}, [selectedType]);
 
-	const fetchStats = useCallback(async () => {
-		const response = await fetch("/api/new-threads/stats");
-
-		if (!response.ok) {
-			throw new Error("신규 스레드 통계를 불러오지 못했습니다.");
-		}
-
-		return (await response.json()) as {
-			counts: ThreadStatsItem[];
-		};
-	}, []);
-
-	const statsQuery = useQuery({
-		queryKey: ["new-threads", "stats"],
-		queryFn: fetchStats,
-		staleTime: 1000 * 60 * 5,
-	});
+	const statsQuery = useQuery(threadStatsOptions("inbox"));
 
 	useEffect(() => {
 		if (typeof window === "undefined") {
@@ -119,12 +104,12 @@ export const ThreadList = () => {
 				/>
 			)}
 			<ThreadInfiniteList
-				table="new-threads"
+				state="inbox"
 				filters={filterParams}
 				renderItem={(thread) => (
 					<DefaultThreadItem
 						thread={thread}
-						threadName="new-threads"
+						threadState="inbox"
 						extraButtons={<QuickSaveButton thread={thread} />}
 					/>
 				)}

@@ -4,6 +4,7 @@ import { threadListQueryKey } from "./thread-list-contract";
 import {
 	applyMoveThreadOptimisticUpdates,
 	invalidateThreadQueries,
+	replaceThreadInCaches,
 	rollbackSnapshots,
 	type ThreadInfinitePage,
 } from "./thread-query-cache";
@@ -19,19 +20,21 @@ const thread: ThreadItemType = {
 	tag: ["test"],
 	created_at: "2026-07-20T00:00:00.000Z",
 	captured_at: "2026-07-19T00:00:00.000Z",
+	state: "inbox",
+	state_changed_at: "2026-07-20T00:00:00.000Z",
 };
 
 describe("thread query cache", () => {
 	it("optimistic 이동 실패 시 원본 cache로 rollback한다", () => {
 		const queryClient = new QueryClient();
-		const sourceKey = threadListQueryKey("new-threads");
+		const sourceKey = threadListQueryKey("inbox");
 		const trashKey = threadListQueryKey("trash");
 		const sourceData = {
 			pages: [{ items: [thread], nextCursor: null } satisfies ThreadInfinitePage],
 			pageParams: [undefined],
 		};
 		queryClient.setQueryData(sourceKey, sourceData);
-		queryClient.setQueryData(["new-threads", "stats"], {
+		queryClient.setQueryData(["threads", "stats", "inbox", null], {
 			counts: [{ key: "normal", label: "normal", count: 1 }],
 			totalCount: 1,
 		});
@@ -42,8 +45,8 @@ describe("thread query cache", () => {
 		queryClient.setQueryData(trashKey, trashData);
 
 		const snapshots = applyMoveThreadOptimisticUpdates(queryClient, {
-			sourceTable: "new-threads",
-			destinationTable: "trash",
+			sourceState: "inbox",
+			destinationState: "trash",
 			thread,
 		});
 
@@ -54,7 +57,7 @@ describe("thread query cache", () => {
 
 		expect(queryClient.getQueryData(sourceKey)).toEqual(sourceData);
 		expect(queryClient.getQueryData(trashKey)).toEqual(trashData);
-		expect(queryClient.getQueryData(["new-threads", "stats"])).toEqual({
+		expect(queryClient.getQueryData(["threads", "stats", "inbox", null])).toEqual({
 			counts: [{ key: "normal", label: "normal", count: 1 }],
 			totalCount: 1,
 		});
@@ -63,7 +66,7 @@ describe("thread query cache", () => {
 
 	it("Quick에서 Trash로 이동할 때 모든 infinite page cache를 갱신한다", () => {
 		const queryClient = new QueryClient();
-		const quickKey = threadListQueryKey("quick-save");
+		const quickKey = threadListQueryKey("saved");
 		const trashKey = threadListQueryKey("trash");
 		const secondThread = { ...thread, id: "2", url: "https://example.com/2" };
 		queryClient.setQueryData(quickKey, {
@@ -79,8 +82,8 @@ describe("thread query cache", () => {
 		});
 
 		applyMoveThreadOptimisticUpdates(queryClient, {
-			sourceTable: "quick-save",
-			destinationTable: "trash",
+			sourceState: "saved",
+			destinationState: "trash",
 			thread,
 		});
 
@@ -92,21 +95,42 @@ describe("thread query cache", () => {
 		}>(trashKey);
 		expect(quickData?.pages.flatMap((page) => page.items)).toEqual([secondThread]);
 		expect(trashData?.pages[0].items).toHaveLength(1);
+		expect(trashData?.pages[0].items[0]).toEqual(
+			expect.objectContaining({
+				id: thread.id,
+				state: "trash",
+				created_at: thread.created_at,
+				captured_at: thread.captured_at,
+			})
+		);
+		expect(String(trashData?.pages[0].items[0]?.id)).not.toContain("optimistic");
+
+		const serverThread = {
+			...thread,
+			state: "trash" as const,
+			state_changed_at: "2026-07-22T01:02:03.000Z",
+		};
+		replaceThreadInCaches(queryClient, serverThread);
+		expect(
+			queryClient.getQueryData<{ pages: ThreadInfinitePage[] }>(trashKey)?.pages[0].items[0]
+		).toEqual(serverThread);
 		queryClient.clear();
 	});
 
 	it("성공 후 관련 목록과 통계를 invalidate한다", async () => {
 		const queryClient = new QueryClient();
-		const newThreadsKey = threadListQueryKey("new-threads");
+		const newThreadsKey = threadListQueryKey("inbox");
 		const trashKey = threadListQueryKey("trash");
 		queryClient.setQueryData(newThreadsKey, { pages: [], pageParams: [] });
-		queryClient.setQueryData(["new-threads", "stats"], { counts: [] });
+		queryClient.setQueryData(["threads", "stats", "inbox", null], { counts: [], totalCount: 0 });
 		queryClient.setQueryData(trashKey, { pages: [], pageParams: [] });
 
-		await invalidateThreadQueries(queryClient, ["new-threads", "trash"]);
+		await invalidateThreadQueries(queryClient, ["inbox", "trash"]);
 
 		expect(queryClient.getQueryState(newThreadsKey)?.isInvalidated).toBe(true);
-		expect(queryClient.getQueryState(["new-threads", "stats"])?.isInvalidated).toBe(true);
+		expect(queryClient.getQueryState(["threads", "stats", "inbox", null])?.isInvalidated).toBe(
+			true
+		);
 		expect(queryClient.getQueryState(trashKey)?.isInvalidated).toBe(true);
 		queryClient.clear();
 	});

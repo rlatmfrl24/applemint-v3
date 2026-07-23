@@ -65,16 +65,16 @@ create temporary table p1_cursor (
 );
 
 with inserted as (
-	insert into public."new-threads" (created_at, type, url, title, host)
+	insert into public.threads (state_changed_at, type, url, title, host, state)
 	values
-		('2026-01-01 00:00:02+00', 'p1-pagination', 'https://p1.test/baseline-1', 'baseline 1', 'p1.test'),
-		('2026-01-01 00:00:02+00', 'p1-pagination', 'https://p1.test/baseline-2', 'baseline 2', 'p1.test'),
-		('2026-01-01 00:00:01+00', 'p1-pagination', 'https://p1.test/baseline-3', 'baseline 3', 'p1.test'),
-		('2026-01-01 00:00:01+00', 'p1-pagination', 'https://p1.test/baseline-4', 'baseline 4', 'p1.test')
-	returning id, created_at, url
+		('2026-01-01 00:00:02+00', 'p1-pagination', 'https://p1.test/baseline-1', 'baseline 1', 'p1.test', 'inbox'),
+		('2026-01-01 00:00:02+00', 'p1-pagination', 'https://p1.test/baseline-2', 'baseline 2', 'p1.test', 'inbox'),
+		('2026-01-01 00:00:01+00', 'p1-pagination', 'https://p1.test/baseline-3', 'baseline 3', 'p1.test', 'inbox'),
+		('2026-01-01 00:00:01+00', 'p1-pagination', 'https://p1.test/baseline-4', 'baseline 4', 'p1.test', 'inbox')
+	returning id, state_changed_at, url
 )
 insert into p1_baseline_new_threads
-select id, created_at, url from inserted;
+select id, state_changed_at, url from inserted;
 
 grant select, insert, update, delete on
 	p1_baseline_new_threads,
@@ -178,8 +178,8 @@ reset role;
 
 create temporary table p1_restore_state (id bigint primary key);
 with restored_source as (
-	insert into public.trash (type, url, title, host)
-	values ('p1-pagination', 'https://p1.test/restored', 'restored', 'p1.test')
+	insert into public.threads (type, url, title, host, state)
+	values ('p1-pagination', 'https://p1.test/restored', 'restored', 'p1.test', 'trash')
 	returning id
 )
 insert into p1_restore_state (id)
@@ -227,22 +227,24 @@ select ok(
 );
 reset role;
 
-insert into public."quick-save" (created_at, type, url, title, host)
+insert into public.threads (state_changed_at, type, url, title, host, state)
 select
 	'2026-02-01 00:00:00+00'::timestamp with time zone - (item_number || ' seconds')::interval,
 	'p1-page-depth',
 	'https://p1.test/quick-' || item_number,
 	'quick ' || item_number,
-	'p1.test'
+	'p1.test',
+	'saved'
 from generate_series(1, 55) as items(item_number);
 
-insert into public.trash (created_at, type, url, title, host)
+insert into public.threads (state_changed_at, type, url, title, host, state)
 select
 	'2026-02-01 00:00:00+00'::timestamp with time zone - (item_number || ' seconds')::interval,
 	'p1-page-depth',
 	'https://p1.test/trash-' || item_number,
 	'trash ' || item_number,
-	'p1.test'
+	'p1.test',
+	'trash'
 from generate_series(1, 55) as items(item_number);
 
 create temporary table p1_quick_results (

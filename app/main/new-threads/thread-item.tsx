@@ -4,50 +4,46 @@ import { useCallback } from "react";
 import { toast } from "sonner";
 import { ThreadCard } from "@/app/main/thread-card";
 import { Button } from "@/components/ui/button";
-import { moveThread } from "@/lib/thread-mutations";
 import {
 	applyMoveThreadOptimisticUpdates,
 	invalidateThreadQueries,
-	isThreadQueryKeyForTables,
+	isThreadQueryKeyForStates,
 	normalizeThreadId,
 	type QuerySnapshot,
+	replaceThreadInCaches,
 	rollbackSnapshots,
-	type ThreadTableName,
 } from "@/lib/thread-query-cache";
-import type { ThreadItemType } from "@/lib/type-defs";
-import { createClient } from "@/utils/supabase/client";
-import { useMoveThreadToTrash } from "./use-move-to-trash";
+import { type TransitionThreadInput, transitionThreadOptions } from "@/lib/thread-query-options";
+import type { ThreadItemType, ThreadState } from "@/lib/type-defs";
 
 export const DefaultThreadItem = ({
 	thread,
-	threadName,
+	threadState,
 	extraButtons,
 	disablePrimaryAction,
 }: {
 	thread: ThreadItemType;
-	threadName: Exclude<ThreadTableName, "trash">;
+	threadState: Exclude<ThreadState, "trash">;
 	extraButtons?: React.ReactNode;
 	disablePrimaryAction?: boolean;
 }) => {
 	const queryClient = useQueryClient();
-	const supabase = createClient();
 
-	const removeThread = useMutation<void, unknown, string, QuerySnapshot[]>({
-		mutationFn: async (id) => {
-			await moveThread(supabase, id, threadName, "trash");
-		},
+	const removeThread = useMutation<ThreadItemType, Error, TransitionThreadInput, QuerySnapshot[]>({
+		...transitionThreadOptions(),
 		onMutate: async () => {
 			await queryClient.cancelQueries({
-				predicate: (query) => isThreadQueryKeyForTables(query.queryKey, [threadName, "trash"]),
+				predicate: (query) => isThreadQueryKeyForStates(query.queryKey, [threadState, "trash"]),
 			});
 
 			return applyMoveThreadOptimisticUpdates(queryClient, {
-				sourceTable: threadName,
-				destinationTable: "trash",
+				sourceState: threadState,
+				destinationState: "trash",
 				thread,
 			});
 		},
-		onSuccess: () => {
+		onSuccess: (item) => {
+			replaceThreadInCaches(queryClient, item);
 			toast.success("휴지통으로 이동했습니다.");
 		},
 		onError: (error, _id, snapshots) => {
@@ -56,25 +52,21 @@ export const DefaultThreadItem = ({
 			toast.error("스레드 이동 중 오류가 발생했습니다.");
 		},
 		onSettled: async () => {
-			await invalidateThreadQueries(queryClient, [threadName, "trash"]);
+			await invalidateThreadQueries(queryClient, [threadState, "trash"]);
 		},
 	});
 
-	const moveNewThreadToTrash = useMoveThreadToTrash(thread);
-	const isNewThreadsScope = threadName === "new-threads";
-
-	const isDeleting = isNewThreadsScope ? moveNewThreadToTrash.isPending : removeThread.isPending;
+	const isDeleting = removeThread.isPending;
 
 	const handleDelete = useCallback(() => {
 		const idAsString = normalizeThreadId(thread.id);
 
-		if (isNewThreadsScope) {
-			moveNewThreadToTrash.mutate(idAsString);
-			return;
-		}
-
-		removeThread.mutate(idAsString);
-	}, [isNewThreadsScope, moveNewThreadToTrash, removeThread, thread.id]);
+		removeThread.mutate({
+			id: idAsString,
+			expectedState: threadState,
+			destinationState: "trash",
+		});
+	}, [removeThread, thread.id, threadState]);
 
 	return (
 		<ThreadCard

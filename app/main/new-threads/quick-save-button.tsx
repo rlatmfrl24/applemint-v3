@@ -2,38 +2,40 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { BookmarkPlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { moveThread } from "@/lib/thread-mutations";
 import {
 	applyMoveThreadOptimisticUpdates,
 	invalidateThreadQueries,
-	isThreadQueryKeyForTables,
+	isThreadQueryKeyForStates,
 	type QuerySnapshot,
+	replaceThreadInCaches,
 	rollbackSnapshots,
 } from "@/lib/thread-query-cache";
+import { type TransitionThreadInput, transitionThreadOptions } from "@/lib/thread-query-options";
 import type { ThreadItemType } from "@/lib/type-defs";
-import { createClient } from "@/utils/supabase/client";
 
 export const QuickSaveButton = ({ thread }: { thread: ThreadItemType }) => {
-	const supabase = createClient();
 	const queryClient = useQueryClient();
 
-	const quickSaveMutation = useMutation<void, unknown, void, QuerySnapshot[]>({
-		mutationFn: async () => {
-			await moveThread(supabase, thread.id, "new-threads", "quick-save");
-		},
+	const quickSaveMutation = useMutation<
+		ThreadItemType,
+		Error,
+		TransitionThreadInput,
+		QuerySnapshot[]
+	>({
+		...transitionThreadOptions(),
 		onMutate: async () => {
 			await queryClient.cancelQueries({
-				predicate: (query) =>
-					isThreadQueryKeyForTables(query.queryKey, ["new-threads", "quick-save"]),
+				predicate: (query) => isThreadQueryKeyForStates(query.queryKey, ["inbox", "saved"]),
 			});
 
 			return applyMoveThreadOptimisticUpdates(queryClient, {
-				sourceTable: "new-threads",
-				destinationTable: "quick-save",
+				sourceState: "inbox",
+				destinationState: "saved",
 				thread,
 			});
 		},
-		onSuccess: () => {
+		onSuccess: (item) => {
+			replaceThreadInCaches(queryClient, item);
 			toast.success("퀵 세이브로 이동했습니다.");
 		},
 		onError: (error, _variables, snapshots) => {
@@ -42,7 +44,7 @@ export const QuickSaveButton = ({ thread }: { thread: ThreadItemType }) => {
 			toast.error("퀵 세이브 처리 중 오류가 발생했습니다.");
 		},
 		onSettled: async () => {
-			await invalidateThreadQueries(queryClient, ["new-threads", "quick-save"]);
+			await invalidateThreadQueries(queryClient, ["inbox", "saved"]);
 		},
 	});
 
@@ -53,7 +55,11 @@ export const QuickSaveButton = ({ thread }: { thread: ThreadItemType }) => {
 			disabled={quickSaveMutation.isPending}
 			type="button"
 			onClick={() => {
-				quickSaveMutation.mutate();
+				quickSaveMutation.mutate({
+					id: thread.id,
+					expectedState: "inbox",
+					destinationState: "saved",
+				});
 			}}
 		>
 			{quickSaveMutation.isPending ? (

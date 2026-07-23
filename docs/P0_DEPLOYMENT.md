@@ -68,13 +68,13 @@ Vault 연결을 수동 검증한 다음 scheduler를 활성화하고 GitHub vari
 ## 4. 배포 후 확인
 
 1. `anon`이 모든 업무 테이블을 조회·변경하거나 업무 RPC를 실행할 수 없는지 확인합니다.
-2. 비소유자 JWT가 세 스레드 테이블을 조회할 수 없고 이동·통계 RPC에서 `42501`을 받는지 확인합니다.
-3. 소유자는 세 스레드 테이블을 조회할 수 있지만 직접 `INSERT/UPDATE/DELETE`할 수 없고 이동 RPC만 실행 가능한지 확인합니다.
+2. 비소유자 JWT가 `threads`를 조회할 수 없고 이동·통계 RPC에서 `42501`을 받는지 확인합니다.
+3. 소유자는 `threads`를 조회할 수 있지만 직접 `INSERT/UPDATE/DELETE`할 수 없고 이동 RPC만 실행 가능한지 확인합니다.
 4. `service_role`만 history·filter·lock 테이블과 ingest/lock/clean RPC를 사용할 수 있는지 확인합니다.
 5. 세 소스를 한 번씩 실행해 `insertedCount`, `skippedCount`, `warningCount`, `durationMs`를 확인합니다.
 6. 두 번째 실행에서 중복 URL이 `skippedCount`로 집계되고 종료 후 `crawl:<source>` lock이 남지 않는지 확인합니다.
 7. 개인 계정으로 Main, Quick Save, Trash를 조회하고 Main→Quick Save→Trash→Restore 및 모두 휴지통으로 이동을 확인합니다.
-8. `media`, `youtube` 타입 행과 분류 키워드가 0건이고 세 스레드 테이블에 `sub_url` 컬럼이 없는지 확인합니다.
+8. `media`, `youtube` 타입 행과 분류 키워드가 0건이고 `threads`에 `sub_url` 컬럼이 없는지 확인합니다.
 
 Next 직접 실행에서 문제가 발생하면 `CRAWL_EXECUTION_MODE=edge`로 되돌린 호환 빌드를
 재배포합니다. 크롤링 DB RPC와 스키마는 양쪽 경로가 공유하므로 이 전환만으로는 DB rollback을

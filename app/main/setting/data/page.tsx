@@ -1,8 +1,8 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
 	AlertDialog,
@@ -18,61 +18,37 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { invalidateThreadQueries } from "@/lib/thread-query-cache";
-import { createClient } from "@/utils/supabase/client";
+import { bulkTrashInboxOptions, threadStatsOptions } from "@/lib/thread-query-options";
 
 interface NewThreadStats {
 	totalCount: number;
 	counts: Array<{ key: string; label: string; count: number }>;
 }
 
-async function fetchNewThreadStats(): Promise<NewThreadStats> {
-	const response = await fetch("/api/new-threads/stats", { cache: "no-store" });
-	const data = (await response.json().catch(() => null)) as unknown;
-	if (!response.ok || !data || typeof data !== "object" || !("totalCount" in data)) {
-		throw new Error(
-			data && typeof data === "object" && "error" in data && typeof data.error === "string"
-				? data.error
-				: "신규 글 현황을 불러오지 못했습니다."
-		);
-	}
-	const value = data as NewThreadStats;
-	if (!Number.isFinite(value.totalCount) || !Array.isArray(value.counts)) {
-		throw new Error("신규 글 현황 응답이 올바르지 않습니다.");
-	}
-	return value;
-}
-
 export default function DataSettingPage() {
-	const supabase = useMemo(() => createClient(), []);
 	const queryClient = useQueryClient();
-	const [isMoving, setIsMoving] = useState(false);
 	const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
-	const stats = useQuery<NewThreadStats>({
-		queryKey: ["new-threads", "stats"],
-		queryFn: fetchNewThreadStats,
+	const stats = useQuery({
+		...threadStatsOptions("inbox"),
 		refetchOnWindowFocus: true,
 	});
-
-	const handleBulkMove = async () => {
-		setIsMoving(true);
-		setResult(null);
-		try {
-			const { data, error } = await supabase.rpc("bulk_move_new_threads_to_trash");
-			if (error) throw error;
-			const movedCount = Number(data ?? 0);
+	const bulkMove = useMutation({
+		...bulkTrashInboxOptions(),
+		onSuccess: async (movedCount) => {
 			setResult({ success: true, message: `${movedCount}개의 신규 글을 휴지통으로 이동했습니다.` });
-			await Promise.all([
-				invalidateThreadQueries(queryClient, ["new-threads", "trash"]),
-				stats.refetch(),
-			]);
-		} catch (error) {
+			await invalidateThreadQueries(queryClient, ["inbox", "trash"]);
+		},
+		onError: (error) => {
 			setResult({
 				success: false,
 				message: error instanceof Error ? error.message : "신규 글을 이동하지 못했습니다.",
 			});
-		} finally {
-			setIsMoving(false);
-		}
+		},
+	});
+
+	const handleBulkMove = async () => {
+		setResult(null);
+		await bulkMove.mutateAsync().catch(() => undefined);
 	};
 
 	return (
@@ -143,9 +119,9 @@ export default function DataSettingPage() {
 						<AlertDialogTrigger asChild>
 							<Button
 								variant="destructive"
-								disabled={isMoving || !stats.data || stats.data.totalCount === 0}
+								disabled={bulkMove.isPending || !stats.data || stats.data.totalCount === 0}
 							>
-								{isMoving ? "이동 중..." : "모두 휴지통으로 이동"}
+								{bulkMove.isPending ? "이동 중..." : "모두 휴지통으로 이동"}
 							</Button>
 						</AlertDialogTrigger>
 						<AlertDialogContent>
@@ -157,8 +133,8 @@ export default function DataSettingPage() {
 								</AlertDialogDescription>
 							</AlertDialogHeader>
 							<AlertDialogFooter>
-								<AlertDialogCancel disabled={isMoving}>취소</AlertDialogCancel>
-								<AlertDialogAction disabled={isMoving} onClick={handleBulkMove}>
+								<AlertDialogCancel disabled={bulkMove.isPending}>취소</AlertDialogCancel>
+								<AlertDialogAction disabled={bulkMove.isPending} onClick={handleBulkMove}>
 									이동 진행
 								</AlertDialogAction>
 							</AlertDialogFooter>

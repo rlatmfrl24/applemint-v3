@@ -4,8 +4,10 @@ do $$
 begin
 	if exists (select 1 from pg_roles where rolname = 'p0_concurrent_ingest_login') then
 		execute 'revoke execute on function public.ingest_crawl_items(text, jsonb) from p0_concurrent_ingest_login';
-		execute 'revoke select, insert, delete on public."crawl-history", public."new-threads" from p0_concurrent_ingest_login';
-		execute 'revoke usage, select on sequence public."crawl-history_id_seq", public."new-threads_id_seq" from p0_concurrent_ingest_login';
+		execute 'revoke select, insert, delete on public."new-threads" from p0_concurrent_ingest_login';
+		execute 'revoke usage, select on sequence public."new-threads_id_seq" from p0_concurrent_ingest_login';
+		execute 'revoke select, insert, delete on public."crawl-history", public.threads from p0_concurrent_ingest_login';
+		execute 'revoke usage, select on sequence public."crawl-history_id_seq", public.threads_id_seq from p0_concurrent_ingest_login';
 		execute 'drop role p0_concurrent_ingest_login';
 	end if;
 end;
@@ -20,11 +22,11 @@ create role p0_concurrent_ingest_login
 
 grant execute on function public.ingest_crawl_items(text, jsonb)
 	to p0_concurrent_ingest_login;
-grant select, insert, delete on public."crawl-history", public."new-threads"
+grant select, insert, delete on public."crawl-history", public.threads
 	to p0_concurrent_ingest_login;
 grant usage, select on sequence
 	public."crawl-history_id_seq",
-	public."new-threads_id_seq"
+	public.threads_id_seq
 	to p0_concurrent_ingest_login;
 
 select plan(11);
@@ -118,12 +120,12 @@ select is(
 	'concurrent ingest creates one history row'
 );
 select is(
-	(select count(*) from public."new-threads" where url = 'https://p0.test/concurrent-ingest'),
+	(select count(*) from public.threads where state = 'inbox' and url = 'https://p0.test/concurrent-ingest'),
 	1::bigint,
 	'concurrent ingest creates one new thread'
 );
 
-delete from public."new-threads" where url = 'https://p0.test/concurrent-ingest';
+delete from public.threads where url = 'https://p0.test/concurrent-ingest';
 delete from public."crawl-history"
 where crawl_source = 'arcalive' and url = 'https://p0.test/concurrent-ingest';
 
@@ -143,10 +145,10 @@ select * from finish();
 drop extension dblink;
 revoke execute on function public.ingest_crawl_items(text, jsonb)
 	from p0_concurrent_ingest_login;
-revoke select, insert, delete on public."crawl-history", public."new-threads"
+revoke select, insert, delete on public."crawl-history", public.threads
 	from p0_concurrent_ingest_login;
 revoke usage, select on sequence
 	public."crawl-history_id_seq",
-	public."new-threads_id_seq"
+	public.threads_id_seq
 	from p0_concurrent_ingest_login;
 drop role p0_concurrent_ingest_login;

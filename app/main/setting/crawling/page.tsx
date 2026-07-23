@@ -408,7 +408,7 @@ export default function CrawlingSettingPage() {
 			const message = `${result.insertedCount}건 저장 · ${result.skippedCount}건 중복 · 경고 ${result.warningCount}건`;
 			setManualResult({ source, success: true, message });
 			toast.success(`${SOURCE_LABELS[source]} 수집이 완료되었습니다.`);
-			await invalidateThreadQueries(queryClient, ["new-threads"]);
+			await invalidateThreadQueries(queryClient, ["inbox"]);
 		} catch (error) {
 			const message = getManualErrorMessage(error);
 			setManualResult({ source, success: false, message });

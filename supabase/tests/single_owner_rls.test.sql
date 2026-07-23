@@ -193,12 +193,11 @@ select ok(
 	'service role retains ingest access'
 );
 
-insert into public."new-threads" (type, url, title, host)
-values ('normal', 'https://owner.test/new', 'owner new', 'owner.test');
-insert into public."quick-save" (type, url, title, host)
-values ('normal', 'https://owner.test/quick', 'owner quick', 'owner.test');
-insert into public.trash (type, url, title, host)
-values ('normal', 'https://owner.test/trash', 'owner trash', 'owner.test');
+insert into public.threads (type, url, title, host, state)
+values
+	('normal', 'https://owner.test/new', 'owner new', 'owner.test', 'inbox'),
+	('normal', 'https://owner.test/quick', 'owner quick', 'owner.test', 'saved'),
+	('normal', 'https://owner.test/trash', 'owner trash', 'owner.test', 'trash');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '22222222-2222-4222-8222-222222222222', true);

@@ -31,8 +31,8 @@ importers:
         specifier: ^2.110.7
         version: 2.110.7
       '@tanstack/react-query':
-        specifier: ^5.101.3
-        version: 5.101.3(react@19.2.4)
+        specifier: 5.101.4
+        version: 5.101.4(react@19.2.4)
       cheerio:
         specifier: ^1.2.0
         version: 1.2.0
@@ -1417,11 +1417,11 @@ packages:
   '@tailwindcss/postcss@4.2.1':
     resolution: {integrity: sha512-OEwGIBnXnj7zJeonOh6ZG9woofIjGrd2BORfvE5p9USYKDCZoQmfqLcfNiRWoJlRWLdNPn2IgVZuWAOM4iTYMw==}
 
-  '@tanstack/query-core@5.101.3':
-    resolution: {integrity: sha512-pWLyu7AjFFVM5G+frjcL81kKEW9R8GCCPKnL3uaWbMwd2f3ZINFCuy+PtKkdz/+pKw/f/XMsFsYq/H+uJHM4GQ==}
+  '@tanstack/query-core@5.101.4':
+    resolution: {integrity: sha512-gNwcvOJcRbLWPOLG/2OBm+zM+Yv+MKsXKEOWC57USuZDEsI71hEErQsiEGx5wX9rzWWkfwM0fVSPoiIFSsxfiw==}
 
-  '@tanstack/react-query@5.101.3':
-    resolution: {integrity: sha512-ZjgcRwmQUSCythDPj6pE2NKFi9bpQegxIBxgt3hPytXI1ElFHNaa3A7aWW8vFaLCIRjPv467rbREYHbxcdgQbg==}
+  '@tanstack/react-query@5.101.4':
+    resolution: {integrity: sha512-yRg2pfOCxIs4ZJW3XYYHU/WgtD04FHSnfHlpRT7h7pR77hwkdRG4wxbKe4aq6P0RvXUTBSQpQeadS1SUYUe+KA==}
     peerDependencies:
       react: ^18 || ^19
 
@@ -3243,11 +3243,11 @@ snapshots:
       postcss: 8.5.20
       tailwindcss: 4.2.1
 
-  '@tanstack/query-core@5.101.3': {}
+  '@tanstack/query-core@5.101.4': {}
 
-  '@tanstack/react-query@5.101.3(react@19.2.4)':
+  '@tanstack/react-query@5.101.4(react@19.2.4)':
     dependencies:
-      '@tanstack/query-core': 5.101.3
+      '@tanstack/query-core': 5.101.4
       react: 19.2.4
 
   '@tybys/wasm-util@0.10.3':
