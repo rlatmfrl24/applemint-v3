@@ -123,9 +123,6 @@ export interface CrawlAlertIncident {
 	activeSignals: CrawlAlertSignal[];
 	openedAt: string;
 	lastObservedAt: string;
-	lastNotificationAt: string | null;
-	githubIssueNumber: number | null;
-	githubIssueUrl: string | null;
 	snapshot: CrawlAlertSnapshot;
 }
 
@@ -137,7 +134,6 @@ export interface CrawlAlertSettings {
 	transportWindow: number;
 	transportErrorRatio: number;
 	transportMinFailures: number;
-	cooldownSeconds: number;
 	lastEvaluatedAt: string | null;
 }
 
@@ -184,7 +180,6 @@ export function isCrawlRunsDashboard(value: unknown): value is CrawlRunsDashboar
 			"transportWindow",
 			"transportErrorRatio",
 			"transportMinFailures",
-			"cooldownSeconds",
 		].every((key) => typeof settings[key] === "number" && Number.isFinite(settings[key]));
 	return (
 		Array.isArray(dashboard.activeRuns) &&

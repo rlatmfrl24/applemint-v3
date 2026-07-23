@@ -1,7 +1,7 @@
 "use client";
 
-import { DefaultThreadItem } from "../new-threads/thread-item";
 import { ThreadInfiniteList } from "../thread-infinite-list";
+import { DefaultThreadItem } from "../threads/thread-item";
 
 export default function QuickPage() {
 	return <QuickThread />;

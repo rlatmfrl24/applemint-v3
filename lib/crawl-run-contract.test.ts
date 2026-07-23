@@ -33,7 +33,6 @@ describe("crawl run dashboard contract", () => {
 					transportWindow: 3,
 					transportErrorRatio: 0.5,
 					transportMinFailures: 2,
-					cooldownSeconds: 86400,
 				},
 			})
 		).toBe(true);

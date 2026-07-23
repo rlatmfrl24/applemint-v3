@@ -19,7 +19,6 @@ const alertSettings = {
 	transportWindow: 3,
 	transportErrorRatio: 0.5,
 	transportMinFailures: 2,
-	cooldownSeconds: 86400,
 	lastEvaluatedAt: "2026-07-21T05:00:00.000Z",
 };
 
@@ -217,9 +216,6 @@ describe("CrawlRunsDashboard", () => {
 					activeSignals: ["parser-failure", "parser-volume-drop"],
 					openedAt: "2026-07-21T04:00:00.000Z",
 					lastObservedAt: "2026-07-21T05:00:00.000Z",
-					lastNotificationAt: "2026-07-21T05:01:00.000Z",
-					githubIssueNumber: 123,
-					githubIssueUrl: "https://github.com/rlatmfrl24/applemint-v3/issues/123",
 					snapshot: {
 						latestRunId: "1",
 						parserFailureTriggered: true,
@@ -245,8 +241,7 @@ describe("CrawlRunsDashboard", () => {
 		expect(html).toContain("info · discarded-items");
 		expect(html).toContain("DB 적재 실패");
 		expect(html).toContain("Arcalive 장애 감지");
-		expect(html).toContain("GitHub Issue #123");
-		expect(html).toContain("장애 알림 기준");
+		expect(html).toContain("장애 감지 기준");
 	});
 
 	it("이력이 없을 때 empty 상태를 렌더링한다", () => {

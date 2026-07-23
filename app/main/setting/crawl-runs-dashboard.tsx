@@ -217,18 +217,6 @@ function ActiveAlerts({ alerts }: { alerts: CrawlAlertIncident[] }) {
 							parser 비율 {formatPercent(alert.snapshot.parserValidRatio)} · 전송 오류율{" "}
 							{formatPercent(alert.snapshot.transportFailureRatio)}
 						</p>
-						{alert.githubIssueUrl ? (
-							<a
-								className="font-medium underline underline-offset-4"
-								href={alert.githubIssueUrl}
-								target="_blank"
-								rel="noreferrer"
-							>
-								GitHub Issue #{alert.githubIssueNumber}
-							</a>
-						) : (
-							<p>GitHub 알림 전달 대기 중</p>
-						)}
 					</AlertDescription>
 				</Alert>
 			))}
@@ -240,7 +228,7 @@ function AlertSettings({ settings }: { settings: CrawlAlertSettings }) {
 	return (
 		<Card className="mt-4" data-testid="crawl-alert-settings">
 			<CardHeader className="pb-3">
-				<h3 className="font-semibold">장애 알림 기준</h3>
+				<h3 className="font-semibold">장애 감지 기준</h3>
 			</CardHeader>
 			<CardContent className="grid gap-2 text-sm md:grid-cols-2">
 				<p>Parser failure {settings.parserFailureStreak}회 연속</p>
@@ -253,7 +241,6 @@ function AlertSettings({ settings }: { settings: CrawlAlertSettings }) {
 					최근 {settings.transportWindow}회 전송 오류율{" "}
 					{Math.round(settings.transportErrorRatio * 100)}% 이상
 				</p>
-				<p>동일 장애 재알림 {settings.cooldownSeconds / 3600}시간</p>
 				<p>마지막 평가: {formatDate(settings.lastEvaluatedAt)}</p>
 			</CardContent>
 		</Card>

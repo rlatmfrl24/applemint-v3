@@ -15,10 +15,10 @@ interface StatsRow {
 const loadStats = (supabase: SupabaseClient, state: ThreadState, filterType: string | null) =>
 	supabase.rpc("get_thread_stats", { p_state: state, p_filter_type: filterType });
 
-export async function handleThreadStatsGet(request: NextRequest, forcedState?: ThreadState) {
+export async function handleThreadStatsGet(request: NextRequest) {
 	try {
 		const { searchParams } = new URL(request.url);
-		const state = forcedState ?? searchParams.get("state");
+		const state = searchParams.get("state");
 		if (!isThreadState(state)) {
 			return NextResponse.json({ error: "올바른 스레드 상태가 필요합니다." }, { status: 400 });
 		}

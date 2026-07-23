@@ -7,7 +7,6 @@ const executeCrawlPipelineMock = vi.hoisted(() => vi.fn());
 vi.mock("@/utils/supabase/service-role", () => ({
 	createServiceRoleClient: createServiceRoleClientMock,
 }));
-
 vi.mock("../pipeline", () => {
 	class MockCrawlPipelineError extends Error {
 		constructor(
@@ -46,24 +45,22 @@ function request(target: unknown, secret = INTERNAL_SECRET) {
 describe("POST /api/crawl/scheduled", () => {
 	beforeEach(() => {
 		vi.stubEnv("CRAWL_INTERNAL_SECRET", INTERNAL_SECRET);
-		vi.stubEnv("CRAWL_EXECUTION_MODE", "next");
+		createServiceRoleClientMock.mockReset();
 		createServiceRoleClientMock.mockReturnValue({ kind: "service-client" });
 		executeCrawlPipelineMock.mockReset();
 	});
 
-	afterEach(() => {
-		vi.unstubAllEnvs();
-		vi.unstubAllGlobals();
-	});
+	afterEach(() => vi.unstubAllEnvs());
 
 	it("내부 secret과 활성 target을 검증한다", async () => {
-		const unauthorized = await POST(request("arcalive", "wrong"));
-		expect(unauthorized.status).toBe(401);
-		expect(await unauthorized.json()).toMatchObject({ reason: "invalid-secret" });
+		expect((await POST(request("arcalive", "wrong"))).status).toBe(401);
 		expect((await POST(request("issuelink"))).status).toBe(400);
+
+		vi.stubEnv("CRAWL_INTERNAL_SECRET", "");
+		expect((await POST(request("arcalive"))).status).toBe(503);
 	});
 
-	it("Next 경로를 scheduled trigger로 실행한다", async () => {
+	it("통합 Next 파이프라인을 scheduled trigger로 실행한다", async () => {
 		executeCrawlPipelineMock.mockResolvedValue({ runId: "42", status: "succeeded" });
 
 		const response = await POST(request("battlepage"));
@@ -77,28 +74,8 @@ describe("POST /api/crawl/scheduled", () => {
 		);
 	});
 
-	it("실행 모드를 생략하면 권장 Next 경로를 사용한다", async () => {
-		vi.stubEnv("CRAWL_EXECUTION_MODE", "");
-		executeCrawlPipelineMock.mockResolvedValue({ runId: "43", status: "succeeded" });
-
-		const response = await POST(request("arcalive"));
-
-		expect(response.status).toBe(200);
-		expect(executeCrawlPipelineMock).toHaveBeenCalledOnce();
-	});
-
-	it("잘못된 실행 모드는 503으로 닫힌다", async () => {
-		vi.stubEnv("CRAWL_EXECUTION_MODE", "legacy");
-
-		const response = await POST(request("arcalive"));
-
-		expect(response.status).toBe(503);
-		expect(await response.json()).toMatchObject({ reason: "configuration-invalid" });
-		expect(executeCrawlPipelineMock).not.toHaveBeenCalled();
-	});
-
-	it("cooldown은 정상 skip으로 반환한다", async () => {
-		executeCrawlPipelineMock.mockRejectedValue(
+	it("cooldown과 capacity 응답 계약을 유지한다", async () => {
+		executeCrawlPipelineMock.mockRejectedValueOnce(
 			new CrawlPipelineError(
 				"cooldown",
 				409,
@@ -110,15 +87,11 @@ describe("POST /api/crawl/scheduled", () => {
 				"2026-07-22T06:00:00.000Z"
 			)
 		);
+		const cooldown = await POST(request("arcalive"));
+		expect(cooldown.status).toBe(200);
+		expect(await cooldown.json()).toMatchObject({ status: "skipped", reason: "cooldown" });
 
-		const response = await POST(request("arcalive"));
-
-		expect(response.status).toBe(200);
-		expect(await response.json()).toMatchObject({ status: "skipped", reason: "cooldown" });
-	});
-
-	it("capacity는 Retry-After를 포함한 429로 반환한다", async () => {
-		executeCrawlPipelineMock.mockRejectedValue(
+		executeCrawlPipelineMock.mockRejectedValueOnce(
 			new CrawlPipelineError(
 				"capacity",
 				429,
@@ -131,31 +104,15 @@ describe("POST /api/crawl/scheduled", () => {
 				30
 			)
 		);
-
-		const response = await POST(request("insagirl"));
-
-		expect(response.status).toBe(429);
-		expect(response.headers.get("Retry-After")).toBe("30");
+		const capacity = await POST(request("insagirl"));
+		expect(capacity.status).toBe(429);
+		expect(capacity.headers.get("Retry-After")).toBe("30");
 	});
 
-	it("Edge 호환 경로에 scheduled trigger를 전달한다", async () => {
-		vi.stubEnv("CRAWL_EXECUTION_MODE", "edge");
-		vi.stubEnv("SUPABASE_URL", "https://project.supabase.co");
-		vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-role-key");
-		const fetchMock = vi.fn().mockResolvedValue(
-			new Response(JSON.stringify({ status: "skipped", reason: "cooldown" }), {
-				status: 200,
-				headers: { "Content-Type": "application/json" },
-			})
-		);
-		vi.stubGlobal("fetch", fetchMock);
-
-		const response = await POST(request("arcalive"));
-
-		expect(response.status).toBe(200);
-		expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
-			target: "arcalive",
-			trigger: "scheduled",
+	it("service-role 설정 오류는 503을 반환한다", async () => {
+		createServiceRoleClientMock.mockImplementation(() => {
+			throw new Error("missing service role key");
 		});
+		expect((await POST(request("arcalive"))).status).toBe(503);
 	});
 });

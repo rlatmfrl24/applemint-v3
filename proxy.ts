@@ -1,15 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/utils/supabase/middleware";
 
-const INTERNAL_CRAWL_API_PATHS = new Set([
-	"/api/crawl",
-	"/api/crawl/alerts/notifications",
-	"/api/crawl/scheduled",
-]);
+const INTERNAL_CRAWL_API_PATH = "/api/crawl/scheduled";
 
 export async function proxy(request: NextRequest) {
 	// 내부 크롤링 API는 쿠키 세션을 사용하지 않으며 원본 인증 헤더와 JSON body를 보존해야 한다.
-	if (INTERNAL_CRAWL_API_PATHS.has(request.nextUrl.pathname)) {
+	if (request.nextUrl.pathname === INTERNAL_CRAWL_API_PATH) {
 		return NextResponse.next();
 	}
 

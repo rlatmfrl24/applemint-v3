@@ -4,14 +4,16 @@ select plan(12);
 
 select ok(
 	to_regprocedure('public.list_thread_page(text,integer,timestamp with time zone,bigint,text,text)') is null
-		and to_regprocedure('public.list_thread_page(text,integer,timestamp with time zone,bigint,text)') is not null,
-	'thread pagination no longer exposes the IssueLink category argument'
+		and to_regprocedure('public.list_thread_page(text,integer,timestamp with time zone,bigint,text)') is null
+		and to_regprocedure('public.list_threads_page(text,integer,timestamp with time zone,bigint,text)') is not null,
+	'only canonical state pagination remains'
 );
 
 select ok(
 	to_regprocedure('public.get_new_threads_stats(text,text)') is null
-		and to_regprocedure('public.get_new_threads_stats(text)') is not null,
-	'thread statistics no longer expose the IssueLink category argument'
+		and to_regprocedure('public.get_new_threads_stats(text)') is null
+		and to_regprocedure('public.get_thread_stats(text,text)') is not null,
+	'only canonical state statistics remain'
 );
 
 set local role service_role;

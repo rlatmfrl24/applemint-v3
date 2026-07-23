@@ -17,8 +17,8 @@
 ### Backend / Data
 - `Supabase Auth` + `@supabase/ssr` (쿠키 기반 SSR 인증)
 - `Supabase Postgres` (`threads`, `crawl-history`, `filter-keyword`)
-- `Supabase Edge Functions` (`supabase/functions/crawl-source`)
-- `SQL migration` 기반 성능 튜닝 및 원자적 RPC (`move_thread`, `ingest_crawl_items`)
+- `Supabase Cron` + `pg_net` 기반 예약 실행
+- `SQL migration` 기반 성능 튜닝 및 원자적 RPC (`transition_thread_state`, `ingest_crawl_items`)
 
 ### Crawling / Parsing
 - 표준 `fetch`와 요청별 timeout
@@ -28,7 +28,7 @@
 
 ### 품질 / 보안 유지보수
 - `Biome 2.4.7` 포맷·린트·정적 검사
-- GitHub PR CI (`Vitest`, `pgTAP`, `Deno`, `TypeScript`, production build, Playwright E2E)
+- GitHub PR CI (`Vitest`, `pgTAP`, `TypeScript`, production build, Playwright E2E)
 - GitHub `CodeQL` 워크플로우
 - `Dependabot` 주간 보안 업데이트
 - 커스텀 보안 스크립트 (`scripts/security/*`)
@@ -51,10 +51,6 @@
 6. `finish_crawl_run`이 결과 저장과 lock 해제를 원자적으로 완료
 7. UI는 스레드 API와 `GET /api/crawl/runs`로 목록·운영 이력을 조회
 
-전환 기간에는 `CRAWL_EXECUTION_MODE=edge`로 기존 Edge Function 경로를 사용할 수 있습니다. 운영
-전환은 `next`로 진행하며, 1주간 rollback 경로를 유지한 뒤 Edge Function과 내부 `/api/crawl`을
-제거합니다.
-
 수동 크롤링은 cooldown을 우회하지만 동일 소스 중복과 최대 동시성 제한은 지킵니다. 예약 실행,
 heartbeat, 비정상 종료 복구와 DB 작업 큐 도입 기준은 `docs/CRAWL_SCHEDULING.md`를 참고합니다.
 
@@ -63,9 +59,8 @@ heartbeat, 비정상 종료 복구와 DB 작업 큐 도입 기준은 `docs/CRAWL
 ```text
 app/
   api/
-    crawl/                 # 소스별 크롤러 + 통합 크롤링 엔드포인트
+    crawl/                 # 소스별 크롤러 + 수동/예약 실행 엔드포인트
     threads/               # 상태 기반 목록/통계/이동/일괄 이동 API
-    new-threads/           # 현재 배포판용 호환 API
   auth/, login/, signout/  # 인증 흐름
   main/                    # 메인, 퀵세이브, 휴지통, 설정 화면
 
@@ -76,7 +71,6 @@ utils/
   supabase/                # browser/server/middleware 클라이언트 팩토리
 
 supabase/
-  functions/crawl-source/  # 크롤링 적재 파이프라인 Edge Function
   migrations/              # 인덱스/RPC 등 DB 변경 이력
 
 scripts/security/          # GitHub 보안 알림 수집/게이트 스크립트
@@ -137,17 +131,16 @@ erDiagram
 - `threads.tag`는 배열 성격의 태그 데이터를 저장합니다.
 - `crawl-history`는 `(crawl_source, url)` 유니크 인덱스로 중복 유입을 영구적으로 방지합니다. 사용자 목록에서 삭제된 URL도 재수집하지 않으며, 기간 만료 삭제·아카이브·월별 파티셔닝을 적용하지 않습니다.
 - `crawl_runs`는 재시도를 포함한 한 번의 실행을 한 행으로 보존하며 90일이 지난 이력은 매일 03:15 KST에 정리합니다.
-- `crawl_alert_incidents`와 `crawl_alert_notifications`는 소스 장애 상태와 GitHub Issue 전달 outbox를 보존합니다.
+- `crawl_alert_incidents`는 소스 장애의 발생·복구 상태를 보존하고 설정 화면에 표시합니다.
 - `crawl-history` 용량 측정, 백업·복구, 성능 검증 절차는 [`docs/CRAWL_HISTORY_RETENTION.md`](docs/CRAWL_HISTORY_RETENTION.md)를 참고합니다.
-- 장애 감지 기준과 운영 절차는 [`docs/CRAWLER_ALERT_OPERATIONS.md`](docs/CRAWLER_ALERT_OPERATIONS.md)를 참고합니다.
-- 상태별 목록·통계 API는 `list_threads_page`, `get_thread_stats` RPC를 사용합니다. 단계적 migration과 관찰 절차는 [`docs/THREADS_MIGRATION.md`](docs/THREADS_MIGRATION.md)를 참고합니다.
+- 상태별 목록·통계 API는 `list_threads_page`, `get_thread_stats` RPC를 사용합니다.
 
 ## 유지보수 가이드
 
 ### 1) 크롤러 소스 추가/변경
 - `app/api/crawl/<source>-parser.ts`에 네트워크와 분리된 순수 파서 구현
 - `app/api/crawl/<source>.ts`에서 요청 결과를 공통 파서 계약에 연결
-- `app/api/crawl/route.ts` 스위치에 타겟 등록
+- `app/api/crawl/crawl-runner.ts`의 `CRAWLERS`에 타겟 등록
 - 반환 타입은 `{items, attempted, succeeded, failures, warnings, parserObservations}` 구조를 유지
 - 정상 빈 목록·일부 제외는 `info`, 최소 추출 건수 미달·높은 제외율은 `warning`으로 기록하며 구조 변경은 parser failure로 구분
 - `partial`은 actionable warning 또는 부분 failure가 있을 때만 사용하고 정보성 진단만 있으면 `succeeded`로 기록
@@ -196,15 +189,11 @@ erDiagram
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (서버 전용)
-- `SUPABASE_URL` (manual crawl fallback)
-- `CRAWL_EXECUTION_MODE` (`edge` 또는 `next`; Supabase 예약 전환은 `next` 사용)
-- `CRAWL_INTERNAL_SECRET` (Next/Edge, Supabase Vault, 운영 workflow가 공유하는 32바이트 이상 secret)
-- `CRAWL_API_BASE_URL` (전환 기간의 Edge Function -> 내부 크롤링 API 주소)
+- `SUPABASE_URL` (서버 전용, 미설정 시 `NEXT_PUBLIC_SUPABASE_URL` 사용)
+- `CRAWL_INTERNAL_SECRET` (Next 예약 API와 Supabase Vault가 공유하는 32바이트 이상 secret)
 - `DEBUG_CRAWL`, `LOG_LEVEL`
 - `GITHUB_TOKEN` 또는 `GH_TOKEN` (보안 스크립트 실행 시)
 - Supabase Vault `crawl_app_base_url`, `crawl_internal_secret` (정기 예약 호출)
-- GitHub Actions variable `APP_BASE_URL`, `CRAWL_SCHEDULER_OWNER`와 secret `CRAWL_INTERNAL_SECRET`
-  (수동 복구 및 Crawler Health 알림 전달 workflow)
 
 Applemint는 migration에 고정한 단일 Supabase Auth 계정만 사용할 수 있습니다. 신규 가입은 비활성화하며 목록 조회는 소유자에게만 허용되고, 스레드 변경은 소유자 확인이 포함된 RPC를 통해서만 수행합니다.
 
@@ -214,10 +203,6 @@ Applemint는 migration에 고정한 단일 Supabase Auth 계정만 사용할 수
 - `pnpm test:coverage`: 단위 테스트와 V8 커버리지 하한선 검사
 - `pnpm test:db`: 이동·적재 rollback, 권한, lock pgTAP 테스트
 - `pnpm typecheck`: TypeScript strict 검사
-- `pnpm check:edge`: 고정된 `deno.lock`으로 Edge Function 타입 검사
-- `pnpm test:edge`: Edge helper Deno 단위 테스트
 - `pnpm build`: Next.js 프로덕션 빌드
 - `pnpm test:e2e`: 로컬 Supabase 초기화 후 Chromium 브라우저 흐름 검증
 - `pnpm test:e2e:ui`: 로컬 Supabase 초기화 후 Playwright UI 모드 실행
-
-원격 migration history 정렬과 배포 순서는 [`docs/P0_DEPLOYMENT.md`](docs/P0_DEPLOYMENT.md)를 따릅니다.

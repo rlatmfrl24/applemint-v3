@@ -6,17 +6,8 @@ const rpcMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/utils/supabase/server", () => ({ createClient: createClientMock }));
 
-import { GET as getNewThreads } from "./new-threads/route";
-import { GET as getQuickSave } from "./quick-save/route";
-import {
-	decodeLegacyThreadCursor,
-	decodeThreadCursor,
-	encodeLegacyThreadCursor,
-	encodeThreadCursor,
-	parseThreadListParams,
-} from "./thread-list";
+import { decodeThreadCursor, encodeThreadCursor, parseThreadListParams } from "./thread-list";
 import { GET as getThreads } from "./threads/route";
-import { GET as getTrash } from "./trash/route";
 
 const stateChangedAt = "2026-07-20T12:00:00.000Z";
 const rows = [
@@ -136,27 +127,6 @@ describe("thread list API", () => {
 		});
 	});
 
-	it.each([
-		["new-threads", "inbox", getNewThreads],
-		["quick-save", "saved", getQuickSave],
-		["trash", "trash", getTrash],
-	] as const)("%s 호환 경로가 상태 기반 RPC를 사용한다", async (table, state, handler) => {
-		mockOwner();
-		const response = await handler(request(`/api/${table}?limit=2`));
-		const body = await response.json();
-		expect(response.status).toBe(200);
-		expect(body.items[0]).not.toHaveProperty("state");
-		expect(body.items[0].created_at).toBe(stateChangedAt);
-		expect(decodeLegacyThreadCursor(body.nextCursor)).toEqual({
-			createdAt: stateChangedAt,
-			id: "2",
-		});
-		expect(rpcMock).toHaveBeenLastCalledWith(
-			"list_threads_page",
-			expect.objectContaining({ p_state: state })
-		);
-	});
-
 	it("cursor와 필터를 RPC 복합 경계값으로 전달한다", async () => {
 		mockOwner([]);
 		const cursor = encodeThreadCursor({ v: 1, state: "inbox", stateChangedAt, id: "2" });
@@ -180,11 +150,6 @@ describe("thread list API", () => {
 		expect(
 			(await getThreads(request(`/api/threads?state=inbox&cursor=${wrongStateCursor}`))).status
 		).toBe(400);
-		expect((await getTrash(request("/api/trash?cursor=broken"))).status).toBe(400);
-	});
-
-	it("legacy cursor를 계속 허용한다", () => {
-		const encoded = encodeLegacyThreadCursor({ createdAt: stateChangedAt, id: "2" });
-		expect(decodeLegacyThreadCursor(encoded)).toEqual({ createdAt: stateChangedAt, id: "2" });
+		expect((await getThreads(request("/api/threads?state=trash&cursor=broken"))).status).toBe(400);
 	});
 });

@@ -7,8 +7,6 @@ vi.mock("@/utils/supabase/server", () => ({
 	createClient: createClientMock,
 }));
 
-import { GET as getQuickSave } from "../quick-save/route";
-import { GET as getTrash } from "../trash/route";
 import { GET as getThreads } from "./route";
 import { GET as getStats } from "./stats/route";
 
@@ -37,10 +35,8 @@ function request(path: string) {
 }
 
 describe.each([
-	["신규 스레드", (req: NextRequest) => getThreads(req), "/api/new-threads"],
-	["퀵 세이브", (req: NextRequest) => getQuickSave(req), "/api/quick-save"],
-	["휴지통", (req: NextRequest) => getTrash(req), "/api/trash"],
-	["신규 스레드 통계", (req: NextRequest) => getStats(req), "/api/new-threads/stats"],
+	["스레드 목록", (req: NextRequest) => getThreads(req), "/api/threads?state=inbox"],
+	["스레드 통계", (req: NextRequest) => getStats(req), "/api/threads/stats?state=inbox"],
 ])("%s API 소유자 검사", (_name, handler, path) => {
 	beforeEach(() => {
 		createClientMock.mockReset();
@@ -71,7 +67,7 @@ describe.each([
 	});
 });
 
-describe("신규 스레드 통계 응답", () => {
+describe("스레드 통계 응답", () => {
 	beforeEach(() => {
 		createClientMock.mockReset();
 	});
@@ -96,7 +92,7 @@ describe("신규 스레드 통계 응답", () => {
 			error: null,
 		});
 
-		const response = await getStats(request("/api/new-threads/stats?filterType=normal"));
+		const response = await getStats(request("/api/threads/stats?state=inbox&filterType=normal"));
 
 		expect(response.status).toBe(200);
 		expect(await response.json()).toEqual({
@@ -112,7 +108,7 @@ describe("신규 스레드 통계 응답", () => {
 	it("통계 RPC 오류를 500으로 반환한다", async () => {
 		mockStatsRpc({ data: null, error: { message: "stats unavailable" } });
 
-		const response = await getStats(request("/api/new-threads/stats"));
+		const response = await getStats(request("/api/threads/stats?state=inbox"));
 
 		expect(response.status).toBe(500);
 		expect(await response.json()).toEqual({ error: "stats unavailable" });
