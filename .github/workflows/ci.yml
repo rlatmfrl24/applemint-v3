@@ -19,7 +19,6 @@ jobs:
     timeout-minutes: 15
     env:
       SUPABASE_DB_IMAGE: ghcr.io/supabase/postgres:15.6.1.118
-      SUPABASE_DB_IMAGE_ARCHIVE: ${{ runner.temp }}/supabase-postgres-15.6.1.118.tar
 
     steps:
       - name: Checkout
@@ -29,7 +28,7 @@ jobs:
         id: supabase-db-image-cache
         uses: actions/cache@v5
         with:
-          path: ${{ env.SUPABASE_DB_IMAGE_ARCHIVE }}
+          path: ${{ runner.temp }}/supabase-postgres-15.6.1.118.tar
           key: supabase-postgres-${{ runner.os }}-15.6.1.118-v1
 
       - name: Set up Supabase CLI
@@ -41,8 +40,8 @@ jobs:
         shell: bash
         run: |
           nohup bash -c '
-            if [[ -f "$SUPABASE_DB_IMAGE_ARCHIVE" ]]; then
-              docker load --input "$SUPABASE_DB_IMAGE_ARCHIVE"
+            if [[ -f "$RUNNER_TEMP/supabase-postgres-15.6.1.118.tar" ]]; then
+              docker load --input "$RUNNER_TEMP/supabase-postgres-15.6.1.118.tar"
             fi
             supabase db start > "$RUNNER_TEMP/supabase-db-start.log" 2>&1
             echo "$?" > "$RUNNER_TEMP/supabase-db-start.status"
@@ -82,4 +81,6 @@ jobs:
 
       - name: Prepare Supabase database image cache
         if: success() && steps.supabase-db-image-cache.outputs.cache-hit != 'true'
-        run: docker save "$SUPABASE_DB_IMAGE" --output "$SUPABASE_DB_IMAGE_ARCHIVE"
+        run: >-
+          docker save "$SUPABASE_DB_IMAGE"
+          --output "$RUNNER_TEMP/supabase-postgres-15.6.1.118.tar"
