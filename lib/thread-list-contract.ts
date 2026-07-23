@@ -1,8 +1,24 @@
-import type { ThreadItemType } from "./type-defs";
+import type { ThreadItemType, ThreadState } from "./type-defs";
 
 const THREAD_TABLE_NAMES = ["new-threads", "quick-save", "trash"] as const;
 
 export type ThreadTableName = (typeof THREAD_TABLE_NAMES)[number];
+
+const THREAD_STATES = ["inbox", "saved", "trash"] as const satisfies readonly ThreadState[];
+
+export const isThreadState = (value: unknown): value is ThreadState =>
+	typeof value === "string" && THREAD_STATES.includes(value as ThreadState);
+
+export const legacyTableToThreadState = (table: ThreadTableName): ThreadState => {
+	switch (table) {
+		case "new-threads":
+			return "inbox";
+		case "quick-save":
+			return "saved";
+		case "trash":
+			return "trash";
+	}
+};
 
 export interface ThreadListFilterParam {
 	key: "filterType";
@@ -14,8 +30,11 @@ export interface ThreadPage {
 	nextCursor: string | null;
 }
 
-export const threadListQueryKey = (table: ThreadTableName, filterKey = "") =>
-	["threads", table, filterKey] as const;
+export const threadListQueryKey = (state: ThreadState, filterKey = "") =>
+	["threads", "list", state, filterKey] as const;
+
+export const threadStatsQueryKey = (state: ThreadState, filterType: string | null = null) =>
+	["threads", "stats", state, filterType] as const;
 
 export const normalizeThreadId = (value: string | number) => {
 	if (typeof value === "number" && Number.isFinite(value)) {

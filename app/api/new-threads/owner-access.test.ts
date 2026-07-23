@@ -103,8 +103,9 @@ describe("신규 스레드 통계 응답", () => {
 			totalCount: 2,
 			counts: [{ key: "normal", label: "normal", count: 2 }],
 		});
-		expect(rpc).toHaveBeenLastCalledWith("get_new_threads_stats", {
-			in_filter_type: "normal",
+		expect(rpc).toHaveBeenLastCalledWith("get_thread_stats", {
+			p_state: "inbox",
+			p_filter_type: "normal",
 		});
 	});
 

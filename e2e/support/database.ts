@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { getE2ERuntime } from "./runtime";
 
-export type E2EThreadTable = "new-threads" | "quick-save" | "trash";
+export type E2EThreadState = "inbox" | "saved" | "trash";
 
 interface SeedThreadOptions {
 	prefix?: string;
@@ -22,11 +22,9 @@ function createAdminClient() {
 
 export async function clearThreadTables() {
 	const supabase = createAdminClient();
-	for (const table of ["new-threads", "quick-save", "trash"] as const) {
-		const { error } = await supabase.from(table).delete().gte("id", 0);
-		if (error) {
-			throw new Error(`${table} E2E 데이터 초기화 실패: ${error.message}`);
-		}
+	const { error } = await supabase.from("threads").delete().gte("id", 0);
+	if (error) {
+		throw new Error(`threads E2E 데이터 초기화 실패: ${error.message}`);
 	}
 }
 
@@ -231,25 +229,37 @@ export async function completeCrawlRun(runId: string) {
 	}
 }
 
-export async function countThreads(table: E2EThreadTable) {
+export async function countThreads(state: E2EThreadState) {
 	const supabase = createAdminClient();
-	const { count, error } = await supabase.from(table).select("id", {
-		count: "exact",
-		head: true,
-	});
+	const { count, error } = await supabase
+		.from("threads")
+		.select("id", { count: "exact", head: true })
+		.eq("state", state);
 	if (error) {
-		throw new Error(`${table} E2E 데이터 집계 실패: ${error.message}`);
+		throw new Error(`${state} E2E 데이터 집계 실패: ${error.message}`);
 	}
 	return count ?? 0;
 }
 
+export async function getThreadIdByUrl(state: E2EThreadState, url: string) {
+	const supabase = createAdminClient();
+	const { data, error } = await supabase
+		.from("threads")
+		.select("id")
+		.eq("state", state)
+		.eq("url", url)
+		.maybeSingle();
+	if (error) throw new Error(`${state} E2E 스레드 조회 실패: ${error.message}`);
+	return data ? String(data.id) : null;
+}
+
 export async function seedThreads(
-	table: E2EThreadTable,
+	state: E2EThreadState,
 	count: number,
 	options: SeedThreadOptions = {}
 ) {
 	const supabase = createAdminClient();
-	const prefix = options.prefix ?? table;
+	const prefix = options.prefix ?? state;
 	const type = options.type ?? "arcalive";
 	const startAt = options.startAt ?? new Date("2026-07-21T00:00:00.000Z");
 	const rows = Array.from({ length: count }, (_, index) => {
@@ -258,17 +268,19 @@ export async function seedThreads(
 			type,
 			url: `https://e2e.applemint.local/${prefix}/${index + 1}`,
 			title: `${prefix} thread ${String(index + 1).padStart(2, "0")}`,
-			description: `E2E ${table} fixture ${index + 1}`,
+			description: `E2E ${state} fixture ${index + 1}`,
 			host: "e2e.applemint.local",
 			tag: options.tag ?? [type],
 			created_at: capturedAt,
 			captured_at: capturedAt,
+			state_changed_at: capturedAt,
+			state,
 		};
 	});
 
-	const { data, error } = await supabase.from(table).insert(rows).select("id,url,title");
+	const { data, error } = await supabase.from("threads").insert(rows).select("id,url,title");
 	if (error) {
-		throw new Error(`${table} E2E 데이터 생성 실패: ${error.message}`);
+		throw new Error(`${state} E2E 데이터 생성 실패: ${error.message}`);
 	}
 	return data;
 }

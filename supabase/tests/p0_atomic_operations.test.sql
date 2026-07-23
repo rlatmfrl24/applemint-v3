@@ -43,14 +43,15 @@ create temporary table p0_test_state (
 grant select on p0_test_state to authenticated, service_role;
 
 with inserted as (
-	insert into public."new-threads" (
+	insert into public.threads (
 		type,
 		url,
 		title,
 		description,
 		host,
 		tag,
-		captured_at
+		captured_at,
+		state
 	)
 	values (
 		'normal',
@@ -59,7 +60,8 @@ with inserted as (
 		'move description',
 		'p0.test',
 		array['p0', 'tag'],
-		'2026-07-19 12:34:56+00'::timestamptz
+		'2026-07-19 12:34:56+00'::timestamptz,
+		'inbox'
 	)
 	returning id
 )
@@ -109,8 +111,8 @@ before insert on public."quick-save"
 for each row execute function pg_temp.reject_quick_save_insert();
 
 with inserted as (
-	insert into public."new-threads" (type, url, title, host)
-	values ('normal', 'https://p0.test/rollback-move', 'rollback move', 'p0.test')
+	insert into public.threads (type, url, title, host, state)
+	values ('normal', 'https://p0.test/rollback-move', 'rollback move', 'p0.test', 'inbox')
 	returning id
 )
 insert into p0_test_state (key, value)
@@ -139,10 +141,10 @@ select is(
 
 drop trigger p0_reject_quick_save_insert on public."quick-save";
 
-insert into public."new-threads" (type, url, title, host)
+insert into public.threads (type, url, title, host, state)
 values
-	('normal', 'https://p0.test/bulk-1', 'bulk 1', 'p0.test'),
-	('normal', 'https://p0.test/bulk-2', 'bulk 2', 'p0.test');
+	('normal', 'https://p0.test/bulk-1', 'bulk 1', 'p0.test', 'inbox'),
+	('normal', 'https://p0.test/bulk-2', 'bulk 2', 'p0.test', 'inbox');
 
 insert into p0_test_state (key, value)
 select 'bulk_source_count', count(*) from public."new-threads";

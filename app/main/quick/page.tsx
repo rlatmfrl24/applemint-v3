@@ -10,8 +10,8 @@ export default function QuickPage() {
 const QuickThread = () => {
 	return (
 		<ThreadInfiniteList
-			table="quick-save"
-			renderItem={(thread) => <DefaultThreadItem thread={thread} threadName="quick-save" />}
+			state="saved"
+			renderItem={(thread) => <DefaultThreadItem thread={thread} threadState="saved" />}
 		/>
 	);
 };
