@@ -33,9 +33,9 @@ select is(
 	'GitHub alert delivery metadata is absent'
 );
 select is(
-	(select count(*) from public."filter-keyword" where method in ('media', 'youtube')),
+	(select count(*) from public."filter-keyword" where method in ('media', 'youtube', 'issuelink')),
 	0::bigint,
-	'removed media classifiers are absent'
+	'removed classifiers are absent'
 );
 
 select ok(
