@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { CrawlAdmissionReason, CrawlCommandSuccess } from "@/contracts/crawl-command.schema";
 import type { CrawlItemType } from "@/lib/type-defs";
 import {
 	type CrawlAdapterOptions,
@@ -14,9 +15,9 @@ import {
 	countCrawlWarnings,
 	createRunResult,
 	dedupeByUrl,
-	defineType,
 	type FilterKeyword,
 	getCompletedRunStatus,
+	matchFilteredUrl,
 } from "./pipeline-helpers";
 
 const CRAWL_LOCK_TTL_SECONDS = 60;
@@ -24,7 +25,6 @@ const DEFAULT_RUN_BUDGET_SECONDS = 45;
 const DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 15;
 
 type CrawlRunTrigger = "manual" | "scheduled";
-export type CrawlAdmissionReason = "disabled" | "cooldown" | "source-busy" | "capacity";
 
 interface CrawlRunHandle {
 	runId: string;
@@ -36,16 +36,6 @@ interface CrawlRunHandle {
 
 interface PreparedCrawlItem extends CrawlItemType {
 	type: string;
-}
-
-export interface ManualCrawlSuccess {
-	runId: string;
-	status: "succeeded" | "partial";
-	target: CrawlTarget;
-	insertedCount: number;
-	skippedCount: number;
-	warningCount: number;
-	durationMs: number;
 }
 
 export class CrawlPipelineError extends Error {
@@ -235,22 +225,17 @@ async function prepareItems(
 	crawlData: CrawlExecutionResult,
 	filterList: FilterKeyword[]
 ) {
-	const ignoreList = filterList
-		.filter((keyword) => keyword.method === "ignore")
-		.map((keyword) => keyword.value);
-	const filteredItems = dedupeByUrl(
-		crawlData.items.filter(
-			(item) => item.url && !ignoreList.some((keyword) => item.url.includes(keyword))
-		)
-	);
+	const filteredItems: PreparedCrawlItem[] = [];
+	for (const item of dedupeByUrl(crawlData.items)) {
+		const match = matchFilteredUrl(item.url, filterList);
+		if (!match.ignored) filteredItems.push({ ...item, type: match.type });
+	}
 	const existingUrls = await getExistingUrls(
 		supabase,
 		target,
 		filteredItems.map((item) => item.url)
 	);
-	const items: PreparedCrawlItem[] = filteredItems
-		.filter((item) => !existingUrls.has(item.url))
-		.map((item) => ({ ...item, type: defineType(item.url, filterList) }));
+	const items = filteredItems.filter((item) => !existingUrls.has(item.url));
 	return { items, existingCount: existingUrls.size };
 }
 
@@ -333,7 +318,7 @@ export async function executeCrawlPipeline(
 	runCrawler: CrawlRunner = (crawlTarget, adapterOptions) =>
 		runCrawlerWithRetry(crawlTarget, undefined, undefined, adapterOptions),
 	options: CrawlPipelineOptions = {}
-): Promise<ManualCrawlSuccess> {
+): Promise<CrawlCommandSuccess> {
 	const trigger = options.trigger ?? "manual";
 	const handle = await beginCrawlRun(supabase, target, trigger);
 	const abortController = new AbortController();

@@ -1,13 +1,24 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
 	CrawlRun,
 	CrawlRunsDashboard as CrawlRunsDashboardData,
 	CrawlSource,
 	CrawlSourceSummary,
 } from "@/lib/crawl-run-contract";
-import { CRAWL_RUNS_QUERY_KEY, CrawlRunsDashboard } from "./crawl-runs-dashboard";
+import { CRAWL_RUNS_QUERY_KEY } from "@/lib/crawl-run-query-options";
+import { CrawlRunsDashboard, getCrawlRunsErrorMessage } from "./crawl-runs-dashboard";
+
+vi.mock("@/trpc/client", () => ({
+	useTRPCClient: () => ({
+		crawl: {
+			runs: {
+				query: vi.fn(),
+			},
+		},
+	}),
+}));
 
 const sources: CrawlSource[] = ["arcalive", "battlepage", "insagirl"];
 
@@ -153,6 +164,14 @@ function createSourceSummary(
 }
 
 describe("CrawlRunsDashboard", () => {
+	it("401·403·503 오류에 서로 다른 복구 안내를 제공한다", () => {
+		expect(getCrawlRunsErrorMessage({ data: { code: "UNAUTHORIZED" } })).toContain("다시 로그인");
+		expect(getCrawlRunsErrorMessage({ data: { code: "FORBIDDEN" } })).toContain("소유자 권한");
+		expect(getCrawlRunsErrorMessage({ data: { code: "SERVICE_UNAVAILABLE" } })).toContain(
+			"일시적으로 불안정"
+		);
+	});
+
 	it("실행 중·소스 요약·추세·상세 상태를 렌더링한다", () => {
 		const runs = [
 			createRun(),

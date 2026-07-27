@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createMediaWorkerResult } from "@/test/support/crawl";
 
 const createServiceRoleClientMock = vi.hoisted(() => vi.fn());
 const runYouTubeEnrichmentWorkerMock = vi.hoisted(() => vi.fn());
@@ -38,10 +39,7 @@ describe("POST /api/media/youtube/enrich", () => {
 		createServiceRoleClientMock.mockReset();
 		createServiceRoleClientMock.mockReturnValue({ kind: "service-role-client" });
 		runYouTubeEnrichmentWorkerMock.mockReset();
-		runYouTubeEnrichmentWorkerMock.mockResolvedValue({
-			claimedCount: 0,
-			readyCount: 0,
-		});
+		runYouTubeEnrichmentWorkerMock.mockResolvedValue(createMediaWorkerResult());
 	});
 
 	afterEach(() => vi.unstubAllEnvs());
@@ -84,5 +82,41 @@ describe("POST /api/media/youtube/enrich", () => {
 		const response = await POST(request());
 		expect(response.status).toBe(503);
 		expect(await response.json()).toMatchObject({ reason: "configuration-missing" });
+	});
+
+	it("빈 객체에는 기본 batch를 적용하고 잘못된 JSON·추가 필드를 실행 전에 거부한다", async () => {
+		const defaultResponse = await POST(request());
+		expect(defaultResponse.status).toBe(200);
+		expect(runYouTubeEnrichmentWorkerMock).toHaveBeenLastCalledWith(expect.anything(), {
+			apiKey: "fixture-api-key",
+			limit: 50,
+		});
+
+		runYouTubeEnrichmentWorkerMock.mockClear();
+		const malformed = new Request("http://localhost/api/media/youtube/enrich", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"x-applemint-internal-secret": INTERNAL_SECRET,
+			},
+			body: "{",
+		}) as NextRequest;
+		expect((await POST(malformed)).status).toBe(400);
+		expect((await POST(request(INTERNAL_SECRET, { limit: 1, extra: true }))).status).toBe(400);
+		for (const limit of [0, -1, 1.5, "1"]) {
+			expect((await POST(request(INTERNAL_SECRET, { limit }))).status).toBe(400);
+		}
+		expect(runYouTubeEnrichmentWorkerMock).not.toHaveBeenCalled();
+	});
+
+	it("internal secret 검증을 body 파싱보다 먼저 수행한다", async () => {
+		const malformed = new Request("http://localhost/api/media/youtube/enrich", {
+			method: "POST",
+			headers: { "x-applemint-internal-secret": "wrong-secret" },
+			body: "{",
+		}) as NextRequest;
+
+		expect((await POST(malformed)).status).toBe(401);
+		expect(runYouTubeEnrichmentWorkerMock).not.toHaveBeenCalled();
 	});
 });

@@ -12,8 +12,10 @@ import {
 } from "@/lib/thread-query-cache";
 import { type TransitionThreadInput, transitionThreadOptions } from "@/lib/thread-query-options";
 import type { ThreadItemType } from "@/lib/type-defs";
+import { useTRPCClient } from "@/trpc/client";
 
 export const QuickSaveButton = ({ thread }: { thread: ThreadItemType }) => {
+	const trpc = useTRPCClient();
 	const queryClient = useQueryClient();
 
 	const quickSaveMutation = useMutation<
@@ -22,7 +24,7 @@ export const QuickSaveButton = ({ thread }: { thread: ThreadItemType }) => {
 		TransitionThreadInput,
 		QuerySnapshot[]
 	>({
-		...transitionThreadOptions(),
+		...transitionThreadOptions(trpc),
 		onMutate: async () => {
 			await queryClient.cancelQueries({
 				predicate: (query) => isThreadQueryKeyForStates(query.queryKey, ["inbox", "saved"]),

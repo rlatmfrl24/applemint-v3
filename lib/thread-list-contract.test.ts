@@ -27,7 +27,7 @@ describe("thread list contract", () => {
 
 	it("여러 페이지를 순서대로 합치면서 중복 id를 제거한다", () => {
 		const first = {
-			id: 2,
+			id: "2",
 			type: "normal",
 			url: "https://example.com/2",
 			title: "two",
@@ -44,7 +44,7 @@ describe("thread list contract", () => {
 		expect(
 			flattenThreadPages([
 				{ items: [first, second], nextCursor: "next" },
-				{ items: [{ ...second, id: 1 }], nextCursor: null },
+				{ items: [{ ...second, id: "1" }], nextCursor: null },
 			])
 		).toEqual([first, second]);
 	});

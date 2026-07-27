@@ -64,6 +64,27 @@ describe("POST /api/crawl/manual", () => {
 
 		mockAccess();
 		expect((await POST(createRequest("invalid"))).status).toBe(400);
+		mockAccess();
+		expect(
+			(
+				await POST(
+					new Request("http://localhost/api/crawl/manual", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ target: "arcalive", extra: true }),
+					}) as NextRequest
+				)
+			).status
+		).toBe(400);
+
+		mockAccess();
+		const malformed = new Request("http://localhost/api/crawl/manual", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: "{",
+		}) as NextRequest;
+		expect((await POST(malformed)).status).toBe(400);
+		expect(executeCrawlPipelineMock).not.toHaveBeenCalled();
 	});
 
 	it("통합 Next 파이프라인 결과를 반환한다", async () => {

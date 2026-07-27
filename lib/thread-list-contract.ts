@@ -1,19 +1,12 @@
+import type { ThreadPage } from "@/contracts/thread.schema";
 import type { ThreadItemType, ThreadState } from "./type-defs";
-
-const THREAD_STATES = ["inbox", "saved", "trash"] as const satisfies readonly ThreadState[];
-
-export const isThreadState = (value: unknown): value is ThreadState =>
-	typeof value === "string" && THREAD_STATES.includes(value as ThreadState);
 
 export interface ThreadListFilterParam {
 	key: "filterType";
 	value: string;
 }
 
-export interface ThreadPage {
-	items: ThreadItemType[];
-	nextCursor: string | null;
-}
+export type { ThreadPage } from "@/contracts/thread.schema";
 
 export const threadListQueryKey = (state: ThreadState, filterKey = "") =>
 	["threads", "list", state, filterKey] as const;

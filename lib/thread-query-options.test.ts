@@ -1,60 +1,99 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import type { TRPCClient } from "@trpc/client";
+import { describe, expect, it, vi } from "vitest";
+import type { AppRouter } from "@/server/trpc/router";
 import {
 	bulkTrashInboxOptions,
-	fetchThreadPage,
 	threadListOptions,
 	threadStatsOptions,
 	transitionThreadOptions,
 } from "./thread-query-options";
 
-afterEach(() => vi.unstubAllGlobals());
+function createClient() {
+	const list = vi.fn().mockResolvedValue({ items: [], nextCursor: null });
+	const stats = vi.fn().mockResolvedValue({ counts: [], totalCount: 0 });
+	const transition = vi.fn().mockResolvedValue({ id: "1" });
+	const bulkTrash = vi.fn().mockResolvedValue({ movedCount: 3 });
+	return {
+		client: {
+			thread: {
+				list: { query: list },
+				stats: { query: stats },
+				transition: { mutate: transition },
+				bulkTrash: { mutate: bulkTrash },
+			},
+		} as unknown as TRPCClient<AppRouter>,
+		list,
+		stats,
+		transition,
+		bulkTrash,
+	};
+}
 
-describe("thread query options", () => {
-	it("상태와 필터를 공통 query key에 반영한다", () => {
-		expect(threadListOptions({ state: "inbox", filterType: "normal" }).queryKey).toEqual([
+describe("thread tRPC query options", () => {
+	it("기존 cache key와 stale 정책을 보존한다", () => {
+		const { client } = createClient();
+		expect(threadListOptions(client, { state: "inbox", filterType: "normal" }).queryKey).toEqual([
 			"threads",
 			"list",
 			"inbox",
 			"filterType:normal",
 		]);
-		expect(threadStatsOptions("trash", "normal").queryKey).toEqual([
+		expect(threadListOptions(client, { state: "inbox" }).staleTime).toBe(30_000);
+		expect(threadStatsOptions(client, "trash", "normal").queryKey).toEqual([
 			"threads",
 			"stats",
 			"trash",
 			"normal",
 		]);
+		expect(threadStatsOptions(client, "trash").staleTime).toBe(300_000);
 	});
 
-	it("목록 요청에 AbortSignal을 전달한다", async () => {
+	it("목록 cursor와 AbortSignal을 tRPC query에 전달한다", async () => {
+		const { client, list } = createClient();
+		const options = threadListOptions(client, {
+			state: "saved",
+			limit: 10,
+			filterType: null,
+		});
 		const signal = new AbortController().signal;
-		const fetchMock = vi
-			.fn()
-			.mockResolvedValue({ ok: true, json: async () => ({ items: [], nextCursor: null }) });
-		vi.stubGlobal("fetch", fetchMock);
+		if (typeof options.queryFn !== "function") throw new Error("queryFn이 필요합니다.");
+		await options.queryFn({ pageParam: "cursor", signal } as never);
 
-		await fetchThreadPage({ state: "saved", limit: 10, filterType: null, signal });
-
-		expect(fetchMock).toHaveBeenCalledWith("/api/threads?state=saved&limit=10", { signal });
+		expect(list).toHaveBeenCalledWith(
+			{
+				state: "saved",
+				limit: 10,
+				filterType: null,
+				cursor: "cursor",
+			},
+			{ signal }
+		);
 	});
 
-	it("상태 이동과 일괄 이동 mutation factory가 정식 API를 호출한다", async () => {
-		const fetchMock = vi
-			.fn()
-			.mockResolvedValueOnce({ ok: true, json: async () => ({ item: { id: "1" } }) })
-			.mockResolvedValueOnce({ ok: true, json: async () => ({ movedCount: 3 }) });
-		vi.stubGlobal("fetch", fetchMock);
+	it("통계 query가 filter와 AbortSignal을 전달한다", async () => {
+		const { client, stats } = createClient();
+		const options = threadStatsOptions(client, "inbox", "youtube");
+		const signal = new AbortController().signal;
+		if (typeof options.queryFn !== "function") throw new Error("queryFn이 필요합니다.");
+		await options.queryFn({ signal } as never);
+		expect(stats).toHaveBeenCalledWith({ state: "inbox", filterType: "youtube" }, { signal });
+	});
 
-		await transitionThreadOptions().mutationFn?.(
+	it("상태 이동과 일괄 이동은 정식 tRPC procedure를 호출한다", async () => {
+		const { client, transition, bulkTrash } = createClient();
+		const transitionOptions = transitionThreadOptions(client);
+		const bulkOptions = bulkTrashInboxOptions(client);
+		await transitionOptions.mutationFn?.(
 			{ id: "1", expectedState: "inbox", destinationState: "trash" },
 			{} as never
 		);
-		await bulkTrashInboxOptions().mutationFn?.(undefined, {} as never);
+		await expect(bulkOptions.mutationFn?.(undefined, {} as never)).resolves.toBe(3);
 
-		expect(fetchMock).toHaveBeenNthCalledWith(
-			1,
-			"/api/threads/1/state",
-			expect.objectContaining({ method: "PATCH" })
-		);
-		expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/threads/bulk-trash", { method: "POST" });
+		expect(transition).toHaveBeenCalledWith({
+			id: "1",
+			expectedState: "inbox",
+			destinationState: "trash",
+		});
+		expect(bulkTrash).toHaveBeenCalledOnce();
 	});
 });

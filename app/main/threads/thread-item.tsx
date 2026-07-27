@@ -15,6 +15,7 @@ import {
 } from "@/lib/thread-query-cache";
 import { type TransitionThreadInput, transitionThreadOptions } from "@/lib/thread-query-options";
 import type { ThreadItemType, ThreadState } from "@/lib/type-defs";
+import { useTRPCClient } from "@/trpc/client";
 
 export const DefaultThreadItem = ({
 	thread,
@@ -27,10 +28,11 @@ export const DefaultThreadItem = ({
 	extraButtons?: React.ReactNode;
 	disablePrimaryAction?: boolean;
 }) => {
+	const trpc = useTRPCClient();
 	const queryClient = useQueryClient();
 
 	const removeThread = useMutation<ThreadItemType, Error, TransitionThreadInput, QuerySnapshot[]>({
-		...transitionThreadOptions(),
+		...transitionThreadOptions(trpc),
 		onMutate: async () => {
 			await queryClient.cancelQueries({
 				predicate: (query) => isThreadQueryKeyForStates(query.queryKey, [threadState, "trash"]),

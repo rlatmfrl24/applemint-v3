@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Clock3, PauseCircle, PlayCircle, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -20,16 +20,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { CrawlPolicySettings, CrawlSourcePolicy } from "@/lib/crawl-policy-contract";
+import { CRAWL_RUNS_QUERY_KEY } from "@/lib/crawl-run-query-options";
 import { invalidateThreadQueries } from "@/lib/thread-query-cache";
+import { useTRPC } from "@/trpc/client";
 import { ManualCrawlError, requestManualCrawl } from "../crawl-client";
-import { CRAWL_RUNS_QUERY_KEY } from "../crawl-runs-dashboard";
-import {
-	CrawlPolicyUpdateError,
-	fetchCrawlPolicySettings,
-	updateCrawlPolicy,
-} from "../policy-client";
-
-export const CRAWL_POLICIES_QUERY_KEY = ["crawl", "policies"] as const;
 
 const SOURCE_LABELS: Record<CrawlSourcePolicy["source"], string> = {
 	arcalive: "Arcalive",
@@ -107,10 +101,23 @@ function PolicyCard({
 	onManualCrawl: (source: CrawlSourcePolicy["source"]) => Promise<void>;
 	manualCrawlRunning: boolean;
 }) {
+	const trpc = useTRPC();
 	const queryClient = useQueryClient();
 	const [scheduleEnabled, setScheduleEnabled] = useState(policy.scheduleEnabled);
 	const [cooldownSeconds, setCooldownSeconds] = useState(policy.cooldownSeconds);
-	const [saving, setSaving] = useState(false);
+	const updatePolicy = useMutation({
+		...trpc.crawlPolicy.update.mutationOptions(),
+		onSuccess: (settings) => {
+			queryClient.setQueryData(trpc.crawlPolicy.get.queryKey(), settings);
+			toast.success(`${SOURCE_LABELS[policy.source]} 수집 정책을 저장했습니다.`);
+		},
+		onError: (error) => {
+			if (error.data?.latestSettings) {
+				queryClient.setQueryData(trpc.crawlPolicy.get.queryKey(), error.data.latestSettings);
+			}
+			toast.error(error.message);
+		},
+	});
 
 	useEffect(() => {
 		setScheduleEnabled(policy.scheduleEnabled);
@@ -125,25 +132,15 @@ function PolicyCard({
 		new Date(policy.lastFinishedAt).getTime() + cooldownSeconds * 1000 <= nowMs &&
 		(cooldownSeconds !== policy.cooldownSeconds || !policy.scheduleEnabled);
 
-	const handleSave = async () => {
-		setSaving(true);
-		try {
-			const settings = await updateCrawlPolicy(policy.source, {
-				scheduleEnabled,
-				cooldownSeconds,
-				expectedUpdatedAt: policy.updatedAt,
-			});
-			queryClient.setQueryData(CRAWL_POLICIES_QUERY_KEY, settings);
-			toast.success(`${SOURCE_LABELS[policy.source]} 수집 정책을 저장했습니다.`);
-		} catch (error) {
-			if (error instanceof CrawlPolicyUpdateError && error.latestSettings) {
-				queryClient.setQueryData(CRAWL_POLICIES_QUERY_KEY, error.latestSettings);
-			}
-			toast.error(error instanceof Error ? error.message : "수집 정책을 저장하지 못했습니다.");
-		} finally {
-			setSaving(false);
-		}
+	const handleSave = () => {
+		updatePolicy.mutate({
+			source: policy.source,
+			scheduleEnabled,
+			cooldownSeconds,
+			expectedUpdatedAt: policy.updatedAt,
+		});
 	};
+	const saving = updatePolicy.isPending;
 
 	const nextSchedule = getNextScheduleText(policy, schedulerEnabled, scheduleEnabled, nowMs);
 
@@ -293,7 +290,13 @@ function getManualErrorMessage(error: unknown) {
 	return "수집 요청에 실패했습니다.";
 }
 
-function QueryFeedback({ isPending, error }: { isPending: boolean; error: Error | null }) {
+function QueryFeedback({
+	isPending,
+	error,
+}: {
+	isPending: boolean;
+	error: { message: string } | null;
+}) {
 	if (isPending) {
 		return <p className="mt-5 text-muted-foreground">수집 정책을 불러오는 중입니다...</p>;
 	}
@@ -379,13 +382,13 @@ function PolicySettingsPanel({
 }
 
 export default function CrawlingSettingPage() {
+	const trpc = useTRPC();
 	const queryClient = useQueryClient();
 	const [localNow, setLocalNow] = useState(() => Date.now());
 	const [manualSource, setManualSource] = useState<CrawlSourcePolicy["source"] | null>(null);
 	const [manualResult, setManualResult] = useState<ManualResult | null>(null);
-	const query = useQuery<CrawlPolicySettings>({
-		queryKey: CRAWL_POLICIES_QUERY_KEY,
-		queryFn: () => fetchCrawlPolicySettings(),
+	const query = useQuery({
+		...trpc.crawlPolicy.get.queryOptions(),
 		refetchInterval: 60_000,
 		refetchOnWindowFocus: true,
 	});
@@ -416,7 +419,7 @@ export default function CrawlingSettingPage() {
 		} finally {
 			setManualSource(null);
 			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: CRAWL_POLICIES_QUERY_KEY }),
+				queryClient.invalidateQueries({ queryKey: trpc.crawlPolicy.get.queryKey() }),
 				queryClient.invalidateQueries({ queryKey: CRAWL_RUNS_QUERY_KEY }),
 			]);
 		}

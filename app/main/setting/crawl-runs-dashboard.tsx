@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,9 +16,8 @@ import type {
 	CrawlSource,
 	CrawlSourceSummary,
 } from "@/lib/crawl-run-contract";
-import { fetchCrawlRunsDashboard } from "./crawl-runs-client";
-
-export const CRAWL_RUNS_QUERY_KEY = ["crawl-runs", "dashboard"] as const;
+import { createCrawlRunsQueryOptions } from "@/lib/crawl-run-query-options";
+import { useTRPCClient } from "@/trpc/client";
 
 const SOURCE_LABELS: Record<CrawlSource, string> = {
 	arcalive: "Arcalive",
@@ -383,16 +382,34 @@ function RunCard({ run }: { run: CrawlRun }) {
 	);
 }
 
+export function getCrawlRunsErrorMessage(error: unknown) {
+	if (!error || typeof error !== "object") return "알 수 없는 오류가 발생했습니다.";
+	const data = Reflect.get(error, "data");
+	const code = data && typeof data === "object" ? Reflect.get(data, "code") : undefined;
+	switch (code) {
+		case "UNAUTHORIZED":
+			return "로그인 세션이 만료되었습니다. 다시 로그인한 뒤 시도해주세요.";
+		case "FORBIDDEN":
+			return "Applemint 소유자 권한이 없어 실행 이력을 볼 수 없습니다.";
+		case "SERVICE_UNAVAILABLE":
+			return "인증 또는 권한 확인 서비스가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.";
+		default:
+			return error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.";
+	}
+}
+
 export function CrawlRunsDashboard({ manualCrawlRunning }: { manualCrawlRunning: boolean }) {
+	const trpc = useTRPCClient();
 	const [now, setNow] = useState(() => Date.now());
-	const query = useQuery<CrawlRunsDashboardData>({
-		queryKey: CRAWL_RUNS_QUERY_KEY,
-		queryFn: () => fetchCrawlRunsDashboard(),
-		refetchInterval: (currentQuery) =>
-			manualCrawlRunning || (currentQuery.state.data?.activeRuns.length ?? 0) > 0 ? 5000 : false,
-		refetchOnWindowFocus: true,
-	});
-	const dashboard = query.data as CrawlRunsDashboardData | undefined;
+	const query = useQuery(createCrawlRunsQueryOptions(trpc, manualCrawlRunning));
+	const dashboard: CrawlRunsDashboardData | undefined = query.data;
+	const alertsBySource = useMemo(() => {
+		const map = new Map<CrawlSource, CrawlAlertIncident>();
+		for (const alert of dashboard?.alerts ?? []) {
+			if (!map.has(alert.source)) map.set(alert.source, alert);
+		}
+		return map;
+	}, [dashboard]);
 
 	useEffect(() => {
 		if (!dashboard || dashboard.activeRuns.length === 0) return;
@@ -426,11 +443,7 @@ export function CrawlRunsDashboard({ manualCrawlRunning }: { manualCrawlRunning:
 				<Alert className="mt-4" variant="destructive">
 					<AlertTitle>실행 이력을 불러오지 못했습니다.</AlertTitle>
 					<AlertDescription className="mt-2">
-						<p>
-							{query.error instanceof Error
-								? query.error.message
-								: "알 수 없는 오류가 발생했습니다."}
-						</p>
+						<p>{getCrawlRunsErrorMessage(query.error)}</p>
 						<Button
 							className="mt-3"
 							type="button"
@@ -462,7 +475,7 @@ export function CrawlRunsDashboard({ manualCrawlRunning }: { manualCrawlRunning:
 							<SourceCard
 								key={summary.source}
 								summary={summary}
-								alert={dashboard.alerts.find((alert) => alert.source === summary.source)}
+								alert={alertsBySource.get(summary.source)}
 								settings={dashboard.alertSettings}
 							/>
 						))}

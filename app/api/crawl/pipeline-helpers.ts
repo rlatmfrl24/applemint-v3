@@ -8,12 +8,24 @@ export interface FilterKeyword {
 
 export type CrawlErrorStage = "source" | "filter" | "history" | "ingest" | "unknown";
 
-export function defineType(value: string, filterList: FilterKeyword[]) {
-	const provider = detectMediaProvider(value);
-	if (provider) {
-		return provider;
+export function matchFilteredUrl(value: string, filterList: FilterKeyword[]) {
+	let matchedType: string | undefined;
+	for (const filter of filterList) {
+		if (!value.includes(filter.value)) continue;
+		if (filter.method === "ignore") {
+			return { ignored: true, type: "ignore" };
+		}
+		matchedType ??= filter.method;
 	}
-	return filterList.find((filter) => value.includes(filter.value))?.method || "normal";
+
+	return {
+		ignored: false,
+		type: detectMediaProvider(value) ?? (matchedType || "normal"),
+	};
+}
+
+export function defineType(value: string, filterList: FilterKeyword[]) {
+	return matchFilteredUrl(value, filterList).type;
 }
 
 export function dedupeByUrl<T extends { url: string }>(items: T[]) {

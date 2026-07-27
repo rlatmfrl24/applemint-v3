@@ -52,7 +52,7 @@
 6. 별도 Supabase Cron이 durable queue가 있는 provider의 내부 media worker를 `pg_net`으로 호출
 7. YouTube·Imgur worker가 lease 안에서 정규화된 요약만 저장하고 retry·dead 상태를 보존
 8. `finish_crawl_run`이 크롤링 결과 저장과 lock 해제를 원자적으로 완료
-9. UI는 스레드 API와 `GET /api/crawl/runs`로 목록·운영 이력을 조회
+9. UI는 tRPC `thread.*`, `crawl.runs`, `crawlPolicy.*`로 목록·운영 이력을 조회
 
 수동 크롤링은 cooldown을 우회하지만 동일 소스 중복과 최대 동시성 제한은 지킵니다. 예약 실행,
 heartbeat, 비정상 종료 복구, 비활성 media scheduler의 승인·smoke·롤백 절차는
@@ -67,13 +67,19 @@ app/
   api/
     crawl/                 # 소스별 크롤러 + 수동/예약 실행 엔드포인트
     media/                 # YouTube·Imgur adapter + lease worker + 내부 엔드포인트
-    threads/               # 상태 기반 목록/통계/이동/일괄 이동 API
+    trpc/                  # 브라우저 일반 조회·변경의 단일 tRPC 진입점
   auth/, login/, signout/  # 인증 흐름
   main/                    # 메인, 퀵세이브, 휴지통, 설정 화면
 
 components/
   ui/                      # shadcn/ui 기반 공통 컴포넌트
 
+contracts/                 # tRPC·REST·Supabase raw response의 Zod 계약
+server/
+  repositories/            # Supabase RPC와 raw response 검증
+  services/                # transport 독립 application service
+  trpc/                    # context, procedure, router와 오류 변환
+trpc/                      # 브라우저 tRPC·TanStack Query provider
 utils/
   supabase/                # browser/server/middleware 클라이언트 팩토리
 
@@ -184,14 +190,15 @@ erDiagram
 - 소스 장애 대비 재시도/로그 전략 유지 (`retryOperation`, `logger.ts`)
 
 ### 2) 데이터 분류/필터 정책 관리
-- 타입 분류 기준은 `app/api/crawl/pipeline-helpers.ts`의 `defineType`에서 처리
+- 무시·타입 분류 기준은 `app/api/crawl/pipeline-helpers.ts`의 `matchFilteredUrl`에서 처리
 - 무시 키워드/분류 키워드는 DB `filter-keyword` 테이블에서 제어
 
 ### 3) 조회 성능 및 통계 로직
 - 상태별 목록 API는 `(state_changed_at, id)` 복합 커서 기반 무한 스크롤 사용
 - 통계는 Postgres RPC `get_thread_stats`를 통해 집계
 - TanStack Query 키는 `threads/list/<state>/<filter>`와 `threads/stats/<state>/<filter>` 계약을 유지
-- 쿼리 변경 시 API(`app/api/threads/*`), query option factory와 SQL 함수를 함께 수정
+- 쿼리 변경 시 tRPC router, application service·repository, query option factory와 SQL RPC 계약을
+  함께 수정
 
 ### 4) 보안 운영
 - 기준 문서: `SECURITY.md`

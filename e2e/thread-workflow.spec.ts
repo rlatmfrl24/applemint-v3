@@ -16,16 +16,23 @@ test("Inbox 페이지네이션과 Main → Quick → Trash → Main 복원을 �
 	const firstPageResponse = page.waitForResponse((response) => {
 		const requestUrl = new URL(response.url());
 		return (
-			requestUrl.pathname === "/api/threads" &&
-			requestUrl.searchParams.get("state") === "inbox" &&
-			!requestUrl.searchParams.has("cursor")
+			requestUrl.pathname.startsWith("/api/trpc/") && requestUrl.pathname.includes("thread.list")
 		);
 	});
 
 	await page.goto("/main");
 	const response = await firstPageResponse;
 	expect(response.status()).toBe(200);
-	const firstPage = (await response.json()) as {
+	const procedurePaths = decodeURIComponent(new URL(response.url()).pathname)
+		.split("/")
+		.at(-1)
+		?.split(",");
+	const listIndex = procedurePaths?.indexOf("thread.list") ?? -1;
+	const payload = (await response.json()) as
+		| { result: { data: unknown } }
+		| Array<{ result: { data: unknown } }>;
+	const listPayload = Array.isArray(payload) ? payload[listIndex] : payload;
+	const firstPage = listPayload.result.data as {
 		items: Array<{ url: string }>;
 		nextCursor: string | null;
 	};

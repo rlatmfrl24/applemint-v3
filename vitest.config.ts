@@ -18,7 +18,10 @@ export default defineConfig({
 			reportsDirectory: "coverage",
 			include: [
 				"app/**/*.{ts,tsx}",
+				"contracts/**/*.{ts,tsx}",
 				"lib/**/*.{ts,tsx}",
+				"server/**/*.{ts,tsx}",
+				"trpc/**/*.{ts,tsx}",
 				"utils/**/*.{ts,tsx}",
 				"scripts/security/**/*.mjs",
 			],

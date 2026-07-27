@@ -7,6 +7,7 @@ import {
 	dedupeByUrl,
 	defineType,
 	getCompletedRunStatus,
+	matchFilteredUrl,
 } from "./pipeline-helpers";
 
 function createExecutionResult(
@@ -53,6 +54,22 @@ describe("crawl pipeline helpers", () => {
 		expect(defineType("https://example.com/?next=https://youtube.com/watch?v=video", filters)).toBe(
 			"source"
 		);
+	});
+
+	it("한 번의 필터 순회에서 ignore 우선순위와 첫 분류 규칙을 유지한다", () => {
+		const filters = [
+			{ value: "example.com", method: "source" },
+			{ value: "/blocked", method: "ignore" },
+			{ value: "/post", method: "later" },
+		];
+		expect(matchFilteredUrl("https://example.com/post", filters)).toEqual({
+			ignored: false,
+			type: "source",
+		});
+		expect(matchFilteredUrl("https://example.com/blocked", filters)).toEqual({
+			ignored: true,
+			type: "ignore",
+		});
 	});
 
 	it("history 조회 URL을 항목 수와 인코딩 길이 기준으로 분할한다", () => {

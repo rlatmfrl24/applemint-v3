@@ -218,7 +218,7 @@ select is(
 	'owner RLS hides all threads from a non-owner'
 );
 select throws_ok(
-	$$select (public.transition_thread_state(1, 'inbox', 'saved')).id$$,
+	$$select public.transition_thread_state(1, 'inbox', 'saved') ->> 'id'$$,
 	'42501',
 	'Only the Applemint owner can move a thread.',
 	'non-owner cannot execute a thread transition'

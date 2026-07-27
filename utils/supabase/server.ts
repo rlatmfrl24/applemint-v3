@@ -1,4 +1,4 @@
-import { type CookieOptions, createServerClient } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 function requireEnv(value: string | undefined, key: string) {
@@ -18,23 +18,16 @@ export const createClient = async () => {
 
 	return createServerClient(supabaseUrl, supabaseAnonKey, {
 		cookies: {
-			get(name: string) {
-				return cookieStore.get(name)?.value;
+			getAll() {
+				return cookieStore.getAll().map(({ name, value }) => ({ name, value }));
 			},
-			set(name: string, value: string, options: CookieOptions) {
+			setAll(cookiesToSet) {
 				try {
-					cookieStore.set({ name, value, ...options });
+					for (const cookie of cookiesToSet) {
+						cookieStore.set(cookie);
+					}
 				} catch (_error) {
-					// The `set` method was called from a Server Component.
-					// This can be ignored if you have middleware refreshing
-					// user sessions.
-				}
-			},
-			remove(name: string, options: CookieOptions) {
-				try {
-					cookieStore.set({ name, value: "", ...options });
-				} catch (_error) {
-					// The `delete` method was called from a Server Component.
+					// `setAll` was called from a Server Component.
 					// This can be ignored if you have middleware refreshing
 					// user sessions.
 				}
