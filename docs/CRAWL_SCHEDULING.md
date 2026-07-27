@@ -93,6 +93,16 @@ YouTube의 `quotaExceeded`, `dailyLimitExceeded` 계열은 일일 quota reset을
 재시도합니다. 일반 오류의 5회 제한과 분리해 최대 7회까지 보존하되, 지속적인 설정·quota 문제를
 무한 재시도하지는 않습니다. 403 rate-limit 계열은 일반 지수 backoff와 5회 제한을 사용합니다.
 
+Imgur의 HTTP 429는 rate-limit header를 기준으로 구분합니다. `X-RateLimit-ClientRemaining=0`이면
+일일 애플리케이션 quota가 다시 열리는 시점을 지나도록 25시간 뒤에 재시도하고 최대 7회까지
+보존합니다. `X-RateLimit-UserRemaining=0`이면 65분 뒤, 그 외 429는 `Retry-After` 또는 1시간
+뒤에 재시도하며 일반 오류와 같은 5회 제한을 사용합니다. 최대 시도에 도달해도
+`IMGUR_CLIENT_QUOTA_EXHAUSTED`, `IMGUR_USER_RATE_LIMITED`, `IMGUR_HTTP_429`처럼 실제 원인 코드를
+덮어쓰지 않습니다. 제한 중인 pending 항목은 전용 skeleton 대신 제목과 링크를 확인할 수 있는
+일반 카드로 표시합니다. 과거 worker가 실제 429 원인을 `IMGUR_MAX_ATTEMPTS`로 덮어쓴 failed
+항목도 일반 카드로 표시합니다. Album 응답에 preview image가 포함되어 있으면 별도 album images
+요청을 생략해 API 사용량을 줄입니다.
+
 ### 운영 반영 전 읽기 전용 대조
 
 다음 쿼리는 측정 시각과 provider별 thread·metadata·job 수를 한 번에 기록합니다.

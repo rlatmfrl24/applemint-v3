@@ -4,6 +4,7 @@ import { type NormalizedImgurUrl, normalizeImgurUrl } from "./url";
 
 const IMGUR_LEASE_SECONDS = 60;
 const IMGUR_MAX_ATTEMPTS = 5;
+const IMGUR_CLIENT_QUOTA_MAX_ATTEMPTS = 7;
 const IMGUR_RETRY_BASE_SECONDS = 60;
 export const IMGUR_MAX_BATCH_SIZE = 4;
 const IMGUR_WORKER_CONCURRENCY = 4;
@@ -53,6 +54,12 @@ function createEmptyResult(): ImgurWorkerResult {
 
 function getRetryDelaySeconds(attemptCount: number) {
 	return Math.min(IMGUR_RETRY_BASE_SECONDS * 2 ** Math.max(0, attemptCount - 1), 3_600);
+}
+
+function getMaxAttempts(errorCode: string) {
+	return errorCode === "IMGUR_CLIENT_QUOTA_EXHAUSTED"
+		? IMGUR_CLIENT_QUOTA_MAX_ATTEMPTS
+		: IMGUR_MAX_ATTEMPTS;
 }
 
 async function invokeLeaseRpc(
@@ -189,12 +196,12 @@ function failJob(
 function retryJob(
 	supabase: SupabaseClient,
 	job: ClaimedImgurJob,
-	errorCode: string,
+	error: ImgurApiError,
 	now: () => Date,
 	result: ImgurWorkerResult
 ) {
-	if (job.attempt_count >= IMGUR_MAX_ATTEMPTS) {
-		return failJob(supabase, job, "IMGUR_MAX_ATTEMPTS", result);
+	if (job.attempt_count >= getMaxAttempts(error.code)) {
+		return failJob(supabase, job, error.code, result);
 	}
 	return invokeLeaseRpc(
 		supabase,
@@ -202,9 +209,10 @@ function retryJob(
 		{
 			p_thread_id: job.thread_id,
 			p_lease_token: job.lease_token,
-			p_error_code: errorCode,
+			p_error_code: error.code,
 			p_available_at: new Date(
-				now().getTime() + getRetryDelaySeconds(job.attempt_count) * 1_000
+				now().getTime() +
+					(error.retryAfterSeconds ?? getRetryDelaySeconds(job.attempt_count)) * 1_000
 			).toISOString(),
 		},
 		result,
@@ -265,7 +273,7 @@ async function processPreparedJob(
 		if (apiError.disposition === "unavailable") {
 			await completeUnavailableJob(supabase, prepared, apiError.code, result);
 		} else if (apiError.disposition === "retryable") {
-			await retryJob(supabase, prepared.job, apiError.code, options.now, result);
+			await retryJob(supabase, prepared.job, apiError, options.now, result);
 		} else {
 			await failJob(supabase, prepared.job, apiError.code, result);
 		}

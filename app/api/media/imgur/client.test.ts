@@ -81,6 +81,35 @@ describe("fetchImgurMetadata", () => {
 		});
 	});
 
+	it("album 응답에 images가 포함되면 별도 album images 요청 없이 재사용한다", async () => {
+		const fetchMock = endpointFetch({
+			"/3/album/Album12": {
+				...albumFixture,
+				data: {
+					...albumFixture.data,
+					images: albumImagesFixture.data,
+				},
+			},
+		});
+
+		const result = await fetchImgurMetadata(normalizeImgurUrl("https://imgur.com/a/Album12"), {
+			clientId: "fixture-client-id",
+			fetchImpl: fetchMock,
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(result).toMatchObject({
+			mediaKind: "album",
+			mediaCount: 6,
+			previewUrls: [
+				"https://i.imgur.com/First12.png",
+				"https://i.imgur.com/Cover12.jpg",
+				"https://i.imgur.com/Gif1234.gif",
+				"https://i.imgur.com/Video12.mp4",
+			],
+		});
+	});
+
 	it("gallery image의 video 종류와 description fallback을 정규화한다", async () => {
 		const fetchMock = endpointFetch({ "/3/image/Gal123": galleryImageFixture });
 
@@ -102,7 +131,7 @@ describe("fetchImgurMetadata", () => {
 		]);
 	});
 
-	it("빈 gallery album은 album과 album images를 확인해 0개로 정규화한다", async () => {
+	it("빈 gallery album은 포함된 images를 재사용해 0개로 정규화한다", async () => {
 		const fetchMock = endpointFetch({
 			"/3/album/Gallery12": galleryAlbumFixture,
 			"/3/album/Gallery12/images": { data: [] },
@@ -115,7 +144,6 @@ describe("fetchImgurMetadata", () => {
 
 		expect(fetchMock.mock.calls.map(([input]) => new URL(String(input)).pathname)).toEqual([
 			"/3/album/Gallery12",
-			"/3/album/Gallery12/images",
 		]);
 		expect(result).toEqual({
 			title: "갤러리 앨범",
@@ -167,6 +195,26 @@ describe("fetchImgurMetadata", () => {
 
 		await expect(promise).rejects.toMatchObject({ code, disposition });
 	});
+
+	it.each([
+		[{ "X-RateLimit-ClientRemaining": "0" }, "IMGUR_CLIENT_QUOTA_EXHAUSTED", 25 * 60 * 60],
+		[{ "X-RateLimit-UserRemaining": "0" }, "IMGUR_USER_RATE_LIMITED", 65 * 60],
+		[{ "Retry-After": "120" }, "IMGUR_HTTP_429", 120],
+	] as const)(
+		"429 header를 %s와 전용 retry 시간으로 분류한다",
+		async (headers, code, retryAfterSeconds) => {
+			const promise = fetchImgurMetadata(normalizeImgurUrl("https://imgur.com/Img1234"), {
+				clientId: "fixture-client-id",
+				fetchImpl: vi.fn().mockResolvedValue(new Response(null, { status: 429, headers })),
+			});
+
+			await expect(promise).rejects.toMatchObject({
+				code,
+				disposition: "retryable",
+				retryAfterSeconds,
+			});
+		}
+	);
 
 	it.each([
 		[new DOMException("fixture timeout", "TimeoutError"), "IMGUR_TIMEOUT"],

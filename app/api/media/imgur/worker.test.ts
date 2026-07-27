@@ -137,37 +137,83 @@ describe("runImgurEnrichmentWorker", () => {
 			name: "HTTP 429",
 			fetchImpl: vi.fn().mockResolvedValue(new Response(null, { status: 429 })),
 			errorCode: "IMGUR_HTTP_429",
+			availableAt: "2026-07-27T01:00:00.000Z",
 		},
 		{
 			name: "HTTP 5xx",
 			fetchImpl: vi.fn().mockResolvedValue(new Response(null, { status: 503 })),
 			errorCode: "IMGUR_HTTP_5XX",
+			availableAt: "2026-07-27T00:01:00.000Z",
 		},
 		{
 			name: "timeout",
 			fetchImpl: vi.fn().mockRejectedValue(new DOMException("fixture timeout", "TimeoutError")),
 			errorCode: "IMGUR_TIMEOUT",
+			availableAt: "2026-07-27T00:01:00.000Z",
 		},
 		{
 			name: "network",
 			fetchImpl: vi.fn().mockRejectedValue(new TypeError("fixture network")),
 			errorCode: "IMGUR_NETWORK",
+			availableAt: "2026-07-27T00:01:00.000Z",
 		},
-	])("$name를 durable retry와 available_at으로 보존한다", async ({ fetchImpl, errorCode }) => {
-		const { client, rpc } = createQueueClient([claimedJob(10, "https://imgur.com/Img1234")]);
+	])(
+		"$name를 durable retry와 available_at으로 보존한다",
+		async ({ fetchImpl, errorCode, availableAt }) => {
+			const { client, rpc } = createQueueClient([claimedJob(10, "https://imgur.com/Img1234")]);
 
-		const result = await runImgurEnrichmentWorker(client, {
+			const result = await runImgurEnrichmentWorker(client, {
+				clientId: "fixture-client-id",
+				fetchImpl,
+				now: () => new Date("2026-07-27T00:00:00.000Z"),
+			});
+
+			expect(result.retriedCount).toBe(1);
+			expect(rpc).toHaveBeenCalledWith("retry_media_enrichment_job", {
+				p_thread_id: 10,
+				p_lease_token: "imgur-lease-10",
+				p_error_code: errorCode,
+				p_available_at: availableAt,
+			});
+		}
+	);
+
+	it("일일 client quota 소진은 25시간 뒤로 미루고 일반 제한과 분리해 보존한다", async () => {
+		const quotaResponse = new Response(null, {
+			status: 429,
+			headers: { "X-RateLimit-ClientRemaining": "0" },
+		});
+		const retrying = createQueueClient([
+			claimedJob(11, "https://imgur.com/Img1234", { attempt_count: 5 }),
+		]);
+
+		const retryResult = await runImgurEnrichmentWorker(retrying.client, {
 			clientId: "fixture-client-id",
-			fetchImpl,
+			fetchImpl: vi.fn().mockResolvedValue(quotaResponse),
 			now: () => new Date("2026-07-27T00:00:00.000Z"),
 		});
 
-		expect(result.retriedCount).toBe(1);
-		expect(rpc).toHaveBeenCalledWith("retry_media_enrichment_job", {
-			p_thread_id: 10,
-			p_lease_token: "imgur-lease-10",
-			p_error_code: errorCode,
-			p_available_at: "2026-07-27T00:01:00.000Z",
+		expect(retryResult).toMatchObject({ retriedCount: 1, failedCount: 0 });
+		expect(retrying.rpc).toHaveBeenCalledWith("retry_media_enrichment_job", {
+			p_thread_id: 11,
+			p_lease_token: "imgur-lease-11",
+			p_error_code: "IMGUR_CLIENT_QUOTA_EXHAUSTED",
+			p_available_at: "2026-07-28T01:00:00.000Z",
+		});
+
+		const exhausted = createQueueClient([
+			claimedJob(12, "https://imgur.com/Img1234", { attempt_count: 7 }),
+		]);
+		const exhaustedResult = await runImgurEnrichmentWorker(exhausted.client, {
+			clientId: "fixture-client-id",
+			fetchImpl: vi.fn().mockResolvedValue(quotaResponse),
+		});
+
+		expect(exhaustedResult).toMatchObject({ retriedCount: 0, failedCount: 1 });
+		expect(exhausted.rpc).toHaveBeenCalledWith("fail_media_enrichment_job", {
+			p_thread_id: 12,
+			p_lease_token: "imgur-lease-12",
+			p_error_code: "IMGUR_CLIENT_QUOTA_EXHAUSTED",
 		});
 	});
 
@@ -183,7 +229,7 @@ describe("runImgurEnrichmentWorker", () => {
 		expect(maxAttempts.rpc).toHaveBeenCalledWith("fail_media_enrichment_job", {
 			p_thread_id: 20,
 			p_lease_token: "imgur-lease-20",
-			p_error_code: "IMGUR_MAX_ATTEMPTS",
+			p_error_code: "IMGUR_HTTP_429",
 		});
 
 		const rejected = createQueueClient([claimedJob(21, "https://imgur.com/Img1234")], {

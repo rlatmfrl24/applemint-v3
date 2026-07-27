@@ -3,6 +3,10 @@ import type { NormalizedImgurUrl } from "./url";
 
 const IMGUR_API_BASE_URL = "https://api.imgur.com/3";
 const IMGUR_PREVIEW_LIMIT = 4;
+const IMGUR_CLIENT_QUOTA_RETRY_SECONDS = 25 * 60 * 60;
+const IMGUR_USER_RATE_LIMIT_RETRY_SECONDS = 65 * 60;
+const IMGUR_GENERIC_RATE_LIMIT_RETRY_SECONDS = 60 * 60;
+const IMGUR_MAX_RETRY_AFTER_SECONDS = IMGUR_CLIENT_QUOTA_RETRY_SECONDS;
 
 type FetchImplementation = typeof fetch;
 export type ImgurApiErrorDisposition = "retryable" | "unavailable" | "terminal";
@@ -19,6 +23,7 @@ interface ImgurResource {
 	link?: unknown;
 	cover?: unknown;
 	images_count?: unknown;
+	images?: unknown;
 }
 
 export interface ImgurMetadataSummary {
@@ -32,7 +37,8 @@ export interface ImgurMetadataSummary {
 export class ImgurApiError extends Error {
 	constructor(
 		readonly code: string,
-		readonly disposition: ImgurApiErrorDisposition
+		readonly disposition: ImgurApiErrorDisposition,
+		readonly retryAfterSeconds: number | null = null
 	) {
 		super(code);
 		this.name = "ImgurApiError";
@@ -117,9 +123,43 @@ function normalizeCollection(
 	};
 }
 
-function getHttpError(status: number) {
+function getHeaderInteger(headers: Headers, name: string) {
+	const value = headers.get(name)?.trim();
+	if (!value || !/^\d+$/.test(value)) return null;
+	const parsed = Number(value);
+	return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+function getRetryAfterSeconds(headers: Headers) {
+	const seconds = getHeaderInteger(headers, "retry-after");
+	if (seconds === null) return null;
+	return Math.min(Math.max(seconds, 1), IMGUR_MAX_RETRY_AFTER_SECONDS);
+}
+
+function getHttpError(response: Response) {
+	const { status } = response;
 	if (status === 404) return new ImgurApiError("IMGUR_HTTP_404", "unavailable");
-	if (status === 429) return new ImgurApiError("IMGUR_HTTP_429", "retryable");
+	if (status === 429) {
+		if (getHeaderInteger(response.headers, "x-ratelimit-clientremaining") === 0) {
+			return new ImgurApiError(
+				"IMGUR_CLIENT_QUOTA_EXHAUSTED",
+				"retryable",
+				IMGUR_CLIENT_QUOTA_RETRY_SECONDS
+			);
+		}
+		if (getHeaderInteger(response.headers, "x-ratelimit-userremaining") === 0) {
+			return new ImgurApiError(
+				"IMGUR_USER_RATE_LIMITED",
+				"retryable",
+				IMGUR_USER_RATE_LIMIT_RETRY_SECONDS
+			);
+		}
+		return new ImgurApiError(
+			"IMGUR_HTTP_429",
+			"retryable",
+			getRetryAfterSeconds(response.headers) ?? IMGUR_GENERIC_RATE_LIMIT_RETRY_SECONDS
+		);
+	}
 	if (status >= 500) return new ImgurApiError("IMGUR_HTTP_5XX", "retryable");
 	if (status >= 400 && status < 500) {
 		return new ImgurApiError("IMGUR_HTTP_4XX", "terminal");
@@ -159,7 +199,7 @@ async function requestImgur(
 	} catch (error) {
 		throw getFetchError(error);
 	}
-	if (!response.ok) throw getHttpError(response.status);
+	if (!response.ok) throw getHttpError(response);
 
 	let envelope: ImgurApiEnvelope;
 	try {
@@ -171,6 +211,19 @@ async function requestImgur(
 		throw new ImgurApiError("IMGUR_INVALID_RESPONSE", "retryable");
 	}
 	return envelope.data;
+}
+
+async function getCollectionImages(
+	resource: ImgurResource,
+	id: string,
+	options: {
+		clientId: string;
+		fetchImpl: FetchImplementation;
+		timeoutMs: number;
+	}
+) {
+	if (Array.isArray(resource.images)) return normalizeImages(resource.images);
+	return normalizeImages(await requestImgur(`/album/${id}/images`, options));
 }
 
 function requireObject(value: unknown): ImgurResource {
@@ -196,7 +249,7 @@ async function fetchGalleryMetadata(
 		return normalizeImage(requireObject(await requestImgur(`/image/${id}`, options)), "gallery");
 	}
 
-	const images = normalizeImages(await requestImgur(`/album/${id}/images`, options));
+	const images = await getCollectionImages(album, id, options);
 	return normalizeCollection(album, images, "gallery");
 }
 
@@ -226,7 +279,7 @@ export async function fetchImgurMetadata(
 	}
 	if (target.kind === "album") {
 		const album = requireObject(await requestImgur(`/album/${id}`, options));
-		const images = normalizeImages(await requestImgur(`/album/${id}/images`, options));
+		const images = await getCollectionImages(album, id, options);
 		return normalizeCollection(album, images, "album");
 	}
 	if (target.kind === "gallery") {
