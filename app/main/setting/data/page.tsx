@@ -30,10 +30,7 @@ export default function DataSettingPage() {
 	const trpc = useTRPCClient();
 	const queryClient = useQueryClient();
 	const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
-	const stats = useQuery({
-		...threadStatsOptions(trpc, "inbox"),
-		refetchOnWindowFocus: true,
-	});
+	const stats = useQuery(threadStatsOptions(trpc, "inbox"));
 	const bulkMove = useMutation({
 		...bulkTrashInboxOptions(trpc),
 		onSuccess: async (movedCount) => {

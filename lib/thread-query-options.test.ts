@@ -1,3 +1,4 @@
+import { focusManager, InfiniteQueryObserver, QueryClient } from "@tanstack/react-query";
 import type { TRPCClient } from "@trpc/client";
 import { describe, expect, it, vi } from "vitest";
 import type { AppRouter } from "@/server/trpc/router";
@@ -30,22 +31,53 @@ function createClient() {
 }
 
 describe("thread tRPC query options", () => {
-	it("기존 cache key와 stale 정책을 보존한다", () => {
+	it("기존 cache key와 stale 정책을 보존하고 focus 복귀 시 항상 갱신한다", () => {
 		const { client } = createClient();
-		expect(threadListOptions(client, { state: "inbox", filterType: "normal" }).queryKey).toEqual([
-			"threads",
-			"list",
-			"inbox",
-			"filterType:normal",
-		]);
-		expect(threadListOptions(client, { state: "inbox" }).staleTime).toBe(30_000);
-		expect(threadStatsOptions(client, "trash", "normal").queryKey).toEqual([
-			"threads",
-			"stats",
-			"trash",
-			"normal",
-		]);
-		expect(threadStatsOptions(client, "trash").staleTime).toBe(300_000);
+		const listOptions = threadListOptions(client, { state: "inbox", filterType: "normal" });
+		const statsOptions = threadStatsOptions(client, "trash", "normal");
+
+		expect(listOptions.queryKey).toEqual(["threads", "list", "inbox", "filterType:normal"]);
+		expect(listOptions.staleTime).toBe(30_000);
+		expect(listOptions.refetchOnWindowFocus).toBe("always");
+		expect(statsOptions.queryKey).toEqual(["threads", "stats", "trash", "normal"]);
+		expect(statsOptions.staleTime).toBe(300_000);
+		expect(statsOptions.refetchOnWindowFocus).toBe("always");
+	});
+
+	it("fresh 상태의 활성 목록도 focus 복귀 시 최신 데이터로 갱신한다", async () => {
+		const { client, list } = createClient();
+		list
+			.mockResolvedValueOnce({ items: [{ id: "before" }], nextCursor: null })
+			.mockResolvedValueOnce({ items: [{ id: "after" }], nextCursor: null });
+		const queryClient = new QueryClient({
+			defaultOptions: { queries: { retry: false } },
+		});
+		const observer = new InfiniteQueryObserver(
+			queryClient,
+			threadListOptions(client, { state: "inbox" })
+		);
+
+		queryClient.mount();
+		const unsubscribe = observer.subscribe(() => undefined);
+
+		try {
+			await vi.waitFor(() =>
+				expect(observer.getCurrentResult().data?.pages[0]?.items[0]?.id).toBe("before")
+			);
+
+			focusManager.setFocused(false);
+			focusManager.setFocused(true);
+
+			await vi.waitFor(() => {
+				expect(list).toHaveBeenCalledTimes(2);
+				expect(observer.getCurrentResult().data?.pages[0]?.items[0]?.id).toBe("after");
+			});
+		} finally {
+			unsubscribe();
+			queryClient.clear();
+			queryClient.unmount();
+			focusManager.setFocused(undefined);
+		}
 	});
 
 	it("목록 cursor와 AbortSignal을 tRPC query에 전달한다", async () => {
