@@ -1,7 +1,6 @@
 {
 	"$schema": "https://unpkg.com/knip@6/schema.json",
-	"entry": ["playwright.config.ts", "e2e/**/*.{spec,setup}.ts", "supabase/functions/*/index.ts"],
-	"ignoreDependencies": ["jsr"],
+	"entry": ["playwright.config.ts", "e2e/**/*.{spec,setup}.ts"],
 	"ignoreBinaries": ["supabase"],
 	"playwright": false
 }
