@@ -57,6 +57,10 @@ endpoint만 호출합니다.
 - `/api/media/youtube/enrich`: 한 번에 최대 50개
 - `/api/media/imgur/enrich`: 한 번에 최대 4개를 claim하고 worker 내부에서 최대 4개를 병렬 처리
 
+Imgur는 `imgur_enrichment_cutoff_at` 이전에 수집된 항목의 metadata와 job을 보존하지 않습니다.
+기존 thread와 crawl history는 그대로 두고 일반 카드로 표시하며, cutover 이후 실제로 새로 삽입된
+Imgur thread만 pending metadata와 queued job을 원자적으로 생성합니다.
+
 Vault 값은 migration이나 `media_worker_dispatches`에 저장하지 않습니다. Vault 값이 없거나
 base URL·secret 형식이 올바르지 않으면 media scheduler만 즉시 비활성화하고
 `configuration-missing`을 반환합니다. 기존 `crawl_runtime_settings.scheduler_enabled`는 변경하지

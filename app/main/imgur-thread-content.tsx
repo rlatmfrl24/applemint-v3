@@ -38,7 +38,9 @@ const STATUS_MESSAGES: Partial<Record<ImgurCardStatus, string>> = {
 
 export function shouldRenderImgurAsDefaultCard(thread: ThreadItemType) {
 	const metadata = thread.media_metadata?.provider === "imgur" ? thread.media_metadata : null;
-	if (thread.type !== "imgur" || metadata?.status !== "pending") return false;
+	if (thread.type !== "imgur") return false;
+	if (!metadata) return true;
+	if (metadata.status !== "pending") return false;
 
 	return metadata.last_error_code === "IMGUR_HTTP_429";
 }
