@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { invalidateThreadQueries } from "@/lib/thread-query-cache";
 import { bulkTrashInboxOptions, threadStatsOptions } from "@/lib/thread-query-options";
+import { useTRPCClient } from "@/trpc/client";
 
 interface NewThreadStats {
 	totalCount: number;
@@ -26,14 +27,15 @@ interface NewThreadStats {
 }
 
 export default function DataSettingPage() {
+	const trpc = useTRPCClient();
 	const queryClient = useQueryClient();
 	const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 	const stats = useQuery({
-		...threadStatsOptions("inbox"),
+		...threadStatsOptions(trpc, "inbox"),
 		refetchOnWindowFocus: true,
 	});
 	const bulkMove = useMutation({
-		...bulkTrashInboxOptions(),
+		...bulkTrashInboxOptions(trpc),
 		onSuccess: async (movedCount) => {
 			setResult({ success: true, message: `${movedCount}개의 신규 글을 휴지통으로 이동했습니다.` });
 			await invalidateThreadQueries(queryClient, ["inbox", "trash"]);

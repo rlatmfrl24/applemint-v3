@@ -1,8 +1,7 @@
+import type { CrawlTarget } from "@/contracts/crawl-command.schema";
 import type { CrawlItemType } from "@/lib/type-defs";
 
-const CRAWL_TARGETS = ["arcalive", "battlepage", "insagirl"] as const;
-
-export type CrawlTarget = (typeof CRAWL_TARGETS)[number];
+export type { CrawlTarget };
 
 export interface CrawlFailure {
 	url: string;
@@ -111,15 +110,12 @@ function applyAttemptResult(
 	}
 }
 
-function wasRetried(url: string, attempts: CrawlSourceResult[]) {
-	return attempts.slice(1).some((result) => getAttemptedUrls(result).includes(url));
-}
-
 export function aggregateCrawlAttempts(attempts: CrawlSourceResult[]): CrawlExecutionResult {
 	const failures = new Map<string, CrawlAttemptFailure>();
 	const warnings = new Map<string, CrawlAttemptWarning[]>();
 	const observations = new Map<string, CrawlAttemptParserObservation>();
 	const initialFailedUrls = new Set(attempts[0]?.failures.map((failure) => failure.url) ?? []);
+	const retriedUrls = new Set(attempts.slice(1).flatMap(getAttemptedUrls));
 
 	for (let index = 0; index < attempts.length; index += 1) {
 		applyAttemptResult(attempts[index], index + 1, failures, warnings, observations);
@@ -129,7 +125,7 @@ export function aggregateCrawlAttempts(attempts: CrawlSourceResult[]): CrawlExec
 	const terminalObservations = Array.from(observations.values());
 	const terminalFailureUrls = new Set(terminalFailures.map((failure) => failure.url));
 	const recoveredCount = Array.from(initialFailedUrls).filter(
-		(url) => !terminalFailureUrls.has(url) && wasRetried(url, attempts)
+		(url) => !terminalFailureUrls.has(url) && retriedUrls.has(url)
 	).length;
 	const dedupedItems = new Map<string, CrawlItemType>();
 	for (const item of attempts.flatMap((attempt) => attempt.items)) {
@@ -157,10 +153,6 @@ export function aggregateCrawlAttempts(attempts: CrawlSourceResult[]): CrawlExec
 			0
 		),
 	};
-}
-
-export function isCrawlTarget(value: unknown): value is CrawlTarget {
-	return typeof value === "string" && CRAWL_TARGETS.some((target) => target === value);
 }
 
 export function getErrorMessage(error: unknown) {

@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { flattenThreadPages, type ThreadListFilterParam } from "@/lib/thread-list-contract";
 import { threadListOptions } from "@/lib/thread-query-options";
 import type { ThreadItemType, ThreadState } from "@/lib/type-defs";
+import { useTRPCClient } from "@/trpc/client";
 import NoDataBox from "./no-data";
 import { ThreadLoading } from "./threads/thread-loading";
 
@@ -23,11 +24,12 @@ export function ThreadInfiniteList({
 	renderItem: (thread: ThreadItemType) => ReactNode;
 	loadingCount?: number;
 }) {
+	const trpc = useTRPCClient();
 	const filterType = useMemo(
 		() => filters.find((filter) => filter.key === "filterType")?.value ?? null,
 		[filters]
 	);
-	const query = useInfiniteQuery(threadListOptions({ state, limit: 24, filterType }));
+	const query = useInfiniteQuery(threadListOptions(trpc, { state, limit: 24, filterType }));
 	const threads = useMemo(() => flattenThreadPages(query.data?.pages), [query.data?.pages]);
 	const observerRef = useRef<IntersectionObserver | null>(null);
 	const loadMoreRef = useRef<HTMLDivElement | null>(null);

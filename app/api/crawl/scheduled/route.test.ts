@@ -56,6 +56,31 @@ describe("POST /api/crawl/scheduled", () => {
 	it("내부 secret과 활성 target을 검증한다", async () => {
 		expect((await POST(request("arcalive", "wrong"))).status).toBe(401);
 		expect((await POST(request("issuelink"))).status).toBe(400);
+		const strictRequest = new Request("http://localhost/api/crawl/scheduled", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"x-applemint-internal-secret": INTERNAL_SECRET,
+			},
+			body: JSON.stringify({ target: "arcalive", extra: true }),
+		}) as NextRequest;
+		expect((await POST(strictRequest)).status).toBe(400);
+		const malformed = new Request("http://localhost/api/crawl/scheduled", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"x-applemint-internal-secret": INTERNAL_SECRET,
+			},
+			body: "{",
+		}) as NextRequest;
+		expect((await POST(malformed)).status).toBe(400);
+		const unauthenticatedMalformed = new Request("http://localhost/api/crawl/scheduled", {
+			method: "POST",
+			headers: { "x-applemint-internal-secret": "wrong" },
+			body: "{",
+		}) as NextRequest;
+		expect((await POST(unauthenticatedMalformed)).status).toBe(401);
+		expect(executeCrawlPipelineMock).not.toHaveBeenCalled();
 
 		vi.stubEnv("CRAWL_INTERNAL_SECRET", "");
 		expect((await POST(request("arcalive"))).status).toBe(503);
@@ -85,12 +110,16 @@ describe("POST /api/crawl/scheduled", () => {
 				undefined,
 				null,
 				"cooldown",
-				"2026-07-22T06:00:00.000Z"
+				"2026-07-22T06:00:00+00:00"
 			)
 		);
 		const cooldown = await POST(request("arcalive"));
 		expect(cooldown.status).toBe(200);
-		expect(await cooldown.json()).toMatchObject({ status: "skipped", reason: "cooldown" });
+		expect(await cooldown.json()).toMatchObject({
+			status: "skipped",
+			reason: "cooldown",
+			nextEligibleAt: "2026-07-22T06:00:00+00:00",
+		});
 
 		executeCrawlPipelineMock.mockRejectedValueOnce(
 			new CrawlPipelineError(

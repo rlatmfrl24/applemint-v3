@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { MediaWorkerResult } from "@/contracts/media-worker.schema";
 import { type NormalizedYouTubeUrl, normalizeYouTubeUrl } from "./url";
 import {
 	listYouTubeVideos,
@@ -27,15 +28,7 @@ interface PreparedYouTubeJob {
 	target: NormalizedYouTubeUrl;
 }
 
-export interface YouTubeWorkerResult {
-	claimedCount: number;
-	readyCount: number;
-	unavailableCount: number;
-	unsupportedCount: number;
-	retriedCount: number;
-	failedCount: number;
-	leaseRejectedCount: number;
-}
+export type YouTubeWorkerResult = MediaWorkerResult;
 
 export class YouTubeWorkerError extends Error {
 	constructor(readonly code: string) {

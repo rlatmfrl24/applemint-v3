@@ -1,7 +1,7 @@
 -- Canonical thread state, pagination, and atomicity contract.
 begin;
 
-select plan(50);
+select plan(52);
 
 select has_table('public', 'threads', 'threads is the canonical table');
 select has_index('public', 'threads', 'idx_threads_state_changed_at_id', 'state cursor index exists');
@@ -557,7 +557,7 @@ from public.list_threads_page(
 	'inbox',
 	2,
 	(select state_changed_at from page_one order by state_changed_at desc, id desc offset 1 limit 1),
-	(select id from page_one order by state_changed_at desc, id desc offset 1 limit 1),
+	(select id::bigint from page_one order by state_changed_at desc, id desc offset 1 limit 1),
 	null
 );
 
@@ -600,6 +600,40 @@ select is(
 	1::bigint,
 	'state filter keeps saved rows out of inbox pages'
 );
+
+insert into public.threads (
+	id, type, url, state, created_at, captured_at, state_changed_at
+)
+values (
+	9007199254740993,
+	'bigint-contract',
+	'https://page.test/bigint-contract',
+	'inbox',
+	'2201-01-01 00:00:00+00',
+	'2201-01-01 00:00:00+00',
+	'2201-01-01 00:00:00+00'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
+select is(
+	(
+		select id
+		from public.list_threads_page('inbox', 24, null, null, 'bigint-contract')
+	),
+	'9007199254740993',
+	'list RPC serializes bigint IDs as lossless decimal text'
+);
+select is(
+	public.transition_thread_state(
+		9007199254740993,
+		'inbox',
+		'saved'
+	) ->> 'id',
+	'9007199254740993',
+	'transition RPC serializes bigint IDs as lossless decimal text'
+);
+reset role;
 
 select * from finish();
 rollback;

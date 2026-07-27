@@ -1,55 +1,39 @@
 import { infiniteQueryOptions, mutationOptions, queryOptions } from "@tanstack/react-query";
-import type { ThreadPage } from "./thread-list-contract";
+import type { TRPCClient } from "@trpc/client";
+import type { ThreadTransitionInput } from "@/contracts/thread.schema";
+import type { AppRouter } from "@/server/trpc/router";
 import { threadListQueryKey, threadStatsQueryKey } from "./thread-list-contract";
-import type { ThreadItemType, ThreadState, ThreadStats } from "./type-defs";
+import type { ThreadState } from "./type-defs";
 
-export interface TransitionThreadInput {
-	id: string | number;
-	expectedState: ThreadState;
-	destinationState: ThreadState;
-}
+export type TransitionThreadInput = ThreadTransitionInput;
+type AppTRPCClient = TRPCClient<AppRouter>;
 
+// 상태 이동 시 여러 list·stats cache를 한 번에 갱신해야 하므로 Thread만 안정적인 수동 key 계층을
+// 유지합니다. key/invalidation/rollback 의미는 thread-query-options.test.ts에서 함께 검증합니다.
 interface ThreadListOptionsInput {
 	state: ThreadState;
 	limit?: number;
 	filterType?: string | null;
 }
 
-const parseErrorMessage = async (response: Response, fallback: string) => {
-	const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
-	return body && typeof body.error === "string" ? body.error : fallback;
-};
-
-export const fetchThreadPage = async ({
-	state,
-	limit,
-	filterType,
-	cursor,
-	signal,
-}: ThreadListOptionsInput & { cursor?: string; signal?: AbortSignal }): Promise<ThreadPage> => {
-	const searchParams = new URLSearchParams({ state, limit: String(limit ?? 24) });
-	if (cursor) searchParams.set("cursor", cursor);
-	if (filterType) searchParams.set("filterType", filterType);
-
-	const response = await fetch(`/api/threads?${searchParams.toString()}`, { signal });
-	if (!response.ok) {
-		throw new Error(await parseErrorMessage(response, "스레드 목록을 불러오지 못했습니다."));
-	}
-
-	return (await response.json()) as ThreadPage;
-};
-
-export const threadListOptions = ({
-	state,
-	limit = 24,
-	filterType = null,
-}: ThreadListOptionsInput) => {
+export const threadListOptions = (
+	trpc: AppTRPCClient,
+	{ state, limit = 24, filterType }: ThreadListOptionsInput
+) => {
 	const filterKey = filterType ? `filterType:${filterType}` : "";
 
 	return infiniteQueryOptions({
 		queryKey: threadListQueryKey(state, filterKey),
 		queryFn: ({ pageParam, signal }) =>
-			fetchThreadPage({ state, limit, filterType, cursor: pageParam, signal }),
+			trpc.thread.list.query(
+				{
+					state,
+					limit,
+					filterType: filterType ?? null,
+					cursor: pageParam ?? null,
+				},
+				{ signal }
+			),
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
 		staleTime: 1000 * 30,
@@ -57,59 +41,23 @@ export const threadListOptions = ({
 	});
 };
 
-const fetchThreadStats = async (
+export const threadStatsOptions = (
+	trpc: AppTRPCClient,
 	state: ThreadState,
-	filterType: string | null = null,
-	signal?: AbortSignal
-): Promise<ThreadStats> => {
-	const searchParams = new URLSearchParams({ state });
-	if (filterType) searchParams.set("filterType", filterType);
-
-	const response = await fetch(`/api/threads/stats?${searchParams.toString()}`, { signal });
-	if (!response.ok) {
-		throw new Error(await parseErrorMessage(response, "스레드 통계를 불러오지 못했습니다."));
-	}
-
-	return (await response.json()) as ThreadStats;
-};
-
-export const threadStatsOptions = (state: ThreadState, filterType: string | null = null) =>
+	filterType: string | null = null
+) =>
 	queryOptions({
 		queryKey: threadStatsQueryKey(state, filterType),
-		queryFn: ({ signal }) => fetchThreadStats(state, filterType, signal),
+		queryFn: ({ signal }) => trpc.thread.stats.query({ state, filterType }, { signal }),
 		staleTime: 1000 * 60 * 5,
 	});
 
-const transitionThread = async (input: TransitionThreadInput): Promise<ThreadItemType> => {
-	const response = await fetch(`/api/threads/${input.id}/state`, {
-		method: "PATCH",
-		headers: { "content-type": "application/json" },
-		body: JSON.stringify({
-			expectedState: input.expectedState,
-			destinationState: input.destinationState,
-		}),
-	});
-	if (!response.ok) {
-		throw new Error(await parseErrorMessage(response, "스레드 상태를 변경하지 못했습니다."));
-	}
-
-	const body = (await response.json()) as { item: ThreadItemType };
-	return body.item;
-};
-
-export const transitionThreadOptions = () =>
+export const transitionThreadOptions = (trpc: AppTRPCClient) =>
 	mutationOptions({
-		mutationFn: transitionThread,
+		mutationFn: (input: ThreadTransitionInput) => trpc.thread.transition.mutate(input),
 	});
 
-const bulkTrashInbox = async (): Promise<number> => {
-	const response = await fetch("/api/threads/bulk-trash", { method: "POST" });
-	if (!response.ok) {
-		throw new Error(await parseErrorMessage(response, "신규 글을 이동하지 못했습니다."));
-	}
-
-	const body = (await response.json()) as { movedCount: number };
-	return body.movedCount;
-};
-
-export const bulkTrashInboxOptions = () => mutationOptions({ mutationFn: bulkTrashInbox });
+export const bulkTrashInboxOptions = (trpc: AppTRPCClient) =>
+	mutationOptions({
+		mutationFn: async () => (await trpc.thread.bulkTrash.mutate()).movedCount,
+	});

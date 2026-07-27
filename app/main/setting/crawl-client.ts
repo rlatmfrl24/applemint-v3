@@ -1,13 +1,10 @@
-export interface ManualCrawlResult {
-	httpStatus: number;
-	runId?: string;
-	status?: "succeeded" | "partial";
-	target: string;
-	insertedCount: number;
-	skippedCount: number;
-	warningCount: number;
-	durationMs: number;
-}
+import {
+	type CrawlCommandSuccess,
+	type CrawlTarget,
+	crawlCommandSuccessSchema,
+} from "@/contracts/crawl-command.schema";
+
+export type ManualCrawlResult = CrawlCommandSuccess & { httpStatus: number };
 
 export class ManualCrawlError extends Error {
 	constructor(
@@ -25,25 +22,8 @@ export class ManualCrawlError extends Error {
 	}
 }
 
-function isManualCrawlResult(value: unknown): value is Omit<ManualCrawlResult, "httpStatus"> {
-	if (!value || typeof value !== "object") {
-		return false;
-	}
-
-	const result = value as Record<string, unknown>;
-	return (
-		typeof result.target === "string" &&
-		typeof result.insertedCount === "number" &&
-		typeof result.skippedCount === "number" &&
-		typeof result.warningCount === "number" &&
-		typeof result.durationMs === "number" &&
-		(result.runId === undefined || typeof result.runId === "string") &&
-		(result.status === undefined || result.status === "succeeded" || result.status === "partial")
-	);
-}
-
 export async function requestManualCrawl(
-	target: string,
+	target: CrawlTarget,
 	fetchImplementation: typeof fetch = fetch
 ): Promise<ManualCrawlResult> {
 	const response = await fetchImplementation("/api/crawl/manual", {
@@ -55,13 +35,14 @@ export async function requestManualCrawl(
 	});
 	const data = (await response.json().catch(() => null)) as unknown;
 
-	if (!response.ok || !isManualCrawlResult(data)) {
+	const parsed = crawlCommandSuccessSchema.safeParse(data);
+	if (!response.ok || !parsed.success) {
 		throw new ManualCrawlError(response.status, data);
 	}
 
 	return {
 		httpStatus: response.status,
-		...data,
+		...parsed.data,
 	};
 }
 

@@ -16,6 +16,7 @@ import {
 } from "@/lib/thread-query-cache";
 import { type TransitionThreadInput, transitionThreadOptions } from "@/lib/thread-query-options";
 import type { ThreadItemType } from "@/lib/type-defs";
+import { useTRPCClient } from "@/trpc/client";
 import { ThreadInfiniteList } from "../thread-infinite-list";
 
 export default function TrashPage() {
@@ -23,6 +24,7 @@ export default function TrashPage() {
 }
 
 function RestoreButton({ thread }: { thread: ThreadItemType }) {
+	const trpc = useTRPCClient();
 	const queryClient = useQueryClient();
 
 	const restoreMutation = useMutation<
@@ -31,7 +33,7 @@ function RestoreButton({ thread }: { thread: ThreadItemType }) {
 		TransitionThreadInput,
 		QuerySnapshot[]
 	>({
-		...transitionThreadOptions(),
+		...transitionThreadOptions(trpc),
 		onMutate: async () => {
 			await queryClient.cancelQueries({
 				predicate: (query) => isThreadQueryKeyForStates(query.queryKey, ["trash", "inbox"]),

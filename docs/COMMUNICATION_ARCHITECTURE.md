@@ -1,8 +1,9 @@
 # 통신 계층 아키텍처 및 구현 원칙
 
-> 상태: 목표 아키텍처(구현 전)
+> 상태: 구현 완료(2026-07-28), 배포 후 성능·운영 지표 확인 대기
 > 적용 범위: Browser, Next.js App Router, Supabase Auth/Postgres/Cron, 외부 크롤링·미디어 API
-> 관련 문서: [크롤러 예약 실행·잠금 운영 가이드](CRAWL_SCHEDULING.md), [보안 경고 운영 절차](SECURITY_OPERATIONS.md)
+> 관련 문서: [크롤러 예약 실행·잠금 운영 가이드](CRAWL_SCHEDULING.md),
+> [보안 경고 운영 절차](SECURITY_OPERATIONS.md)
 
 ## 1. 목적
 
@@ -35,7 +36,7 @@
 | 외부 크롤링·YouTube·Imgur | provider adapter가 소유 |
 | 입력·출력 계약 | Zod schema를 단일 원본으로 사용 |
 | 업무 규칙 | transport와 분리된 application service가 소유 |
-| 이행 기간의 기존 REST | 한시적으로만 유지하고 안정화 후 제거 |
+| 전환된 기존 REST | 동일 use case의 중복 계약을 남기지 않고 제거 |
 
 ## 3. 목표 아키텍처
 
@@ -96,6 +97,7 @@ UI / System Caller
 - endpoint별 기존 HTTP status, `Retry-After`, JSON body와 운영 정산 계약을 보존합니다.
 - tRPC 프로토콜 payload를 SQL dispatcher에 노출하지 않습니다.
 - body와 response는 tRPC와 독립적이더라도 동일한 Zod contract 모듈을 재사용할 수 있습니다.
+- request object는 strict schema로 검증하고 malformed JSON을 기본 작업으로 바꾸지 않습니다.
 
 ### 4.4 Auth callback REST
 
@@ -168,7 +170,7 @@ UI / System Caller
 | `crawlPolicy.get` | query | 없음 | `CrawlPolicySettings` | `get_crawl_source_policy_settings` |
 | `crawlPolicy.update` | mutation | `source`, `scheduleEnabled`, `cooldownSeconds`, `expectedUpdatedAt` | `CrawlPolicySettings` | `update_crawl_source_policy` |
 
-다음 현재 route는 위 procedure 전환과 안정화가 끝나면 제거 대상입니다.
+다음 기존 route는 2026-07-28 구현에서 위 procedure로 전환하고 제거했습니다.
 
 - `GET /api/threads`
 - `GET /api/threads/stats`
@@ -234,8 +236,9 @@ contracts/
 
 ### 7.4 표현 형식
 
-- thread ID와 DB `bigint` 식별자는 JSON 경계에서 정규화된 decimal string을 사용합니다.
-- 날짜는 현재 계약과 호환되는 ISO 8601 string을 사용합니다.
+- thread ID와 DB `bigint` 식별자는 DB RPC 반환 시점에 `text`로 직렬화하고, JSON 경계에서는
+  decimal string으로만 취급합니다. JavaScript `number`를 거친 뒤 문자열로 변환하지 않습니다.
+- 날짜는 timezone이 포함된 ISO 8601 string을 사용하며 `Z`와 `±HH:MM` offset을 허용합니다.
 - 실제 요구가 생기기 전에는 `Date`, `BigInt` serializer 또는 `superjson`을 도입하지 않습니다.
 - input object는 예상하지 않은 필드를 거부하도록 strict schema를 사용합니다.
 - default는 schema와 procedure 중 한 곳에서만 정의합니다.
@@ -247,7 +250,10 @@ contracts/
 - 요청마다 cookie 기반 Supabase server client를 생성합니다.
 - 인증 사용자 조회 결과는 같은 batch request 안에서 재사용합니다.
 - service role client를 context 기본값으로 넣지 않습니다.
-- request ID, 시작 시각과 안전한 logger context를 함께 제공합니다.
+- request ID와 request-scoped Auth·owner·repository 계측 context를 함께 제공합니다.
+- Supabase SSR cookie adapter는 `getAll/setAll`을 사용하고 token refresh의 cookie와 cache 방지
+  header를 같은 응답에 적용합니다.
+- 인증 cookie를 기록할 수 있는 응답은 `private, no-store`를 보장합니다.
 
 ### 8.2 procedure 종류
 
@@ -311,15 +317,22 @@ service는 HTTP나 tRPC에 종속되지 않은 domain error를 반환하거나 t
   않습니다.
 - 장시간 수동 크롤링은 전용 route의 `maxDuration = 60`을 유지해 일반 API bundle과 실행 설정을
   분리합니다.
+- 함께 증가하는 collection의 결합·조회는 반복 `find/includes` 대신 `Map/Set` 기반 선형 순회를
+  우선하고 item loop 안에 RPC 또는 provider 호출을 추가하지 않습니다.
+- polling, serializer, SQL과 인덱스 최적화는 동일 fixture·환경의 계측과 실행 계획을 근거로
+  적용합니다.
 
 ## 11. 관측성
 
 ### 11.1 공통 로그 필드
 
 - `requestId`
-- `transport`: `trpc | internal-rest | auth-callback`
+- `transport`: `trpc | internal-rest | auth-callback | next-middleware`
 - `operation`: procedure path 또는 REST endpoint
-- `durationMs`
+- `requestDurationMs`
+- `batchSize`, `responseBytes`, `resultCount`
+- `authDurationMs`, `ownerDurationMs`, `repositoryDurationMs`
+- `downstreamCallCount`, repository별 고정 operation 호출 수
 - `outcome`: `succeeded | rejected | failed`
 - 안전한 domain `errorCode`
 
@@ -332,6 +345,8 @@ service는 HTTP나 tRPC에 종속되지 않은 domain error를 반환하거나 t
 
 사용자 email, cookie, secret, API key, provider 원본 응답과 전체 thread URL은 기본 로그 필드로
 남기지 않습니다. URL이 장애 분석에 필요하면 기존 crawler logger의 정제 규칙을 사용합니다.
+tRPC 실패는 fetch adapter의 `onError`에서 한 번만 기록하며, context 초기화 실패도 안전한 공통
+메시지와 미리 발급한 `requestId`로 정규화합니다.
 
 ## 12. 테스트 전략
 
@@ -355,7 +370,7 @@ Zod, service, router와 client 계층 테스트로 이전한 후 중복된 trans
 3. `pnpm check`
 4. DB가 실행 중인 환경에서 `pnpm test:db`
 5. `pnpm build`
-6. 핵심 Playwright E2E
+6. 핵심 Playwright E2E는 사용자 수행 정책에 따라 수동 실행
 7. 배포 후 사용자 수행 smoke와 운영 로그 확인
 
 ## 13. 목표 디렉터리 구조
@@ -389,6 +404,9 @@ server/
       crawl-policy.router.ts
       crawl-run.router.ts
 
+trpc/
+  client.tsx
+
 app/
   api/
     trpc/[trpc]/route.ts
@@ -404,47 +422,73 @@ app/
 
 ## 14. 구현 방향
 
-### Phase 0. 기준선 고정
+### 14.1 현재 구현 상태
 
-- 기존 7개 사용자 API의 input, output, status와 오류 복구 데이터를 표로 고정합니다.
-- 관련 route/client 테스트와 Playwright 흐름을 기준선으로 기록합니다.
-- 호출 수, payload, server duration, cold start의 비교 기준을 측정합니다.
+| 영역 | 상태 | 구현 내용 |
+| --- | --- | --- |
+| Zod 계약 | 완료 | thread, crawl run, crawl policy, public error data를 `contracts/`의 단일 원본으로 정의 |
+| 업무 계층 | 완료 | Supabase 호출을 repository로, cursor·통계·정책 충돌·dashboard 조합을 service로 분리 |
+| tRPC 서버 | 완료 | request-scoped context, owner access memoization, domain error mapping, output validation과 구조화 로그 구현 |
+| tRPC client | 완료 | 기존 `QueryClient` 재사용, `httpBatchLink`의 `maxItems = 8`, `maxURLLength = 2048` 적용 |
+| Thread UI | 완료 | infinite query, 30초/5분 stale 정책, AbortSignal, optimistic update와 rollback을 유지한 채 tRPC로 전환 |
+| Crawl UI | 완료 | 실행 dashboard의 5초 active polling과 정책의 60초 polling, 충돌 복구 데이터를 유지한 채 tRPC로 전환 |
+| 기존 REST 정리 | 완료 | 7개 사용자 REST route와 해당 수동 fetch client 제거 |
+| 운영 REST 보존 | 완료 | manual, scheduled, YouTube/Imgur worker, Auth callback 경계 유지 |
+| DB 무결성 | 완료 | RLS, lock, transaction과 scheduler 의미는 유지하고 thread ID 반환만 migration에서 decimal text로 보강 |
+| 배포 후 측정 | 대기 | p95 latency, batch 비율, 오류율과 production log 검색성 확인 필요 |
 
-### Phase 1. Zod와 service 추출
+구현은 브라우저의 일반 업무 통신만 tRPC로 전환했습니다. 수동 크롤링과 내부 worker는 기존 REST
+계약을 유지하고, 일반 tRPC route에는 crawler parser, media worker와 service role 모듈을 import하지
+않습니다.
+
+### Phase 0. 기준선 고정 — 계약 완료, 운영 성능 확인 대기
+
+- 기존 7개 사용자 API의 input, output, status와 오류 복구 데이터를 Zod와 계층 테스트로 고정했습니다.
+- 기존 route/client 테스트의 의미와 Playwright 흐름을 새 transport에 맞게 이전했습니다.
+- 호출 수, payload, server duration과 cold start 비교는 배포 전후 동일 환경에서 측정합니다.
+
+### Phase 1. Zod와 service 추출 — 완료
 
 - 기존 TypeScript interface와 type guard를 Zod schema로 점진 전환합니다.
 - route 내부 Supabase RPC 호출과 업무 규칙을 repository/service로 이동합니다.
-- 기존 REST는 새 service를 호출하게 하며 외부 계약은 변경하지 않습니다.
-- 이 단계만으로도 중복 검증과 transport 결합을 줄일 수 있어 독립적으로 rollback 가능합니다.
+- 전환 과정에서 계약 의미를 Zod, repository와 service 테스트로 먼저 고정했습니다.
+- transport와 분리된 계층은 tRPC 외의 운영 REST가 필요할 때도 재사용할 수 있습니다.
 
-### Phase 2. tRPC 기반 구축
+### Phase 2. tRPC 기반 구축 — 완료
 
 - request-scoped context, `ownerProcedure`, error formatter와 logger를 구현합니다.
 - 기존 `QueryClient`를 재사용하는 provider와 bounded `httpBatchLink`를 구성합니다.
 - 일반 router가 crawler/media의 무거운 서버 모듈을 import하지 않는지 build output으로 확인합니다.
 
-### Phase 3. Thread pilot
+### Phase 3. Thread 전환 — 완료
 
 - `thread.list`, `thread.stats`, `thread.transition`을 먼저 전환합니다.
-- 기존 REST와 동일한 service를 사용해 결과와 오류 의미를 비교합니다.
-- feature flag 또는 한 번의 client 변경으로 REST에 되돌릴 수 있게 합니다.
+- 기존 REST 테스트의 의미를 contract, repository, service와 router 테스트로 이전했습니다.
+- `20260727171315_preserve_thread_bigint_ids.sql`은 thread ID를 손실 없는 decimal text로
+  직렬화하며 이전 REST 구현도 string ID를 허용하므로 application rollback과 호환됩니다.
+- 배포 전 application rollback은 이 변경의 revert, 배포 후에는 직전 안정 배포 재배포를
+  기준으로 합니다. 이미 적용된 DB 함수를 되돌려야 한다면 migration 파일을 삭제하거나 수정하지
+  않고 별도의 roll-forward migration을 작성합니다.
 - pagination, cancellation, optimistic update와 cache rollback을 검증합니다.
 
-### Phase 4. 나머지 사용자 API 전환
+### Phase 4. 나머지 사용자 API 전환 — 완료
 
 - `thread.bulkTrash`
 - `crawl.runs`
 - `crawlPolicy.get`
 - `crawlPolicy.update`
 
-정책 충돌의 최신 settings와 crawl dashboard의 대형 output 검증 비용을 별도로 확인합니다.
+정책 충돌의 최신 settings가 tRPC error data에 포함되는지 HTTP transport 수준에서 검증했습니다.
+대형 crawl dashboard의 output validation 비용은 배포 후 latency 지표로 계속 확인합니다.
 
-### Phase 5. 안정화와 기존 REST 제거
+### Phase 5. 기존 REST 제거 및 배포 안정화 — 코드 완료, 운영 확인 대기
 
-- 최소 3~5영업일 또는 한 번의 안정 배포 주기 동안 오류율과 latency를 관찰합니다.
-- 성공 게이트를 충족하면 migrated REST route와 수동 fetch client를 제거합니다.
+- migrated REST route와 수동 fetch client는 같은 use case의 이중 계약을 방지하기 위해 구현 변경에서
+  함께 제거했습니다.
+- 배포 후 최소 3~5영업일 또는 한 번의 안정 배포 주기 동안 오류율과 latency를 관찰합니다.
 - 안정화 이후에도 같은 use case의 REST와 tRPC를 영구 병행하지 않습니다.
-- rollback 기간이 끝나면 feature flag와 이중 계약 테스트도 정리합니다.
+- 중단 게이트가 발생하면 직전 안정 배포로 rollback하고 원인을 contract/service/router 계층에서
+  수정합니다.
 
 ### Phase 6. 수동 크롤링 재평가
 
@@ -458,6 +502,10 @@ app/
 
 ## 15. 성공 및 중단 게이트
 
+구현 완료는 로컬 contract·service·transport·DB·build 게이트로 판정합니다. p95, 실제 batch
+비율과 production 로그 검색성은 배포 후 검증하는 운영 게이트이며, 미측정 상태를 기능 미구현으로
+간주하지 않습니다.
+
 ### 성공 게이트
 
 - 7개 migrated operation의 정상·오류·복구 데이터 의미가 기존과 일치합니다.
@@ -468,7 +516,7 @@ app/
 - thread 목록과 통계의 동시 조회가 batching 목표를 충족합니다.
 - 일반 tRPC bundle에 crawler parser와 media worker가 포함되지 않습니다.
 - production 로그가 procedure와 domain error 단위로 검색 가능합니다.
-- 한 번의 배포로 기존 REST client로 rollback할 수 있습니다.
+- 직전 안정 배포 재배포 또는 단일 변경 revert로 rollback할 수 있습니다.
 
 ### 중단 게이트
 

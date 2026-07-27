@@ -6,6 +6,8 @@ describe("manual crawl client", () => {
 		const fetchMock = vi.fn().mockResolvedValue(
 			new Response(
 				JSON.stringify({
+					runId: "42",
+					status: "succeeded",
 					target: "arcalive",
 					insertedCount: 2,
 					skippedCount: 3,

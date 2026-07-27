@@ -7,6 +7,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { ThreadListFilterParam } from "@/lib/thread-list-contract";
 import { threadStatsOptions } from "@/lib/thread-query-options";
+import { useTRPCClient } from "@/trpc/client";
 import { ThreadInfiniteList } from "../thread-infinite-list";
 import { QuickSaveButton } from "./quick-save-button";
 import { DefaultThreadItem } from "./thread-item";
@@ -68,6 +69,7 @@ const TypeStats = ({
 };
 
 export const ThreadList = () => {
+	const trpc = useTRPCClient();
 	const [selectedType, setSelectedType] = useState("all");
 
 	const filterParams = useMemo(() => {
@@ -80,7 +82,7 @@ export const ThreadList = () => {
 		return params;
 	}, [selectedType]);
 
-	const statsQuery = useQuery(threadStatsOptions("inbox"));
+	const statsQuery = useQuery(threadStatsOptions(trpc, "inbox"));
 
 	useEffect(() => {
 		if (typeof window === "undefined") {

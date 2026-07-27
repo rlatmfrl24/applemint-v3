@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { MediaWorkerResult } from "@/contracts/media-worker.schema";
 import { fetchImgurMetadata, ImgurApiError, type ImgurMetadataSummary } from "./client";
 import { type NormalizedImgurUrl, normalizeImgurUrl } from "./url";
 
@@ -23,15 +24,7 @@ interface PreparedImgurJob {
 	target: NormalizedImgurUrl;
 }
 
-export interface ImgurWorkerResult {
-	claimedCount: number;
-	readyCount: number;
-	unavailableCount: number;
-	unsupportedCount: number;
-	retriedCount: number;
-	failedCount: number;
-	leaseRejectedCount: number;
-}
+export type ImgurWorkerResult = MediaWorkerResult;
 
 export class ImgurWorkerError extends Error {
 	constructor(readonly code: string) {
