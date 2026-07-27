@@ -184,6 +184,7 @@ describe("Imgur thread card", () => {
 		expect(markup).toContain('data-testid="imgur-thread-content"');
 		expect(markup).toContain('data-media-status="failed"');
 		expect(markup).toContain("불러오기 실패");
+		expect(markup).not.toContain(">Open<");
 		expect(markup).not.toContain('data-testid="default-thread-content"');
 	});
 
