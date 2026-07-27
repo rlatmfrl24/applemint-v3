@@ -265,7 +265,17 @@ function ImgurPreviewDrawer({ model, threadUrl }: { model: ImgurCardModel; threa
 	);
 }
 
-function ImgurPendingContent({ meta }: { meta?: React.ReactNode }) {
+function ImgurPendingContent({
+	thread,
+	onOpen,
+	meta,
+}: {
+	thread: ThreadItemType;
+	onOpen: () => void;
+	meta?: React.ReactNode;
+}) {
+	const title = getMeaningfulThreadTitle(thread) ?? STATUS_FALLBACK_TITLES.pending;
+
 	return (
 		<div
 			role="status"
@@ -284,7 +294,20 @@ function ImgurPendingContent({ meta }: { meta?: React.ReactNode }) {
 					</Badge>
 					{meta}
 				</div>
-				<div className="h-5 w-5/6 animate-pulse rounded bg-zinc-100 motion-reduce:animate-none dark:bg-zinc-900" />
+				<button
+					type="button"
+					aria-label={`${title} Imgur에서 열기`}
+					className="-mx-1 rounded-md px-1 py-1 text-left font-semibold text-[15px] leading-6 transition-colors hover:bg-zinc-100 hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 sm:text-base dark:focus-visible:ring-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
+					onClick={onOpen}
+					style={{
+						display: "-webkit-box",
+						WebkitBoxOrient: "vertical",
+						WebkitLineClamp: 2,
+						overflow: "hidden",
+					}}
+				>
+					{title}
+				</button>
 				<div className="h-4 w-2/5 animate-pulse rounded bg-zinc-100 motion-reduce:animate-none dark:bg-zinc-900" />
 			</div>
 		</div>
@@ -302,7 +325,7 @@ export function ImgurThreadContent({
 }) {
 	const model = getImgurCardModel(thread);
 	if (model.status === "pending") {
-		return <ImgurPendingContent meta={meta} />;
+		return <ImgurPendingContent thread={thread} onOpen={onOpen} meta={meta} />;
 	}
 
 	const message = STATUS_MESSAGES[model.status];

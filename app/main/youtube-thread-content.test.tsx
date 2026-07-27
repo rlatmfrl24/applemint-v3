@@ -121,6 +121,8 @@ describe("YouTube thread card", () => {
 		expect(markup).toContain('role="status"');
 		expect(markup).toContain('aria-label="YouTube 영상 정보를 불러오는 중"');
 		expect(markup).toContain("sm:grid-cols-[minmax(14rem,17rem)_minmax(0,1fr)]");
+		expect(markup).toContain("수집 당시 제목");
+		expect(markup).toContain('aria-label="수집 당시 제목 YouTube에서 열기"');
 		expect(markup).not.toContain(">Open<");
 	});
 
