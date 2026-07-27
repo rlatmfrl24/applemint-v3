@@ -93,4 +93,46 @@ describe("listYouTubeVideos", () => {
 		expect(error).toBeInstanceOf(YouTubeApiError);
 		expect(error).toMatchObject({ code, disposition });
 	});
+
+	it.each([
+		["quotaExceeded", "YOUTUBE_QUOTA_EXCEEDED"],
+		["dailyLimitExceeded", "YOUTUBE_QUOTA_EXCEEDED"],
+		["rateLimitExceeded", "YOUTUBE_RATE_LIMITED"],
+		["userRateLimitExceeded", "YOUTUBE_RATE_LIMITED"],
+	] as const)("HTTP 403의 %s를 원문 없이 재시도 코드로 정규화한다", async (reason, code) => {
+		const fetchMock = vi.fn().mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					error: {
+						errors: [{ reason, message: "fixture raw provider message" }],
+					},
+				}),
+				{ status: 403 }
+			)
+		);
+
+		const error = await listYouTubeVideos(["abcDEF12345"], {
+			apiKey: "fixture-api-key",
+			fetchImpl: fetchMock,
+		}).catch((caught: unknown) => caught);
+
+		expect(error).toBeInstanceOf(YouTubeApiError);
+		expect(error).toMatchObject({ code, disposition: "retryable", message: code });
+		expect(JSON.stringify(error)).not.toContain("fixture raw provider message");
+	});
+
+	it("재시도 allowlist에 없는 HTTP 403은 종단 4xx로 유지한다", async () => {
+		const fetchMock = vi.fn().mockResolvedValue(
+			new Response(JSON.stringify({ error: { errors: [{ reason: "forbidden" }] } }), {
+				status: 403,
+			})
+		);
+
+		const error = await listYouTubeVideos(["abcDEF12345"], {
+			apiKey: "fixture-api-key",
+			fetchImpl: fetchMock,
+		}).catch((caught: unknown) => caught);
+
+		expect(error).toMatchObject({ code: "YOUTUBE_HTTP_4XX", disposition: "terminal" });
+	});
 });

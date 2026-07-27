@@ -9,6 +9,8 @@ import {
 
 const YOUTUBE_LEASE_SECONDS = 45;
 const YOUTUBE_MAX_ATTEMPTS = 5;
+const YOUTUBE_QUOTA_MAX_ATTEMPTS = 7;
+const YOUTUBE_QUOTA_RETRY_SECONDS = 25 * 60 * 60;
 const YOUTUBE_RETRY_BASE_SECONDS = 60;
 
 interface ClaimedYouTubeJob {
@@ -56,6 +58,10 @@ function createEmptyResult(): YouTubeWorkerResult {
 
 function getRetryDelaySeconds(attemptCount: number) {
 	return Math.min(YOUTUBE_RETRY_BASE_SECONDS * 2 ** Math.max(0, attemptCount - 1), 3_600);
+}
+
+function isDailyQuotaError(errorCode: string) {
+	return errorCode === "YOUTUBE_QUOTA_EXCEEDED";
 }
 
 function getMediaKind(target: NormalizedYouTubeUrl, video: YouTubeVideoResult) {
@@ -203,11 +209,20 @@ function retryJob(
 	now: () => Date,
 	result: YouTubeWorkerResult
 ) {
-	if (job.attempt_count >= YOUTUBE_MAX_ATTEMPTS) {
-		return failJob(supabase, job, "YOUTUBE_MAX_ATTEMPTS", result);
+	const dailyQuotaError = isDailyQuotaError(errorCode);
+	const maxAttempts = dailyQuotaError ? YOUTUBE_QUOTA_MAX_ATTEMPTS : YOUTUBE_MAX_ATTEMPTS;
+	if (job.attempt_count >= maxAttempts) {
+		return failJob(
+			supabase,
+			job,
+			dailyQuotaError ? "YOUTUBE_QUOTA_MAX_ATTEMPTS" : "YOUTUBE_MAX_ATTEMPTS",
+			result
+		);
 	}
 	const availableAt = new Date(
-		now().getTime() + getRetryDelaySeconds(job.attempt_count) * 1_000
+		now().getTime() +
+			(dailyQuotaError ? YOUTUBE_QUOTA_RETRY_SECONDS : getRetryDelaySeconds(job.attempt_count)) *
+				1_000
 	).toISOString();
 	return invokeLeaseRpc(
 		supabase,

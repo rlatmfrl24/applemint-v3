@@ -2,10 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchImgurMetadata, ImgurApiError, type ImgurMetadataSummary } from "./client";
 import { type NormalizedImgurUrl, normalizeImgurUrl } from "./url";
 
-const IMGUR_LEASE_SECONDS = 45;
+const IMGUR_LEASE_SECONDS = 60;
 const IMGUR_MAX_ATTEMPTS = 5;
 const IMGUR_RETRY_BASE_SECONDS = 60;
-export const IMGUR_MAX_BATCH_SIZE = 20;
+export const IMGUR_MAX_BATCH_SIZE = 4;
 const IMGUR_WORKER_CONCURRENCY = 4;
 
 interface ClaimedImgurJob {
@@ -306,6 +306,7 @@ export async function runImgurEnrichmentWorker(
 	if (error) throw new ImgurWorkerError("IMGUR_CLAIM_FAILED");
 
 	const jobs = validateClaimedJobs(data ?? []);
+	if (jobs.length > limit) throw new ImgurWorkerError("IMGUR_INVALID_CLAIM_RESPONSE");
 	const result = createEmptyResult();
 	result.claimedCount = jobs.length;
 	if (jobs.length === 0) return result;
