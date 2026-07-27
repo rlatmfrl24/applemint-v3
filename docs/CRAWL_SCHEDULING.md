@@ -99,9 +99,9 @@ Imgur의 HTTP 429는 rate-limit header를 기준으로 구분합니다. `X-RateL
 뒤에 재시도하며 일반 오류와 같은 5회 제한을 사용합니다. 최대 시도에 도달해도
 `IMGUR_CLIENT_QUOTA_EXHAUSTED`, `IMGUR_USER_RATE_LIMITED`, `IMGUR_HTTP_429`처럼 실제 원인 코드를
 덮어쓰지 않습니다. 제한 중인 pending 항목은 전용 skeleton 대신 제목과 링크를 확인할 수 있는
-일반 카드로 표시합니다. 과거 worker가 실제 429 원인을 `IMGUR_MAX_ATTEMPTS`로 덮어쓴 failed
-항목도 일반 카드로 표시합니다. Album 응답에 preview image가 포함되어 있으면 별도 album images
-요청을 생략해 API 사용량을 줄입니다.
+일반 카드로 표시합니다. 과거 worker의 `IMGUR_MAX_ATTEMPTS`는 429·network·timeout·5xx 원인을
+구분할 수 없으므로 실패 카드로 유지합니다. Album 응답에 preview image가 포함되어 있으면 별도
+album images 요청을 생략해 API 사용량을 줄입니다.
 
 ### 운영 반영 전 읽기 전용 대조
 

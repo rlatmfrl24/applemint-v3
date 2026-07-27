@@ -40,7 +40,6 @@ const IMGUR_RATE_LIMIT_ERROR_CODES = new Set([
 	"IMGUR_HTTP_429",
 	"IMGUR_CLIENT_QUOTA_EXHAUSTED",
 	"IMGUR_USER_RATE_LIMITED",
-	"IMGUR_MAX_ATTEMPTS",
 ]);
 
 export function shouldRenderImgurAsDefaultCard(thread: ThreadItemType) {

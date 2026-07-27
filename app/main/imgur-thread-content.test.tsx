@@ -152,25 +152,39 @@ describe("Imgur thread card", () => {
 		}
 	);
 
-	it.each([
-		"IMGUR_HTTP_429",
-		"IMGUR_CLIENT_QUOTA_EXHAUSTED",
-		"IMGUR_USER_RATE_LIMITED",
-		"IMGUR_MAX_ATTEMPTS",
-	])("요청 제한으로 실패한 항목도 일반 카드로 표시한다: %s", (lastErrorCode) => {
+	it.each(["IMGUR_HTTP_429", "IMGUR_CLIENT_QUOTA_EXHAUSTED", "IMGUR_USER_RATE_LIMITED"])(
+		"요청 제한으로 실패한 항목도 일반 카드로 표시한다: %s",
+		(lastErrorCode) => {
+			const markup = renderMetadata({
+				status: "failed",
+				title: null,
+				thumbnail_url: null,
+				media_count: null,
+				preview_urls: [],
+				last_error_code: lastErrorCode,
+			});
+
+			expect(markup).toContain('data-testid="default-thread-content"');
+			expect(markup).toContain("수집 당시 앨범 제목");
+			expect(markup).not.toContain('data-testid="imgur-thread-content"');
+			expect(markup).not.toContain("불러오기 실패");
+		}
+	);
+
+	it("원인을 확인할 수 없는 legacy 최대 시도 실패는 실패 카드로 유지한다", () => {
 		const markup = renderMetadata({
 			status: "failed",
 			title: null,
 			thumbnail_url: null,
 			media_count: null,
 			preview_urls: [],
-			last_error_code: lastErrorCode,
+			last_error_code: "IMGUR_MAX_ATTEMPTS",
 		});
 
-		expect(markup).toContain('data-testid="default-thread-content"');
-		expect(markup).toContain("수집 당시 앨범 제목");
-		expect(markup).not.toContain('data-testid="imgur-thread-content"');
-		expect(markup).not.toContain("불러오기 실패");
+		expect(markup).toContain('data-testid="imgur-thread-content"');
+		expect(markup).toContain('data-media-status="failed"');
+		expect(markup).toContain("불러오기 실패");
+		expect(markup).not.toContain('data-testid="default-thread-content"');
 	});
 
 	it("metadata가 없는 기존 Imgur 항목은 일반 카드로 표시한다", () => {
