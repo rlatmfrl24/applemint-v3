@@ -154,15 +154,6 @@ describe("runYouTubeEnrichmentWorker", () => {
 			errorCode: "YOUTUBE_HTTP_5XX",
 		},
 		{
-			name: "HTTP 403 quota",
-			fetchImpl: vi.fn().mockResolvedValue(
-				new Response(JSON.stringify({ error: { errors: [{ reason: "quotaExceeded" }] } }), {
-					status: 403,
-				})
-			),
-			errorCode: "YOUTUBE_QUOTA_EXCEEDED",
-		},
-		{
 			name: "timeout",
 			fetchImpl: vi.fn().mockRejectedValue(new DOMException("fixture timeout", "TimeoutError")),
 			errorCode: "YOUTUBE_TIMEOUT",
@@ -189,6 +180,56 @@ describe("runYouTubeEnrichmentWorker", () => {
 			p_lease_token: "lease-10",
 			p_error_code: errorCode,
 			p_available_at: "2026-07-27T00:01:00.000Z",
+		});
+	});
+
+	it("일일 quota 오류는 일반 최대 시도를 넘어 다음 reset 이후까지 durable retry한다", async () => {
+		const { client, rpc } = createQueueClient([
+			claimedJob(11, "https://www.youtube.com/watch?v=abcDEF12345", {
+				attempt_count: 5,
+			}),
+		]);
+
+		const result = await runYouTubeEnrichmentWorker(client, {
+			apiKey: "fixture-api-key",
+			fetchImpl: vi.fn().mockResolvedValue(
+				new Response(JSON.stringify({ error: { errors: [{ reason: "quotaExceeded" }] } }), {
+					status: 403,
+				})
+			),
+			now: () => new Date("2026-07-27T00:00:00.000Z"),
+		});
+
+		expect(result).toMatchObject({ retriedCount: 1, failedCount: 0 });
+		expect(rpc).toHaveBeenCalledWith("retry_media_enrichment_job", {
+			p_thread_id: 11,
+			p_lease_token: "lease-11",
+			p_error_code: "YOUTUBE_QUOTA_EXCEEDED",
+			p_available_at: "2026-07-28T01:00:00.000Z",
+		});
+	});
+
+	it("일일 quota 오류도 전용 최대 시도를 넘으면 무한 재시도하지 않는다", async () => {
+		const { client, rpc } = createQueueClient([
+			claimedJob(12, "https://www.youtube.com/watch?v=abcDEF12345", {
+				attempt_count: 7,
+			}),
+		]);
+
+		const result = await runYouTubeEnrichmentWorker(client, {
+			apiKey: "fixture-api-key",
+			fetchImpl: vi.fn().mockResolvedValue(
+				new Response(JSON.stringify({ error: { errors: [{ reason: "dailyLimitExceeded" }] } }), {
+					status: 403,
+				})
+			),
+		});
+
+		expect(result).toMatchObject({ retriedCount: 0, failedCount: 1 });
+		expect(rpc).toHaveBeenCalledWith("fail_media_enrichment_job", {
+			p_thread_id: 12,
+			p_lease_token: "lease-12",
+			p_error_code: "YOUTUBE_QUOTA_MAX_ATTEMPTS",
 		});
 	});
 

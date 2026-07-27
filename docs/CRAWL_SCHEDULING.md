@@ -85,6 +85,10 @@ worker가 공급자 429·5xx·timeout을 확인한 경우에는 job을 `retry`�
 재claim하지 않습니다. dispatch 자체가 worker에 도달하지 못했다면 job은 `queued`로 남거나 만료
 lease로 복구됩니다.
 
+YouTube의 `quotaExceeded`, `dailyLimitExceeded` 계열은 일일 quota reset을 지나도록 25시간 뒤에
+재시도합니다. 일반 오류의 5회 제한과 분리해 최대 7회까지 보존하되, 지속적인 설정·quota 문제를
+무한 재시도하지는 않습니다. 403 rate-limit 계열은 일반 지수 backoff와 5회 제한을 사용합니다.
+
 ### 운영 반영 전 읽기 전용 대조
 
 다음 쿼리는 측정 시각과 provider별 thread·metadata·job 수를 한 번에 기록합니다.
