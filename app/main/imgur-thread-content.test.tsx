@@ -144,7 +144,7 @@ describe("Imgur thread card", () => {
 
 		expect(markup).toContain('data-testid="default-thread-content"');
 		expect(markup).toContain("수집 당시 앨범 제목");
-		expect(markup).toContain(">Open<");
+		expect(markup).not.toContain(">Open<");
 		expect(markup).not.toContain('data-testid="imgur-thread-content"');
 		expect(markup).not.toContain('aria-label="Imgur 정보를 불러오는 중"');
 	});
@@ -154,7 +154,7 @@ describe("Imgur thread card", () => {
 
 		expect(markup).toContain('data-testid="default-thread-content"');
 		expect(markup).toContain("수집 당시 앨범 제목");
-		expect(markup).toContain(">Open<");
+		expect(markup).not.toContain(">Open<");
 		expect(markup).not.toContain('data-testid="imgur-thread-content"');
 		expect(markup).not.toContain('aria-label="Imgur 정보를 불러오는 중"');
 	});

@@ -80,13 +80,13 @@ describe("YouTube thread card", () => {
 		expect(markup).toContain('aria-label="공식 영상 제목 YouTube에서 열기"');
 	});
 
-	it("넓은 화면은 썸네일 비중을 높이고 URL과 Open을 한 행에 정렬한다", () => {
+	it("넓은 화면은 썸네일 비중을 높이고 중복 Open 없이 URL을 정렬한다", () => {
 		const markup = renderThread();
 
 		expect(markup).toContain("sm:grid-cols-[minmax(14rem,17rem)_minmax(0,1fr)]");
 		expect(markup).toContain('data-testid="youtube-thread-footer"');
-		expect(markup).toContain("mt-0.5 flex min-w-0 items-center gap-2");
-		expect(markup).toContain("h-7 shrink-0 px-2 text-xs");
+		expect(markup).toContain("mt-0.5 flex min-w-0 items-center gap-1");
+		expect(markup).not.toContain(">Open<");
 		expect(markup).not.toContain("mt-auto");
 	});
 
@@ -107,7 +107,7 @@ describe("YouTube thread card", () => {
 		expect(markup).not.toContain("02:05");
 	});
 
-	it("pending은 같은 grid의 접근 가능한 skeleton과 Open 동작을 유지한다", () => {
+	it("pending은 같은 grid의 접근 가능한 skeleton을 유지하고 중복 Open을 표시하지 않는다", () => {
 		const markup = renderMetadata({
 			status: "pending",
 			title: null,
@@ -121,7 +121,7 @@ describe("YouTube thread card", () => {
 		expect(markup).toContain('role="status"');
 		expect(markup).toContain('aria-label="YouTube 영상 정보를 불러오는 중"');
 		expect(markup).toContain("sm:grid-cols-[minmax(14rem,17rem)_minmax(0,1fr)]");
-		expect(markup).toContain(">Open<");
+		expect(markup).not.toContain(">Open<");
 	});
 
 	it.each([
@@ -177,7 +177,7 @@ describe("YouTube thread card", () => {
 		expect(markup).toContain("썸네일 없음");
 	});
 
-	it("일반 thread는 기존 renderer와 제목, URL, Open을 유지한다", () => {
+	it("일반 thread는 기존 renderer와 제목, URL을 유지하고 중복 Open을 표시하지 않는다", () => {
 		const markup = renderThread({
 			type: "normal",
 			url: "https://example.com/post",
@@ -191,7 +191,7 @@ describe("YouTube thread card", () => {
 		expect(markup).toContain("Untitled");
 		expect(markup).toContain("https://example.com/post");
 		expect(markup).toContain("example.com");
-		expect(markup).toContain(">Open<");
+		expect(markup).not.toContain(">Open<");
 	});
 });
 

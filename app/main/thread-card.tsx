@@ -1,9 +1,8 @@
 "use client";
 
-import { ExternalLink, Link2 } from "lucide-react";
+import { Link2 } from "lucide-react";
 import { useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { ThreadItemType } from "@/lib/type-defs";
 import { ImgurThreadContent, shouldRenderImgurAsDefaultCard } from "./imgur-thread-content";
@@ -55,10 +54,6 @@ function DefaultThreadContent({
 					</p>
 				) : null}
 			</div>
-			<Button variant="outline" size="sm" className="shrink-0" type="button" onClick={onOpen}>
-				<ExternalLink className="mr-1 size-3.5" />
-				Open
-			</Button>
 		</div>
 	);
 }

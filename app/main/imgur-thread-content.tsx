@@ -265,16 +265,7 @@ function ImgurPreviewDrawer({ model, threadUrl }: { model: ImgurCardModel; threa
 	);
 }
 
-function ImgurPendingContent({
-	thread,
-	onOpen,
-	meta,
-}: {
-	thread: ThreadItemType;
-	onOpen: () => void;
-	meta?: React.ReactNode;
-}) {
-	const title = getMeaningfulThreadTitle(thread) ?? STATUS_FALLBACK_TITLES.pending;
+function ImgurPendingContent({ meta }: { meta?: React.ReactNode }) {
 	return (
 		<div
 			role="status"
@@ -295,16 +286,6 @@ function ImgurPendingContent({
 				</div>
 				<div className="h-5 w-5/6 animate-pulse rounded bg-zinc-100 motion-reduce:animate-none dark:bg-zinc-900" />
 				<div className="h-4 w-2/5 animate-pulse rounded bg-zinc-100 motion-reduce:animate-none dark:bg-zinc-900" />
-				<Button
-					variant="outline"
-					size="sm"
-					type="button"
-					aria-label={`${title} Imgur에서 열기`}
-					onClick={onOpen}
-				>
-					<ExternalLink aria-hidden="true" className="mr-1 size-3.5" />
-					Open
-				</Button>
 			</div>
 		</div>
 	);
@@ -321,7 +302,7 @@ export function ImgurThreadContent({
 }) {
 	const model = getImgurCardModel(thread);
 	if (model.status === "pending") {
-		return <ImgurPendingContent thread={thread} onOpen={onOpen} meta={meta} />;
+		return <ImgurPendingContent meta={meta} />;
 	}
 
 	const message = STATUS_MESSAGES[model.status];
@@ -393,21 +374,11 @@ export function ImgurThreadContent({
 					<Link2 aria-hidden="true" className="size-3 shrink-0" />
 					<span className="truncate">{thread.url}</span>
 				</div>
-				<div className="mt-auto flex flex-wrap items-center gap-1.5">
-					<Button
-						variant="outline"
-						size="sm"
-						type="button"
-						aria-label={`${model.title} Imgur에서 열기`}
-						onClick={onOpen}
-					>
-						<ExternalLink aria-hidden="true" className="mr-1 size-3.5" />
-						Open
-					</Button>
-					{model.status === "ready" && model.previewUrls.length > 0 ? (
+				{model.status === "ready" && model.previewUrls.length > 0 ? (
+					<div className="mt-auto flex flex-wrap items-center gap-1.5">
 						<ImgurPreviewDrawer model={model} threadUrl={thread.url} />
-					) : null}
-				</div>
+					</div>
+				) : null}
 			</div>
 		</div>
 	);
