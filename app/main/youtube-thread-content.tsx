@@ -1,10 +1,9 @@
 "use client";
 
-import { ExternalLink, ImageOff, Link2, Radio, Youtube } from "lucide-react";
+import { ImageOff, Link2, Radio, Youtube } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { getAllowedMediaUrl } from "@/lib/media-preview";
 import type { ThreadItemType } from "@/lib/type-defs";
 
@@ -147,21 +146,21 @@ function YouTubePendingContent({
 					</Badge>
 					{meta}
 				</div>
-				<div className="h-5 w-5/6 animate-pulse rounded bg-zinc-100 motion-reduce:animate-none dark:bg-zinc-900" />
-				<div className="flex min-w-0 items-center gap-2">
-					<div className="h-3.5 w-2/5 min-w-0 animate-pulse rounded bg-zinc-100 motion-reduce:animate-none dark:bg-zinc-900" />
-					<Button
-						variant="outline"
-						size="sm"
-						type="button"
-						className="ml-auto h-7 shrink-0 px-2 text-xs"
-						aria-label={`${title} YouTube에서 열기`}
-						onClick={onOpen}
-					>
-						<ExternalLink aria-hidden="true" className="mr-1 size-3.5" />
-						Open
-					</Button>
-				</div>
+				<button
+					type="button"
+					aria-label={`${title} YouTube에서 열기`}
+					className="-mx-1 rounded-md px-1 py-0.5 text-left font-semibold text-[15px] leading-5 transition-colors hover:bg-zinc-100 hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 sm:text-base dark:focus-visible:ring-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
+					onClick={onOpen}
+					style={{
+						display: "-webkit-box",
+						WebkitBoxOrient: "vertical",
+						WebkitLineClamp: 2,
+						overflow: "hidden",
+					}}
+				>
+					{title}
+				</button>
+				<div className="h-3.5 w-2/5 animate-pulse rounded bg-zinc-100 motion-reduce:animate-none dark:bg-zinc-900" />
 			</div>
 		</div>
 	);
@@ -269,22 +268,12 @@ export function YouTubeThreadContent({
 						{message}
 					</p>
 				) : null}
-				<div data-testid="youtube-thread-footer" className="mt-0.5 flex min-w-0 items-center gap-2">
-					<div className="flex min-w-0 flex-1 items-center gap-1 text-[11px] text-zinc-500 leading-4 dark:text-zinc-400">
-						<Link2 aria-hidden="true" className="size-3 shrink-0" />
-						<span className="truncate">{thread.url}</span>
-					</div>
-					<Button
-						variant="outline"
-						size="sm"
-						type="button"
-						className="h-7 shrink-0 px-2 text-xs"
-						aria-label={`${model.title} YouTube에서 열기`}
-						onClick={onOpen}
-					>
-						<ExternalLink aria-hidden="true" className="mr-1 size-3.5" />
-						Open
-					</Button>
+				<div
+					data-testid="youtube-thread-footer"
+					className="mt-0.5 flex min-w-0 items-center gap-1 text-[11px] text-zinc-500 leading-4 dark:text-zinc-400"
+				>
+					<Link2 aria-hidden="true" className="size-3 shrink-0" />
+					<span className="truncate">{thread.url}</span>
 				</div>
 			</div>
 		</div>

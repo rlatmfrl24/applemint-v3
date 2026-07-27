@@ -275,6 +275,7 @@ function ImgurPendingContent({
 	meta?: React.ReactNode;
 }) {
 	const title = getMeaningfulThreadTitle(thread) ?? STATUS_FALLBACK_TITLES.pending;
+
 	return (
 		<div
 			role="status"
@@ -293,18 +294,21 @@ function ImgurPendingContent({
 					</Badge>
 					{meta}
 				</div>
-				<div className="h-5 w-5/6 animate-pulse rounded bg-zinc-100 motion-reduce:animate-none dark:bg-zinc-900" />
-				<div className="h-4 w-2/5 animate-pulse rounded bg-zinc-100 motion-reduce:animate-none dark:bg-zinc-900" />
-				<Button
-					variant="outline"
-					size="sm"
+				<button
 					type="button"
 					aria-label={`${title} Imgur에서 열기`}
+					className="-mx-1 rounded-md px-1 py-1 text-left font-semibold text-[15px] leading-6 transition-colors hover:bg-zinc-100 hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 sm:text-base dark:focus-visible:ring-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
 					onClick={onOpen}
+					style={{
+						display: "-webkit-box",
+						WebkitBoxOrient: "vertical",
+						WebkitLineClamp: 2,
+						overflow: "hidden",
+					}}
 				>
-					<ExternalLink aria-hidden="true" className="mr-1 size-3.5" />
-					Open
-				</Button>
+					{title}
+				</button>
+				<div className="h-4 w-2/5 animate-pulse rounded bg-zinc-100 motion-reduce:animate-none dark:bg-zinc-900" />
 			</div>
 		</div>
 	);
@@ -393,21 +397,11 @@ export function ImgurThreadContent({
 					<Link2 aria-hidden="true" className="size-3 shrink-0" />
 					<span className="truncate">{thread.url}</span>
 				</div>
-				<div className="mt-auto flex flex-wrap items-center gap-1.5">
-					<Button
-						variant="outline"
-						size="sm"
-						type="button"
-						aria-label={`${model.title} Imgur에서 열기`}
-						onClick={onOpen}
-					>
-						<ExternalLink aria-hidden="true" className="mr-1 size-3.5" />
-						Open
-					</Button>
-					{model.status === "ready" && model.previewUrls.length > 0 ? (
+				{model.status === "ready" && model.previewUrls.length > 0 ? (
+					<div className="mt-auto flex flex-wrap items-center gap-1.5">
 						<ImgurPreviewDrawer model={model} threadUrl={thread.url} />
-					) : null}
-				</div>
+					</div>
+				) : null}
 			</div>
 		</div>
 	);
