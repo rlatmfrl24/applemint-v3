@@ -439,6 +439,9 @@ select is(
 	'same source and five-minute bucket are not selected twice'
 );
 
+delete from vault.secrets
+where name in ('crawl_app_base_url', 'crawl_internal_secret');
+
 set local role service_role;
 select is(
 	public.dispatch_due_crawl_sources() ->> 'status',
