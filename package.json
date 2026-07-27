@@ -63,7 +63,7 @@
 		"knip": "6.27.0",
 		"tailwindcss": "4.2.1",
 		"tailwindcss-animate": "^1.0.7",
-		"typescript": "5.3.3",
+		"typescript": "7.0.2",
 		"vitest": "^4.1.10"
 	},
 	"pnpm": {
