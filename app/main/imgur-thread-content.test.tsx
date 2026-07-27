@@ -149,6 +149,16 @@ describe("Imgur thread card", () => {
 		expect(markup).not.toContain('aria-label="Imgur 정보를 불러오는 중"');
 	});
 
+	it("metadata가 없는 기존 Imgur 항목은 일반 카드로 표시한다", () => {
+		const markup = renderThread({ media_metadata: null });
+
+		expect(markup).toContain('data-testid="default-thread-content"');
+		expect(markup).toContain("수집 당시 앨범 제목");
+		expect(markup).toContain(">Open<");
+		expect(markup).not.toContain('data-testid="imgur-thread-content"');
+		expect(markup).not.toContain('aria-label="Imgur 정보를 불러오는 중"');
+	});
+
 	it.each([null, "IMGUR_NETWORK"])(
 		"요청 제한이 아닌 pending은 기존 skeleton 상태를 유지한다: %s",
 		(lastErrorCode) => {

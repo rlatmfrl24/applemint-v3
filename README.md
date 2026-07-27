@@ -48,7 +48,7 @@
 2. Supabase Cron이 5분마다 cooldown과 가용 동시성을 확인해 Next 예약 API를 비동기로 호출
 3. DB가 소스별 cooldown, source lock, 최대 2개 동시 실행을 원자적으로 판정
 4. 크롤링 결과를 `filter-keyword` 기준으로 필터링/타입 분류
-5. `ingest_crawl_items` RPC가 `crawl-history`, `threads`, media metadata·queue 생성을 하나의 트랜잭션으로 확정
+5. `ingest_crawl_items` RPC가 `crawl-history`, `threads`, YouTube와 cutover 이후 신규 Imgur의 media metadata·queue 생성을 하나의 트랜잭션으로 확정
 6. 별도 Supabase Cron이 durable queue가 있는 provider의 내부 media worker를 `pg_net`으로 호출
 7. YouTube·Imgur worker가 lease 안에서 정규화된 요약만 저장하고 retry·dead 상태를 보존
 8. `finish_crawl_run`이 크롤링 결과 저장과 lock 해제를 원자적으로 완료

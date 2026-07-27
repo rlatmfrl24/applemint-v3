@@ -13,6 +13,20 @@ select has_table(
 	'media_enrichment_jobs',
 	'media enrichment durable queue table exists'
 );
+select has_column(
+	'public',
+	'media_worker_runtime_settings',
+	'imgur_enrichment_cutoff_at',
+	'Imgur enrichment cutover is recorded in runtime settings'
+);
+select ok(
+	(
+		select imgur_enrichment_cutoff_at <= clock_timestamp()
+		from public.media_worker_runtime_settings
+		where id = true
+	),
+	'Imgur enrichment cutover has a valid timestamp'
+);
 select ok(
 	exists (
 		select 1
@@ -250,6 +264,59 @@ select throws_ok(
 );
 reset role;
 
+insert into public.threads (
+	type,
+	url,
+	title,
+	host,
+	state,
+	created_at,
+	captured_at,
+	state_changed_at
+)
+select
+	'imgur',
+	'https://phase2-legacy.test/imgur',
+	'legacy imgur',
+	'imgur.com',
+	'inbox',
+	settings.imgur_enrichment_cutoff_at - interval '1 day',
+	settings.imgur_enrichment_cutoff_at - interval '1 day',
+	settings.imgur_enrichment_cutoff_at - interval '1 day'
+from public.media_worker_runtime_settings as settings
+where settings.id = true;
+insert into public."crawl-history" (url, crawl_source, host)
+values ('https://phase2-legacy.test/imgur', 'arcalive', 'imgur.com');
+
+select is(
+	public.ingest_crawl_items(
+		'arcalive',
+		'[{"url":"https://phase2-legacy.test/imgur","title":"duplicate","type":"imgur"}]'::jsonb
+	),
+	'{"insertedCount": 0, "skippedCount": 1}'::jsonb,
+	're-crawling an existing Imgur thread does not treat it as newly collected'
+);
+select is(
+	(
+		select count(*)
+		from public.thread_media_metadata as metadata
+		inner join public.threads as thread on thread.id = metadata.thread_id
+		where thread.url = 'https://phase2-legacy.test/imgur'
+	),
+	0::bigint,
+	'existing Imgur thread has no preview metadata'
+);
+select is(
+	(
+		select count(*)
+		from public.media_enrichment_jobs as job
+		inner join public.threads as thread on thread.id = job.thread_id
+		where thread.url = 'https://phase2-legacy.test/imgur'
+	),
+	0::bigint,
+	'existing Imgur thread has no enrichment job'
+);
+
 select is(
 	public.ingest_crawl_items(
 		'arcalive',
@@ -282,6 +349,21 @@ select is(
 	),
 	2::bigint,
 	'ingest atomically creates queued jobs for provider threads'
+);
+select ok(
+	not exists (
+		select 1
+		from public.thread_media_metadata as metadata
+		inner join public.threads as thread on thread.id = metadata.thread_id
+		cross join public.media_worker_runtime_settings as settings
+		where thread.url = 'https://phase2-ingest.test/imgur'
+			and settings.id = true
+			and (
+				metadata.provider <> 'imgur'
+				or metadata.created_at < settings.imgur_enrichment_cutoff_at
+			)
+	),
+	'new Imgur ingest creates metadata on or after the cutover'
 );
 select is(
 	public.ingest_crawl_items(
@@ -421,7 +503,15 @@ where url like 'https://phase2-backfill.test/%';
 insert into public.thread_media_metadata (thread_id, provider, status)
 select thread.id, thread.type, 'pending'
 from public.threads as thread
-where thread.type in ('youtube', 'imgur')
+cross join public.media_worker_runtime_settings as settings
+where settings.id = true
+	and (
+		thread.type = 'youtube'
+		or (
+			thread.type = 'imgur'
+			and thread.created_at >= settings.imgur_enrichment_cutoff_at
+		)
+	)
 on conflict (thread_id) do nothing;
 select is(
 	(
@@ -430,8 +520,8 @@ select is(
 		inner join public.threads as thread on thread.id = metadata.thread_id
 		where thread.url like 'https://phase2-backfill.test/%'
 	),
-	2::bigint,
-	'backfill creates only missing provider metadata'
+	1::bigint,
+	'backfill excludes Imgur threads collected before cutover'
 );
 
 insert into public.media_enrichment_jobs (thread_id, provider, state)
@@ -446,8 +536,8 @@ select is(
 		inner join public.threads as thread on thread.id = job.thread_id
 		where thread.url like 'https://phase2-backfill.test/%'
 	),
-	2::bigint,
-	'backfill creates only missing provider jobs'
+	1::bigint,
+	'backfill creates a job only for eligible provider metadata'
 );
 
 create temporary table phase2_metadata_snapshot as
@@ -464,7 +554,15 @@ where thread.url like 'https://phase2-backfill.test/%';
 insert into public.thread_media_metadata (thread_id, provider, status)
 select thread.id, thread.type, 'pending'
 from public.threads as thread
-where thread.type in ('youtube', 'imgur')
+cross join public.media_worker_runtime_settings as settings
+where settings.id = true
+	and (
+		thread.type = 'youtube'
+		or (
+			thread.type = 'imgur'
+			and thread.created_at >= settings.imgur_enrichment_cutoff_at
+		)
+	)
 on conflict (thread_id) do nothing;
 insert into public.media_enrichment_jobs (thread_id, provider, state)
 select metadata.thread_id, metadata.provider, 'queued'
@@ -542,6 +640,15 @@ select is(
 	),
 	null::jsonb,
 	'list RPC returns null metadata for a normal thread'
+);
+select is(
+	(
+		select page.media_metadata
+		from public.list_threads_page('inbox', 100, null, null, 'imgur') as page
+		where page.url = 'https://phase2-legacy.test/imgur'
+	),
+	null::jsonb,
+	'list RPC returns null metadata for an Imgur thread collected before cutover'
 );
 select is(
 	(select count(*) from public.list_threads_page('inbox', 1, null, null, 'youtube')),
