@@ -43,6 +43,18 @@ describe("crawl pipeline helpers", () => {
 		expect(defineType("https://other.test/post", filters)).toBe("normal");
 	});
 
+	it("공급자 URL은 부분 문자열 keyword보다 먼저 분류한다", () => {
+		const filters = [
+			{ value: "youtube.com", method: "source" },
+			{ value: "imgur.com", method: "source" },
+		];
+		expect(defineType("https://www.youtube.com/watch?v=video", filters)).toBe("youtube");
+		expect(defineType("https://imgur.com/a/album", filters)).toBe("imgur");
+		expect(defineType("https://example.com/?next=https://youtube.com/watch?v=video", filters)).toBe(
+			"source"
+		);
+	});
+
 	it("history 조회 URL을 항목 수와 인코딩 길이 기준으로 분할한다", () => {
 		const urls = Array.from(
 			{ length: 306 },

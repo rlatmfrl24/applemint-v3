@@ -14,6 +14,7 @@ describe("thread list contract", () => {
 			created_at: "2026-07-20T00:00:00.000Z",
 			captured_at: "2026-07-20T00:00:00.000Z",
 			state_changed_at: "2026-07-20T00:00:00.000Z",
+			media_metadata: null,
 		};
 
 		expect(
@@ -36,6 +37,7 @@ describe("thread list contract", () => {
 			created_at: "2026-07-20T00:00:00.000Z",
 			captured_at: "2026-07-20T00:00:00.000Z",
 			state_changed_at: "2026-07-20T00:00:00.000Z",
+			media_metadata: null,
 		};
 		const second = { ...first, id: "1", url: "https://example.com/1" };
 

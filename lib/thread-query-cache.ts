@@ -1,5 +1,6 @@
 import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
 import { normalizeThreadId, type ThreadPage } from "./thread-list-contract";
+import { getThreadTypeLabel } from "./thread-type";
 import type { ThreadItemType, ThreadState, ThreadStats } from "./type-defs";
 
 export { normalizeThreadId } from "./thread-list-contract";
@@ -104,7 +105,13 @@ const updateThreadStats = (
 				return count > 0 ? [{ ...item, count }] : [];
 			})
 			.sort((left, right) => right.count - left.count || left.label.localeCompare(right.label));
-		if (!matched && delta > 0) counts.push({ key: thread.type, label: thread.type, count: delta });
+		if (!matched && delta > 0) {
+			counts.push({
+				key: thread.type,
+				label: getThreadTypeLabel(thread.type),
+				count: delta,
+			});
+		}
 
 		queryClient.setQueryData<ThreadStats>(query.queryKey, {
 			counts,
@@ -166,6 +173,7 @@ export const applyMoveThreadOptimisticUpdates = (
 };
 
 export const replaceThreadInCaches = (queryClient: QueryClient, thread: ThreadItemType) => {
+	const responseIncludesMetadata = Object.hasOwn(thread, "media_metadata");
 	for (const query of queryClient.getQueryCache().findAll({
 		predicate: (candidate) => isThreadListQueryKey(candidate.queryKey, thread.state),
 	})) {
@@ -176,7 +184,11 @@ export const replaceThreadInCaches = (queryClient: QueryClient, thread: ThreadIt
 			pages: data.pages.map((page) => ({
 				...page,
 				items: page.items.map((item) =>
-					normalizeThreadId(item.id) === normalizeThreadId(thread.id) ? thread : item
+					normalizeThreadId(item.id) === normalizeThreadId(thread.id)
+						? responseIncludesMetadata
+							? thread
+							: { ...thread, media_metadata: item.media_metadata }
+						: item
 				),
 			})),
 		});

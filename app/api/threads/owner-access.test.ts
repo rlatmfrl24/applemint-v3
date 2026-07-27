@@ -64,6 +64,27 @@ describe("스레드 통계 응답", () => {
 		});
 	});
 
+	it("공급자 통계 key는 유지하고 표시 라벨만 정규화한다", async () => {
+		mockStatsRpc({
+			data: [
+				{ key: "youtube", label: "youtube", count: "3", total_count: "5" },
+				{ key: "imgur", label: "imgur", count: "2", total_count: "5" },
+			],
+			error: null,
+		});
+
+		const response = await getStats(request("/api/threads/stats?state=inbox"));
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({
+			totalCount: 5,
+			counts: [
+				{ key: "youtube", label: "YouTube", count: 3 },
+				{ key: "imgur", label: "Imgur", count: 2 },
+			],
+		});
+	});
+
 	it("통계 RPC 오류를 500으로 반환한다", async () => {
 		mockStatsRpc({ data: null, error: { message: "stats unavailable" } });
 

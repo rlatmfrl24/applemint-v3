@@ -33,11 +33,13 @@ function createSupabaseMock({
 	finishError = false,
 	admissionReason = "source-busy",
 	heartbeatRenewed = true,
+	filterKeywords = [{ value: "example.com", method: "source" }],
 }: {
 	lockAcquired?: boolean;
 	finishError?: boolean;
 	admissionReason?: "disabled" | "cooldown" | "source-busy" | "capacity";
 	heartbeatRenewed?: boolean;
+	filterKeywords?: { value: string; method: string }[];
 } = {}) {
 	const rpc = vi.fn(async (name: string, parameters: Record<string, unknown>) => {
 		switch (name) {
@@ -73,7 +75,7 @@ function createSupabaseMock({
 		if (table === "filter-keyword") {
 			return {
 				select: vi.fn().mockResolvedValue({
-					data: [{ value: "example.com", method: "source" }],
+					data: filterKeywords,
 					error: null,
 				}),
 			};
@@ -121,6 +123,93 @@ describe("executeCrawlPipeline", () => {
 			"finish_crawl_run",
 			expect.objectContaining({
 				p_result: expect.objectContaining({ status: "succeeded", insertedCount: 1 }),
+			})
+		);
+	});
+
+	it("ignore를 유지하면서 공급자 타입을 keyword보다 우선해 ingest한다", async () => {
+		const { client, rpc } = createSupabaseMock({
+			filterKeywords: [
+				{ value: "youtube.com", method: "source" },
+				{ value: "ignored.example", method: "ignore" },
+			],
+		});
+		const runCrawler = vi.fn().mockResolvedValue(
+			createExecutionResult({
+				items: [
+					{
+						url: "https://www.youtube.com/watch?v=video",
+						title: "video",
+						description: null,
+						host: "youtube.com",
+					},
+					{
+						url: "https://ignored.example/post",
+						title: "ignored",
+						description: null,
+						host: "ignored.example",
+					},
+				],
+			})
+		);
+
+		await executeCrawlPipeline("arcalive", client, runCrawler);
+
+		expect(rpc).toHaveBeenCalledWith(
+			"ingest_crawl_items",
+			expect.objectContaining({
+				p_items: [
+					expect.objectContaining({
+						url: "https://www.youtube.com/watch?v=video",
+						type: "youtube",
+					}),
+				],
+			})
+		);
+	});
+
+	it("외부 media API 오류와 무관하게 크롤링 run을 분류·적재 결과로 종료한다", async () => {
+		const mediaApiFetch = vi
+			.spyOn(globalThis, "fetch")
+			.mockRejectedValue(new Error("fixture media API failure"));
+		const { client, rpc } = createSupabaseMock();
+		const runCrawler = vi.fn().mockResolvedValue(
+			createExecutionResult({
+				items: [
+					{
+						url: "https://www.youtube.com/watch?v=abcDEF12345",
+						title: "source title",
+						description: null,
+						host: "youtube.com",
+					},
+					{
+						url: "https://imgur.com/a/Album12",
+						title: "source album title",
+						description: null,
+						host: "imgur.com",
+					},
+				],
+			})
+		);
+
+		await expect(executeCrawlPipeline("arcalive", client, runCrawler)).resolves.toMatchObject({
+			status: "succeeded",
+			insertedCount: 1,
+		});
+		expect(mediaApiFetch).not.toHaveBeenCalled();
+		expect(rpc).toHaveBeenCalledWith(
+			"ingest_crawl_items",
+			expect.objectContaining({
+				p_items: expect.arrayContaining([
+					expect.objectContaining({ type: "youtube" }),
+					expect.objectContaining({ type: "imgur" }),
+				]),
+			})
+		);
+		expect(rpc).toHaveBeenCalledWith(
+			"finish_crawl_run",
+			expect.objectContaining({
+				p_result: expect.objectContaining({ status: "succeeded" }),
 			})
 		);
 	});

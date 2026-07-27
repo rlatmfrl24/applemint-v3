@@ -1,4 +1,5 @@
 import type { CrawlExecutionResult } from "./contracts";
+import { detectMediaProvider } from "./media-provider";
 
 export interface FilterKeyword {
 	value: string;
@@ -8,6 +9,10 @@ export interface FilterKeyword {
 export type CrawlErrorStage = "source" | "filter" | "history" | "ingest" | "unknown";
 
 export function defineType(value: string, filterList: FilterKeyword[]) {
+	const provider = detectMediaProvider(value);
+	if (provider) {
+		return provider;
+	}
 	return filterList.find((filter) => value.includes(filter.value))?.method || "normal";
 }
 

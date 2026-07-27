@@ -6,6 +6,7 @@ begin
 	if exists (select 1 from pg_roles where rolname = 'p0_concurrent_ingest_login') then
 		execute 'revoke execute on function public.ingest_crawl_items(text, jsonb) from p0_concurrent_ingest_login';
 		execute 'revoke select, insert, delete on public."crawl-history", public.threads from p0_concurrent_ingest_login';
+		execute 'revoke select, insert, delete on public.thread_media_metadata, public.media_enrichment_jobs from p0_concurrent_ingest_login';
 		execute 'revoke usage, select on sequence public."crawl-history_id_seq", public.threads_id_seq from p0_concurrent_ingest_login';
 		execute 'drop role p0_concurrent_ingest_login';
 	end if;
@@ -22,6 +23,8 @@ create role p0_concurrent_ingest_login
 grant execute on function public.ingest_crawl_items(text, jsonb)
 	to p0_concurrent_ingest_login;
 grant select, insert, delete on public."crawl-history", public.threads
+	to p0_concurrent_ingest_login;
+grant select, insert, delete on public.thread_media_metadata, public.media_enrichment_jobs
 	to p0_concurrent_ingest_login;
 grant usage, select on sequence
 	public."crawl-history_id_seq",
@@ -145,6 +148,8 @@ drop extension dblink;
 revoke execute on function public.ingest_crawl_items(text, jsonb)
 	from p0_concurrent_ingest_login;
 revoke select, insert, delete on public."crawl-history", public.threads
+	from p0_concurrent_ingest_login;
+revoke select, insert, delete on public.thread_media_metadata, public.media_enrichment_jobs
 	from p0_concurrent_ingest_login;
 revoke usage, select on sequence
 	public."crawl-history_id_seq",

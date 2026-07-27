@@ -1,0 +1,12 @@
+{
+	"data": {
+		"id": "Img1234",
+		"title": "Imgur 공식 이미지",
+		"description": "이미지 설명",
+		"type": "image/jpeg",
+		"animated": false,
+		"link": "https://i.imgur.com/Img1234.jpg"
+	},
+	"success": true,
+	"status": 200
+}
