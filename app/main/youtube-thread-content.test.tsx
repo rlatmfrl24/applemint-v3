@@ -80,6 +80,16 @@ describe("YouTube thread card", () => {
 		expect(markup).toContain('aria-label="공식 영상 제목 YouTube에서 열기"');
 	});
 
+	it("넓은 화면은 썸네일 비중을 높이고 URL과 Open을 한 행에 정렬한다", () => {
+		const markup = renderThread();
+
+		expect(markup).toContain("sm:grid-cols-[minmax(14rem,17rem)_minmax(0,1fr)]");
+		expect(markup).toContain('data-testid="youtube-thread-footer"');
+		expect(markup).toContain("mt-0.5 flex min-w-0 items-center gap-2");
+		expect(markup).toContain("h-7 shrink-0 px-2 text-xs");
+		expect(markup).not.toContain("mt-auto");
+	});
+
 	it("Shorts와 긴 영상 길이를 형식에 맞게 표시한다", () => {
 		const markup = renderMetadata({ media_kind: "short", duration_seconds: 7_265 });
 
@@ -110,6 +120,7 @@ describe("YouTube thread card", () => {
 		expect(markup).toContain('data-media-status="pending"');
 		expect(markup).toContain('role="status"');
 		expect(markup).toContain('aria-label="YouTube 영상 정보를 불러오는 중"');
+		expect(markup).toContain("sm:grid-cols-[minmax(14rem,17rem)_minmax(0,1fr)]");
 		expect(markup).toContain(">Open<");
 	});
 

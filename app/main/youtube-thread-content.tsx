@@ -26,6 +26,9 @@ const STATUS_MESSAGES: Partial<Record<YouTubeCardStatus, string>> = {
 	legacy: "아직 수집된 영상 정보가 없습니다.",
 };
 
+const YOUTUBE_CARD_LAYOUT_CLASS =
+	"grid grid-cols-1 items-start gap-2.5 sm:grid-cols-[minmax(14rem,17rem)_minmax(0,1fr)]";
+
 export function formatYouTubeDuration(seconds: number | null | undefined) {
 	if (!Number.isSafeInteger(seconds) || (seconds ?? -1) < 0) return null;
 
@@ -87,7 +90,7 @@ function YouTubeThumbnail({
 					src={src}
 					alt={`${title} 썸네일`}
 					fill
-					sizes="(min-width: 640px) 14rem, 100vw"
+					sizes="(min-width: 640px) 17rem, 100vw"
 					className="object-cover"
 					onError={() => setFailedSrc(src)}
 				/>
@@ -126,11 +129,11 @@ function YouTubePendingContent({
 			role="status"
 			aria-label="YouTube 영상 정보를 불러오는 중"
 			data-media-status="pending"
-			className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(12rem,14rem)_minmax(0,1fr)]"
+			className={YOUTUBE_CARD_LAYOUT_CLASS}
 		>
 			<div className="aspect-video w-full animate-pulse rounded-md bg-zinc-100 motion-reduce:animate-none dark:bg-zinc-900" />
-			<div className="min-w-0 space-y-3">
-				<div className="flex flex-wrap gap-1.5">
+			<div className="flex min-w-0 flex-col gap-1.5">
+				<div className="flex flex-wrap items-center gap-1">
 					<Badge variant="secondary" className="px-1.5 py-0 text-[11px]">
 						YouTube
 					</Badge>
@@ -145,17 +148,20 @@ function YouTubePendingContent({
 					{meta}
 				</div>
 				<div className="h-5 w-5/6 animate-pulse rounded bg-zinc-100 motion-reduce:animate-none dark:bg-zinc-900" />
-				<div className="h-4 w-2/5 animate-pulse rounded bg-zinc-100 motion-reduce:animate-none dark:bg-zinc-900" />
-				<Button
-					variant="outline"
-					size="sm"
-					type="button"
-					aria-label={`${title} YouTube에서 열기`}
-					onClick={onOpen}
-				>
-					<ExternalLink aria-hidden="true" className="mr-1 size-3.5" />
-					Open
-				</Button>
+				<div className="flex min-w-0 items-center gap-2">
+					<div className="h-3.5 w-2/5 min-w-0 animate-pulse rounded bg-zinc-100 motion-reduce:animate-none dark:bg-zinc-900" />
+					<Button
+						variant="outline"
+						size="sm"
+						type="button"
+						className="ml-auto h-7 shrink-0 px-2 text-xs"
+						aria-label={`${title} YouTube에서 열기`}
+						onClick={onOpen}
+					>
+						<ExternalLink aria-hidden="true" className="mr-1 size-3.5" />
+						Open
+					</Button>
+				</div>
 			</div>
 		</div>
 	);
@@ -182,11 +188,11 @@ export function YouTubeThreadContent({
 		<div
 			data-testid="youtube-thread-content"
 			data-media-status={model.status}
-			className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(12rem,14rem)_minmax(0,1fr)]"
+			className={YOUTUBE_CARD_LAYOUT_CLASS}
 		>
 			<YouTubeThumbnail src={model.thumbnailUrl} title={model.title} duration={model.duration} />
-			<div className="flex min-w-0 flex-col gap-2">
-				<div className="flex flex-wrap items-center gap-1.5">
+			<div className="flex min-w-0 flex-col gap-1">
+				<div className="flex flex-wrap items-center gap-1">
 					<Badge variant="secondary" className="px-1.5 py-0 text-[11px]">
 						YouTube
 					</Badge>
@@ -236,7 +242,7 @@ export function YouTubeThreadContent({
 				<button
 					type="button"
 					aria-label={`${model.title} YouTube에서 열기`}
-					className="-mx-1 rounded-md px-1 py-1 text-left font-semibold text-[15px] leading-6 transition-colors hover:bg-zinc-100 hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 sm:text-base dark:focus-visible:ring-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
+					className="-mx-1 rounded-md px-1 py-0.5 text-left font-semibold text-[15px] leading-5 transition-colors hover:bg-zinc-100 hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 sm:text-base dark:focus-visible:ring-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
 					onClick={onOpen}
 					style={{
 						display: "-webkit-box",
@@ -248,30 +254,31 @@ export function YouTubeThreadContent({
 					{model.title}
 				</button>
 				{model.metadata?.channel_title ? (
-					<div className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300">
+					<div className="flex min-w-0 items-center gap-1 text-xs text-zinc-600 leading-4 dark:text-zinc-300">
 						<Youtube aria-hidden="true" className="size-3.5 shrink-0" />
 						<span className="truncate">{model.metadata.channel_title}</span>
 					</div>
 				) : null}
 				{model.sourceContext ? (
-					<p className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">
+					<p className="truncate text-[11px] text-zinc-500 leading-4 dark:text-zinc-400">
 						수집 문맥: {model.sourceContext}
 					</p>
 				) : null}
 				{message ? (
-					<p role="status" className="text-xs text-zinc-600 dark:text-zinc-300">
+					<p role="status" className="text-xs text-zinc-600 leading-4 dark:text-zinc-300">
 						{message}
 					</p>
 				) : null}
-				<div className="flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-zinc-400">
-					<Link2 aria-hidden="true" className="size-3 shrink-0" />
-					<span className="truncate">{thread.url}</span>
-				</div>
-				<div className="mt-auto">
+				<div data-testid="youtube-thread-footer" className="mt-0.5 flex min-w-0 items-center gap-2">
+					<div className="flex min-w-0 flex-1 items-center gap-1 text-[11px] text-zinc-500 leading-4 dark:text-zinc-400">
+						<Link2 aria-hidden="true" className="size-3 shrink-0" />
+						<span className="truncate">{thread.url}</span>
+					</div>
 					<Button
 						variant="outline"
 						size="sm"
 						type="button"
+						className="h-7 shrink-0 px-2 text-xs"
 						aria-label={`${model.title} YouTube에서 열기`}
 						onClick={onOpen}
 					>

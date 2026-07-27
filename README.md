@@ -57,6 +57,8 @@
 수동 크롤링은 cooldown을 우회하지만 동일 소스 중복과 최대 동시성 제한은 지킵니다. 예약 실행,
 heartbeat, 비정상 종료 복구, 비활성 media scheduler의 승인·smoke·롤백 절차는
 `docs/CRAWL_SCHEDULING.md`를 참고합니다.
+브라우저 tRPC, 내부 REST, Supabase RPC와 Zod 계약의 목표 경계 및 전환 원칙은
+[`docs/COMMUNICATION_ARCHITECTURE.md`](docs/COMMUNICATION_ARCHITECTURE.md)를 참고합니다.
 
 ## 프로젝트 구조
 
