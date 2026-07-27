@@ -66,9 +66,12 @@ describe("checkApplemintOwner", () => {
 
 		await expect(
 			checkApplemintOwner(client as unknown as SupabaseClient, metrics)
-		).resolves.toEqual({
+		).resolves.toMatchObject({
 			kind: "owner",
+			claims: { sub: "owner" },
 		});
+		expect(client.auth.getClaims).toHaveBeenCalledOnce();
+		expect(client.auth.getUser).not.toHaveBeenCalled();
 		expect(rpc).toHaveBeenCalledWith("is_applemint_owner");
 		expect(metrics.recordAuthCheck).toHaveBeenCalledWith(expect.any(Number), "succeeded");
 		expect(metrics.recordOwnerCheck).toHaveBeenCalledWith(expect.any(Number), "succeeded");

@@ -28,6 +28,10 @@ export function createOwnerClientMock({
 	return {
 		client: {
 			auth: {
+				getClaims: vi.fn().mockResolvedValue({
+					data: userId ? { claims: { sub: userId } } : null,
+					error: userError,
+				}),
 				getUser: vi.fn().mockResolvedValue({
 					data: { user: userId ? { id: userId } : null },
 					error: userError,

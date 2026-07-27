@@ -5,8 +5,8 @@ import { defineConfig, devices } from "@playwright/test";
 interface E2ERuntime {
 	baseUrl: string;
 	supabaseUrl: string;
-	anonKey: string;
-	serviceRoleKey: string;
+	publishableKey: string;
+	secretKey: string;
 	internalSecret: string;
 }
 
@@ -52,9 +52,9 @@ export default defineConfig({
 		env: {
 			...process.env,
 			NEXT_PUBLIC_SUPABASE_URL: runtime.supabaseUrl,
-			NEXT_PUBLIC_SUPABASE_ANON_KEY: runtime.anonKey,
+			NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: runtime.publishableKey,
 			SUPABASE_URL: runtime.supabaseUrl,
-			SUPABASE_SERVICE_ROLE_KEY: runtime.serviceRoleKey,
+			SUPABASE_SECRET_KEY: runtime.secretKey,
 			CRAWL_INTERNAL_SECRET: runtime.internalSecret,
 		},
 	},

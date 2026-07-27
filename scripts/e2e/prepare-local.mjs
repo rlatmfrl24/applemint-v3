@@ -269,8 +269,8 @@ async function main() {
 	status = parseEnvOutput(run("supabase", ["status", "-o", "env"]));
 	const reportedApiUrl = requireValue(status, "API_URL");
 	const dbUrl = requireValue(status, "DB_URL");
-	const anonKey = requireValue(status, "ANON_KEY", "PUBLISHABLE_KEY");
-	const serviceRoleKey = requireValue(status, "SERVICE_ROLE_KEY", "SECRET_KEY");
+	const publishableKey = requireValue(status, "PUBLISHABLE_KEY");
+	const secretKey = requireValue(status, "SECRET_KEY");
 
 	assertLoopbackUrl(reportedApiUrl, "54321", "Supabase API URL");
 	assertLoopbackUrl(dbUrl, "54322", "Supabase DB URL");
@@ -287,8 +287,8 @@ async function main() {
 	const runtime = {
 		baseUrl: BASE_URL,
 		supabaseUrl: apiUrl,
-		anonKey,
-		serviceRoleKey,
+		publishableKey,
+		secretKey,
 		internalSecret,
 		ownerEmail: OWNER_EMAIL,
 		ownerPassword,
@@ -307,9 +307,9 @@ async function main() {
 
 	appendGitHubEnv({
 		NEXT_PUBLIC_SUPABASE_URL: apiUrl,
-		NEXT_PUBLIC_SUPABASE_ANON_KEY: anonKey,
+		NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: publishableKey,
 		SUPABASE_URL: apiUrl,
-		SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey,
+		SUPABASE_SECRET_KEY: secretKey,
 		CRAWL_INTERNAL_SECRET: internalSecret,
 	});
 

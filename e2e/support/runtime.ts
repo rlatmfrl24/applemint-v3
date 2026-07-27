@@ -4,8 +4,8 @@ import { resolve } from "node:path";
 export interface E2ERuntime {
 	baseUrl: string;
 	supabaseUrl: string;
-	anonKey: string;
-	serviceRoleKey: string;
+	publishableKey: string;
+	secretKey: string;
 	internalSecret: string;
 	ownerEmail: string;
 	ownerPassword: string;

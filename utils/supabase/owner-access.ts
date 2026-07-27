@@ -1,14 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isUnauthenticatedAuthError } from "./auth-error";
+import {
+	type AuthAccessMetrics,
+	checkAuthenticatedAccess,
+	type VerifiedClaims,
+} from "./auth-access";
 
 export type OwnerAccessResult =
-	| { kind: "owner" }
+	| { kind: "owner"; claims: VerifiedClaims }
 	| { kind: "unauthenticated"; status: 401; message: string }
 	| { kind: "forbidden"; status: 403; message: string }
 	| { kind: "unavailable"; status: 503; message: string };
 
-export interface OwnerAccessMetrics {
-	recordAuthCheck(durationMs: number, outcome: "succeeded" | "unauthenticated" | "failed"): void;
+export interface OwnerAccessMetrics extends AuthAccessMetrics {
 	recordOwnerCheck(durationMs: number, outcome: "succeeded" | "forbidden" | "failed"): void;
 }
 
@@ -16,47 +19,8 @@ export async function checkApplemintOwner(
 	supabase: SupabaseClient,
 	metrics?: OwnerAccessMetrics
 ): Promise<OwnerAccessResult> {
-	const authStartedAt = performance.now();
-	let user: Awaited<ReturnType<SupabaseClient["auth"]["getUser"]>>["data"]["user"];
-	let userError: Awaited<ReturnType<SupabaseClient["auth"]["getUser"]>>["error"];
-	try {
-		const result = await supabase.auth.getUser();
-		user = result.data.user;
-		userError = result.error;
-	} catch {
-		metrics?.recordAuthCheck(performance.now() - authStartedAt, "failed");
-		return {
-			kind: "unavailable",
-			status: 503,
-			message: "인증 상태를 확인할 수 없습니다.",
-		};
-	}
-
-	if (userError) {
-		if (!isUnauthenticatedAuthError(userError)) {
-			metrics?.recordAuthCheck(performance.now() - authStartedAt, "failed");
-			return {
-				kind: "unavailable",
-				status: 503,
-				message: "인증 상태를 확인할 수 없습니다.",
-			};
-		}
-		metrics?.recordAuthCheck(performance.now() - authStartedAt, "unauthenticated");
-		return {
-			kind: "unauthenticated",
-			status: 401,
-			message: "로그인이 필요한 요청입니다.",
-		};
-	}
-	if (!user) {
-		metrics?.recordAuthCheck(performance.now() - authStartedAt, "unauthenticated");
-		return {
-			kind: "unauthenticated",
-			status: 401,
-			message: "로그인이 필요한 요청입니다.",
-		};
-	}
-	metrics?.recordAuthCheck(performance.now() - authStartedAt, "succeeded");
+	const authenticatedAccess = await checkAuthenticatedAccess(supabase, metrics);
+	if (authenticatedAccess.kind !== "authenticated") return authenticatedAccess;
 
 	const ownerStartedAt = performance.now();
 	let isOwner: unknown;
@@ -92,5 +56,5 @@ export async function checkApplemintOwner(
 	}
 
 	metrics?.recordOwnerCheck(performance.now() - ownerStartedAt, "succeeded");
-	return { kind: "owner" };
+	return { kind: "owner", claims: authenticatedAccess.claims };
 }

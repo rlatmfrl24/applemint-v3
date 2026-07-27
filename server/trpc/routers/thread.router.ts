@@ -7,14 +7,14 @@ import {
 	threadStatsSchema,
 	threadTransitionInputSchema,
 } from "@/contracts/thread.schema";
-import { createTRPCRouter, ownerProcedure } from "../init";
+import { authenticatedReadProcedure, createTRPCRouter, ownerProcedure } from "../init";
 
 export const threadRouter = createTRPCRouter({
-	list: ownerProcedure
+	list: authenticatedReadProcedure
 		.input(threadListInputSchema)
 		.output(threadPageSchema)
 		.query(({ ctx, input }) => ctx.services.thread.list(input)),
-	stats: ownerProcedure
+	stats: authenticatedReadProcedure
 		.input(threadStatsInputSchema)
 		.output(threadStatsSchema)
 		.query(({ ctx, input }) => ctx.services.thread.stats(input)),

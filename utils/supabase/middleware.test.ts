@@ -9,7 +9,7 @@ import { getAllowedRequestHeaders, updateSession } from "./middleware";
 
 beforeEach(() => {
 	vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
-	vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
+	vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "publishable-key");
 	createServerClientMock.mockReset();
 	vi.spyOn(console, "info").mockImplementation(() => undefined);
 });

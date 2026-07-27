@@ -9,10 +9,10 @@ function requireEnv(value: string | undefined, key: string) {
 
 export function createClient() {
 	const supabaseUrl = requireEnv(process.env.NEXT_PUBLIC_SUPABASE_URL, "NEXT_PUBLIC_SUPABASE_URL");
-	const supabaseAnonKey = requireEnv(
-		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-		"NEXT_PUBLIC_SUPABASE_ANON_KEY"
+	const supabasePublishableKey = requireEnv(
+		process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+		"NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
 	);
 
-	return createBrowserClient(supabaseUrl, supabaseAnonKey);
+	return createBrowserClient(supabaseUrl, supabasePublishableKey);
 }

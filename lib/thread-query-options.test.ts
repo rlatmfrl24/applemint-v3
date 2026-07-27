@@ -1,4 +1,10 @@
-import { focusManager, InfiniteQueryObserver, QueryClient } from "@tanstack/react-query";
+import {
+	dehydrate,
+	focusManager,
+	hydrate,
+	InfiniteQueryObserver,
+	QueryClient,
+} from "@tanstack/react-query";
 import type { TRPCClient } from "@trpc/client";
 import { describe, expect, it, vi } from "vitest";
 import type { AppRouter } from "@/server/trpc/router";
@@ -76,6 +82,43 @@ describe("thread tRPC query options", () => {
 			unsubscribe();
 			queryClient.clear();
 			queryClient.unmount();
+			focusManager.setFocused(undefined);
+		}
+	});
+
+	it("서버에서 hydration한 fresh 목록은 마운트 직후 중복 조회하지 않고 focus에서만 갱신한다", async () => {
+		const { client, list } = createClient();
+		const serverQueryClient = new QueryClient();
+		serverQueryClient.setQueryData(["threads", "list", "saved", ""], {
+			pages: [{ items: [{ id: "hydrated" }], nextCursor: null }],
+			pageParams: [undefined],
+		});
+
+		const browserQueryClient = new QueryClient({
+			defaultOptions: { queries: { retry: false } },
+		});
+		hydrate(browserQueryClient, dehydrate(serverQueryClient));
+		const observer = new InfiniteQueryObserver(
+			browserQueryClient,
+			threadListOptions(client, { state: "saved" })
+		);
+
+		browserQueryClient.mount();
+		const unsubscribe = observer.subscribe(() => undefined);
+
+		try {
+			await Promise.resolve();
+			expect(observer.getCurrentResult().data?.pages[0]?.items[0]?.id).toBe("hydrated");
+			expect(list).not.toHaveBeenCalled();
+
+			focusManager.setFocused(false);
+			focusManager.setFocused(true);
+
+			await vi.waitFor(() => expect(list).toHaveBeenCalledOnce());
+		} finally {
+			unsubscribe();
+			browserQueryClient.clear();
+			browserQueryClient.unmount();
 			focusManager.setFocused(undefined);
 		}
 	});

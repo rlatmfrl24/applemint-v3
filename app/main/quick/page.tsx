@@ -1,17 +1,10 @@
-"use client";
+import { ThreadHydration } from "../thread-hydration";
+import { QuickThread } from "./quick-thread";
 
-import { ThreadInfiniteList } from "../thread-infinite-list";
-import { DefaultThreadItem } from "../threads/thread-item";
-
-export default function QuickPage() {
-	return <QuickThread />;
-}
-
-const QuickThread = () => {
+export default async function QuickPage() {
 	return (
-		<ThreadInfiniteList
-			state="saved"
-			renderItem={(thread) => <DefaultThreadItem thread={thread} threadState="saved" />}
-		/>
+		<ThreadHydration state="saved">
+			<QuickThread />
+		</ThreadHydration>
 	);
-};
+}

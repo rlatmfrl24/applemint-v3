@@ -14,10 +14,13 @@ import { appRouter, createCaller } from "./router";
 
 function createContext(
 	access:
-		| { kind: "owner" }
+		| { kind: "owner"; claims?: { sub: string } }
 		| { kind: "unauthenticated"; status: 401; message: string }
 		| { kind: "forbidden"; status: 403; message: string }
-		| { kind: "unavailable"; status: 503; message: string } = { kind: "owner" }
+		| { kind: "unavailable"; status: 503; message: string } = {
+		kind: "owner",
+		claims: { sub: "owner" },
+	}
 ) {
 	const services = {
 		thread: {
@@ -40,14 +43,19 @@ function createContext(
 			}),
 		},
 	};
+	const getAuthenticatedAccess = vi.fn().mockResolvedValue({
+		kind: "authenticated",
+		claims: { sub: "owner" },
+	});
 	const getOwnerAccess = vi.fn().mockResolvedValue(access);
 	const context = {
 		requestId: "request-1",
 		metrics: new RequestMetrics(),
 		services: services as unknown as TRPCContext["services"],
+		getAuthenticatedAccess,
 		getOwnerAccess,
-	} satisfies TRPCContext;
-	return { context, services, getOwnerAccess };
+	} as unknown as TRPCContext;
+	return { context, services, getAuthenticatedAccess, getOwnerAccess };
 }
 
 describe("AppRouter", () => {
@@ -86,10 +94,22 @@ describe("AppRouter", () => {
 		expect(services.crawlPolicy.update).toHaveBeenCalledOnce();
 	});
 
-	it("모든 사용자 procedure에서 owner access를 확인한다", async () => {
-		const { context, getOwnerAccess } = createContext();
+	it("목록·통계는 claims만 확인하고 owner 사전 RPC를 생략한다", async () => {
+		const { context, getAuthenticatedAccess, getOwnerAccess } = createContext();
 		await createCaller(context).thread.stats({ state: "inbox" });
+		expect(getAuthenticatedAccess).toHaveBeenCalledOnce();
+		expect(getOwnerAccess).not.toHaveBeenCalled();
+	});
+
+	it("상태 변경과 관리 procedure는 기존 owner access를 확인한다", async () => {
+		const { context, getAuthenticatedAccess, getOwnerAccess } = createContext();
+		await createCaller(context).thread.transition({
+			id: "3",
+			expectedState: "inbox",
+			destinationState: "saved",
+		});
 		expect(getOwnerAccess).toHaveBeenCalledOnce();
+		expect(getAuthenticatedAccess).not.toHaveBeenCalled();
 	});
 
 	it.each([
@@ -108,10 +128,48 @@ describe("AppRouter", () => {
 	])("소유자 검사 실패를 %s로 변환한다", async (access, code) => {
 		const { context } = createContext(access);
 		const error = await createCaller(context)
-			.thread.stats({ state: "inbox" })
+			.thread.transition({
+				id: "3",
+				expectedState: "inbox",
+				destinationState: "saved",
+			})
 			.catch((caught) => caught);
 		expect(error).toBeInstanceOf(TRPCError);
 		expect(error).toMatchObject({ code });
+	});
+
+	it.each([
+		[
+			{ kind: "unauthenticated", status: 401, message: "로그인이 필요합니다." } as const,
+			"UNAUTHORIZED",
+		],
+		[
+			{ kind: "unavailable", status: 503, message: "인증을 확인할 수 없습니다." } as const,
+			"SERVICE_UNAVAILABLE",
+		],
+	])("읽기 claims 검사 실패를 %s로 변환한다", async (access, code) => {
+		const { context } = createContext();
+		context.getAuthenticatedAccess = vi.fn().mockResolvedValue(access);
+
+		const error = await createCaller(context)
+			.thread.list({ state: "inbox", limit: 24 })
+			.catch((caught) => caught);
+
+		expect(error).toBeInstanceOf(TRPCError);
+		expect(error).toMatchObject({ code });
+	});
+
+	it("DB가 거부한 비소유자 읽기를 FORBIDDEN으로 보존한다", async () => {
+		const { context, services } = createContext();
+		services.thread.list.mockRejectedValue(
+			new DomainError("Forbidden", "Applemint 소유자만 접근할 수 있습니다.")
+		);
+
+		const error = await createCaller(context)
+			.thread.list({ state: "inbox", limit: 24 })
+			.catch((caught) => caught);
+
+		expect(error).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	it("잘못된 input을 service 호출 전에 BAD_REQUEST로 거부한다", async () => {
