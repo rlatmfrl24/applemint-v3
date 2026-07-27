@@ -8,7 +8,7 @@ vi.mock("@/utils/supabase/service-role", () => ({
 	createServiceRoleClient: createServiceRoleClientMock,
 }));
 vi.mock("../worker", () => ({
-	IMGUR_MAX_BATCH_SIZE: 20,
+	IMGUR_MAX_BATCH_SIZE: 4,
 	runImgurEnrichmentWorker: runImgurEnrichmentWorkerMock,
 	ImgurWorkerError: class extends Error {
 		constructor(readonly code: string) {
@@ -73,12 +73,14 @@ describe("POST /api/media/imgur/enrich", () => {
 	});
 
 	it("잘못된 limit과 service-role 설정 오류를 fail closed한다", async () => {
-		expect((await POST(request(INTERNAL_SECRET, { limit: 21 }))).status).toBe(400);
+		expect((await POST(request(INTERNAL_SECRET, { limit: 5 }))).status).toBe(400);
 		expect(createServiceRoleClientMock).not.toHaveBeenCalled();
 
 		createServiceRoleClientMock.mockImplementationOnce(() => {
 			throw new Error("missing service role");
 		});
-		expect((await POST(request())).status).toBe(503);
+		const response = await POST(request());
+		expect(response.status).toBe(503);
+		expect(await response.json()).toMatchObject({ reason: "configuration-missing" });
 	});
 });

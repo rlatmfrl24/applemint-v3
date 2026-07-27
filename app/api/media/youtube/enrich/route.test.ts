@@ -81,6 +81,8 @@ describe("POST /api/media/youtube/enrich", () => {
 		createServiceRoleClientMock.mockImplementationOnce(() => {
 			throw new Error("missing service role");
 		});
-		expect((await POST(request())).status).toBe(503);
+		const response = await POST(request());
+		expect(response.status).toBe(503);
+		expect(await response.json()).toMatchObject({ reason: "configuration-missing" });
 	});
 });

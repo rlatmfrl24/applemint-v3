@@ -56,7 +56,10 @@ export async function POST(request: NextRequest) {
 		serviceRoleClient = createServiceRoleClient();
 	} catch {
 		return NextResponse.json(
-			{ error: "YouTube worker 서버 설정이 완료되지 않았습니다." },
+			{
+				error: "YouTube worker 서버 설정이 완료되지 않았습니다.",
+				reason: "configuration-missing",
+			},
 			{ status: 503 }
 		);
 	}

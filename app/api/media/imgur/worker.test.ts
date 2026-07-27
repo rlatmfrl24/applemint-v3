@@ -49,15 +49,12 @@ function successfulFetch() {
 }
 
 describe("runImgurEnrichmentWorker", () => {
-	it("image, album, gallery, direct file을 처리하고 종단 상태를 lease별로 저장한다", async () => {
+	it("한 wave에서 image, album, gallery, direct file을 lease별로 완료한다", async () => {
 		const jobs = [
 			claimedJob(1, "https://imgur.com/Img1234"),
 			claimedJob(2, "https://imgur.com/a/Album12"),
 			claimedJob(3, "https://imgur.com/gallery/Gal123"),
 			claimedJob(4, "https://i.imgur.com/Img1234.jpg"),
-			claimedJob(5, "https://imgur.com/user/posts"),
-			claimedJob(6, "https://imgur.com/bad-id"),
-			claimedJob(7, "https://imgur.com/Miss123"),
 		];
 		const { client, rpc } = createQueueClient(jobs);
 
@@ -67,18 +64,18 @@ describe("runImgurEnrichmentWorker", () => {
 		});
 
 		expect(result).toEqual({
-			claimedCount: 7,
+			claimedCount: 4,
 			readyCount: 4,
-			unavailableCount: 1,
-			unsupportedCount: 1,
+			unavailableCount: 0,
+			unsupportedCount: 0,
 			retriedCount: 0,
-			failedCount: 1,
+			failedCount: 0,
 			leaseRejectedCount: 0,
 		});
 		expect(rpc).toHaveBeenCalledWith("claim_media_enrichment_jobs", {
 			p_provider: "imgur",
-			p_limit: 20,
-			p_lease_seconds: 45,
+			p_limit: 4,
+			p_lease_seconds: 60,
 		});
 		expect(rpc).toHaveBeenCalledWith(
 			"complete_media_enrichment_job",
@@ -97,6 +94,27 @@ describe("runImgurEnrichmentWorker", () => {
 				}),
 			})
 		);
+	});
+
+	it("unsupported, 잘못된 ID, unavailable을 외부 원문 없이 종단 처리한다", async () => {
+		const jobs = [
+			claimedJob(5, "https://imgur.com/user/posts"),
+			claimedJob(6, "https://imgur.com/bad-id"),
+			claimedJob(7, "https://imgur.com/Miss123"),
+		];
+		const { client, rpc } = createQueueClient(jobs);
+
+		const result = await runImgurEnrichmentWorker(client, {
+			clientId: "fixture-client-id",
+			fetchImpl: successfulFetch(),
+		});
+
+		expect(result).toMatchObject({
+			claimedCount: 3,
+			unavailableCount: 1,
+			unsupportedCount: 1,
+			failedCount: 1,
+		});
 		expect(rpc).toHaveBeenCalledWith(
 			"complete_media_enrichment_job",
 			expect.objectContaining({
@@ -179,7 +197,7 @@ describe("runImgurEnrichmentWorker", () => {
 	});
 
 	it("동시에 실행하는 Imgur 요청 수를 설정된 범위로 제한한다", async () => {
-		const jobs = Array.from({ length: 6 }, (_, index) =>
+		const jobs = Array.from({ length: 4 }, (_, index) =>
 			claimedJob(index + 30, `https://imgur.com/Img12${index}`)
 		);
 		const { client } = createQueueClient(jobs);
@@ -199,8 +217,27 @@ describe("runImgurEnrichmentWorker", () => {
 			fetchImpl,
 		});
 
-		expect(result.readyCount).toBe(6);
+		expect(result.readyCount).toBe(4);
 		expect(maximumActiveCount).toBe(2);
+	});
+
+	it("claim RPC가 요청 limit보다 많은 job을 반환하면 처리하지 않는다", async () => {
+		const jobs = [
+			claimedJob(40, "https://imgur.com/Img120"),
+			claimedJob(41, "https://imgur.com/Img121"),
+		];
+		const { client, rpc } = createQueueClient(jobs);
+		const fetchImpl = successfulFetch();
+
+		await expect(
+			runImgurEnrichmentWorker(client, {
+				clientId: "fixture-client-id",
+				limit: 1,
+				fetchImpl,
+			})
+		).rejects.toMatchObject({ code: "IMGUR_INVALID_CLAIM_RESPONSE" });
+		expect(fetchImpl).not.toHaveBeenCalled();
+		expect(rpc).toHaveBeenCalledTimes(1);
 	});
 
 	it("Client-ID가 비어 있으면 queue를 claim하지 않는다", async () => {

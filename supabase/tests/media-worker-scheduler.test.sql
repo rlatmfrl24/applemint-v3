@@ -1,7 +1,7 @@
 -- Media-only Cron, pg_net dispatch audit, fail-closed settings, and recovery contract.
 begin;
 
-select plan(40);
+select plan(44);
 
 select has_table(
 	'public',
@@ -140,8 +140,18 @@ select is(
 		from public.media_worker_runtime_settings
 		where id = true
 	),
-	row(false, true, true, 50, 20),
+	row(false, true, true, 50, 4),
 	'media scheduler is deployed globally disabled with provider switches and batch bounds'
+);
+select throws_ok(
+	$$
+		update public.media_worker_runtime_settings
+		set imgur_batch_size = 5
+		where id = true
+	$$,
+	23514,
+	null,
+	'Imgur batch setting cannot exceed one four-request concurrency wave'
 );
 select is(
 	(
@@ -329,7 +339,7 @@ select is(
 		from net.http_request_queue as request
 		where request.url like 'https://phase6-media-worker.invalid/api/media/%'
 	),
-	'{"youtube":50,"imgur":20}'::jsonb,
+	'{"youtube":50,"imgur":4}'::jsonb,
 	'pg_net bodies use the bounded provider batch sizes'
 );
 select ok(
@@ -506,6 +516,69 @@ select is(
 	),
 	true,
 	'media response failures never disable the existing crawl scheduler'
+);
+
+insert into public.media_worker_dispatches (
+	scheduled_for,
+	provider,
+	request_id,
+	created_at
+)
+values (
+	'2026-07-27 00:09:00+00',
+	'imgur',
+	960009,
+	now()
+);
+insert into net._http_response (
+	id,
+	status_code,
+	content_type,
+	headers,
+	content,
+	timed_out,
+	error_msg
+)
+values (
+	960009,
+	503,
+	'application/json',
+	'{}'::jsonb,
+	'{"reason":"configuration-missing"}',
+	false,
+	null
+);
+update public.media_worker_runtime_settings
+set
+	scheduler_enabled = true,
+	youtube_enabled = true,
+	imgur_enabled = false
+where id = true;
+
+set local role service_role;
+select is(
+	public.reconcile_media_worker_dispatches(),
+	1::bigint,
+	'reconciler settles a late response from a provider disabled after dispatch'
+);
+reset role;
+select is(
+	(
+		select row(state, response_reason)
+		from public.media_worker_dispatches
+		where request_id = 960009
+	),
+	row('server-error'::text, 'configuration-missing'::text),
+	'disabled provider failure remains visible in the dispatch audit'
+);
+select is(
+	(
+		select scheduler_enabled
+		from public.media_worker_runtime_settings
+		where id = true
+	),
+	true,
+	'disabled provider configuration failure does not stop enabled providers'
 );
 
 insert into public.media_worker_dispatches (

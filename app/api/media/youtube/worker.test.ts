@@ -154,6 +154,15 @@ describe("runYouTubeEnrichmentWorker", () => {
 			errorCode: "YOUTUBE_HTTP_5XX",
 		},
 		{
+			name: "HTTP 403 quota",
+			fetchImpl: vi.fn().mockResolvedValue(
+				new Response(JSON.stringify({ error: { errors: [{ reason: "quotaExceeded" }] } }), {
+					status: 403,
+				})
+			),
+			errorCode: "YOUTUBE_QUOTA_EXCEEDED",
+		},
+		{
 			name: "timeout",
 			fetchImpl: vi.fn().mockRejectedValue(new DOMException("fixture timeout", "TimeoutError")),
 			errorCode: "YOUTUBE_TIMEOUT",

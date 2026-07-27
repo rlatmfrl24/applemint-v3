@@ -55,7 +55,7 @@ dispatcher는 기존 Vault의 `crawl_app_base_url`, `crawl_internal_secret`을 �
 endpoint만 호출합니다.
 
 - `/api/media/youtube/enrich`: 한 번에 최대 50개
-- `/api/media/imgur/enrich`: 한 번에 최대 20개, worker 내부 동시성은 최대 4개
+- `/api/media/imgur/enrich`: 한 번에 최대 4개를 claim하고 worker 내부에서 최대 4개를 병렬 처리
 
 Vault 값은 migration이나 `media_worker_dispatches`에 저장하지 않습니다. Vault 값이 없거나
 base URL·secret 형식이 올바르지 않으면 media scheduler만 즉시 비활성화하고
@@ -67,15 +67,20 @@ dispatch 감사 상태는 다음처럼 구분합니다.
 | 응답 | `media_worker_dispatches.state` | 동작 |
 | --- | --- | --- |
 | 2xx | `succeeded` | 정규화된 처리 건수만 기록 |
-| 401 | `authentication-error` | media scheduler만 자동 중지 |
-| 403 | `authorization-error` | media scheduler만 자동 중지 |
-| 404 | `endpoint-not-found` | 배포 불일치로 보고 media scheduler만 자동 중지 |
+| 401 | `authentication-error` | 해당 provider가 활성 상태면 media scheduler만 자동 중지 |
+| 403 | `authorization-error` | 해당 provider가 활성 상태면 media scheduler만 자동 중지 |
+| 404 | `endpoint-not-found` | 해당 provider가 활성 상태면 배포 불일치로 보고 media scheduler만 자동 중지 |
 | 429 | `rate-limited` | queue와 lease를 보존하고 다음 실행에서 복구 |
 | 5xx | `server-error` | queue와 lease를 보존하고 다음 실행에서 복구 |
 | timeout·network | `transport-error` | 응답 정산 후 다시 dispatch 가능 |
 | 2분간 응답 없음 | `expired` | 응답 감사를 만료하고 다시 dispatch 가능 |
 
-worker가 job을 claim한 뒤 중단되면 45초 lease가 만료된 후 같은 provider가 다시 claim할 수 있습니다.
+provider를 비활성화하기 전에 전송된 요청의 오류가 늦게 도착하면 감사 상태와 사유만 정산합니다.
+이미 비활성화된 provider의 늦은 응답은 계속 실행 중인 다른 provider를 중지하지 않습니다.
+
+YouTube worker가 job을 claim한 뒤 중단되면 45초 lease가 만료된 후 같은 provider가 다시 claim할
+수 있습니다. Imgur worker는 album·gallery의 순차 API 요청 시간을 고려해 한 번에 한 wave만
+claim하며, 중단된 job은 60초 lease 만료 후 다시 claim할 수 있습니다.
 worker가 공급자 429·5xx·timeout을 확인한 경우에는 job을 `retry`로 돌리고 `available_at`까지
 재claim하지 않습니다. dispatch 자체가 worker에 도달하지 못했다면 job은 `queued`로 남거나 만료
 lease로 복구됩니다.

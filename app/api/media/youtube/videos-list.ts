@@ -31,6 +31,12 @@ interface YouTubeVideosListResponse {
 	items?: unknown;
 }
 
+interface YouTubeErrorResponse {
+	error?: {
+		errors?: unknown;
+	};
+}
+
 interface YouTubeVideoSummary {
 	id: string;
 	title: string | null;
@@ -58,6 +64,17 @@ export class YouTubeApiError extends Error {
 		this.name = "YouTubeApiError";
 	}
 }
+
+const YOUTUBE_RETRYABLE_403_REASONS = new Map([
+	["quotaExceeded", "YOUTUBE_QUOTA_EXCEEDED"],
+	["dailyLimitExceeded", "YOUTUBE_QUOTA_EXCEEDED"],
+	["dailyLimitExceededUnreg", "YOUTUBE_QUOTA_EXCEEDED"],
+	["rateLimitExceeded", "YOUTUBE_RATE_LIMITED"],
+	["rateLimitExceededUnreg", "YOUTUBE_RATE_LIMITED"],
+	["userRateLimitExceeded", "YOUTUBE_RATE_LIMITED"],
+	["userRateLimitExceededUnreg", "YOUTUBE_RATE_LIMITED"],
+	["servingLimitExceeded", "YOUTUBE_RATE_LIMITED"],
+]);
 
 function chooseThumbnail(thumbnails: Record<string, YouTubeThumbnail> | null | undefined) {
 	if (!thumbnails) return null;
@@ -102,9 +119,32 @@ function normalizeResource(
 	};
 }
 
-function getHttpError(status: number) {
+function getRetryable403Code(payload: unknown) {
+	if (!payload || typeof payload !== "object") return null;
+	const errors = (payload as YouTubeErrorResponse).error?.errors;
+	if (!Array.isArray(errors)) return null;
+
+	for (const error of errors) {
+		if (!error || typeof error !== "object") continue;
+		const reason = (error as { reason?: unknown }).reason;
+		if (typeof reason !== "string") continue;
+		const code = YOUTUBE_RETRYABLE_403_REASONS.get(reason);
+		if (code) return code;
+	}
+	return null;
+}
+
+async function getHttpError(response: Response) {
+	const status = response.status;
 	if (status === 429) return new YouTubeApiError("YOUTUBE_HTTP_429", "retryable");
 	if (status >= 500) return new YouTubeApiError("YOUTUBE_HTTP_5XX", "retryable");
+	if (status === 403) {
+		const retryableCode = await response
+			.json()
+			.then(getRetryable403Code)
+			.catch(() => null);
+		if (retryableCode) return new YouTubeApiError(retryableCode, "retryable");
+	}
 	if (status >= 400 && status < 500) {
 		return new YouTubeApiError("YOUTUBE_HTTP_4XX", "terminal");
 	}
@@ -155,7 +195,7 @@ export async function listYouTubeVideos(
 	} catch (error) {
 		throw getFetchError(error);
 	}
-	if (!response.ok) throw getHttpError(response.status);
+	if (!response.ok) throw await getHttpError(response);
 
 	let payload: YouTubeVideosListResponse;
 	try {
