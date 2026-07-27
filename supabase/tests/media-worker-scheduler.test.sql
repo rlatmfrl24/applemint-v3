@@ -1,7 +1,7 @@
 -- Media-only Cron, pg_net dispatch audit, fail-closed settings, and recovery contract.
 begin;
 
-select plan(36);
+select plan(40);
 
 select has_table(
 	'public',
@@ -18,6 +18,18 @@ select has_column(
 	'media_worker_runtime_settings',
 	'scheduler_enabled',
 	'media scheduler has an independent cutover switch'
+);
+select has_column(
+	'public',
+	'media_worker_runtime_settings',
+	'youtube_enabled',
+	'YouTube dispatch has an independent provider switch'
+);
+select has_column(
+	'public',
+	'media_worker_runtime_settings',
+	'imgur_enabled',
+	'Imgur dispatch has an independent provider switch'
 );
 select has_column(
 	'public',
@@ -118,12 +130,18 @@ select ok(
 );
 select is(
 	(
-		select row(scheduler_enabled, youtube_batch_size, imgur_batch_size)
+		select row(
+			scheduler_enabled,
+			youtube_enabled,
+			imgur_enabled,
+			youtube_batch_size,
+			imgur_batch_size
+		)
 		from public.media_worker_runtime_settings
 		where id = true
 	),
-	row(false, 50, 20),
-	'media scheduler is deployed disabled with provider batch bounds'
+	row(false, true, true, 50, 20),
+	'media scheduler is deployed globally disabled with provider switches and batch bounds'
 );
 select is(
 	(
@@ -178,6 +196,9 @@ select is(
 	0::bigint,
 	'disabled media scheduler creates no dispatch audit'
 );
+
+delete from vault.secrets
+where name in ('crawl_app_base_url', 'crawl_internal_secret');
 
 update public.crawl_runtime_settings
 set scheduler_enabled = true
@@ -340,6 +361,38 @@ select is(
 	2::bigint,
 	'dispatch failure before claim leaves durable jobs available'
 );
+
+delete from public.media_worker_dispatches;
+update public.media_worker_runtime_settings
+set
+	scheduler_enabled = true,
+	youtube_enabled = true,
+	imgur_enabled = false
+where id = true;
+
+set local role service_role;
+select is(
+	public.dispatch_due_media_enrichment_workers() ->> 'dispatchedCount',
+	'1',
+	'YouTube-only mode dispatches one enabled provider'
+);
+reset role;
+select is(
+	(
+		select array_agg(provider order by provider)
+		from public.media_worker_dispatches
+		where state = 'queued'
+	),
+	array['youtube']::text[],
+	'disabled Imgur keeps its queued job without dispatching its endpoint'
+);
+
+delete from public.media_worker_dispatches;
+update public.media_worker_runtime_settings
+set
+	youtube_enabled = true,
+	imgur_enabled = true
+where id = true;
 
 insert into public.media_worker_dispatches (
 	scheduled_for,

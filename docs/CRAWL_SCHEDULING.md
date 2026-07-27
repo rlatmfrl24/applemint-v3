@@ -177,9 +177,39 @@ order by provider, latest_dispatch_at desc;
 교정하고 `/api/crawl/scheduled` 스모크 테스트와 dispatcher 정산을 확인한 뒤 scheduler를 다시
 활성화합니다.
 
-미디어 자동 호출에 문제가 있으면 `media_worker_runtime_settings.scheduler_enabled=false`만
-적용합니다. `crawl_runtime_settings`와 기존 crawl Cron은 그대로 유지합니다. queued·retry job과
-metadata는 삭제하지 않으며, 이미 processing인 job은 완료되거나 lease 만료 후 복구됩니다.
+미디어 자동 호출 전체에 문제가 있으면
+`media_worker_runtime_settings.scheduler_enabled=false`만 적용합니다. 특정 공급자만 일시 중지할
+때는 전역 scheduler를 유지한 채 `youtube_enabled` 또는 `imgur_enabled`만 `false`로 변경합니다.
+`crawl_runtime_settings`와 기존 crawl Cron은 그대로 유지합니다. 비활성 공급자의 queued·retry
+job과 metadata는 삭제하지 않으며, 이미 processing인 job은 완료되거나 lease 만료 후 복구됩니다.
+
+예를 들어 Imgur quota를 보호하면서 YouTube만 자동 처리하려면 service-role 운영 경로에서 다음
+설정을 적용합니다.
+
+```sql
+update public.media_worker_runtime_settings
+set
+	scheduler_enabled = true,
+	youtube_enabled = true,
+	imgur_enabled = false,
+	updated_at = now()
+where id = true;
+```
+
+현재 공급자별 스위치는 secret 없이 읽기 전용으로 확인할 수 있습니다.
+
+```sql
+select
+	now() as measured_at,
+	scheduler_enabled,
+	youtube_enabled,
+	imgur_enabled,
+	youtube_batch_size,
+	imgur_batch_size,
+	updated_at
+from public.media_worker_runtime_settings
+where id = true;
+```
 
 ## 실패·복구
 
@@ -220,7 +250,8 @@ Vault·Next secret과 최근 dispatch 응답을 교정합니다. 수동 실행�
 
 ### 미디어 자동화 롤백
 
-1. media scheduler 스위치만 비활성화합니다. 기존 crawl scheduler는 끄지 않습니다.
+1. 공급자 하나의 장애면 해당 `*_enabled`만 비활성화하고, 공통 경로 장애면 media scheduler
+   스위치만 비활성화합니다. 기존 crawl scheduler는 끄지 않습니다.
 2. 배포·secret·provider 장애를 교정하고 수동 `limit=1` 스모크를 다시 통과시킵니다.
 3. queued·retry·processing job, metadata와 thread는 삭제하거나 `normal`로 되돌리지 않습니다.
 4. Cron 자체를 제거해야 할 때만 `cron.job`을 직접 수정하지 않고 media 전용 job ID를
