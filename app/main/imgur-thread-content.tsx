@@ -36,13 +36,21 @@ const STATUS_MESSAGES: Partial<Record<ImgurCardStatus, string>> = {
 	legacy: "아직 수집된 Imgur 정보가 없습니다.",
 };
 
+const IMGUR_RATE_LIMIT_ERROR_CODES = new Set([
+	"IMGUR_HTTP_429",
+	"IMGUR_CLIENT_QUOTA_EXHAUSTED",
+	"IMGUR_USER_RATE_LIMITED",
+]);
+
 export function shouldRenderImgurAsDefaultCard(thread: ThreadItemType) {
 	const metadata = thread.media_metadata?.provider === "imgur" ? thread.media_metadata : null;
 	if (thread.type !== "imgur") return false;
 	if (!metadata) return true;
-	if (metadata.status !== "pending") return false;
+	if (metadata.status !== "pending" && metadata.status !== "failed") return false;
 
-	return metadata.last_error_code === "IMGUR_HTTP_429";
+	return metadata.last_error_code
+		? IMGUR_RATE_LIMIT_ERROR_CODES.has(metadata.last_error_code)
+		: false;
 }
 
 function getMeaningfulThreadTitle(thread: ThreadItemType) {
