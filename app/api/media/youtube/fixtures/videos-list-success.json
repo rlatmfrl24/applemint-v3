@@ -1,0 +1,46 @@
+{
+	"kind": "youtube#videoListResponse",
+	"items": [
+		{
+			"id": "abcDEF12345",
+			"snippet": {
+				"title": "Fixture video",
+				"channelTitle": "Fixture channel",
+				"liveBroadcastContent": "none",
+				"thumbnails": {
+					"default": { "url": "https://img.youtube.test/default.jpg" },
+					"high": { "url": "https://img.youtube.test/high.jpg" },
+					"maxres": { "url": "https://img.youtube.test/maxres.jpg" }
+				}
+			},
+			"contentDetails": { "duration": "PT2M5S" },
+			"status": { "privacyStatus": "public" }
+		},
+		{
+			"id": "liveABC1234",
+			"snippet": {
+				"title": "Fixture live",
+				"channelTitle": "Live channel",
+				"liveBroadcastContent": "live",
+				"thumbnails": {
+					"high": { "url": "https://img.youtube.test/live.jpg" }
+				}
+			},
+			"contentDetails": { "duration": "PT1H" },
+			"status": { "privacyStatus": "public" }
+		},
+		{
+			"id": "soonABC1234",
+			"snippet": {
+				"title": "Fixture upcoming",
+				"channelTitle": "Upcoming channel",
+				"liveBroadcastContent": "upcoming",
+				"thumbnails": {
+					"standard": { "url": "https://img.youtube.test/upcoming.jpg" }
+				}
+			},
+			"contentDetails": { "duration": "PT0S" },
+			"status": { "privacyStatus": "public" }
+		}
+	]
+}

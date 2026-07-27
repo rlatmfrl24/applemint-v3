@@ -1,0 +1,11 @@
+{
+	"data": {
+		"id": "Album12",
+		"title": null,
+		"description": "설명으로 표시하는 앨범",
+		"cover": "Cover12",
+		"images_count": 6
+	},
+	"success": true,
+	"status": 200
+}

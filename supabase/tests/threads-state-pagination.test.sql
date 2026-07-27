@@ -1,7 +1,7 @@
 -- Canonical thread state, pagination, and atomicity contract.
 begin;
 
-select plan(35);
+select plan(50);
 
 select has_table('public', 'threads', 'threads is the canonical table');
 select has_index('public', 'threads', 'idx_threads_state_changed_at_id', 'state cursor index exists');
@@ -192,6 +192,248 @@ select is(
 	(select state from public.threads where url = 'https://p9.test/ingest'),
 	'inbox',
 	'ingest writes to the canonical inbox'
+);
+
+set local role service_role;
+select is(
+	public.ingest_crawl_items(
+		'insagirl',
+		'[
+			{"url":"https://www.youtube.com/watch?v=p9","title":"YouTube","type":"youtube"},
+			{"url":"https://imgur.com/a/p9","title":"Imgur","type":"imgur"}
+		]'::jsonb
+	),
+	'{"insertedCount": 2, "skippedCount": 0}'::jsonb,
+	'ingest preserves active provider types'
+);
+reset role;
+select is(
+	(
+		select array_agg(type order by type)
+		from public.threads
+		where url in ('https://www.youtube.com/watch?v=p9', 'https://imgur.com/a/p9')
+	),
+	array['imgur', 'youtube']::text[],
+	'ingested provider rows retain youtube and imgur types'
+);
+
+set local role service_role;
+select throws_ok(
+	$$select public.ingest_crawl_items(
+		'arcalive',
+		'[{"url":"https://p9.test/retired-media","type":"media"}]'::jsonb
+	)$$,
+	'23514',
+	'Retired thread types cannot be ingested.',
+	'ingest rejects the retired media type'
+);
+select throws_ok(
+	$$select public.ingest_crawl_items(
+		'arcalive',
+		'[{"url":"https://p9.test/retired-issuelink","type":"issuelink"}]'::jsonb
+	)$$,
+	'23514',
+	'Retired thread types cannot be ingested.',
+	'ingest rejects the retired IssueLink type'
+);
+reset role;
+select is(
+	(
+		select count(*)
+		from public."crawl-history"
+		where url in ('https://p9.test/retired-media', 'https://p9.test/retired-issuelink')
+	),
+	0::bigint,
+	'rejected provider batches leave no crawl history'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
+select is(
+	(select count(*) from public.list_threads_page('inbox', 24, null, null, 'youtube')),
+	1::bigint,
+	'canonical list RPC filters YouTube threads'
+);
+select is(
+	(select max(total_count) from public.get_thread_stats('inbox', 'youtube')),
+	1::bigint,
+	'canonical stats RPC filters YouTube threads'
+);
+select is(
+	(select count(*) from public.list_threads_page('inbox', 24, null, null, 'imgur')),
+	1::bigint,
+	'canonical list RPC filters Imgur threads'
+);
+select is(
+	(select max(total_count) from public.get_thread_stats('inbox', 'imgur')),
+	1::bigint,
+	'canonical stats RPC filters Imgur threads'
+);
+reset role;
+
+insert into public.threads (
+	type, url, state, created_at, captured_at, state_changed_at
+)
+values
+	(
+		'legacy-youtube',
+		'https://www.youtube.com/watch?v=backfill-inbox',
+		'inbox',
+		'2026-02-01 00:00:00+00',
+		'2026-01-31 23:00:00+00',
+		'2026-02-02 00:00:00+00'
+	),
+	(
+		'legacy-youtube-playlist',
+		'https://music.youtube.com/playlist?list=backfill-saved',
+		'saved',
+		'2026-02-03 00:00:00+00',
+		'2026-02-02 23:00:00+00',
+		'2026-02-04 00:00:00+00'
+	),
+	(
+		'legacy-imgur',
+		'https://imgur.com/a/backfill-trash',
+		'trash',
+		'2026-02-05 00:00:00+00',
+		'2026-02-04 23:00:00+00',
+		'2026-02-06 00:00:00+00'
+	),
+	(
+		'legacy-evil',
+		'https://youtube.com.evil.example/watch?v=backfill',
+		'inbox',
+		'2026-02-07 00:00:00+00',
+		'2026-02-06 23:00:00+00',
+		'2026-02-08 00:00:00+00'
+	),
+	(
+		'legacy-query',
+		'https://example.com/?next=https://imgur.com/a/backfill',
+		'saved',
+		'2026-02-09 00:00:00+00',
+		'2026-02-08 23:00:00+00',
+		'2026-02-10 00:00:00+00'
+	);
+
+insert into public."crawl-history" (url, crawl_source, host, created_at)
+select url, 'insagirl', 'backfill.test', '2026-01-01 00:00:00+00'
+from public.threads
+where type like 'legacy-%';
+
+create temporary table p9_media_backfill_snapshot as
+select id, type, url, state, created_at, captured_at, state_changed_at
+from public.threads
+where type like 'legacy-%';
+alter table p9_media_backfill_snapshot add primary key (id);
+
+create temporary table p9_media_history_snapshot as
+select id, url, crawl_source, host, created_at
+from public."crawl-history"
+where url in (select url from p9_media_backfill_snapshot);
+alter table p9_media_history_snapshot add primary key (id);
+
+create function pg_temp.backfill_media_thread_types()
+returns bigint
+language sql
+set search_path = ''
+as $$
+	with classified as materialized (
+		select
+			id,
+			case
+				when btrim(url) ~* '^https?://(youtube\.com|www\.youtube\.com|m\.youtube\.com|music\.youtube\.com|youtu\.be)(:[0-9]+)?/[^?#]+([?#].*)?$'
+					then 'youtube'
+				when btrim(url) ~* '^https?://(imgur\.com|www\.imgur\.com|i\.imgur\.com)(:[0-9]+)?/[^?#]+([?#].*)?$'
+					then 'imgur'
+				else null
+			end as desired_type
+		from public.threads
+	),
+	updated as (
+		update public.threads as thread
+		set type = classified.desired_type
+		from classified
+		where thread.id = classified.id
+			and classified.desired_type is not null
+			and thread.type is distinct from classified.desired_type
+		returning thread.id
+	)
+	select count(*) from updated;
+$$;
+
+select is(
+	pg_temp.backfill_media_thread_types(),
+	3::bigint,
+	'media backfill updates only exact provider URLs'
+);
+select ok(
+	(select type = 'youtube' from public.threads where url = 'https://www.youtube.com/watch?v=backfill-inbox')
+		and (
+			select type = 'youtube'
+			from public.threads
+			where url = 'https://music.youtube.com/playlist?list=backfill-saved'
+		)
+		and (select type = 'imgur' from public.threads where url = 'https://imgur.com/a/backfill-trash')
+		and (
+			select type = 'legacy-evil'
+			from public.threads
+			where url = 'https://youtube.com.evil.example/watch?v=backfill'
+		)
+		and (
+			select type = 'legacy-query'
+			from public.threads
+			where url = 'https://example.com/?next=https://imgur.com/a/backfill'
+		),
+	'media backfill maps providers and rejects hostname, query, and fragment impostors'
+);
+select ok(
+	not exists (
+		select 1
+		from public.threads as thread
+		inner join p9_media_backfill_snapshot as snapshot using (id)
+		where thread.state is distinct from snapshot.state
+	),
+	'media backfill preserves every thread state'
+);
+select ok(
+	not exists (
+		select 1
+		from public.threads as thread
+		inner join p9_media_backfill_snapshot as snapshot using (id)
+		where thread.url is distinct from snapshot.url
+			or thread.created_at is distinct from snapshot.created_at
+			or thread.captured_at is distinct from snapshot.captured_at
+			or thread.state_changed_at is distinct from snapshot.state_changed_at
+	),
+	'media backfill preserves IDs, URLs, and thread timestamps'
+);
+select ok(
+	not exists (
+		(
+			select id, url, crawl_source, host, created_at
+			from public."crawl-history"
+			where url in (select url from p9_media_backfill_snapshot)
+			except
+			select id, url, crawl_source, host, created_at
+			from p9_media_history_snapshot
+		)
+		union all
+		(
+			select id, url, crawl_source, host, created_at
+			from p9_media_history_snapshot
+			except
+			select id, url, crawl_source, host, created_at
+			from public."crawl-history"
+			where url in (select url from p9_media_backfill_snapshot)
+		)
+	),
+	'media backfill leaves crawl history unchanged'
+);
+select is(
+	pg_temp.backfill_media_thread_types(),
+	0::bigint,
+	'media backfill is idempotent'
 );
 
 create function pg_temp.reject_thread_update()

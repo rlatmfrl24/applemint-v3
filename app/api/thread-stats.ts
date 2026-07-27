@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 import { isThreadState } from "@/lib/thread-list-contract";
+import { getThreadTypeLabel } from "@/lib/thread-type";
 import type { ThreadState } from "@/lib/type-defs";
 import { checkApplemintOwner } from "@/utils/supabase/owner-access";
 import { createClient } from "@/utils/supabase/server";
@@ -32,7 +33,11 @@ export async function handleThreadStatsGet(request: NextRequest) {
 		const rows = (data ?? []) as StatsRow[];
 		return NextResponse.json({
 			totalCount: rows.length > 0 ? Number(rows[0].total_count) : 0,
-			counts: rows.map((row) => ({ key: row.key, label: row.label, count: Number(row.count) })),
+			counts: rows.map((row) => ({
+				key: row.key,
+				label: getThreadTypeLabel(row.key),
+				count: Number(row.count),
+			})),
 		});
 	} catch (error) {
 		console.error("스레드 통계 조회 실패", error);

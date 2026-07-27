@@ -1,0 +1,13 @@
+{
+	"data": {
+		"id": "Gallery12",
+		"title": "갤러리 앨범",
+		"description": null,
+		"is_album": true,
+		"cover": null,
+		"images_count": 0,
+		"images": []
+	},
+	"success": true,
+	"status": 200
+}

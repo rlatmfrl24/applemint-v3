@@ -1,11 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/utils/supabase/middleware";
 
-const INTERNAL_CRAWL_API_PATH = "/api/crawl/scheduled";
+const INTERNAL_API_PATHS = new Set([
+	"/api/crawl/scheduled",
+	"/api/media/youtube/enrich",
+	"/api/media/imgur/enrich",
+]);
 
 export async function proxy(request: NextRequest) {
-	// 내부 크롤링 API는 쿠키 세션을 사용하지 않으며 원본 인증 헤더와 JSON body를 보존해야 한다.
-	if (request.nextUrl.pathname === INTERNAL_CRAWL_API_PATH) {
+	// 내부 API는 쿠키 세션을 사용하지 않으며 원본 인증 헤더와 JSON body를 보존해야 한다.
+	if (INTERNAL_API_PATHS.has(request.nextUrl.pathname)) {
 		return NextResponse.next();
 	}
 

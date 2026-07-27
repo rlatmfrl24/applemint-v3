@@ -1,7 +1,7 @@
 -- Single-owner security boundary and schema integrity contract.
 begin;
 
-select plan(54);
+select plan(56);
 
 select ok(
 	to_regclass('public."new-threads"') is null
@@ -38,6 +38,8 @@ select ok(
 		select 1
 		from unnest(array[
 			'public.threads',
+			'public.thread_media_metadata',
+			'public.media_enrichment_jobs',
 			'public."crawl-history"',
 			'public."filter-keyword"',
 			'public.crawl_run_locks',
@@ -63,6 +65,10 @@ select ok(
 			'public.bulk_move_inbox_to_trash()',
 			'public.clean_trash()',
 			'public.ingest_crawl_items(text,jsonb)',
+			'public.claim_media_enrichment_jobs(text,integer,integer)',
+			'public.complete_media_enrichment_job(bigint,uuid,jsonb)',
+			'public.retry_media_enrichment_job(bigint,uuid,text,timestamp with time zone)',
+			'public.fail_media_enrichment_job(bigint,uuid,text)',
 			'public.acquire_crawl_lock(text,uuid,integer)',
 			'public.release_crawl_lock(text,uuid)',
 			'public.begin_crawl_run(text,uuid,integer)',
@@ -112,6 +118,7 @@ select ok(
 		from unnest(array[
 			'public."crawl-history"',
 			'public."filter-keyword"',
+			'public.media_enrichment_jobs',
 			'public.crawl_run_locks',
 			'public.crawl_runs',
 			'public.crawl_alert_settings',
@@ -124,6 +131,16 @@ select ok(
 );
 select ok(
 	has_table_privilege('service_role', 'public.threads', 'SELECT,INSERT,UPDATE,DELETE')
+		and has_table_privilege(
+			'service_role',
+			'public.thread_media_metadata',
+			'SELECT,INSERT,UPDATE,DELETE'
+		)
+		and has_table_privilege(
+			'service_role',
+			'public.media_enrichment_jobs',
+			'SELECT,INSERT,UPDATE,DELETE'
+		)
 		and has_table_privilege('service_role', 'public."filter-keyword"', 'SELECT')
 		and has_table_privilege('service_role', 'public.crawl_run_locks', 'INSERT,UPDATE,DELETE')
 		and has_table_privilege('service_role', 'public.crawl_runs', 'INSERT,UPDATE,DELETE')
@@ -350,10 +367,22 @@ select ok(
 		select 1
 		from pg_constraint
 		where conrelid = 'public."filter-keyword"'::regclass
-			and conname = 'filter_keyword_no_removed_types'
+			and conname = 'filter_keyword_no_provider_or_retired_types'
 			and contype = 'c'
 	),
-	'filter keywords reject retired classifiers'
+	'filter keywords reject provider and retired classifiers'
+);
+select ok(
+	(
+		select pg_get_constraintdef(oid) like '%media%'
+			and pg_get_constraintdef(oid) like '%youtube%'
+			and pg_get_constraintdef(oid) like '%imgur%'
+			and pg_get_constraintdef(oid) like '%issuelink%'
+		from pg_constraint
+		where conrelid = 'public."filter-keyword"'::regclass
+			and conname = 'filter_keyword_no_provider_or_retired_types'
+	),
+	'filter keyword constraint reserves exact-URL provider methods'
 );
 select ok(
 	exists (
@@ -419,10 +448,22 @@ select ok(
 		select 1
 		from pg_constraint
 		where conrelid = 'public.threads'::regclass
-			and conname = 'threads_no_removed_types'
+			and conname = 'threads_no_retired_types'
 			and contype = 'c'
 	),
 	'threads reject retired classifiers'
+);
+select ok(
+	(
+		select pg_get_constraintdef(oid) like '%media%'
+			and pg_get_constraintdef(oid) like '%issuelink%'
+			and pg_get_constraintdef(oid) not like '%youtube%'
+			and pg_get_constraintdef(oid) not like '%imgur%'
+		from pg_constraint
+		where conrelid = 'public.threads'::regclass
+			and conname = 'threads_no_retired_types'
+	),
+	'thread constraint activates youtube and imgur while retaining retired type bans'
 );
 
 select has_index(

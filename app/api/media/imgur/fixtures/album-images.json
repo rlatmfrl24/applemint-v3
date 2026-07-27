@@ -1,0 +1,42 @@
+{
+	"data": [
+		{
+			"id": "First12",
+			"type": "image/png",
+			"animated": false,
+			"link": "https://i.imgur.com/First12.png"
+		},
+		{
+			"id": "Cover12",
+			"type": "image/jpeg",
+			"animated": false,
+			"link": "https://i.imgur.com/Cover12.jpg"
+		},
+		{
+			"id": "Gif1234",
+			"type": "image/gif",
+			"animated": true,
+			"link": "https://i.imgur.com/Gif1234.gif"
+		},
+		{
+			"id": "Video12",
+			"type": "video/mp4",
+			"animated": true,
+			"link": "https://i.imgur.com/Video12.mp4"
+		},
+		{
+			"id": "Fifth12",
+			"type": "image/webp",
+			"animated": false,
+			"link": "https://i.imgur.com/Fifth12.webp"
+		},
+		{
+			"id": "Sixth12",
+			"type": "image/jpeg",
+			"animated": false,
+			"link": "https://i.imgur.com/Sixth12.jpg"
+		}
+	],
+	"success": true,
+	"status": 200
+}

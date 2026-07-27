@@ -1,0 +1,13 @@
+{
+	"data": {
+		"id": "Gal123",
+		"title": null,
+		"description": "갤러리 영상 설명",
+		"is_album": false,
+		"type": "video/mp4",
+		"animated": true,
+		"link": "https://i.imgur.com/Gal123.mp4"
+	},
+	"success": true,
+	"status": 200
+}
