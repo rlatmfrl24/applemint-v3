@@ -115,12 +115,12 @@ describe("Imgur thread card", () => {
 			},
 			"갤러리 · 3개",
 		],
-	] satisfies [
-		Partial<MediaMetadata>,
-		string,
-	][])("GIF, video, gallery 종류를 구분한다", (overrides, label) => {
-		expect(renderMetadata(overrides)).toContain(label);
-	});
+	] satisfies [Partial<MediaMetadata>, string][])(
+		"GIF, video, gallery 종류를 구분한다",
+		(overrides, label) => {
+			expect(renderMetadata(overrides)).toContain(label);
+		}
+	);
 
 	it("metadata title이 없으면 원문 제목을 사용하고, 원문도 없으면 결정론적 album fallback을 쓴다", () => {
 		expect(renderMetadata({ title: null })).toContain("수집 당시 앨범 제목");
@@ -132,20 +132,41 @@ describe("Imgur thread card", () => {
 		).toContain("Imgur 앨범 · 6개");
 	});
 
-	it("pending은 layout을 유지하는 skeleton과 Open 동작을 제공한다", () => {
+	it("요청 제한인 pending 항목은 일반 카드로 표시한다", () => {
 		const markup = renderMetadata({
 			status: "pending",
 			title: null,
 			thumbnail_url: null,
 			media_count: null,
 			preview_urls: [],
+			last_error_code: "IMGUR_HTTP_429",
 		});
 
-		expect(markup).toContain('data-media-status="pending"');
-		expect(markup).toContain('role="status"');
-		expect(markup).toContain('aria-label="Imgur 정보를 불러오는 중"');
+		expect(markup).toContain('data-testid="default-thread-content"');
+		expect(markup).toContain("수집 당시 앨범 제목");
 		expect(markup).toContain(">Open<");
+		expect(markup).not.toContain('data-testid="imgur-thread-content"');
+		expect(markup).not.toContain('aria-label="Imgur 정보를 불러오는 중"');
 	});
+
+	it.each([null, "IMGUR_NETWORK"])(
+		"요청 제한이 아닌 pending은 기존 skeleton 상태를 유지한다: %s",
+		(lastErrorCode) => {
+			const markup = renderMetadata({
+				status: "pending",
+				title: null,
+				thumbnail_url: null,
+				media_count: null,
+				preview_urls: [],
+				last_error_code: lastErrorCode,
+			});
+
+			expect(markup).toContain('data-media-status="pending"');
+			expect(markup).toContain('role="status"');
+			expect(markup).toContain('aria-label="Imgur 정보를 불러오는 중"');
+			expect(markup).not.toContain('data-testid="default-thread-content"');
+		}
+	);
 
 	it.each([
 		["failed", "불러오기 실패", "Imgur 정보를 불러오지 못했습니다."],

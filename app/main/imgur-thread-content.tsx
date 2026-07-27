@@ -36,6 +36,13 @@ const STATUS_MESSAGES: Partial<Record<ImgurCardStatus, string>> = {
 	legacy: "아직 수집된 Imgur 정보가 없습니다.",
 };
 
+export function shouldRenderImgurAsDefaultCard(thread: ThreadItemType) {
+	const metadata = thread.media_metadata?.provider === "imgur" ? thread.media_metadata : null;
+	if (thread.type !== "imgur" || metadata?.status !== "pending") return false;
+
+	return metadata.last_error_code === "IMGUR_HTTP_429";
+}
+
 function getMeaningfulThreadTitle(thread: ThreadItemType) {
 	const title = thread.title?.trim();
 	if (!title || title === thread.url.trim() || title.toLowerCase() === "untitled") return null;

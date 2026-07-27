@@ -27,7 +27,7 @@
 - 소스별 크롤러 모듈 분리 (`arcalive`, `battlepage`, `insagirl`)
 
 ### 품질 / 보안 유지보수
-- `Biome 2.4.7` 포맷·린트·정적 검사
+- `Biome 2.5.5` 포맷·린트·정적 검사
 - GitHub PR 필수 검증 (`verify`: Biome, Knip, Vitest, pgTAP, production build)
 - 주간 GitHub `CodeQL`과 일간 `Security Gate` 워크플로우
 - `Dependabot` 주간 보안 업데이트

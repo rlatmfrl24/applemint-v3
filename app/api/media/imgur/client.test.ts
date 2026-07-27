@@ -24,33 +24,33 @@ function endpointFetch(responses: Record<string, unknown>) {
 }
 
 describe("fetchImgurMetadata", () => {
-	it.each([
-		"https://imgur.com/Img1234",
-		"https://i.imgur.com/Img1234.jpg",
-	])("%s image와 direct file을 공식 image endpoint로 조회한다", async (url) => {
-		const fetchMock = endpointFetch({ "/3/image/Img1234": imageFixture });
+	it.each(["https://imgur.com/Img1234", "https://i.imgur.com/Img1234.jpg"])(
+		"%s image와 direct file을 공식 image endpoint로 조회한다",
+		async (url) => {
+			const fetchMock = endpointFetch({ "/3/image/Img1234": imageFixture });
 
-		const result = await fetchImgurMetadata(normalizeImgurUrl(url), {
-			clientId: "fixture-client-id",
-			fetchImpl: fetchMock,
-		});
+			const result = await fetchImgurMetadata(normalizeImgurUrl(url), {
+				clientId: "fixture-client-id",
+				fetchImpl: fetchMock,
+			});
 
-		expect(result).toEqual({
-			title: "Imgur 공식 이미지",
-			mediaKind: "image",
-			thumbnailUrl: "https://i.imgur.com/Img1234.jpg",
-			mediaCount: 1,
-			previewUrls: ["https://i.imgur.com/Img1234.jpg"],
-		});
-		expect(fetchMock).toHaveBeenCalledTimes(1);
-		expect(fetchMock.mock.calls[0][1]).toMatchObject({
-			method: "GET",
-			headers: {
-				Accept: "application/json",
-				Authorization: "Client-ID fixture-client-id",
-			},
-		});
-	});
+			expect(result).toEqual({
+				title: "Imgur 공식 이미지",
+				mediaKind: "image",
+				thumbnailUrl: "https://i.imgur.com/Img1234.jpg",
+				mediaCount: 1,
+				previewUrls: ["https://i.imgur.com/Img1234.jpg"],
+			});
+			expect(fetchMock).toHaveBeenCalledTimes(1);
+			expect(fetchMock.mock.calls[0][1]).toMatchObject({
+				method: "GET",
+				headers: {
+					Accept: "application/json",
+					Authorization: "Client-ID fixture-client-id",
+				},
+			});
+		}
+	);
 
 	it("album 정보와 album images를 분리 조회해 설명 fallback, cover, 개수, preview 4개만 저장한다", async () => {
 		const fetchMock = endpointFetch({
