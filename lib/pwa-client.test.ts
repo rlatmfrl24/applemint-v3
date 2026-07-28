@@ -6,11 +6,11 @@ import {
 	subscriptionToInput,
 } from "./pwa-client";
 
-function createSubscription() {
+function createSubscription(endpoint = "https://push.test/device") {
 	return {
-		endpoint: "https://push.test/device",
+		endpoint,
 		toJSON: () => ({
-			endpoint: "https://push.test/device",
+			endpoint,
 			expirationTime: null,
 			keys: { p256dh: "A".repeat(43), auth: "B".repeat(22) },
 		}),
@@ -37,10 +37,12 @@ describe("PWA Push client", () => {
 			createSubscription: vi.fn().mockResolvedValue(subscription),
 		};
 
-		await expect(activatePushNotifications("public-key", save, browser)).resolves.toMatchObject({
-			permission: "granted",
-			subscription,
-		});
+		await expect(activatePushNotifications("public-key", save, { browser })).resolves.toMatchObject(
+			{
+				permission: "granted",
+				subscription,
+			}
+		);
 		expect(browser.requestPermission).toHaveBeenCalledOnce();
 		expect(save).toHaveBeenCalledOnce();
 	});
@@ -58,7 +60,7 @@ describe("PWA Push client", () => {
 			activatePushNotifications(
 				"public-key",
 				() => Promise.reject(new Error("server unavailable")),
-				browser
+				{ browser }
 			)
 		).rejects.toThrow("server unavailable");
 		expect(subscription.unsubscribe).toHaveBeenCalledOnce();
@@ -73,13 +75,36 @@ describe("PWA Push client", () => {
 		};
 		const save = vi.fn();
 
-		await expect(activatePushNotifications("public-key", save, browser)).resolves.toEqual({
+		await expect(activatePushNotifications("public-key", save, { browser })).resolves.toEqual({
 			permission: "denied",
 			subscription: null,
 		});
 		expect(browser.requestPermission).not.toHaveBeenCalled();
 		expect(browser.createSubscription).not.toHaveBeenCalled();
 		expect(save).not.toHaveBeenCalled();
+	});
+
+	it("서버에서 비활성화된 기존 구독은 브라우저에서 제거한 뒤 새 구독으로 교체한다", async () => {
+		const existing = createSubscription("https://push.test/stale");
+		const replacement = createSubscription("https://push.test/replacement");
+		const save = vi.fn().mockResolvedValue({ active: true });
+		const browser = {
+			getPermission: () => "granted" as const,
+			requestPermission: vi.fn(),
+			getSubscription: vi.fn().mockResolvedValue(existing),
+			createSubscription: vi.fn().mockResolvedValue(replacement),
+		};
+
+		await expect(
+			activatePushNotifications("public-key", save, {
+				browser,
+				replaceExisting: true,
+			})
+		).resolves.toMatchObject({ subscription: replacement });
+
+		expect(existing.unsubscribe).toHaveBeenCalledOnce();
+		expect(browser.createSubscription).toHaveBeenCalledOnce();
+		expect(save).toHaveBeenCalledWith(subscriptionToInput(replacement));
 	});
 
 	it("비활성화는 서버 중단 후 브라우저 구독과 badge를 순서대로 해제한다", async () => {
@@ -99,6 +124,19 @@ describe("PWA Push client", () => {
 		await deactivatePushNotifications(subscription, disable, clear);
 
 		expect(order).toEqual(["server", "browser", "badge"]);
+	});
+
+	it("브라우저 구독 해제가 false이면 badge를 지우거나 성공 처리하지 않는다", async () => {
+		const subscription = createSubscription();
+		vi.mocked(subscription.unsubscribe).mockResolvedValue(false);
+		const disable = vi.fn().mockResolvedValue({ disabled: true });
+		const clear = vi.fn().mockResolvedValue(undefined);
+
+		await expect(deactivatePushNotifications(subscription, disable, clear)).rejects.toThrow(
+			"브라우저 알림 구독을 해제하지 못했습니다."
+		);
+		expect(disable).toHaveBeenCalledOnce();
+		expect(clear).not.toHaveBeenCalled();
 	});
 
 	it("Inbox acknowledge 성공 후에만 badge를 초기화한다", async () => {

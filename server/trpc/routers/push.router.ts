@@ -4,6 +4,7 @@ import {
 	pushEndpointInputSchema,
 	pushSubscribeResultSchema,
 	pushSubscriptionInputSchema,
+	pushSubscriptionStatusSchema,
 	pushUnsubscribeResultSchema,
 } from "@/contracts/push.schema";
 import { createTRPCRouter, ownerProcedure } from "../init";
@@ -16,6 +17,10 @@ export const pushRouter = createTRPCRouter({
 		.input(pushSubscriptionInputSchema)
 		.output(pushSubscribeResultSchema)
 		.mutation(({ ctx, input }) => ctx.services.push.subscribe(input)),
+	status: ownerProcedure
+		.input(pushEndpointInputSchema)
+		.output(pushSubscriptionStatusSchema)
+		.query(({ ctx, input }) => ctx.services.push.status(input.endpoint)),
 	unsubscribe: ownerProcedure
 		.input(pushEndpointInputSchema)
 		.output(pushUnsubscribeResultSchema)

@@ -84,9 +84,11 @@ select ok(
 			'public.upsert_web_push_subscription(text,text,text,timestamp with time zone)',
 			'public.disable_web_push_subscription(text)',
 			'public.acknowledge_web_push_inbox(text)',
+			'public.get_web_push_subscription_status(text)',
 			'public.claim_web_push_deliveries(integer,integer)',
 			'public.complete_web_push_delivery(bigint,uuid)',
 			'public.retry_web_push_delivery(bigint,uuid,text)',
+			'public.fail_web_push_delivery(bigint,uuid,text)',
 			'public.invalidate_web_push_subscription(bigint,uuid,text)',
 			'public.cleanup_web_push_notifications()',
 			'public.dispatch_due_web_push_notifications()'

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const pushConfigurationReasonSchema = z.enum(["disabled", "configuration-missing"]);
+const postgresTimestampSchema = z.string().datetime({ offset: true });
 
 export const pushConfigurationSchema = z
 	.object({
@@ -55,10 +56,11 @@ export const pushEndpointInputSchema = z
 
 export const pushSubscribeResultSchema = z.object({ active: z.literal(true) }).strict();
 export const pushUnsubscribeResultSchema = z.object({ disabled: z.boolean() }).strict();
+export const pushSubscriptionStatusSchema = z.object({ active: z.boolean() }).strict();
 export const pushAcknowledgeResultSchema = z
 	.object({
 		acknowledged: z.boolean(),
-		acknowledgedAt: z.string().datetime().nullable(),
+		acknowledgedAt: postgresTimestampSchema.nullable(),
 	})
 	.strict();
 
@@ -111,12 +113,12 @@ const claimedPushDeliverySchema = z
 		endpoint: z.string().url().startsWith("https://").max(4096),
 		p256dh: z.string().min(32).max(512),
 		auth: z.string().min(8).max(128),
-		expiration_time: z.string().datetime().nullable(),
+		expiration_time: postgresTimestampSchema.nullable(),
 		run_id: z.string().regex(/^[1-9]\d*$/),
 		source: pushSourceSchema,
 		inserted_count: z.coerce.number().int().positive(),
 		badge_count: z.coerce.number().int().positive(),
-		created_at: z.string().datetime(),
+		created_at: postgresTimestampSchema,
 	})
 	.strict();
 
@@ -126,7 +128,7 @@ export const retryPushDeliveryResultSchema = z
 	.object({
 		updated: z.boolean(),
 		state: z.enum(["retry", "dead"]).optional(),
-		availableAt: z.string().datetime().nullable().optional(),
+		availableAt: postgresTimestampSchema.nullable().optional(),
 	})
 	.strict();
 

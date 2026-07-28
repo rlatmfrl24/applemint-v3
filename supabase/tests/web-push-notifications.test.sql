@@ -1,7 +1,7 @@
 -- Per-device Web Push outbox, badge, retry, and security contract.
 begin;
 
-select plan(36);
+select plan(47);
 
 select has_table(
 	'public',
@@ -40,6 +40,11 @@ select ok(
 			'authenticated',
 			'public.acknowledge_web_push_inbox(text)',
 			'EXECUTE'
+		)
+		and has_function_privilege(
+			'authenticated',
+			'public.get_web_push_subscription_status(text)',
+			'EXECUTE'
 		),
 	'authenticated owner can invoke device subscription RPCs'
 );
@@ -57,6 +62,16 @@ select ok(
 		and has_function_privilege(
 			'service_role',
 			'public.complete_web_push_delivery(bigint,uuid)',
+			'EXECUTE'
+		)
+		and has_function_privilege(
+			'service_role',
+			'public.fail_web_push_delivery(bigint,uuid,text)',
+			'EXECUTE'
+		)
+		and not has_function_privilege(
+			'authenticated',
+			'public.fail_web_push_delivery(bigint,uuid,text)',
 			'EXECUTE'
 		),
 	'only service role can claim and complete deliveries'
@@ -100,6 +115,14 @@ select throws_ok(
 	'Only the Applemint owner can manage web push subscriptions.',
 	'non-owner cannot create a push subscription'
 );
+select throws_ok(
+	$$
+		select public.get_web_push_subscription_status('https://push.test/not-owner')
+	$$,
+	'42501',
+	'Only the Applemint owner can inspect web push subscriptions.',
+	'non-owner cannot inspect a push subscription'
+);
 reset role;
 
 set local role authenticated;
@@ -125,6 +148,11 @@ select lives_ok(
 		)
 	$$,
 	'owner can activate a second independent device'
+);
+select is(
+	public.get_web_push_subscription_status('https://push.test/device-a') ->> 'active',
+	'true',
+	'owner sees an active server subscription for the current endpoint'
 );
 reset role;
 
@@ -531,6 +559,131 @@ select is(
 	),
 	'dead',
 	'a delivery older than 24 hours is marked dead'
+);
+
+-- An exhausted expired lease must not poison the queue or block a healthy claim.
+update public.web_push_deliveries
+set
+	state = 'processing',
+	lease_token = '92000000-0000-4000-8000-000000000003',
+	lease_expires_at = now() - interval '1 second',
+	attempt_count = 6,
+	delivered_at = null,
+	last_error_code = null
+where id = (select delivery_id from reclaimed_delivery);
+
+insert into public.web_push_deliveries (
+	run_id,
+	subscription_id,
+	source,
+	inserted_count
+)
+select
+	910004,
+	subscription.id,
+	'battlepage',
+	2
+from public.web_push_subscriptions as subscription
+where subscription.endpoint = 'https://push.test/device-a';
+
+select lives_ok(
+	$$
+		create temporary table hardened_claim as
+		select *
+		from public.claim_web_push_deliveries(20, 120)
+	$$,
+	'an exhausted expired lease does not abort the next queue claim'
+);
+grant select on hardened_claim to service_role;
+
+select is(
+	(select count(*) from hardened_claim),
+	1::bigint,
+	'the healthy pending delivery is still claimed'
+);
+select is(
+	(
+		select state || ':' || last_error_code
+		from public.web_push_deliveries
+		where id = (select delivery_id from reclaimed_delivery)
+	),
+	'dead:retry-exhausted',
+	'the exhausted expired lease is finalized without incrementing past the constraint'
+);
+
+set local role service_role;
+select ok(
+	public.fail_web_push_delivery(
+		(select delivery_id from hardened_claim),
+		(select delivery_lease_token from hardened_claim),
+		'push-400'
+	),
+	'a permanent push failure finalizes the matching lease'
+);
+reset role;
+select is(
+	(
+		select state || ':' || last_error_code
+		from public.web_push_deliveries
+		where id = (select delivery_id from hardened_claim)
+	),
+	'dead:push-400',
+	'a permanent push failure is terminal instead of retryable'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
+select lives_ok(
+	$$
+		select public.upsert_web_push_subscription(
+			'https://push.test/device-expired',
+			'EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE',
+			'FFFFFFFFFFFFFFFFFFFFFF',
+			now() - interval '1 minute'
+		)
+	$$,
+	'an expired browser subscription fixture can be registered'
+);
+reset role;
+
+insert into public.web_push_deliveries (
+	run_id,
+	subscription_id,
+	source,
+	inserted_count
+)
+select
+	910005,
+	subscription.id,
+	'arcalive',
+	4
+from public.web_push_subscriptions as subscription
+where subscription.endpoint = 'https://push.test/device-expired';
+
+select is(
+	public.dispatch_due_web_push_notifications() ->> 'status',
+	'idle',
+	'expired subscriptions are cleaned without dispatching an external request'
+);
+select is(
+	(
+		select active::text || ':' || (disabled_at is not null)::text
+		from public.web_push_subscriptions
+		where endpoint = 'https://push.test/device-expired'
+	),
+	'false:true',
+	'an expired subscription is deactivated'
+);
+select is(
+	(
+		select state || ':' || last_error_code
+		from public.web_push_deliveries as delivery
+		inner join public.web_push_subscriptions as subscription
+			on subscription.id = delivery.subscription_id
+		where subscription.endpoint = 'https://push.test/device-expired'
+	),
+	'skipped:subscription-expired',
+	'expired subscription deliveries are terminally skipped'
 );
 
 select * from finish();

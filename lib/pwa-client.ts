@@ -73,6 +73,11 @@ interface PushActivationBrowser {
 	createSubscription(publicKey: string): Promise<PushSubscription>;
 }
 
+interface PushActivationOptions {
+	browser?: PushActivationBrowser;
+	replaceExisting?: boolean;
+}
+
 const defaultPushActivationBrowser: PushActivationBrowser = {
 	getPermission: () => Notification.permission,
 	requestPermission: () => Notification.requestPermission(),
@@ -83,7 +88,7 @@ const defaultPushActivationBrowser: PushActivationBrowser = {
 export async function activatePushNotifications(
 	publicKey: string,
 	saveSubscription: (input: PushSubscriptionInput) => Promise<unknown>,
-	browser: PushActivationBrowser = defaultPushActivationBrowser
+	{ browser = defaultPushActivationBrowser, replaceExisting = false }: PushActivationOptions = {}
 ) {
 	let permission = browser.getPermission();
 	if (permission === "default") {
@@ -93,7 +98,15 @@ export async function activatePushNotifications(
 		return { permission, subscription: null };
 	}
 
-	const existingSubscription = await browser.getSubscription();
+	let existingSubscription = await browser.getSubscription();
+	if (existingSubscription && replaceExisting) {
+		const unsubscribed = await existingSubscription.unsubscribe();
+		if (!unsubscribed) {
+			throw new Error("기존 브라우저 알림 구독을 교체하지 못했습니다.");
+		}
+		existingSubscription = null;
+	}
+
 	const subscription = existingSubscription ?? (await browser.createSubscription(publicKey));
 
 	try {
@@ -118,7 +131,10 @@ export async function deactivatePushNotifications(
 	clearBadge: () => Promise<void> = clearAppBadge
 ) {
 	await disableServerSubscription(subscription.endpoint);
-	await subscription.unsubscribe();
+	const unsubscribed = await subscription.unsubscribe();
+	if (!unsubscribed) {
+		throw new Error("브라우저 알림 구독을 해제하지 못했습니다.");
+	}
 	await clearBadge();
 }
 

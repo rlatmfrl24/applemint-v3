@@ -20,6 +20,10 @@ export class PushService {
 		return this.repository.subscribe(input);
 	}
 
+	status(endpoint: string) {
+		return this.repository.status(endpoint);
+	}
+
 	unsubscribe(endpoint: string) {
 		return this.repository.unsubscribe(endpoint);
 	}

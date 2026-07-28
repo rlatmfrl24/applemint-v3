@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	BellOff,
 	BellRing,
@@ -38,6 +38,7 @@ type NotificationStatus =
 	| "설치 필요"
 	| "권한 미결정"
 	| "활성화"
+	| "재연결 필요"
 	| "차단"
 	| "서버 설정 중단";
 
@@ -48,6 +49,8 @@ export function resolveNotificationStatus({
 	iosInstallRequired,
 	permission,
 	subscribed,
+	serverSubscriptionLoaded,
+	serverSubscribed,
 }: {
 	configurationEnabled: boolean;
 	configurationLoaded: boolean;
@@ -55,13 +58,18 @@ export function resolveNotificationStatus({
 	iosInstallRequired: boolean;
 	permission: NotificationPermission;
 	subscribed: boolean;
+	serverSubscriptionLoaded: boolean;
+	serverSubscribed: boolean;
 }): NotificationStatus {
 	if (!configurationLoaded) return "확인 중";
 	if (!configurationEnabled) return "서버 설정 중단";
 	if (iosInstallRequired) return "설치 필요";
 	if (!supported) return "미지원";
 	if (permission === "denied") return "차단";
-	if (permission === "granted" && subscribed) return "활성화";
+	if (permission === "granted" && subscribed) {
+		if (!serverSubscriptionLoaded) return "확인 중";
+		return serverSubscribed ? "활성화" : "재연결 필요";
+	}
 	return "권한 미결정";
 }
 
@@ -75,6 +83,8 @@ function notificationDescription(status: NotificationStatus) {
 			return "버튼을 누를 때만 브라우저 알림 권한을 요청합니다.";
 		case "활성화":
 			return "예약 수집에서 신규 아이템이 생기면 실행별 요약 알림을 받습니다.";
+		case "재연결 필요":
+			return "브라우저 구독과 서버 상태가 일치하지 않습니다. 알림을 다시 연결해주세요.";
 		case "차단":
 			return "브라우저 또는 OS 설정에서 Applemint 알림 권한을 직접 허용해주세요.";
 		case "서버 설정 중단":
@@ -87,7 +97,9 @@ function notificationDescription(status: NotificationStatus) {
 function notificationTone(status: NotificationStatus) {
 	if (status === "활성화") return "success" as const;
 	if (status === "차단" || status === "서버 설정 중단") return "danger" as const;
-	if (status === "설치 필요" || status === "권한 미결정") return "warning" as const;
+	if (status === "설치 필요" || status === "권한 미결정" || status === "재연결 필요") {
+		return "warning" as const;
+	}
 	return "neutral" as const;
 }
 
@@ -182,6 +194,7 @@ function useNotificationActions({
 	setPermission,
 	setSubscription,
 	refreshBrowserState,
+	serverSubscribed,
 	setFeedback,
 }: {
 	configuration: PushConfiguration | undefined;
@@ -190,19 +203,27 @@ function useNotificationActions({
 	setPermission: (permission: NotificationPermission) => void;
 	setSubscription: (subscription: PushSubscription | null) => void;
 	refreshBrowserState: () => Promise<void>;
+	serverSubscribed: boolean | undefined;
 	setFeedback: (feedback: Feedback | null) => void;
 }) {
 	const trpc = useTRPC();
+	const queryClient = useQueryClient();
 	const subscribeMutation = useMutation(trpc.push.subscribe.mutationOptions());
 	const unsubscribeMutation = useMutation(trpc.push.unsubscribe.mutationOptions());
+	const [pending, setPending] = useState(false);
 
 	const enable = async () => {
-		if (!configuration?.enabled || !configuration.publicKey || !supported) return;
+		if (pending || !configuration?.enabled || !configuration.publicKey || !supported) return;
 		setFeedback(null);
+		setPending(true);
 
 		try {
-			const result = await activatePushNotifications(configuration.publicKey, (input) =>
-				subscribeMutation.mutateAsync(input)
+			const result = await activatePushNotifications(
+				configuration.publicKey,
+				(input) => subscribeMutation.mutateAsync(input),
+				{
+					replaceExisting: subscription !== null && serverSubscribed === false,
+				}
 			);
 			setPermission(result.permission);
 			if (!result.subscription) {
@@ -214,6 +235,7 @@ function useNotificationActions({
 			}
 
 			setSubscription(result.subscription);
+			await queryClient.invalidateQueries(trpc.push.status.queryFilter());
 			setFeedback({ success: true, message: "이 기기의 신규 아이템 알림을 활성화했습니다." });
 		} catch (error) {
 			setSubscription(await getCurrentPushSubscription().catch(() => null));
@@ -221,12 +243,15 @@ function useNotificationActions({
 				success: false,
 				message: error instanceof Error ? error.message : "알림을 활성화하지 못했습니다.",
 			});
+		} finally {
+			setPending(false);
 		}
 	};
 
 	const disable = async () => {
-		if (!subscription) return;
+		if (pending || !subscription) return;
 		setFeedback(null);
+		setPending(true);
 		try {
 			await deactivatePushNotifications(subscription, (endpoint) =>
 				unsubscribeMutation.mutateAsync({ endpoint })
@@ -239,13 +264,16 @@ function useNotificationActions({
 				message: error instanceof Error ? error.message : "알림을 비활성화하지 못했습니다.",
 			});
 			await refreshBrowserState();
+		} finally {
+			await queryClient.invalidateQueries(trpc.push.status.queryFilter());
+			setPending(false);
 		}
 	};
 
 	return {
 		enable,
 		disable,
-		busy: subscribeMutation.isPending || unsubscribeMutation.isPending,
+		busy: pending || subscribeMutation.isPending || unsubscribeMutation.isPending,
 	};
 }
 
@@ -428,6 +456,11 @@ export default function AppNotificationSettingPage() {
 	);
 	const configuration = useQuery(trpc.push.configuration.queryOptions());
 	const browser = usePwaBrowserState();
+	const subscriptionStatus = useQuery(
+		trpc.push.status.queryOptions(
+			browser.subscription ? { endpoint: browser.subscription.endpoint } : skipToken
+		)
+	);
 	const [feedback, setFeedback] = useState<Feedback | null>(null);
 	const installAction = useInstallAction(browser.refresh, setFeedback);
 	const notificationActions = useNotificationActions({
@@ -437,6 +470,7 @@ export default function AppNotificationSettingPage() {
 		setPermission: browser.setPermission,
 		setSubscription: browser.setSubscription,
 		refreshBrowserState: browser.refresh,
+		serverSubscribed: subscriptionStatus.data?.active,
 		setFeedback,
 	});
 	const installStatus =
@@ -448,9 +482,11 @@ export default function AppNotificationSettingPage() {
 		iosInstallRequired: browser.ios && !browser.standalone,
 		permission: browser.permission,
 		subscribed: browser.subscription !== null,
+		serverSubscriptionLoaded: browser.subscription === null || subscriptionStatus.isSuccess,
+		serverSubscribed: subscriptionStatus.data?.active ?? false,
 	});
 	const canEnable =
-		notificationStatus === "권한 미결정" &&
+		(notificationStatus === "권한 미결정" || notificationStatus === "재연결 필요") &&
 		configuration.data?.enabled === true &&
 		browser.permission !== "denied";
 
@@ -481,7 +517,13 @@ export default function AppNotificationSettingPage() {
 				onDisable={notificationActions.disable}
 			/>
 			<PageFeedback
-				error={configuration.error instanceof Error ? configuration.error : null}
+				error={
+					configuration.error instanceof Error
+						? configuration.error
+						: subscriptionStatus.error instanceof Error
+							? subscriptionStatus.error
+							: null
+				}
 				feedback={feedback}
 			/>
 		</section>
