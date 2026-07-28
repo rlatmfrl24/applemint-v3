@@ -15,7 +15,7 @@ interface SeedCrawlRunOptions {
 
 function createAdminClient() {
 	const runtime = getE2ERuntime();
-	return createClient(runtime.supabaseUrl, runtime.serviceRoleKey, {
+	return createClient(runtime.supabaseUrl, runtime.secretKey, {
 		auth: {
 			autoRefreshToken: false,
 			persistSession: false,

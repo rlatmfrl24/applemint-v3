@@ -229,8 +229,8 @@ erDiagram
 ## 유지보수용 주요 환경 변수
 
 - `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` (서버 전용)
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SECRET_KEY` (서버 전용)
 - `SUPABASE_URL` (서버 전용, 미설정 시 `NEXT_PUBLIC_SUPABASE_URL` 사용)
 - `CRAWL_INTERNAL_SECRET` (Next 예약 API와 Supabase Vault가 공유하는 32바이트 이상 secret)
 - `YOUTUBE_API_KEY` (YouTube metadata worker 전용 서버 환경 변수)

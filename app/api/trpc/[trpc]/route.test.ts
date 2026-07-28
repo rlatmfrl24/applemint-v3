@@ -39,6 +39,10 @@ function createContext(): TRPCContext {
 				getDashboard: vi.fn(),
 			},
 		} as unknown as TRPCContext["services"],
+		getAuthenticatedAccess: vi.fn().mockResolvedValue({
+			kind: "authenticated",
+			claims: { sub: "owner" },
+		}),
 		getOwnerAccess: vi.fn().mockResolvedValue({ kind: "owner" }),
 	};
 }

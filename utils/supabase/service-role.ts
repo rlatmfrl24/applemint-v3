@@ -12,12 +12,9 @@ export function createServiceRoleClient() {
 		process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL,
 		"SUPABASE_URL"
 	);
-	const serviceRoleKey = requireServerEnv(
-		process.env.SUPABASE_SERVICE_ROLE_KEY,
-		"SUPABASE_SERVICE_ROLE_KEY"
-	);
+	const secretKey = requireServerEnv(process.env.SUPABASE_SECRET_KEY, "SUPABASE_SECRET_KEY");
 
-	return createClient(supabaseUrl, serviceRoleKey, {
+	return createClient(supabaseUrl, secretKey, {
 		auth: {
 			autoRefreshToken: false,
 			persistSession: false,

@@ -38,6 +38,7 @@ export const threadListOptions = (
 		getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
 		staleTime: 1000 * 30,
 		gcTime: 1000 * 60 * 5,
+		refetchOnWindowFocus: "always",
 	});
 };
 
@@ -50,6 +51,7 @@ export const threadStatsOptions = (
 		queryKey: threadStatsQueryKey(state, filterType),
 		queryFn: ({ signal }) => trpc.thread.stats.query({ state, filterType }, { signal }),
 		staleTime: 1000 * 60 * 5,
+		refetchOnWindowFocus: "always",
 	});
 
 export const transitionThreadOptions = (trpc: AppTRPCClient) =>

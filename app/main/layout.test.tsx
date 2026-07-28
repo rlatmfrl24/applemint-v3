@@ -1,18 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const createClientMock = vi.hoisted(() => vi.fn());
-const checkOwnerMock = vi.hoisted(() => vi.fn());
-const redirectMock = vi.hoisted(() =>
-	vi.fn((path: string) => {
-		throw new Error(`redirect:${path}`);
-	})
-);
+const getMainServerContextMock = vi.hoisted(() => vi.fn());
 
-vi.mock("next/navigation", () => ({ redirect: redirectMock }));
-vi.mock("@/utils/supabase/server", () => ({ createClient: createClientMock }));
-vi.mock("@/utils/supabase/owner-access", () => ({ checkApplemintOwner: checkOwnerMock }));
 vi.mock("../login/auth-button", () => ({ default: () => null }));
 vi.mock("../nav-menu", () => ({ MainDrawer: () => null, NavMenu: () => null }));
+vi.mock("./server-context", () => ({
+	getMainServerContext: getMainServerContextMock,
+}));
 vi.mock("./query-provider", () => ({
 	MainQueryProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -21,21 +15,19 @@ import MainLayout from "./layout";
 
 describe("MainLayout 단일 소유자 접근", () => {
 	beforeEach(() => {
-		createClientMock.mockReset();
-		checkOwnerMock.mockReset();
-		redirectMock.mockClear();
-		createClientMock.mockResolvedValue({});
+		getMainServerContextMock.mockReset();
 	});
 
 	it("소유자 확인 오류는 접근을 허용하지 않는다", async () => {
-		checkOwnerMock.mockResolvedValue({ kind: "unavailable", message: "권한 확인 실패" });
+		getMainServerContextMock.mockRejectedValue(new Error("권한 확인 실패"));
 
 		await expect(MainLayout({ children: null })).rejects.toThrow("권한 확인 실패");
 	});
 
 	it("소유자만 레이아웃을 렌더링한다", async () => {
-		checkOwnerMock.mockResolvedValue({ kind: "owner" });
+		getMainServerContextMock.mockResolvedValue({ email: "owner@example.com" });
 
 		await expect(MainLayout({ children: "content" })).resolves.toBeDefined();
+		expect(getMainServerContextMock).toHaveBeenCalledOnce();
 	});
 });

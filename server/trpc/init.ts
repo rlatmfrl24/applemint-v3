@@ -53,6 +53,20 @@ const observabilityMiddleware = t.middleware(async ({ ctx, path, type, next }) =
 
 const baseProcedure = t.procedure.use(errorBoundaryMiddleware).use(observabilityMiddleware);
 
+export const authenticatedReadProcedure = baseProcedure.use(async ({ ctx, next }) => {
+	const access = await ctx.getAuthenticatedAccess();
+	switch (access.kind) {
+		case "authenticated":
+			return next({ ctx });
+		case "unauthenticated":
+			throw new DomainError("Unauthenticated", access.message);
+		case "unavailable":
+			throw new DomainError("ConfigurationUnavailable", access.message, {
+				reasonCode: "auth-validation-unavailable",
+			});
+	}
+});
+
 export const ownerProcedure = baseProcedure.use(async ({ ctx, next }) => {
 	const access = await ctx.getOwnerAccess();
 	switch (access.kind) {

@@ -2,8 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createClientMock = vi.hoisted(() => vi.fn());
 const checkOwnerMock = vi.hoisted(() => vi.fn());
+const checkAuthenticatedMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/utils/supabase/server", () => ({ createClient: createClientMock }));
+vi.mock("@/utils/supabase/auth-access", () => ({
+	checkAuthenticatedAccess: checkAuthenticatedMock,
+}));
 vi.mock("@/utils/supabase/owner-access", () => ({
 	checkApplemintOwner: checkOwnerMock,
 }));
@@ -14,8 +18,13 @@ describe("tRPC context", () => {
 	beforeEach(() => {
 		createClientMock.mockReset();
 		checkOwnerMock.mockReset();
+		checkAuthenticatedMock.mockReset();
 		createClientMock.mockResolvedValue({ rpc: vi.fn() });
-		checkOwnerMock.mockResolvedValue({ kind: "owner" });
+		checkOwnerMock.mockResolvedValue({ kind: "owner", claims: { sub: "owner" } });
+		checkAuthenticatedMock.mockResolvedValue({
+			kind: "authenticated",
+			claims: { sub: "owner" },
+		});
 	});
 
 	it("한 batch context에서 소유자 확인 결과를 재사용한다", async () => {
@@ -24,6 +33,14 @@ describe("tRPC context", () => {
 		expect(createClientMock).toHaveBeenCalledOnce();
 		expect(checkOwnerMock).toHaveBeenCalledOnce();
 		expect(checkOwnerMock).toHaveBeenCalledWith(expect.anything(), context.metrics);
+	});
+
+	it("한 batch context에서 claims 검증 결과를 재사용한다", async () => {
+		const context = await createTRPCContext(new Request("http://localhost/api/trpc"));
+		await Promise.all([context.getAuthenticatedAccess(), context.getAuthenticatedAccess()]);
+		expect(createClientMock).toHaveBeenCalledOnce();
+		expect(checkAuthenticatedMock).toHaveBeenCalledOnce();
+		expect(checkAuthenticatedMock).toHaveBeenCalledWith(expect.anything(), context.metrics);
 	});
 
 	it("안전한 x-request-id를 보존한다", async () => {

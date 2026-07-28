@@ -11,12 +11,12 @@ function requireEnv(value: string | undefined, key: string) {
 export const createClient = async () => {
 	const cookieStore = await cookies();
 	const supabaseUrl = requireEnv(process.env.NEXT_PUBLIC_SUPABASE_URL, "NEXT_PUBLIC_SUPABASE_URL");
-	const supabaseAnonKey = requireEnv(
-		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-		"NEXT_PUBLIC_SUPABASE_ANON_KEY"
+	const supabasePublishableKey = requireEnv(
+		process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+		"NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
 	);
 
-	return createServerClient(supabaseUrl, supabaseAnonKey, {
+	return createServerClient(supabaseUrl, supabasePublishableKey, {
 		cookies: {
 			getAll() {
 				return cookieStore.getAll().map(({ name, value }) => ({ name, value }));

@@ -20,6 +20,7 @@ export function isUnauthenticatedAuthError(error: unknown) {
 	const { code, name, status } = error as AuthErrorLike;
 	return (
 		name === "AuthSessionMissingError" ||
+		name === "AuthInvalidJwtError" ||
 		(typeof code === "string" && UNAUTHENTICATED_ERROR_CODES.has(code)) ||
 		status === 401
 	);

@@ -29,27 +29,29 @@ export function SettingsNav() {
 	const pathname = usePathname();
 
 	return (
-		<nav aria-label="설정 메뉴" className="overflow-x-auto md:overflow-visible">
-			<ul className="flex min-w-max gap-2 md:min-w-0 md:flex-col">
+		<nav aria-label="설정 메뉴" className="overflow-x-auto lg:overflow-visible">
+			<ul className="flex min-w-max gap-1 lg:min-w-0 lg:flex-col">
 				{SETTING_LINKS.map((item) => {
 					const active = pathname === item.href;
 					const Icon = item.icon;
 					return (
-						<li key={item.href} className="md:w-full">
+						<li key={item.href} className="lg:w-full">
 							<a
 								aria-current={active ? "page" : undefined}
 								className={cn(
-									"flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors md:w-full",
+									"relative flex min-h-11 items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors lg:w-full",
 									active
-										? "border-foreground/20 bg-secondary text-secondary-foreground"
-										: "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+										? "bg-zinc-100 text-zinc-950 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-zinc-950 lg:after:inset-y-2 lg:after:left-0 lg:after:h-auto lg:after:w-0.5 dark:bg-zinc-900 dark:text-zinc-50 dark:after:bg-zinc-50"
+										: "text-muted-foreground hover:bg-muted hover:text-foreground"
 								)}
 								href={item.href}
 							>
-								<Icon aria-hidden="true" className="size-4 shrink-0" />
+								<Icon aria-hidden="true" className="size-[18px] shrink-0" />
 								<span>
 									<span className="block font-medium">{item.label}</span>
-									<span className="hidden text-xs opacity-75 md:block">{item.description}</span>
+									<span className="hidden text-[11px] opacity-70 lg:mt-0.5 lg:block">
+										{item.description}
+									</span>
 								</span>
 							</a>
 						</li>

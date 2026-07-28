@@ -1,23 +1,10 @@
-import { redirect } from "next/navigation";
-import { checkApplemintOwner } from "@/utils/supabase/owner-access";
-import { createClient } from "@/utils/supabase/server";
 import AuthButton from "../login/auth-button";
 import { MainDrawer, NavMenu } from "../nav-menu";
 import { MainQueryProvider } from "./query-provider";
+import { getMainServerContext } from "./server-context";
 
 export default async function MainLayout({ children }: { children: React.ReactNode }) {
-	const supabase = await createClient();
-	const ownerAccess = await checkApplemintOwner(supabase);
-
-	if (ownerAccess.kind === "unauthenticated") {
-		redirect("/login");
-	}
-	if (ownerAccess.kind === "forbidden") {
-		redirect("/signout");
-	}
-	if (ownerAccess.kind === "unavailable") {
-		throw new Error(ownerAccess.message);
-	}
+	const { email } = await getMainServerContext();
 
 	return (
 		<>
@@ -28,7 +15,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
 						<h3 className="hidden md:flex">Applemint</h3>
 						<NavMenu />
 					</div>
-					<AuthButton />
+					<AuthButton email={email} />
 				</div>
 			</nav>
 			<div className="container flex w-full flex-1 flex-col items-stretch p-3">

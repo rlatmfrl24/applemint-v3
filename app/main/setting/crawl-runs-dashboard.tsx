@@ -1,11 +1,18 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import {
+	Activity,
+	AlertTriangle,
+	CheckCircle2,
+	RefreshCw,
+	ServerCog,
+	ShieldCheck,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type {
 	CrawlAlertIncident,
 	CrawlAlertSettings,
@@ -17,7 +24,15 @@ import type {
 	CrawlSourceSummary,
 } from "@/lib/crawl-run-contract";
 import { createCrawlRunsQueryOptions } from "@/lib/crawl-run-query-options";
+import { cn } from "@/lib/utils";
 import { useTRPCClient } from "@/trpc/client";
+import {
+	SettingsFeedback,
+	SettingsPageHeader,
+	SettingsStatusItem,
+	SettingsStatusStrip,
+	SettingsSurface,
+} from "./admin-ui";
 
 const SOURCE_LABELS: Record<CrawlSource, string> = {
 	arcalive: "Arcalive",
@@ -131,7 +146,7 @@ function SourceTrend({ summary }: { summary: CrawlSourceSummary }) {
 	);
 }
 
-function SourceCard({
+function SourceRow({
 	summary,
 	alert,
 	settings,
@@ -140,51 +155,94 @@ function SourceCard({
 	alert?: CrawlAlertIncident;
 	settings: CrawlAlertSettings;
 }) {
+	const failed = summary.latest?.status === "failed" || summary.latest?.status === "interrupted";
+	const warning =
+		summary.latest?.status === "partial" ||
+		summary.latest?.status === "running" ||
+		summary.activeAlertCount > 0;
+	const StatusIcon = failed || warning ? AlertTriangle : CheckCircle2;
+
 	return (
-		<Card data-testid={`crawl-source-${summary.source}`}>
-			<CardHeader className="pb-3">
-				<div className="flex items-center justify-between gap-2">
-					<h3 className="font-semibold">{SOURCE_LABELS[summary.source]}</h3>
-					<div className="flex flex-wrap gap-2">
+		<li className="px-4 py-5 sm:px-5" data-testid={`crawl-source-${summary.source}`}>
+			<div className="grid gap-5 md:grid-cols-2 md:items-start xl:grid-cols-[1.05fr_0.9fr_1fr_1.2fr_1.45fr] xl:gap-4">
+				<div>
+					<div className="flex items-center gap-2">
+						<StatusIcon
+							aria-hidden="true"
+							className={cn(
+								"size-4",
+								failed && "text-red-600 dark:text-red-400",
+								warning && !failed && "text-amber-600 dark:text-amber-400",
+								!failed && !warning && "text-emerald-600 dark:text-emerald-400"
+							)}
+						/>
+						<h3 className="font-semibold text-base">{SOURCE_LABELS[summary.source]}</h3>
+					</div>
+					<div className="mt-2 flex flex-wrap gap-2">
 						{summary.activeAlertCount > 0 ? <Badge variant="destructive">장애 감지</Badge> : null}
 						{summary.latest ? (
 							<Badge variant={statusVariant(summary.latest.status)}>
 								{STATUS_LABELS[summary.latest.status]}
 							</Badge>
-						) : null}
+						) : (
+							<Badge variant="outline">기록 없음</Badge>
+						)}
 					</div>
 				</div>
-			</CardHeader>
-			<CardContent className="space-y-1 text-sm">
-				<p>
-					예약 수집: {summary.scheduleEnabled ? "사용" : "중지"} · 최소 간격{" "}
-					{formatHours(summary.cooldownSeconds)}
-				</p>
-				<p>실행 예산: {summary.runBudgetSeconds}초</p>
-				<p>다음 예약 가능: {formatDate(summary.nextEligibleAt)}</p>
-				<p>마지막 성공: {formatDate(summary.lastSuccessAt)}</p>
-				<p>마지막 실패: {formatDate(summary.lastFailureAt)}</p>
-				<p className="text-muted-foreground">
-					무성공 감지까지: {formatRemaining(summary.lastSuccessAt, settings.noSuccessSeconds)}
-				</p>
-				{alert ? (
-					<ul className="mt-2 list-disc space-y-1 pl-5 text-red-600 text-xs dark:text-red-400">
+
+				<div className="text-sm">
+					<div className="font-medium text-muted-foreground text-xs xl:hidden">예약 정책</div>
+					<div className="mt-1">
+						예약 {summary.scheduleEnabled ? "사용" : "중지"} ·{" "}
+						{formatHours(summary.cooldownSeconds)}
+					</div>
+					<div className="mt-1 text-muted-foreground text-xs">
+						실행 예산 {summary.runBudgetSeconds}초
+					</div>
+				</div>
+
+				<div className="text-sm">
+					<div className="font-medium text-muted-foreground text-xs xl:hidden">다음 예약 가능</div>
+					<div className="mt-1">{formatDate(summary.nextEligibleAt)}</div>
+					<div className="mt-1 text-muted-foreground text-xs">
+						무성공 감지까지 {formatRemaining(summary.lastSuccessAt, settings.noSuccessSeconds)}
+					</div>
+				</div>
+
+				<div className="text-sm">
+					<div className="font-medium text-muted-foreground text-xs xl:hidden">최근 상태</div>
+					<div className="mt-1">마지막 성공 {formatDate(summary.lastSuccessAt)}</div>
+					<div className="mt-1 text-muted-foreground text-xs">
+						마지막 실패 {formatDate(summary.lastFailureAt)}
+					</div>
+					{summary.latest ? (
+						<div className="mt-2 text-muted-foreground text-xs leading-5">
+							최근 {summary.latest.trigger === "scheduled" ? "예약" : "수동"} ·{" "}
+							{summary.latest.extractedCount}건 추출 · {summary.latest.insertedCount}건 저장
+							<br />
+							재시도 {summary.latest.retryCount}건 · 복구 {summary.latest.recoveredCount}건 ·{" "}
+							{formatDuration(summary.latest.durationMs)}
+						</div>
+					) : null}
+				</div>
+
+				<div>
+					<div className="font-medium text-muted-foreground text-xs xl:hidden">파서 추세</div>
+					<SourceTrend summary={summary} />
+				</div>
+			</div>
+
+			{alert ? (
+				<div className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-red-700 text-xs leading-5 dark:bg-red-950/40 dark:text-red-300">
+					<div className="font-medium">활성 장애 신호</div>
+					<ul className="mt-1 list-disc pl-5">
 						{alert.activeSignals.map((signal) => (
 							<li key={signal}>{ALERT_SIGNAL_LABELS[signal]}</li>
 						))}
 					</ul>
-				) : null}
-				{summary.latest ? (
-					<p className="text-muted-foreground">
-						최근 {summary.latest.trigger === "scheduled" ? "예약" : "수동"} ·{" "}
-						{summary.latest.extractedCount}건 추출 · {summary.latest.insertedCount}건 저장 · 재시도{" "}
-						{summary.latest.retryCount}건 · 복구 {summary.latest.recoveredCount}건 ·{" "}
-						{formatDuration(summary.latest.durationMs)}
-					</p>
-				) : null}
-				<SourceTrend summary={summary} />
-			</CardContent>
-		</Card>
+				</div>
+			) : null}
+		</li>
 	);
 }
 
@@ -225,39 +283,48 @@ function ActiveAlerts({ alerts }: { alerts: CrawlAlertIncident[] }) {
 
 function AlertSettings({ settings }: { settings: CrawlAlertSettings }) {
 	return (
-		<Card className="mt-4" data-testid="crawl-alert-settings">
-			<CardHeader className="pb-3">
-				<h3 className="font-semibold">장애 감지 기준</h3>
-			</CardHeader>
-			<CardContent className="grid gap-2 text-sm md:grid-cols-2">
-				<p>Parser failure {settings.parserFailureStreak}회 연속</p>
-				<p>
+		<div className="p-5" data-testid="crawl-alert-settings">
+			<h3 className="font-semibold text-sm">장애 감지 기준</h3>
+			<div className="mt-4 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
+				<div>Parser failure {settings.parserFailureStreak}회 연속</div>
+				<div>
 					추출량 {Math.round(settings.parserDropRatio * 100)}% 미만 {settings.parserDropStreak}회
 					연속
-				</p>
-				<p>성공 실행 없음 {settings.noSuccessSeconds / 3600}시간</p>
-				<p>
+				</div>
+				<div>성공 실행 없음 {settings.noSuccessSeconds / 3600}시간</div>
+				<div>
 					최근 {settings.transportWindow}회 전송 오류율{" "}
 					{Math.round(settings.transportErrorRatio * 100)}% 이상
-				</p>
-				<p>마지막 평가: {formatDate(settings.lastEvaluatedAt)}</p>
-			</CardContent>
-		</Card>
+				</div>
+				<div className="text-muted-foreground sm:col-span-2">
+					마지막 평가 {formatDate(settings.lastEvaluatedAt)}
+				</div>
+			</div>
+		</div>
 	);
 }
 
 function RuntimeSettings({ dashboard }: { dashboard: CrawlRunsDashboardData }) {
 	return (
-		<Card className="mt-4" data-testid="crawl-runtime-settings">
-			<CardHeader className="pb-3">
-				<h3 className="font-semibold">수집 실행 정책</h3>
-			</CardHeader>
-			<CardContent className="grid gap-2 text-sm md:grid-cols-3">
-				<p>최대 동시 소스 {dashboard.runtimeSettings.maxConcurrency}개</p>
-				<p>잠금 TTL {dashboard.runtimeSettings.lockTtlSeconds}초</p>
-				<p>Heartbeat {dashboard.runtimeSettings.heartbeatIntervalSeconds}초</p>
-			</CardContent>
-		</Card>
+		<div className="p-5" data-testid="crawl-runtime-settings">
+			<h3 className="font-semibold text-sm">수집 실행 정책</h3>
+			<div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+				<div>
+					<div className="text-muted-foreground text-xs">최대 동시 소스</div>
+					<div className="mt-1 font-semibold">{dashboard.runtimeSettings.maxConcurrency}개</div>
+				</div>
+				<div>
+					<div className="text-muted-foreground text-xs">잠금 TTL</div>
+					<div className="mt-1 font-semibold">{dashboard.runtimeSettings.lockTtlSeconds}초</div>
+				</div>
+				<div>
+					<div className="text-muted-foreground text-xs">Heartbeat</div>
+					<div className="mt-1 font-semibold">
+						{dashboard.runtimeSettings.heartbeatIntervalSeconds}초
+					</div>
+				</div>
+			</div>
+		</div>
 	);
 }
 
@@ -347,35 +414,58 @@ function RunDetails({ run }: { run: CrawlRun }) {
 	);
 }
 
-function RunCard({ run }: { run: CrawlRun }) {
+function RunRow({ run }: { run: CrawlRun }) {
 	return (
-		<li className="rounded-lg border p-4" data-testid="crawl-run">
-			<div className="flex flex-wrap items-center justify-between gap-2">
-				<div className="flex items-center gap-2">
-					<strong>{SOURCE_LABELS[run.source]}</strong>
-					<Badge variant={statusVariant(run.status)}>{STATUS_LABELS[run.status]}</Badge>
+		<li className="px-4 py-4 sm:px-5" data-testid="crawl-run">
+			<div className="grid gap-4 lg:grid-cols-[1fr_1.3fr_2fr] lg:items-start">
+				<div>
+					<div className="flex items-center gap-2">
+						<strong>{SOURCE_LABELS[run.source]}</strong>
+						<Badge variant={statusVariant(run.status)}>{STATUS_LABELS[run.status]}</Badge>
+					</div>
+					<div className="mt-1 text-muted-foreground text-xs">
+						{run.trigger === "scheduled" ? "예약 실행" : "수동 실행"}
+					</div>
 				</div>
-				<span className="text-muted-foreground text-sm">
-					{run.trigger === "scheduled" ? "예약" : "수동"} · {formatDate(run.startedAt)} ·{" "}
-					{formatDuration(run.durationMs)}
-				</span>
+				<div className="text-sm">
+					<div>{formatDate(run.startedAt)}</div>
+					<div className="mt-1 text-muted-foreground text-xs">
+						소요 {formatDuration(run.durationMs)} · 재시도 {run.retryCount}건 · 복구{" "}
+						{run.recoveredCount}건
+					</div>
+				</div>
+				<div className="grid grid-cols-3 gap-x-4 gap-y-2 text-sm sm:grid-cols-6">
+					<div>
+						<span className="block text-muted-foreground text-xs">요청</span>
+						{run.attemptedCount}
+					</div>
+					<div>
+						<span className="block text-muted-foreground text-xs">성공</span>
+						{run.succeededCount}
+					</div>
+					<div>
+						<span className="block text-muted-foreground text-xs">저장</span>
+						{run.insertedCount}
+					</div>
+					<div>
+						<span className="block text-muted-foreground text-xs">중복</span>
+						{run.skippedCount}
+					</div>
+					<div>
+						<span className="block text-muted-foreground text-xs">경고</span>
+						{run.warningCount}
+					</div>
+					<div>
+						<span className="block text-muted-foreground text-xs">실패</span>
+						{run.failureCount}
+					</div>
+				</div>
 			</div>
-			<div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
-				<span>요청 {run.attemptedCount}</span>
-				<span>성공 {run.succeededCount}</span>
-				<span>저장 {run.insertedCount}</span>
-				<span>중복 {run.skippedCount}</span>
-				<span>경고 {run.warningCount}</span>
-				<span>실패 {run.failureCount}</span>
-			</div>
-			<p className="mt-2 text-muted-foreground text-xs">
-				재시도 {run.retryCount}건 · 복구 {run.recoveredCount}건
-			</p>
 			{run.failureCount > 0 ? (
-				<p className="mt-2 text-muted-foreground text-xs">
+				<div className="mt-3 text-muted-foreground text-xs">
 					network {run.networkFailureCount} · parser {run.parserFailureCount} · timeout{" "}
 					{run.timeoutFailureCount}
-				</p>
+				</div>
 			) : null}
 			<RunDetails run={run} />
 		</li>
@@ -419,31 +509,36 @@ export function CrawlRunsDashboard({ manualCrawlRunning }: { manualCrawlRunning:
 
 	return (
 		<section aria-labelledby="crawl-operations-heading">
-			<div className="flex flex-wrap items-center justify-between gap-3">
-				<div>
-					<h2 id="crawl-operations-heading">크롤링 운영 현황</h2>
-					<p className="mt-1 text-muted-foreground text-sm">
-						최근 90일 실행과 소스별 파서 상태를 확인합니다.
-					</p>
-				</div>
-				<Button
-					type="button"
-					variant="outline"
-					onClick={() => query.refetch()}
-					disabled={query.isFetching}
-				>
-					{query.isFetching ? "갱신 중..." : "새로고침"}
-				</Button>
-			</div>
+			<SettingsPageHeader
+				title="수집 운영"
+				description="최근 90일 실행, 활성 장애와 소스별 파서 상태를 한 화면에서 확인합니다."
+				action={
+					<Button
+						type="button"
+						variant="outline"
+						onClick={() => query.refetch()}
+						disabled={query.isFetching}
+					>
+						<RefreshCw
+							aria-hidden="true"
+							className={cn("mr-2 size-4", query.isFetching && "animate-spin")}
+						/>
+						{query.isFetching ? "갱신 중..." : "새로고침"}
+					</Button>
+				}
+			/>
+			<h2 className="sr-only" id="crawl-operations-heading">
+				수집 운영
+			</h2>
 
 			{query.isPending ? (
-				<p className="mt-4 text-muted-foreground">실행 이력을 불러오는 중입니다...</p>
+				<SettingsFeedback>실행 이력을 불러오는 중입니다...</SettingsFeedback>
 			) : null}
 			{query.isError ? (
-				<Alert className="mt-4" variant="destructive">
+				<Alert className="mt-6" variant="destructive">
 					<AlertTitle>실행 이력을 불러오지 못했습니다.</AlertTitle>
 					<AlertDescription className="mt-2">
-						<p>{getCrawlRunsErrorMessage(query.error)}</p>
+						<div>{getCrawlRunsErrorMessage(query.error)}</div>
 						<Button
 							className="mt-3"
 							type="button"
@@ -457,7 +552,7 @@ export function CrawlRunsDashboard({ manualCrawlRunning }: { manualCrawlRunning:
 			) : null}
 
 			{dashboard?.activeRuns.map((activeRun) => (
-				<Alert className="mt-4" data-testid="active-crawl-run" key={activeRun.id}>
+				<Alert className="mt-5" data-testid="active-crawl-run" key={activeRun.id}>
 					<AlertTitle>{SOURCE_LABELS[activeRun.source]} 크롤링 실행 중</AlertTitle>
 					<AlertDescription>
 						시작 {formatDate(activeRun.startedAt)} · 경과{" "}
@@ -469,29 +564,85 @@ export function CrawlRunsDashboard({ manualCrawlRunning }: { manualCrawlRunning:
 
 			{dashboard ? (
 				<>
+					<SettingsStatusStrip>
+						<SettingsStatusItem
+							icon={
+								dashboard.alerts.length > 0 ? (
+									<AlertTriangle aria-hidden="true" className="size-5" />
+								) : (
+									<ShieldCheck aria-hidden="true" className="size-5" />
+								)
+							}
+							label="활성 장애"
+							value={
+								dashboard.alerts.length > 0
+									? `${dashboard.alerts.length}개 감지`
+									: "감지된 장애 없음"
+							}
+							supporting={`마지막 평가 ${formatDate(dashboard.alertSettings.lastEvaluatedAt)}`}
+							tone={dashboard.alerts.length > 0 ? "danger" : "success"}
+						/>
+						<SettingsStatusItem
+							icon={<Activity aria-hidden="true" className="size-5" />}
+							label="현재 실행"
+							value={`${dashboard.activeRuns.length} / ${dashboard.runtimeSettings.maxConcurrency}개`}
+							supporting="동시 실행 소스"
+							tone={dashboard.activeRuns.length > 0 ? "warning" : "neutral"}
+						/>
+						<SettingsStatusItem
+							icon={<ServerCog aria-hidden="true" className="size-5" />}
+							label="실행 보호"
+							value={`잠금 ${dashboard.runtimeSettings.lockTtlSeconds}초`}
+							supporting={`Heartbeat ${dashboard.runtimeSettings.heartbeatIntervalSeconds}초`}
+						/>
+					</SettingsStatusStrip>
+
 					<ActiveAlerts alerts={dashboard.alerts} />
-					<div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-						{dashboard.sources.map((summary) => (
-							<SourceCard
-								key={summary.source}
-								summary={summary}
-								alert={alertsBySource.get(summary.source)}
-								settings={dashboard.alertSettings}
-							/>
-						))}
-					</div>
-					<RuntimeSettings dashboard={dashboard} />
-					<AlertSettings settings={dashboard.alertSettings} />
-					<h3 className="mt-8 font-semibold text-lg">최근 실행</h3>
-					{dashboard.runs.length === 0 ? (
-						<p className="mt-3 text-muted-foreground">저장된 크롤링 실행 이력이 없습니다.</p>
-					) : (
-						<ul className="mt-3 space-y-3">
-							{dashboard.runs.map((run) => (
-								<RunCard key={run.id} run={run} />
+
+					<SettingsSurface className="mt-5" title="소스 상태" contentClassName="divide-y">
+						<div className="hidden bg-muted/35 px-5 py-3 font-medium text-muted-foreground text-xs xl:grid xl:grid-cols-[1.05fr_0.9fr_1fr_1.2fr_1.45fr] xl:gap-4">
+							<span>수집 소스</span>
+							<span>예약 정책</span>
+							<span>다음 예약 가능</span>
+							<span>최근 상태</span>
+							<span>파서 추세</span>
+						</div>
+						<ul className="divide-y">
+							{dashboard.sources.map((summary) => (
+								<SourceRow
+									key={summary.source}
+									summary={summary}
+									alert={alertsBySource.get(summary.source)}
+									settings={dashboard.alertSettings}
+								/>
 							))}
 						</ul>
-					)}
+					</SettingsSurface>
+
+					<SettingsSurface className="mt-5" title="운영 기준">
+						<div className="divide-y md:grid md:grid-cols-2 md:divide-x md:divide-y-0">
+							<RuntimeSettings dashboard={dashboard} />
+							<AlertSettings settings={dashboard.alertSettings} />
+						</div>
+					</SettingsSurface>
+
+					<SettingsSurface
+						className="mt-5"
+						title="최근 실행"
+						description={`최대 ${dashboard.runs.length}개의 최근 실행을 표시합니다.`}
+					>
+						{dashboard.runs.length === 0 ? (
+							<div className="px-5 py-10 text-center text-muted-foreground text-sm">
+								저장된 크롤링 실행 이력이 없습니다.
+							</div>
+						) : (
+							<ul className="divide-y">
+								{dashboard.runs.map((run) => (
+									<RunRow key={run.id} run={run} />
+								))}
+							</ul>
+						)}
+					</SettingsSurface>
 				</>
 			) : null}
 		</section>

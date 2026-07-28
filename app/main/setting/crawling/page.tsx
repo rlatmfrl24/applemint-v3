@@ -1,7 +1,17 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Clock3, PauseCircle, PlayCircle, RotateCcw } from "lucide-react";
+import {
+	Activity,
+	AlertTriangle,
+	CheckCircle2,
+	Clock3,
+	Globe2,
+	PauseCircle,
+	PlayCircle,
+	RefreshCw,
+	RotateCcw,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -16,13 +26,19 @@ import {
 	AlertDialogTitle,
 	AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { CrawlPolicySettings, CrawlSourcePolicy } from "@/lib/crawl-policy-contract";
 import { CRAWL_RUNS_QUERY_KEY } from "@/lib/crawl-run-query-options";
 import { invalidateThreadQueries } from "@/lib/thread-query-cache";
+import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
+import {
+	SettingsFeedback,
+	SettingsPageHeader,
+	SettingsStatusItem,
+	SettingsStatusStrip,
+	SettingsSurface,
+} from "../admin-ui";
 import { ManualCrawlError, requestManualCrawl } from "../crawl-client";
 
 const SOURCE_LABELS: Record<CrawlSourcePolicy["source"], string> = {
@@ -31,7 +47,7 @@ const SOURCE_LABELS: Record<CrawlSourcePolicy["source"], string> = {
 	insagirl: "Insagirl",
 };
 
-const INTERVAL_PRESETS = [1, 2, 3, 4, 6, 12, 24].map((hours) => ({
+export const INTERVAL_PRESETS = [1, 2, 3, 4, 6, 12, 24].map((hours) => ({
 	label: `${hours}시간`,
 	seconds: hours * 3600,
 }));
@@ -58,8 +74,35 @@ function formatRelative(value: string, nowMs: number) {
 	return minutes === 0 ? `${hours}시간 후` : `${hours}시간 ${minutes}분 후`;
 }
 
-function nextCronBoundary(nowMs: number) {
-	return Math.ceil(nowMs / 300_000) * 300_000;
+export function nextPolicyBoundary(nowMs: number, intervalSeconds: number) {
+	const intervalMs = intervalSeconds * 1000;
+	return Math.ceil(nowMs / intervalMs) * intervalMs;
+}
+
+export function getIntervalMode(seconds: number) {
+	return INTERVAL_PRESETS.some((preset) => preset.seconds === seconds) ? "preset" : "custom";
+}
+
+export function hasPolicyChanges(
+	policy: CrawlSourcePolicy,
+	scheduleEnabled: boolean,
+	cooldownSeconds: number
+) {
+	return scheduleEnabled !== policy.scheduleEnabled || cooldownSeconds !== policy.cooldownSeconds;
+}
+
+export function willPolicyBecomeDue(
+	policy: CrawlSourcePolicy,
+	scheduleEnabled: boolean,
+	cooldownSeconds: number,
+	nowMs: number
+) {
+	return (
+		scheduleEnabled &&
+		policy.lastFinishedAt !== null &&
+		new Date(policy.lastFinishedAt).getTime() + cooldownSeconds * 1000 <= nowMs &&
+		(cooldownSeconds !== policy.cooldownSeconds || !policy.scheduleEnabled)
+	);
 }
 
 function latestStatusLabel(policy: CrawlSourcePolicy) {
@@ -74,7 +117,7 @@ function latestStatusLabel(policy: CrawlSourcePolicy) {
 	return `${policy.latest.trigger === "scheduled" ? "예약" : "수동"} ${status}`;
 }
 
-function getNextScheduleText(
+export function getNextScheduleText(
 	policy: CrawlSourcePolicy,
 	schedulerEnabled: boolean,
 	scheduleEnabled: boolean,
@@ -88,7 +131,72 @@ function getNextScheduleText(
 		: "다음 실행 시각을 계산하고 있습니다.";
 }
 
-function PolicyCard({
+function LatestStatus({ policy }: { policy: CrawlSourcePolicy }) {
+	if (!policy.latest) {
+		return (
+			<div>
+				<div className="font-medium text-sm">실행 기록 없음</div>
+				<div className="mt-1 text-muted-foreground text-xs">첫 실행 후 결과가 표시됩니다.</div>
+			</div>
+		);
+	}
+
+	const failed = policy.latest.status === "failed" || policy.latest.status === "interrupted";
+	const warning = policy.latest.status === "partial" || policy.latest.status === "running";
+	const Icon = failed ? AlertTriangle : warning ? Clock3 : CheckCircle2;
+
+	return (
+		<div>
+			<div
+				className={cn(
+					"flex items-center gap-1.5 font-medium text-sm",
+					failed && "text-red-600 dark:text-red-400",
+					warning && "text-amber-700 dark:text-amber-400",
+					!failed && !warning && "text-emerald-700 dark:text-emerald-400"
+				)}
+			>
+				<Icon aria-hidden="true" className="size-4" />
+				{latestStatusLabel(policy)}
+			</div>
+			<div className="mt-1 text-muted-foreground text-xs leading-5">
+				{formatDate(policy.latest.finishedAt ?? policy.latest.startedAt)}
+				<br />
+				저장 {policy.latest.insertedCount}건 · 재시도 {policy.latest.retryCount}건
+			</div>
+		</div>
+	);
+}
+
+function ScheduleSwitch({
+	source,
+	checked,
+	onCheckedChange,
+}: {
+	source: CrawlSourcePolicy["source"];
+	checked: boolean;
+	onCheckedChange: (checked: boolean) => void;
+}) {
+	return (
+		<label className="inline-flex cursor-pointer items-center gap-2.5">
+			<span className="relative inline-flex h-6 w-11 shrink-0 items-center">
+				<input
+					aria-checked={checked}
+					aria-label={`${SOURCE_LABELS[source]} 예약 수집`}
+					checked={checked}
+					className="peer absolute inset-0 z-10 size-full cursor-pointer opacity-0"
+					onChange={(event) => onCheckedChange(event.target.checked)}
+					role="switch"
+					type="checkbox"
+				/>
+				<span className="pointer-events-none absolute inset-0 rounded-full bg-zinc-200 transition-colors peer-checked:bg-zinc-900 peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 dark:bg-zinc-700 dark:peer-checked:bg-zinc-100" />
+				<span className="pointer-events-none relative ml-1 size-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5 dark:bg-zinc-950" />
+			</span>
+			<span className="text-sm">{checked ? "사용 중" : "중지됨"}</span>
+		</label>
+	);
+}
+
+function PolicyRow({
 	policy,
 	schedulerEnabled,
 	nowMs,
@@ -105,6 +213,9 @@ function PolicyCard({
 	const queryClient = useQueryClient();
 	const [scheduleEnabled, setScheduleEnabled] = useState(policy.scheduleEnabled);
 	const [cooldownSeconds, setCooldownSeconds] = useState(policy.cooldownSeconds);
+	const [intervalMode, setIntervalMode] = useState<"preset" | "custom">(() =>
+		getIntervalMode(policy.cooldownSeconds)
+	);
 	const updatePolicy = useMutation({
 		...trpc.crawlPolicy.update.mutationOptions(),
 		onSuccess: (settings) => {
@@ -122,15 +233,13 @@ function PolicyCard({
 	useEffect(() => {
 		setScheduleEnabled(policy.scheduleEnabled);
 		setCooldownSeconds(policy.cooldownSeconds);
+		setIntervalMode(getIntervalMode(policy.cooldownSeconds));
 	}, [policy]);
 
-	const dirty =
-		scheduleEnabled !== policy.scheduleEnabled || cooldownSeconds !== policy.cooldownSeconds;
-	const willBecomeDue =
-		scheduleEnabled &&
-		policy.lastFinishedAt !== null &&
-		new Date(policy.lastFinishedAt).getTime() + cooldownSeconds * 1000 <= nowMs &&
-		(cooldownSeconds !== policy.cooldownSeconds || !policy.scheduleEnabled);
+	const dirty = hasPolicyChanges(policy, scheduleEnabled, cooldownSeconds);
+	const willBecomeDue = willPolicyBecomeDue(policy, scheduleEnabled, cooldownSeconds, nowMs);
+	const nextSchedule = getNextScheduleText(policy, schedulerEnabled, scheduleEnabled, nowMs);
+	const saving = updatePolicy.isPending;
 
 	const handleSave = () => {
 		updatePolicy.mutate({
@@ -140,141 +249,161 @@ function PolicyCard({
 			expectedUpdatedAt: policy.updatedAt,
 		});
 	};
-	const saving = updatePolicy.isPending;
 
-	const nextSchedule = getNextScheduleText(policy, schedulerEnabled, scheduleEnabled, nowMs);
+	const handleReset = () => {
+		setCooldownSeconds(policy.recommendedCooldownSeconds);
+		setIntervalMode(getIntervalMode(policy.recommendedCooldownSeconds));
+	};
 
 	return (
-		<Card className="flex h-full flex-col" data-testid={`crawl-policy-${policy.source}`}>
-			<CardHeader className="space-y-3 pb-4">
-				<div className="flex items-start justify-between gap-3">
-					<div>
-						<h3 className="text-xl">{SOURCE_LABELS[policy.source]}</h3>
-						<p className="mt-1 text-muted-foreground text-xs">
-							권장 {formatInterval(policy.recommendedCooldownSeconds)} · 실행 예산{" "}
-							{policy.runBudgetSeconds}초
-						</p>
+		<li className="px-4 py-5 sm:px-5" data-testid={`crawl-policy-${policy.source}`}>
+			<div className="grid gap-5 md:grid-cols-2 md:items-start xl:grid-cols-[1.15fr_0.8fr_1.05fr_1.25fr_1fr_8.5rem] xl:gap-4">
+				<div className="min-w-0">
+					<div className="flex items-start gap-3">
+						<div className="flex size-10 shrink-0 items-center justify-center rounded-lg border bg-muted/30">
+							<Globe2 aria-hidden="true" className="size-5" />
+						</div>
+						<div className="min-w-0">
+							<h3 className="truncate font-semibold text-base">{SOURCE_LABELS[policy.source]}</h3>
+							<div className="mt-1 text-muted-foreground text-xs leading-5">
+								권장 {formatInterval(policy.recommendedCooldownSeconds)}
+								<br />
+								실행 예산 {policy.runBudgetSeconds}초
+							</div>
+						</div>
 					</div>
-					<Badge variant={scheduleEnabled ? "default" : "secondary"}>
-						{scheduleEnabled ? "예약 사용" : "예약 중지"}
-					</Badge>
-				</div>
-				<label className="flex cursor-pointer items-center justify-between gap-4 rounded-md border p-3 text-sm">
-					<span>
-						<span className="block font-medium">예약 수집</span>
-						<span className="text-muted-foreground text-xs">
-							수동 실행은 항상 사용할 수 있습니다.
-						</span>
-					</span>
-					<span className="relative inline-flex h-6 w-11 shrink-0 items-center">
-						<input
-							aria-checked={scheduleEnabled}
-							aria-label={`${SOURCE_LABELS[policy.source]} 예약 수집`}
-							checked={scheduleEnabled}
-							className="peer absolute inset-0 z-10 size-full cursor-pointer opacity-0"
-							onChange={(event) => setScheduleEnabled(event.target.checked)}
-							role="switch"
-							type="checkbox"
-						/>
-						<span className="pointer-events-none absolute inset-0 rounded-full bg-muted transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2" />
-						<span className="pointer-events-none relative ml-1 size-4 rounded-full bg-background shadow transition-transform peer-checked:translate-x-5" />
-					</span>
-				</label>
-			</CardHeader>
-			<CardContent className="flex flex-1 flex-col gap-5">
-				<fieldset>
-					<legend className="font-medium text-sm">최소 수집 간격</legend>
-					<div className="mt-2 flex flex-wrap gap-2">
-						{INTERVAL_PRESETS.map((preset) => (
-							<Button
-								key={preset.seconds}
-								size="sm"
-								type="button"
-								variant={cooldownSeconds === preset.seconds ? "secondary" : "outline"}
-								onClick={() => setCooldownSeconds(preset.seconds)}
-							>
-								{preset.label}
-							</Button>
-						))}
-					</div>
-					<label className="mt-3 block text-muted-foreground text-xs">
-						사용자 지정(분)
-						<input
-							className="mt-1 h-10 w-full rounded-md border bg-background px-3 text-foreground text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-							max={10080}
-							min={30}
-							step={30}
-							type="number"
-							value={Math.round(cooldownSeconds / 60)}
-							onChange={(event) => {
-								const minutes = Number(event.target.value);
-								if (Number.isInteger(minutes)) setCooldownSeconds(minutes * 60);
-							}}
-						/>
-					</label>
-				</fieldset>
-
-				<div className="rounded-md bg-muted/60 p-3 text-sm">
-					<div className="flex items-center gap-2 font-medium">
-						<Clock3 aria-hidden="true" className="size-4" />
-						다음 예상 실행
-					</div>
-					<p className="mt-1 text-muted-foreground text-xs" data-testid="next-scheduled-at">
-						{nextSchedule}
-					</p>
-					<p className="mt-2 text-muted-foreground text-xs">
-						마지막 종료 {formatDate(policy.lastFinishedAt)} · {latestStatusLabel(policy)}
-					</p>
 				</div>
 
-				{willBecomeDue ? (
-					<Alert>
-						<AlertTitle>저장 후 바로 실행 대상이 됩니다.</AlertTitle>
-						<AlertDescription>
-							예약 시스템이 켜져 있으면 5분 이내 실행될 수 있습니다.
-						</AlertDescription>
-					</Alert>
-				) : null}
+				<div>
+					<div className="mb-2 font-medium text-muted-foreground text-xs xl:hidden">예약 수집</div>
+					<ScheduleSwitch
+						source={policy.source}
+						checked={scheduleEnabled}
+						onCheckedChange={setScheduleEnabled}
+					/>
+				</div>
 
-				<div className="mt-auto grid gap-2 sm:grid-cols-2">
-					<Button
-						type="button"
-						variant="outline"
-						disabled={saving || cooldownSeconds === policy.recommendedCooldownSeconds}
-						onClick={() => setCooldownSeconds(policy.recommendedCooldownSeconds)}
+				<div>
+					<label
+						className="mb-2 block font-medium text-muted-foreground text-xs xl:hidden"
+						htmlFor={`${policy.source}-interval`}
 					>
-						<RotateCcw aria-hidden="true" className="mr-2 size-4" />
+						최소 수집 간격
+					</label>
+					<select
+						aria-label={`${SOURCE_LABELS[policy.source]} 최소 수집 간격`}
+						className="h-10 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						id={`${policy.source}-interval`}
+						value={intervalMode === "custom" ? "custom" : String(cooldownSeconds)}
+						onChange={(event) => {
+							if (event.target.value === "custom") {
+								setIntervalMode("custom");
+								return;
+							}
+							setIntervalMode("preset");
+							setCooldownSeconds(Number(event.target.value));
+						}}
+					>
+						{INTERVAL_PRESETS.map((preset) => (
+							<option key={preset.seconds} value={preset.seconds}>
+								{preset.label}
+							</option>
+						))}
+						<option value="custom">사용자 지정</option>
+					</select>
+					{intervalMode === "custom" ? (
+						<label className="mt-2 block text-muted-foreground text-xs">
+							사용자 지정(분)
+							<input
+								className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-foreground text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+								max={10080}
+								min={30}
+								step={30}
+								type="number"
+								value={Math.round(cooldownSeconds / 60)}
+								onChange={(event) => {
+									const minutes = Number(event.target.value);
+									if (Number.isInteger(minutes)) setCooldownSeconds(minutes * 60);
+								}}
+							/>
+						</label>
+					) : null}
+					<Button
+						className="mt-1 h-auto px-0 py-1 text-xs"
+						type="button"
+						variant="link"
+						disabled={saving || cooldownSeconds === policy.recommendedCooldownSeconds}
+						onClick={handleReset}
+					>
+						<RotateCcw aria-hidden="true" className="mr-1 size-3" />
 						권장값 복원
 					</Button>
-					<Button type="button" disabled={!dirty || saving} onClick={handleSave}>
-						{saving ? "저장 중..." : "변경 저장"}
-					</Button>
 				</div>
 
-				<AlertDialog>
-					<AlertDialogTrigger asChild>
-						<Button type="button" variant="secondary" disabled={manualCrawlRunning}>
-							<PlayCircle aria-hidden="true" className="mr-2 size-4" />
-							{manualCrawlRunning ? "수집 중..." : "지금 수집"}
-						</Button>
-					</AlertDialogTrigger>
-					<AlertDialogContent>
-						<AlertDialogHeader>
-							<AlertDialogTitle>{SOURCE_LABELS[policy.source]} 지금 수집</AlertDialogTitle>
-							<AlertDialogDescription>
-								예약 설정과 관계없이 즉시 실행합니다. 소스 잠금과 최대 동시성 제한은 유지됩니다.
-							</AlertDialogDescription>
-						</AlertDialogHeader>
-						<AlertDialogFooter>
-							<AlertDialogCancel>취소</AlertDialogCancel>
-							<AlertDialogAction onClick={() => onManualCrawl(policy.source)}>
-								수집 시작
-							</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				</AlertDialog>
-			</CardContent>
-		</Card>
+				<div>
+					<div className="mb-2 font-medium text-muted-foreground text-xs xl:hidden">
+						다음 예상 실행
+					</div>
+					<div className="flex items-start gap-2 text-sm">
+						<Clock3 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+						<span className="leading-5" data-testid="next-scheduled-at">
+							{nextSchedule}
+						</span>
+					</div>
+				</div>
+
+				<div>
+					<div className="mb-2 font-medium text-muted-foreground text-xs xl:hidden">
+						마지막 결과
+					</div>
+					<LatestStatus policy={policy} />
+				</div>
+
+				<div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						disabled={!dirty || saving}
+						onClick={handleSave}
+					>
+						{saving ? "저장 중..." : "변경 저장"}
+					</Button>
+					<AlertDialog>
+						<AlertDialogTrigger asChild>
+							<Button type="button" size="sm" disabled={manualCrawlRunning}>
+								<PlayCircle aria-hidden="true" className="mr-1.5 size-4" />
+								{manualCrawlRunning ? "수집 중..." : "지금 수집"}
+							</Button>
+						</AlertDialogTrigger>
+						<AlertDialogContent>
+							<AlertDialogHeader>
+								<AlertDialogTitle>{SOURCE_LABELS[policy.source]} 지금 수집</AlertDialogTitle>
+								<AlertDialogDescription>
+									예약 설정과 관계없이 즉시 실행합니다. 소스 잠금과 최대 동시성 제한은 유지됩니다.
+								</AlertDialogDescription>
+							</AlertDialogHeader>
+							<AlertDialogFooter>
+								<AlertDialogCancel>취소</AlertDialogCancel>
+								<AlertDialogAction onClick={() => onManualCrawl(policy.source)}>
+									수집 시작
+								</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
+				</div>
+			</div>
+
+			{willBecomeDue ? (
+				<Alert className="mt-4 border-amber-300 bg-amber-50/70 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+					<AlertTriangle aria-hidden="true" className="size-4" />
+					<AlertTitle>저장 후 바로 실행 대상이 됩니다.</AlertTitle>
+					<AlertDescription>
+						예약 시스템이 켜져 있으면 다음 정책 확인 시 실행될 수 있습니다.
+					</AlertDescription>
+				</Alert>
+			) : null}
+		</li>
 	);
 }
 
@@ -298,11 +427,11 @@ function QueryFeedback({
 	error: { message: string } | null;
 }) {
 	if (isPending) {
-		return <p className="mt-5 text-muted-foreground">수집 정책을 불러오는 중입니다...</p>;
+		return <SettingsFeedback>수집 정책을 불러오는 중입니다...</SettingsFeedback>;
 	}
 	if (error) {
 		return (
-			<Alert className="mt-5" variant="destructive">
+			<Alert className="mt-6" variant="destructive">
 				<AlertTitle>수집 정책을 불러오지 못했습니다.</AlertTitle>
 				<AlertDescription className="mt-2">{error.message}</AlertDescription>
 			</Alert>
@@ -311,33 +440,42 @@ function QueryFeedback({
 	return null;
 }
 
-function SchedulerSummary({ settings, nowMs }: { settings: CrawlPolicySettings; nowMs: number }) {
+function SchedulerStatus({ settings, nowMs }: { settings: CrawlPolicySettings; nowMs: number }) {
+	const enabledCount = settings.sources.filter((source) => source.scheduleEnabled).length;
+	const activeCount = settings.sources.filter((source) => source.activeRunId !== null).length;
+	const intervalMinutes = Math.round(settings.dispatcherIntervalSeconds / 60);
+
 	return (
-		<Card className="mt-5">
-			<CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
-				<div className="flex items-center gap-3">
-					{settings.schedulerEnabled ? (
-						<CheckCircle2 aria-hidden="true" className="size-5 text-emerald-600" />
+		<SettingsStatusStrip>
+			<SettingsStatusItem
+				icon={
+					settings.schedulerEnabled ? (
+						<CheckCircle2 aria-hidden="true" className="size-5" />
 					) : (
-						<PauseCircle aria-hidden="true" className="size-5 text-amber-600" />
-					)}
-					<div>
-						<p className="font-medium">
-							예약 시스템 {settings.schedulerEnabled ? "동작 중" : "중지됨"}
-						</p>
-						<p className="mt-1 text-muted-foreground text-xs">
-							DB가 5분마다 실행 대상과 가용 동시성을 확인합니다.
-						</p>
-					</div>
-				</div>
-				<div className="text-right text-sm">
-					<p className="font-medium">다음 정책 확인</p>
-					<p className="mt-1 text-muted-foreground text-xs">
-						{formatDate(new Date(nextCronBoundary(nowMs)).toISOString())}
-					</p>
-				</div>
-			</CardContent>
-		</Card>
+						<PauseCircle aria-hidden="true" className="size-5" />
+					)
+				}
+				label="예약 시스템"
+				value={settings.schedulerEnabled ? "동작 중" : "중지됨"}
+				supporting={`DB가 ${intervalMinutes}분마다 실행 대상을 확인합니다.`}
+				tone={settings.schedulerEnabled ? "success" : "warning"}
+			/>
+			<SettingsStatusItem
+				icon={<Clock3 aria-hidden="true" className="size-5" />}
+				label="다음 정책 확인"
+				value={formatDate(
+					new Date(nextPolicyBoundary(nowMs, settings.dispatcherIntervalSeconds)).toISOString()
+				)}
+				supporting={`확인 주기 ${intervalMinutes}분`}
+			/>
+			<SettingsStatusItem
+				icon={<Activity aria-hidden="true" className="size-5" />}
+				label="예약·실행 소스"
+				value={`${enabledCount}개 예약 · ${activeCount}개 실행`}
+				supporting={`전체 ${settings.sources.length}개 소스`}
+				tone={activeCount > 0 ? "warning" : "neutral"}
+			/>
+		</SettingsStatusStrip>
 	);
 }
 
@@ -356,7 +494,7 @@ function PolicySettingsPanel({
 }) {
 	return (
 		<>
-			<SchedulerSummary settings={settings} nowMs={nowMs} />
+			<SchedulerStatus settings={settings} nowMs={nowMs} />
 			{manualResult ? (
 				<Alert className="mt-5" variant={manualResult.success ? "default" : "destructive"}>
 					<AlertTitle>
@@ -365,18 +503,37 @@ function PolicySettingsPanel({
 					<AlertDescription>{manualResult.message}</AlertDescription>
 				</Alert>
 			) : null}
-			<div className="mt-5 grid gap-4 xl:grid-cols-3">
-				{settings.sources.map((policy: CrawlSourcePolicy) => (
-					<PolicyCard
-						key={policy.source}
-						policy={policy}
-						schedulerEnabled={settings.schedulerEnabled}
-						nowMs={nowMs}
-						onManualCrawl={onManualCrawl}
-						manualCrawlRunning={manualSource !== null}
-					/>
-				))}
-			</div>
+
+			<SettingsSurface className="mt-6" contentClassName="divide-y">
+				<div className="hidden bg-muted/35 px-5 py-3 font-medium text-muted-foreground text-xs xl:grid xl:grid-cols-[1.15fr_0.8fr_1.05fr_1.25fr_1fr_8.5rem] xl:gap-4">
+					<span>수집 소스</span>
+					<span>예약 수집</span>
+					<span>최소 수집 간격</span>
+					<span>다음 예상 실행</span>
+					<span>마지막 결과</span>
+					<span className="text-center">작업</span>
+				</div>
+				<ul className="divide-y">
+					{settings.sources.map((policy) => (
+						<PolicyRow
+							key={policy.source}
+							policy={policy}
+							schedulerEnabled={settings.schedulerEnabled}
+							nowMs={nowMs}
+							onManualCrawl={onManualCrawl}
+							manualCrawlRunning={manualSource !== null}
+						/>
+					))}
+				</ul>
+			</SettingsSurface>
+
+			<SettingsSurface className="mt-5 shadow-none" title="운영 안내" contentClassName="px-5 py-4">
+				<ul className="space-y-2 text-muted-foreground text-sm leading-6">
+					<li>최소 수집 간격은 각 소스의 과부하와 중복 실행을 방지합니다.</li>
+					<li>수동 수집도 실행 중인 작업의 잠금과 최대 동시성 제한을 따릅니다.</li>
+					<li>정책 변경은 소스별로 저장되며 다른 행의 편집 상태에 영향을 주지 않습니다.</li>
+				</ul>
+			</SettingsSurface>
 		</>
 	);
 }
@@ -427,18 +584,23 @@ export default function CrawlingSettingPage() {
 
 	return (
 		<section aria-labelledby="crawl-settings-heading">
-			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div>
-					<h2 id="crawl-settings-heading">수집 설정</h2>
-					<p className="mt-2 text-muted-foreground text-sm">
-						소스별 예약 주기를 조정하고 다음 예상 실행 시각을 확인합니다.
-					</p>
-				</div>
-				<Button variant="outline" onClick={() => query.refetch()} disabled={query.isFetching}>
-					{query.isFetching ? "확인 중..." : "새로고침"}
-				</Button>
-			</div>
+			<SettingsPageHeader
+				title="수집 설정"
+				description="소스별 예약 주기와 실행 상태를 한 화면에서 비교하고 필요한 작업을 수행합니다."
+				action={
+					<Button variant="outline" onClick={() => query.refetch()} disabled={query.isFetching}>
+						<RefreshCw
+							aria-hidden="true"
+							className={cn("mr-2 size-4", query.isFetching && "animate-spin")}
+						/>
+						{query.isFetching ? "확인 중..." : "새로고침"}
+					</Button>
+				}
+			/>
 
+			<h2 className="sr-only" id="crawl-settings-heading">
+				수집 설정
+			</h2>
 			<QueryFeedback isPending={query.isPending} error={query.isError ? query.error : null} />
 			{query.data ? (
 				<PolicySettingsPanel
