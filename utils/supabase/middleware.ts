@@ -49,7 +49,7 @@ export const updateSession = async (request: NextRequest) => {
 	const requestStartedAt = performance.now();
 	let authStartedAt: number | null = null;
 	let authDurationMs = 0;
-	let authOutcome = "skipped";
+	let authOutcome: "skipped" | "succeeded" | "unauthenticated" | "failed" = "skipped";
 
 	try {
 		// Forward only request headers needed by downstream logic.
@@ -95,9 +95,9 @@ export const updateSession = async (request: NextRequest) => {
 		// Validate claims early so an expired session can be refreshed before the response is committed.
 		// https://supabase.com/docs/guides/auth/server-side/nextjs
 		authStartedAt = performance.now();
-		const { error } = await supabase.auth.getClaims();
+		const { data, error } = await supabase.auth.getClaims();
 		authDurationMs = performance.now() - authStartedAt;
-		authOutcome = error ? "failed" : "succeeded";
+		authOutcome = error ? "failed" : data?.claims ? "succeeded" : "unauthenticated";
 
 		return response;
 	} catch (_error) {
@@ -116,7 +116,12 @@ export const updateSession = async (request: NextRequest) => {
 			authDurationMs: Math.round(authDurationMs),
 			downstreamCallCount: authStartedAt === null ? 0 : 1,
 			outcome: authOutcome,
-			errorCode: authOutcome === "failed" ? "auth-validation-failed" : null,
+			errorCode:
+				authOutcome === "failed"
+					? "auth-validation-failed"
+					: authOutcome === "unauthenticated"
+						? "auth-claims-missing"
+						: null,
 		});
 	}
 };

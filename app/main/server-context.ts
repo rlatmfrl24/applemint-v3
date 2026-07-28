@@ -18,7 +18,7 @@ export async function createMainServerContext() {
 		redirect("/login");
 	}
 	if (ownerAccess.kind === "forbidden") {
-		redirect("/signout");
+		redirect(`/login?message=${encodeURIComponent(ownerAccess.message)}`);
 	}
 	if (ownerAccess.kind === "unavailable") {
 		throw new Error(ownerAccess.message);

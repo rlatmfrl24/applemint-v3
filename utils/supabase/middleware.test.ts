@@ -72,9 +72,28 @@ describe("updateSession", () => {
 		expect(readCookies).toContainEqual({ name: "sb-session", value: "stale" });
 		expect(request.cookies.get("sb-session")?.value).toBe("refreshed");
 		expect(response.cookies.get("sb-session")?.value).toBe("refreshed");
+		expect(response.headers.get("x-middleware-request-cookie")).toContain("sb-session=refreshed");
 		expect(response.headers.get("cache-control")).toContain("no-store");
 		expect(response.headers.get("pragma")).toBe("no-cache");
 		expect(response.headers.get("x-request-id")).toBe("safe-request-1");
+	});
+
+	it("claims가 없으면 성공으로 오인하지 않고 비인증 상태로 기록한다", async () => {
+		createServerClientMock.mockReturnValue({
+			auth: {
+				getClaims: vi.fn().mockResolvedValue({ data: { claims: null }, error: null }),
+			},
+		});
+
+		await updateSession(new NextRequest("http://localhost/main"));
+
+		expect(console.info).toHaveBeenCalledWith(
+			expect.objectContaining({
+				operation: "auth.getClaims",
+				outcome: "unauthenticated",
+				errorCode: "auth-claims-missing",
+			})
+		);
 	});
 
 	it("Auth 인프라 예외에도 허용 헤더와 no-store 응답을 유지한다", async () => {
