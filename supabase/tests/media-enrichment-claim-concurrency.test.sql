@@ -21,8 +21,50 @@ create role phase2_claim_worker
 
 grant execute on function public.claim_media_enrichment_jobs(text, integer, integer)
 	to phase2_claim_worker;
-grant select on public.threads to phase2_claim_worker;
+grant select, update on public.threads to phase2_claim_worker;
+grant select, update on public.thread_media_metadata to phase2_claim_worker;
 grant select, update on public.media_enrichment_jobs to phase2_claim_worker;
+
+create function public.phase2_finish_media_job_with_delay(p_thread_id bigint)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+	perform 1
+	from public.media_enrichment_jobs as job
+	where job.thread_id = p_thread_id
+		and job.state = 'processing'
+	for update;
+
+	if not found then
+		return false;
+	end if;
+
+	perform pg_catalog.pg_sleep(0.5);
+
+	update public.thread_media_metadata
+	set status = 'ready'
+	where thread_id = p_thread_id;
+
+	update public.media_enrichment_jobs
+	set
+		state = 'succeeded',
+		lease_token = null,
+		lease_expires_at = null,
+		updated_at = clock_timestamp()
+	where thread_id = p_thread_id
+		and state = 'processing';
+
+	return found;
+end;
+$$;
+
+revoke all on function public.phase2_finish_media_job_with_delay(bigint)
+	from public, anon, authenticated, service_role;
+grant execute on function public.phase2_finish_media_job_with_delay(bigint)
+	to phase2_claim_worker;
 
 insert into public.threads (type, url, title, host, state)
 values
@@ -37,7 +79,7 @@ select id, 'youtube', now() - interval '1 minute'
 from public.threads
 where url like 'https://phase2-concurrency.test/%';
 
-select plan(12);
+select plan(23);
 
 select is(
 	extensions.dblink_connect(
@@ -164,11 +206,161 @@ select is(
 	'thread deletion cascades through metadata to jobs'
 );
 
+insert into public.threads (type, url, title, host, state)
+values (
+	'imgur',
+	'https://phase2-concurrency.test/trash-transition',
+	'concurrent Trash transition',
+	'imgur.com',
+	'inbox'
+);
+insert into public.thread_media_metadata (thread_id, provider)
+select id, 'imgur'
+from public.threads
+where url = 'https://phase2-concurrency.test/trash-transition';
+insert into public.media_enrichment_jobs (
+	thread_id,
+	provider,
+	state,
+	attempt_count,
+	lease_token,
+	lease_expires_at
+)
+select
+	id,
+	'imgur',
+	'processing',
+	1,
+	'00000000-0000-4000-8000-000000000902'::uuid,
+	now() + interval '1 minute'
+from public.threads
+where url = 'https://phase2-concurrency.test/trash-transition';
+
+select is(
+	extensions.dblink_connect(
+		'phase2_finish_worker',
+		format(
+			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=phase2_claim_worker password=%s',
+			:'phase2_worker_password'
+		)
+	),
+	'OK',
+	'finishing worker connection opens'
+);
+select is(
+	extensions.dblink_connect(
+		'phase2_trash_transition',
+		format(
+			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=phase2_claim_worker password=%s',
+			:'phase2_worker_password'
+		)
+	),
+	'OK',
+	'Trash transition connection opens'
+);
+select is(
+	extensions.dblink_send_query(
+		'phase2_finish_worker',
+		format(
+			'select public.phase2_finish_media_job_with_delay(%s)',
+			(
+				select id
+				from public.threads
+				where url = 'https://phase2-concurrency.test/trash-transition'
+			)
+		)
+	),
+	1,
+	'worker starts while holding the job lock'
+);
+select pg_sleep(0.1);
+select is(
+	extensions.dblink_send_query(
+		'phase2_trash_transition',
+		format(
+			'update public.threads set state = %L where id = %s returning id',
+			'trash',
+			(
+				select id
+				from public.threads
+				where url = 'https://phase2-concurrency.test/trash-transition'
+			)
+		)
+	),
+	1,
+	'Trash transition starts while completion owns the job lock'
+);
+select pg_sleep(0.1);
+select is(
+	extensions.dblink_is_busy('phase2_trash_transition'),
+	1,
+	'Trash transition waits on the job lock without taking the metadata lock'
+);
+select is(
+	(
+		select finished
+		from extensions.dblink_get_result('phase2_finish_worker')
+			as response(finished boolean)
+	),
+	true,
+	'worker completes without a deadlock'
+);
+select is(
+	(
+		select id
+		from extensions.dblink_get_result('phase2_trash_transition')
+			as response(id bigint)
+	),
+	(
+		select id
+		from public.threads
+		where url = 'https://phase2-concurrency.test/trash-transition'
+	),
+	'Trash transition completes after the worker releases the job lock'
+);
+select is(
+	extensions.dblink_disconnect('phase2_finish_worker'),
+	'OK',
+	'finishing worker connection closes'
+);
+select is(
+	extensions.dblink_disconnect('phase2_trash_transition'),
+	'OK',
+	'Trash transition connection closes'
+);
+select is(
+	(
+		select metadata.status
+		from public.thread_media_metadata as metadata
+		inner join public.threads as thread on thread.id = metadata.thread_id
+		where thread.url = 'https://phase2-concurrency.test/trash-transition'
+	),
+	'ready',
+	'Trash preserves metadata completed before the job lock is released'
+);
+select is(
+	(
+		select job.state
+		from public.media_enrichment_jobs as job
+		inner join public.threads as thread on thread.id = job.thread_id
+		where thread.url = 'https://phase2-concurrency.test/trash-transition'
+	),
+	'succeeded',
+	'Trash preserves the terminal job completed before lock recheck'
+);
+
+delete from public.threads
+where url = 'https://phase2-concurrency.test/trash-transition';
+
 select * from finish();
 
 drop extension dblink;
+revoke execute on function public.phase2_finish_media_job_with_delay(bigint)
+	from phase2_claim_worker;
 revoke execute on function public.claim_media_enrichment_jobs(text, integer, integer)
 	from phase2_claim_worker;
-revoke select on public.threads from phase2_claim_worker;
+revoke select, update on public.threads from phase2_claim_worker;
+revoke select, update on public.thread_media_metadata from phase2_claim_worker;
 revoke select, update on public.media_enrichment_jobs from phase2_claim_worker;
+drop function public.phase2_finish_media_job_with_delay(bigint);
 drop role phase2_claim_worker;

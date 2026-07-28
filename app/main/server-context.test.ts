@@ -47,7 +47,10 @@ describe("main server context", () => {
 
 	it.each([
 		[{ kind: "unauthenticated", status: 401, message: "로그인이 필요합니다." }, "/login"],
-		[{ kind: "forbidden", status: 403, message: "소유자만 접근할 수 있습니다." }, "/signout"],
+		[
+			{ kind: "forbidden", status: 403, message: "소유자만 접근할 수 있습니다." },
+			`/login?message=${encodeURIComponent("소유자만 접근할 수 있습니다.")}`,
+		],
 	] as const)("인증 거부를 지정된 경로로 전달한다", async (access, path) => {
 		checkOwnerMock.mockResolvedValue(access);
 
