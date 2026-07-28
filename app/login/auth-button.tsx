@@ -5,7 +5,7 @@ import { Button } from "../../components/ui/button";
 export default function AuthButton({ email }: { email: string | null }) {
 	return (
 		<div className="flex items-center gap-3">
-			<p className="invisible w-0 sm:visible sm:w-fit">{email}</p>
+			<p className="hidden lg:block">{email}</p>
 			<ModeToggle />
 			<Button asChild>
 				<Link href="/signout">Sign Out</Link>
