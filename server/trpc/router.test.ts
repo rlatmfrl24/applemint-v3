@@ -42,6 +42,19 @@ function createContext(
 				...crawlAlertsDashboard,
 			}),
 		},
+		push: {
+			configuration: vi.fn().mockReturnValue({
+				enabled: false,
+				publicKey: null,
+				reason: "disabled",
+			}),
+			subscribe: vi.fn().mockResolvedValue({ active: true }),
+			unsubscribe: vi.fn().mockResolvedValue({ disabled: true }),
+			acknowledgeInbox: vi.fn().mockResolvedValue({
+				acknowledged: true,
+				acknowledgedAt: "2026-07-28T00:00:00.000Z",
+			}),
+		},
 	};
 	const getAuthenticatedAccess = vi.fn().mockResolvedValue({
 		kind: "authenticated",
@@ -64,7 +77,7 @@ describe("AppRouter", () => {
 		vi.spyOn(console, "error").mockImplementation(() => undefined);
 	});
 
-	it("문서화된 7개 procedure를 service에 연결한다", async () => {
+	it("문서화된 11개 procedure를 service에 연결한다", async () => {
 		const { context, services } = createContext();
 		const caller = createCaller(context);
 
@@ -84,6 +97,14 @@ describe("AppRouter", () => {
 			cooldownSeconds: 3600,
 			expectedUpdatedAt: "2026-07-22T12:00:00.000Z",
 		});
+		await caller.push.configuration();
+		await caller.push.subscribe({
+			endpoint: "https://push.test/device",
+			expirationTime: null,
+			keys: { p256dh: "A".repeat(43), auth: "B".repeat(22) },
+		});
+		await caller.push.unsubscribe({ endpoint: "https://push.test/device" });
+		await caller.push.acknowledgeInbox({ endpoint: "https://push.test/device" });
 
 		expect(services.thread.list).toHaveBeenCalledOnce();
 		expect(services.thread.stats).toHaveBeenCalledOnce();
@@ -92,6 +113,10 @@ describe("AppRouter", () => {
 		expect(services.crawlRun.getDashboard).toHaveBeenCalledOnce();
 		expect(services.crawlPolicy.get).toHaveBeenCalledOnce();
 		expect(services.crawlPolicy.update).toHaveBeenCalledOnce();
+		expect(services.push.configuration).toHaveBeenCalledOnce();
+		expect(services.push.subscribe).toHaveBeenCalledOnce();
+		expect(services.push.unsubscribe).toHaveBeenCalledOnce();
+		expect(services.push.acknowledgeInbox).toHaveBeenCalledOnce();
 	});
 
 	it("목록·통계는 claims만 확인하고 owner 사전 RPC를 생략한다", async () => {

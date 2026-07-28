@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Database, TimerReset } from "lucide-react";
+import { Activity, BellRing, Database, TimerReset } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,12 @@ const SETTING_LINKS = [
 		label: "수집 운영",
 		description: "상태와 실행 이력",
 		icon: Activity,
+	},
+	{
+		href: "/main/setting/app",
+		label: "앱 및 알림",
+		description: "설치와 신규 글 알림",
+		icon: BellRing,
 	},
 	{
 		href: "/main/setting/data",

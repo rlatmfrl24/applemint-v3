@@ -15,7 +15,7 @@ medium 경고는 14일 안에 수정하거나, 기준선 PR에 영향 범위와 
 다음 값은 실제 사용 여부가 불확실해도 먼저 true positive로 취급합니다.
 
 - Supabase service role key, anon key, JWT signing secret
-- `CRAWL_INTERNAL_SECRET`, API key, OAuth client secret
+- `CRAWL_INTERNAL_SECRET`, `VAPID_PRIVATE_KEY`, API key, OAuth client secret
 - 운영 DB 비밀번호나 실제 로그인 비밀번호
 - 외부 서비스에서 인증 수단으로 사용할 수 있는 고엔트로피 문자열
 

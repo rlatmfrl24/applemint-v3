@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { acknowledgeCurrentInboxBadge } from "@/lib/pwa-client";
 import type { ThreadListFilterParam } from "@/lib/thread-list-contract";
 import { threadStatsOptions } from "@/lib/thread-query-options";
 import { useTRPCClient } from "@/trpc/client";
@@ -83,6 +84,11 @@ export const ThreadList = () => {
 	}, [selectedType]);
 
 	const statsQuery = useQuery(threadStatsOptions(trpc, "inbox"));
+	const acknowledgeInbox = async () => {
+		await acknowledgeCurrentInboxBadge((endpoint) =>
+			trpc.push.acknowledgeInbox.mutate({ endpoint })
+		);
+	};
 
 	useEffect(() => {
 		if (typeof window === "undefined") {
@@ -108,6 +114,7 @@ export const ThreadList = () => {
 			<ThreadInfiniteList
 				state="inbox"
 				filters={filterParams}
+				onInitialLoadSuccess={acknowledgeInbox}
 				renderItem={(thread) => (
 					<DefaultThreadItem
 						thread={thread}

@@ -5,6 +5,9 @@ const INTERNAL_API_PATHS = new Set([
 	"/api/crawl/scheduled",
 	"/api/media/youtube/enrich",
 	"/api/media/imgur/enrich",
+	"/api/push/dispatch",
+	"/manifest.webmanifest",
+	"/sw.js",
 ]);
 
 export async function proxy(request: NextRequest) {

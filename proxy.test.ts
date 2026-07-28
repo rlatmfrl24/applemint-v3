@@ -71,6 +71,17 @@ describe("proxy", () => {
 		expect(await bodyClone.json()).toEqual({ limit: 4 });
 	});
 
+	it.each(["/api/push/dispatch", "/manifest.webmanifest", "/sw.js"])(
+		"%s는 세션 갱신을 거치지 않는다",
+		async (pathname) => {
+			const request = new NextRequest(`http://localhost${pathname}`);
+
+			await proxy(request);
+
+			expect(updateSessionMock).not.toHaveBeenCalled();
+		}
+	);
+
 	it("수동 크롤링 API는 로그인 세션 갱신을 유지한다", async () => {
 		const request = new NextRequest("http://localhost/api/crawl/manual", {
 			method: "POST",

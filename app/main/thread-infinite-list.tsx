@@ -18,11 +18,13 @@ export function ThreadInfiniteList({
 	filters = EMPTY_FILTERS,
 	renderItem,
 	loadingCount = 3,
+	onInitialLoadSuccess,
 }: {
 	state: ThreadState;
 	filters?: ThreadListFilterParam[];
 	renderItem: (thread: ThreadItemType) => ReactNode;
 	loadingCount?: number;
+	onInitialLoadSuccess?: () => void | Promise<void>;
 }) {
 	const trpc = useTRPCClient();
 	const filterType = useMemo(
@@ -33,6 +35,7 @@ export function ThreadInfiniteList({
 	const threads = useMemo(() => flattenThreadPages(query.data?.pages), [query.data?.pages]);
 	const observerRef = useRef<IntersectionObserver | null>(null);
 	const loadMoreRef = useRef<HTMLDivElement | null>(null);
+	const initialSuccessHandledRef = useRef(false);
 
 	const handleLoadMore = useCallback(async () => {
 		if (!query.hasNextPage || query.isFetchingNextPage) {
@@ -41,6 +44,14 @@ export function ThreadInfiniteList({
 
 		await query.fetchNextPage();
 	}, [query.fetchNextPage, query.hasNextPage, query.isFetchingNextPage]);
+
+	useEffect(() => {
+		if (!query.isSuccess || initialSuccessHandledRef.current) return;
+		initialSuccessHandledRef.current = true;
+		Promise.resolve(onInitialLoadSuccess?.()).catch(() => {
+			// 호출자가 실패 정책을 결정하며 목록 렌더링은 계속 유지한다.
+		});
+	}, [onInitialLoadSuccess, query.isSuccess]);
 
 	useEffect(() => {
 		if (typeof window === "undefined" || typeof IntersectionObserver === "undefined") {

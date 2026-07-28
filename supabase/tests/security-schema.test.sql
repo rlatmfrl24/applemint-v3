@@ -47,7 +47,9 @@ select ok(
 			'public.crawl_source_policies',
 			'public.crawl_runtime_settings',
 			'public.crawl_alert_settings',
-			'public.crawl_alert_incidents'
+			'public.crawl_alert_incidents',
+			'public.web_push_subscriptions',
+			'public.web_push_deliveries'
 		]) as business_table(table_name)
 		cross join unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE']) as access(privilege_name)
 		where has_table_privilege('anon', business_table.table_name, access.privilege_name)
@@ -78,7 +80,16 @@ select ok(
 			'public.finish_crawl_run(bigint,uuid,jsonb)',
 			'public.get_crawl_runs_dashboard(integer,integer)',
 			'public.evaluate_crawl_alerts(timestamp with time zone)',
-			'public.get_crawl_alerts_dashboard()'
+			'public.get_crawl_alerts_dashboard()',
+			'public.upsert_web_push_subscription(text,text,text,timestamp with time zone)',
+			'public.disable_web_push_subscription(text)',
+			'public.acknowledge_web_push_inbox(text)',
+			'public.claim_web_push_deliveries(integer,integer)',
+			'public.complete_web_push_delivery(bigint,uuid)',
+			'public.retry_web_push_delivery(bigint,uuid,text)',
+			'public.invalidate_web_push_subscription(bigint,uuid,text)',
+			'public.cleanup_web_push_notifications()',
+			'public.dispatch_due_web_push_notifications()'
 		]) as business_function(function_name)
 		where has_function_privilege('anon', business_function.function_name, 'EXECUTE')
 	),
@@ -93,7 +104,9 @@ select ok(
 			'public."crawl-history_id_seq"',
 			'public."filter-keyword_id_seq"',
 			'public.crawl_runs_id_seq',
-			'public.crawl_alert_incidents_id_seq'
+			'public.crawl_alert_incidents_id_seq',
+			'public.web_push_subscriptions_id_seq',
+			'public.web_push_deliveries_id_seq'
 		]) as business_sequence(sequence_name)
 		cross join unnest(array['USAGE', 'SELECT', 'UPDATE']) as access(privilege_name)
 		where has_sequence_privilege(
@@ -122,7 +135,9 @@ select ok(
 			'public.crawl_run_locks',
 			'public.crawl_runs',
 			'public.crawl_alert_settings',
-			'public.crawl_alert_incidents'
+			'public.crawl_alert_incidents',
+			'public.web_push_subscriptions',
+			'public.web_push_deliveries'
 		]) as internal_table(table_name)
 		cross join unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE']) as access(privilege_name)
 		where has_table_privilege('authenticated', internal_table.table_name, access.privilege_name)
@@ -144,7 +159,17 @@ select ok(
 		and has_table_privilege('service_role', 'public."filter-keyword"', 'SELECT')
 		and has_table_privilege('service_role', 'public.crawl_run_locks', 'INSERT,UPDATE,DELETE')
 		and has_table_privilege('service_role', 'public.crawl_runs', 'INSERT,UPDATE,DELETE')
-		and has_table_privilege('service_role', 'public.crawl_alert_incidents', 'INSERT,UPDATE,DELETE'),
+		and has_table_privilege('service_role', 'public.crawl_alert_incidents', 'INSERT,UPDATE,DELETE')
+		and has_table_privilege(
+			'service_role',
+			'public.web_push_subscriptions',
+			'SELECT,INSERT,UPDATE,DELETE'
+		)
+		and has_table_privilege(
+			'service_role',
+			'public.web_push_deliveries',
+			'SELECT,INSERT,UPDATE,DELETE'
+		),
 	'service role retains required crawler table access'
 );
 

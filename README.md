@@ -174,6 +174,7 @@ erDiagram
 - media worker Cron은 기존 crawl scheduler와 별도이며 migration 적용 직후에는 비활성입니다.
 - `crawl-history` 용량 측정, 백업·복구, 성능 검증 절차는 [`docs/CRAWL_HISTORY_RETENTION.md`](docs/CRAWL_HISTORY_RETENTION.md)를 참고합니다.
 - media queue 조회, 승인 후 수동 smoke·활성화와 롤백 절차는 [`docs/CRAWL_SCHEDULING.md`](docs/CRAWL_SCHEDULING.md)를 참고합니다.
+- PWA 설치, VAPID 배포, Web Push 활성화·롤백과 기기 검증은 [`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)를 참고합니다.
 - 상태별 목록·통계 API는 `list_threads_page`, `get_thread_stats` RPC를 사용합니다.
 
 ## 유지보수 가이드
@@ -239,6 +240,8 @@ erDiagram
 - `CRAWL_INTERNAL_SECRET` (Next 예약 API와 Supabase Vault가 공유하는 32바이트 이상 secret)
 - `YOUTUBE_API_KEY` (YouTube metadata worker 전용 서버 환경 변수)
 - `IMGUR_CLIENT_ID` (Imgur metadata worker 전용 서버 환경 변수)
+- `WEB_PUSH_ENABLED` (기본 `false`, Web Push 신규 구독·발송 switch)
+- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (서버 전용 Web Push 설정)
 - `DEBUG_CRAWL`, `LOG_LEVEL`
 - `GITHUB_TOKEN` 또는 `GH_TOKEN` (보안 스크립트 실행 시)
 - Supabase Vault `crawl_app_base_url`, `crawl_internal_secret` (크롤러와 media worker 정기 예약 호출)
@@ -251,7 +254,7 @@ Applemint는 migration에 고정한 단일 Supabase Auth 계정만 사용할 수
 - `pnpm verify`: Biome → Knip → Vitest → pgTAP → production build 순서의 필수 검증
 - `pnpm test`: Next API, 인증, UI loading, optimistic cache 단위 테스트
 - `pnpm test:coverage`: 선택 실행하는 단위 테스트와 V8 커버리지 하한선 검사
-- `pnpm test:db`: 9개 계약 suite로 구성된 이동·적재 rollback, 권한, lock·queue·scheduler pgTAP 테스트
+- `pnpm test:db`: 10개 계약 suite로 구성된 이동·적재 rollback, 권한, lock·queue·scheduler pgTAP 테스트
 - `pnpm typecheck`: TypeScript strict 검사
 - `pnpm build`: Next.js 프로덕션 빌드
 - `pnpm test:e2e`: 사용자 주도로 로컬 Supabase 초기화 후 Chromium 핵심 흐름 2개 검증

@@ -55,6 +55,7 @@
 		"sonner": "^2.0.5",
 		"tailwind-merge": "^3.5.0",
 		"vaul": "^1.1.2",
+		"web-push": "^3.6.7",
 		"zod": "4.4.3"
 	},
 	"devDependencies": {
@@ -64,6 +65,7 @@
 		"@types/node": "24.13.3",
 		"@types/react": "19.2.17",
 		"@types/react-dom": "19.2.3",
+		"@types/web-push": "^3.6.4",
 		"@vitest/coverage-v8": "4.1.10",
 		"cross-env": "^10.1.0",
 		"knip": "6.29.0",

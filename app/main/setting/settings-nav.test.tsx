@@ -18,6 +18,7 @@ describe("SettingsNav", () => {
 		expect(html).toMatch(/aria-current="page"[^>]*href="\/main\/setting\/operations"/u);
 		expect(html.match(/aria-current="page"/gu)).toHaveLength(1);
 		expect(html).toContain("수집 설정");
+		expect(html).toContain("앱 및 알림");
 		expect(html).toContain("데이터 관리");
 	});
 
