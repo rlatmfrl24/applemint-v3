@@ -76,7 +76,7 @@ export const MainDrawer = () => {
 	return (
 		<Drawer setBackgroundColorOnScale={false}>
 			<DrawerTrigger asChild>
-				<MenuIcon className="ml-3 cursor-pointer md:hidden" />
+				<MenuIcon className="cursor-pointer md:hidden" />
 			</DrawerTrigger>
 			<DrawerContent>
 				<div className="container mx-auto flex w-full flex-col gap-2 p-4">
