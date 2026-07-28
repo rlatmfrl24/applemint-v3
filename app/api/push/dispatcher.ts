@@ -13,6 +13,7 @@ import {
 import type { WebPushServerConfiguration } from "@/server/push/configuration";
 
 const MAX_CONCURRENCY = 5;
+const PUSH_REQUEST_TIMEOUT_MS = 15_000;
 
 type SendNotification = typeof webPush.sendNotification;
 
@@ -40,6 +41,68 @@ function safeErrorCode(error: unknown) {
 		return { statusCode, code: `push-${statusCode}` };
 	}
 	return { statusCode: null, code: "push-network" };
+}
+
+function isRetryablePushFailure(statusCode: number | null) {
+	return (
+		statusCode === null ||
+		statusCode === 408 ||
+		statusCode === 429 ||
+		(statusCode >= 500 && statusCode <= 599)
+	);
+}
+
+async function handleDeliveryFailure(
+	supabase: SupabaseClient,
+	delivery: ClaimedPushDelivery,
+	failure: ReturnType<typeof safeErrorCode>
+) {
+	if (failure.statusCode === 404 || failure.statusCode === 410) {
+		const result = await callRpc(
+			supabase,
+			"invalidate_web_push_subscription",
+			{
+				p_delivery_id: delivery.delivery_id,
+				p_lease_token: delivery.delivery_lease_token,
+				p_error_code: failure.code,
+			},
+			(value) => invalidatePushSubscriptionResultSchema.parse(value)
+		);
+		return {
+			state: result.invalidated ? ("invalidated" as const) : ("lease-lost" as const),
+			skippedCount: result.skippedCount,
+		};
+	}
+
+	if (!isRetryablePushFailure(failure.statusCode)) {
+		const failed = await callRpc(
+			supabase,
+			"fail_web_push_delivery",
+			{
+				p_delivery_id: delivery.delivery_id,
+				p_lease_token: delivery.delivery_lease_token,
+				p_error_code: failure.code,
+			},
+			(value) => {
+				if (typeof value !== "boolean") throw new Error("Expected boolean.");
+				return value;
+			}
+		);
+		return failed ? ("dead" as const) : ("lease-lost" as const);
+	}
+
+	const result = await callRpc(
+		supabase,
+		"retry_web_push_delivery",
+		{
+			p_delivery_id: delivery.delivery_id,
+			p_lease_token: delivery.delivery_lease_token,
+			p_error_code: failure.code,
+		},
+		(value) => retryPushDeliveryResultSchema.parse(value)
+	);
+	if (!result.updated) return "lease-lost" as const;
+	return result.state === "dead" ? ("dead" as const) : ("retry" as const);
 }
 
 async function callRpc<T>(
@@ -84,7 +147,7 @@ async function deliverOne(
 				},
 			},
 			JSON.stringify(payload),
-			{ TTL: 86_400, urgency: "normal" }
+			{ TTL: 86_400, urgency: "normal", timeout: PUSH_REQUEST_TIMEOUT_MS }
 		);
 
 		const completed = await callRpc(
@@ -102,37 +165,7 @@ async function deliverOne(
 		return completed ? ("delivered" as const) : ("lease-lost" as const);
 	} catch (error) {
 		if (error instanceof PushDispatcherError) throw error;
-
-		const failure = safeErrorCode(error);
-		if (failure.statusCode === 404 || failure.statusCode === 410) {
-			const result = await callRpc(
-				supabase,
-				"invalidate_web_push_subscription",
-				{
-					p_delivery_id: delivery.delivery_id,
-					p_lease_token: delivery.delivery_lease_token,
-					p_error_code: failure.code,
-				},
-				(value) => invalidatePushSubscriptionResultSchema.parse(value)
-			);
-			return {
-				state: result.invalidated ? ("invalidated" as const) : ("lease-lost" as const),
-				skippedCount: result.skippedCount,
-			};
-		}
-
-		const result = await callRpc(
-			supabase,
-			"retry_web_push_delivery",
-			{
-				p_delivery_id: delivery.delivery_id,
-				p_lease_token: delivery.delivery_lease_token,
-				p_error_code: failure.code,
-			},
-			(value) => retryPushDeliveryResultSchema.parse(value)
-		);
-		if (!result.updated) return "lease-lost" as const;
-		return result.state === "dead" ? ("dead" as const) : ("retry" as const);
+		return handleDeliveryFailure(supabase, delivery, safeErrorCode(error));
 	}
 }
 

@@ -49,6 +49,7 @@ function createContext(
 				reason: "disabled",
 			}),
 			subscribe: vi.fn().mockResolvedValue({ active: true }),
+			status: vi.fn().mockResolvedValue({ active: true }),
 			unsubscribe: vi.fn().mockResolvedValue({ disabled: true }),
 			acknowledgeInbox: vi.fn().mockResolvedValue({
 				acknowledged: true,
@@ -77,7 +78,7 @@ describe("AppRouter", () => {
 		vi.spyOn(console, "error").mockImplementation(() => undefined);
 	});
 
-	it("문서화된 11개 procedure를 service에 연결한다", async () => {
+	it("문서화된 12개 procedure를 service에 연결한다", async () => {
 		const { context, services } = createContext();
 		const caller = createCaller(context);
 
@@ -103,6 +104,7 @@ describe("AppRouter", () => {
 			expirationTime: null,
 			keys: { p256dh: "A".repeat(43), auth: "B".repeat(22) },
 		});
+		await caller.push.status({ endpoint: "https://push.test/device" });
 		await caller.push.unsubscribe({ endpoint: "https://push.test/device" });
 		await caller.push.acknowledgeInbox({ endpoint: "https://push.test/device" });
 
@@ -115,6 +117,7 @@ describe("AppRouter", () => {
 		expect(services.crawlPolicy.update).toHaveBeenCalledOnce();
 		expect(services.push.configuration).toHaveBeenCalledOnce();
 		expect(services.push.subscribe).toHaveBeenCalledOnce();
+		expect(services.push.status).toHaveBeenCalledOnce();
 		expect(services.push.unsubscribe).toHaveBeenCalledOnce();
 		expect(services.push.acknowledgeInbox).toHaveBeenCalledOnce();
 	});

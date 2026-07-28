@@ -3,6 +3,7 @@ import {
 	type PushSubscriptionInput,
 	pushAcknowledgeResultSchema,
 	pushSubscribeResultSchema,
+	pushSubscriptionStatusSchema,
 	pushUnsubscribeResultSchema,
 } from "@/contracts/push.schema";
 import { unexpectedFailure } from "@/server/errors/domain-error";
@@ -33,6 +34,21 @@ export class PushRepository {
 			const parsed = pushSubscribeResultSchema.safeParse(data);
 			if (!parsed.success) {
 				throw unexpectedFailure("알림 구독 응답이 올바르지 않습니다.", parsed.error);
+			}
+			return parsed.data;
+		});
+	}
+
+	async status(endpoint: string) {
+		return this.measure("push.status", async () => {
+			const { data, error } = await this.supabase.rpc("get_web_push_subscription_status", {
+				p_endpoint: endpoint,
+			});
+			if (error) throw mapPostgrestError(error, "알림 구독 상태를 확인하지 못했습니다.");
+
+			const parsed = pushSubscriptionStatusSchema.safeParse(data);
+			if (!parsed.success) {
+				throw unexpectedFailure("알림 구독 상태 응답이 올바르지 않습니다.", parsed.error);
 			}
 			return parsed.data;
 		});

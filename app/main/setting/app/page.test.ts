@@ -8,6 +8,8 @@ const base = {
 	iosInstallRequired: false,
 	permission: "default" as NotificationPermission,
 	subscribed: false,
+	serverSubscriptionLoaded: true,
+	serverSubscribed: false,
 };
 
 describe("앱 알림 상태", () => {
@@ -18,7 +20,16 @@ describe("앱 알림 상태", () => {
 		[{ iosInstallRequired: true }, "설치 필요"],
 		[{ supported: false, iosInstallRequired: true }, "설치 필요"],
 		[{ permission: "denied" }, "차단"],
-		[{ permission: "granted", subscribed: true }, "활성화"],
+		[
+			{
+				permission: "granted",
+				subscribed: true,
+				serverSubscriptionLoaded: false,
+			},
+			"확인 중",
+		],
+		[{ permission: "granted", subscribed: true }, "재연결 필요"],
+		[{ permission: "granted", subscribed: true, serverSubscribed: true }, "활성화"],
 		[{ permission: "granted", subscribed: false }, "권한 미결정"],
 	] as const)("%s 조건을 %s 상태로 표시한다", (override, expected) => {
 		expect(resolveNotificationStatus({ ...base, ...override })).toBe(expected);

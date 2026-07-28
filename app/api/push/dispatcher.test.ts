@@ -32,7 +32,7 @@ function delivery(id: number, overrides: Record<string, unknown> = {}) {
 		source: "battlepage",
 		inserted_count: 12,
 		badge_count: 20,
-		created_at: "2026-07-28T00:00:00.000Z",
+		created_at: "2026-07-28T00:00:00.000000+00:00",
 		...overrides,
 	};
 }
@@ -49,10 +49,12 @@ function createClient(claims: unknown[]) {
 					data: {
 						updated: true,
 						state: "retry",
-						availableAt: "2026-07-28T00:01:00.000Z",
+						availableAt: "2026-07-28T00:01:00.000000+00:00",
 					},
 					error: null,
 				};
+			case "fail_web_push_delivery":
+				return { data: true, error: null };
 			case "invalidate_web_push_subscription":
 				return { data: { invalidated: true, skippedCount: 2 }, error: null };
 			default:
@@ -101,10 +103,32 @@ describe("Web Push dispatcher", () => {
 		});
 		expect(payload).not.toHaveProperty("title");
 		expect(payload).not.toHaveProperty("endpoint");
+		expect(sendNotification.mock.calls[0][2]).toEqual({
+			TTL: 86_400,
+			urgency: "normal",
+			timeout: 15_000,
+		});
 		expect(rpc).toHaveBeenCalledWith("complete_web_push_delivery", {
 			p_delivery_id: 1,
 			p_lease_token: delivery(1).delivery_lease_token,
 		});
+	});
+
+	it("재시도 대상이 아닌 4xx 실패는 즉시 dead로 종료한다", async () => {
+		for (const statusCode of [400, 401, 403, 422]) {
+			const { client, rpc } = createClient([delivery(4)]);
+			const result = await runWebPushDispatcher(client, configuration, 20, {
+				sendNotification: vi.fn().mockRejectedValue({ statusCode }) as never,
+			});
+
+			expect(result).toMatchObject({ retryCount: 0, deadCount: 1 });
+			expect(rpc).toHaveBeenCalledWith("fail_web_push_delivery", {
+				p_delivery_id: 4,
+				p_lease_token: delivery(4).delivery_lease_token,
+				p_error_code: `push-${statusCode}`,
+			});
+			expect(rpc).not.toHaveBeenCalledWith("retry_web_push_delivery", expect.anything());
+		}
 	});
 
 	it("네트워크·408·429·5xx 실패를 안전한 code로 재시도한다", async () => {

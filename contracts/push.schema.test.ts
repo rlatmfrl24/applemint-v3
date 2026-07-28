@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+	claimedPushDeliveriesSchema,
+	pushAcknowledgeResultSchema,
 	pushConfigurationSchema,
 	pushSubscriptionInputSchema,
+	retryPushDeliveryResultSchema,
 	webPushPayloadSchema,
 } from "./push.schema";
 
@@ -58,5 +61,43 @@ describe("Web Push contracts", () => {
 				reason: "disabled",
 			}).success
 		).toBe(false);
+	});
+});
+
+describe("Web Push PostgreSQL timestamp contracts", () => {
+	it("PostgREST가 반환하는 +00:00 offset timestamp를 허용한다", () => {
+		const timestamp = "2026-07-28T04:55:03.263668+00:00";
+
+		expect(
+			pushAcknowledgeResultSchema.parse({
+				acknowledged: true,
+				acknowledgedAt: timestamp,
+			})
+		).toEqual({ acknowledged: true, acknowledgedAt: timestamp });
+		expect(
+			retryPushDeliveryResultSchema.parse({
+				updated: true,
+				state: "retry",
+				availableAt: timestamp,
+			})
+		).toMatchObject({ availableAt: timestamp });
+		expect(
+			claimedPushDeliveriesSchema.parse([
+				{
+					delivery_id: 1,
+					delivery_lease_token: "00000000-0000-4000-8000-000000000001",
+					subscription_id: 1,
+					endpoint: "https://push.test/device",
+					p256dh: "A".repeat(43),
+					auth: "B".repeat(22),
+					expiration_time: timestamp,
+					run_id: "1",
+					source: "battlepage",
+					inserted_count: 1,
+					badge_count: 1,
+					created_at: timestamp,
+				},
+			])
+		).toHaveLength(1);
 	});
 });
