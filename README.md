@@ -214,7 +214,11 @@ erDiagram
 - 포맷/린트 규칙은 `biome.json` 기준
 - `pnpm deadcode`로 미사용 파일·의존성·export를 검사
 - Vitest 커버리지는 선택 실행하는 `pnpm test:coverage`에서 statements/lines 50%, branches/functions 44% 이상을 유지
-- 운영·배포 기준 브랜치는 `master`, 통합 개발 브랜치는 `develop`
+- `master`만 장기 운영하며 항상 배포 가능한 상태를 유지
+- 작업 시작 전 `git fetch --prune origin` 후 최신 `origin/master`에서 `codex/<task>` 브랜치를 생성
+- 하나의 작업과 PR은 하나의 브랜치에만 담고, 관련 없는 변경을 함께 커밋하지 않음
+- 모든 PR은 `master`를 대상으로 하며 `verify` 통과와 리뷰 스레드 해결 후 squash merge
+- 병합된 원격 작업 브랜치는 자동 삭제하고, 로컬에서는 `master`를 fast-forward한 뒤 작업 브랜치를 삭제
 - 빠른 로컬 정적 검증은 `pnpm check`, 병합과 같은 전체 검증은 `supabase db start` 후 `pnpm verify`
 - 브라우저 E2E는 자동 CI·smoke에 포함하지 않으며 사용자가 필요할 때 `pnpm test:e2e`로 핵심 흐름 2개를 확인
 - E2E는 Docker가 실행 중인 상태에서 로컬 DB를 초기화하므로 테스트 데이터가 필요한 경우에만 실행
