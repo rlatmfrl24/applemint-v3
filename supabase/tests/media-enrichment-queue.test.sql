@@ -104,6 +104,25 @@ select has_index(
 	'expired leases have a partial covering index'
 );
 select ok(
+	exists (
+		select 1
+		from pg_trigger
+		where tgrelid = 'public.threads'::regclass
+			and tgname = 'cancel_active_media_enrichment_on_trash'
+			and not tgisinternal
+	),
+	'threads has an active media cancellation trigger'
+);
+select ok(
+	exists (
+		select 1
+		from pg_proc
+		where oid = 'private.cancel_active_media_enrichment_on_trash()'::regprocedure
+			and not prosecdef
+	),
+	'Trash cancellation trigger uses security invoker'
+);
+select ok(
 	(
 		select relrowsecurity
 		from pg_class
@@ -962,6 +981,284 @@ select throws_ok(
 	'23514',
 	null,
 	'job rejects processing state without a complete lease'
+);
+
+update public.media_enrichment_jobs
+set
+	state = 'succeeded',
+	lease_token = null,
+	lease_expires_at = null
+where state in ('queued', 'retry', 'processing');
+
+insert into public.threads (type, url, title, host, state)
+values
+	(
+		'imgur',
+		'https://phase2-trash-cancel.test/single',
+		'single cancellation',
+		'imgur.com',
+		'inbox'
+	),
+	(
+		'imgur',
+		'https://phase2-trash-cancel.test/saved',
+		'saved cancellation',
+		'imgur.com',
+		'saved'
+	),
+	(
+		'youtube',
+		'https://phase2-trash-cancel.test/bulk',
+		'bulk cancellation',
+		'youtube.com',
+		'inbox'
+	),
+	(
+		'imgur',
+		'https://phase2-trash-cancel.test/succeeded',
+		'completed metadata',
+		'imgur.com',
+		'inbox'
+	),
+	(
+		'imgur',
+		'https://phase2-trash-cancel.test/claim-guard',
+		'claim guard',
+		'imgur.com',
+		'trash'
+	),
+	(
+		'imgur',
+		'https://phase2-trash-cancel.test/existing',
+		'existing trash thread',
+		'imgur.com',
+		'trash'
+	);
+
+insert into public."crawl-history" (url, crawl_source, host)
+values ('https://phase2-trash-cancel.test/existing', 'arcalive', 'imgur.com');
+
+insert into public.thread_media_metadata (thread_id, provider, status)
+select
+	thread.id,
+	thread.type,
+	case
+		when thread.url = 'https://phase2-trash-cancel.test/succeeded' then 'ready'
+		else 'pending'
+	end
+from public.threads as thread
+where thread.url like 'https://phase2-trash-cancel.test/%'
+	and thread.url <> 'https://phase2-trash-cancel.test/existing';
+
+insert into public.media_enrichment_jobs (
+	thread_id,
+	provider,
+	state,
+	available_at,
+	lease_token,
+	lease_expires_at
+)
+select
+	thread.id,
+	thread.type,
+	case
+		when thread.url = 'https://phase2-trash-cancel.test/saved' then 'retry'
+		when thread.url = 'https://phase2-trash-cancel.test/bulk' then 'processing'
+		when thread.url = 'https://phase2-trash-cancel.test/succeeded' then 'succeeded'
+		else 'queued'
+	end,
+	now() - interval '1 minute',
+	case
+		when thread.url = 'https://phase2-trash-cancel.test/bulk'
+			then '00000000-0000-4000-8000-000000000901'::uuid
+		else null
+	end,
+	case
+		when thread.url = 'https://phase2-trash-cancel.test/bulk'
+			then now() + interval '1 hour'
+		else null
+	end
+from public.threads as thread
+where thread.url like 'https://phase2-trash-cancel.test/%'
+	and thread.url <> 'https://phase2-trash-cancel.test/existing';
+
+select is(
+	public.ingest_crawl_items(
+		'arcalive',
+		'[{"url":"https://phase2-trash-cancel.test/existing","title":"duplicate","type":"imgur"}]'::jsonb
+	),
+	'{"insertedCount": 0, "skippedCount": 1}'::jsonb,
+	're-crawling an existing Trash thread does not treat it as newly collected'
+);
+select is(
+	(
+		select count(*)
+		from public.thread_media_metadata as metadata
+		inner join public.threads as thread on thread.id = metadata.thread_id
+		where thread.url = 'https://phase2-trash-cancel.test/existing'
+	),
+	0::bigint,
+	'existing Trash thread receives no metadata'
+);
+select is(
+	(
+		select count(*)
+		from public.media_enrichment_jobs as job
+		inner join public.threads as thread on thread.id = job.thread_id
+		where thread.url = 'https://phase2-trash-cancel.test/existing'
+	),
+	0::bigint,
+	'existing Trash thread receives no job'
+);
+
+create temporary table phase2_trash_guard_claim as
+select *
+from public.claim_media_enrichment_jobs('imgur', 100, 60);
+select is(
+	(
+		select count(*)
+		from phase2_trash_guard_claim
+		where thread_id = (
+			select id
+			from public.threads
+			where url = 'https://phase2-trash-cancel.test/claim-guard'
+		)
+	),
+	0::bigint,
+	'claim excludes an active job whose thread is already in Trash'
+);
+select ok(
+	(
+		select job.state = 'queued' and job.attempt_count = 0
+		from public.media_enrichment_jobs as job
+		inner join public.threads as thread on thread.id = job.thread_id
+		where thread.url = 'https://phase2-trash-cancel.test/claim-guard'
+	),
+	'claim leaves a Trash job untouched'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
+select lives_ok(
+	format(
+		'select public.transition_thread_state(%s, %L, %L)',
+		(
+			select id
+			from public.threads
+			where url = 'https://phase2-trash-cancel.test/single'
+		),
+		'inbox',
+		'trash'
+	),
+	'single transition to Trash succeeds while cancelling active media work'
+);
+select lives_ok(
+	format(
+		'select public.transition_thread_state(%s, %L, %L)',
+		(
+			select id
+			from public.threads
+			where url = 'https://phase2-trash-cancel.test/saved'
+		),
+		'saved',
+		'trash'
+	),
+	'saved transition to Trash succeeds while cancelling active media work'
+);
+select ok(
+	public.bulk_move_inbox_to_trash() >= 1,
+	'bulk Trash transition succeeds while cancelling active media work'
+);
+reset role;
+
+select is(
+	(
+		select count(*)
+		from public.thread_media_metadata as metadata
+		inner join public.threads as thread on thread.id = metadata.thread_id
+		where thread.url in (
+			'https://phase2-trash-cancel.test/single',
+			'https://phase2-trash-cancel.test/saved',
+			'https://phase2-trash-cancel.test/bulk'
+		)
+	),
+	0::bigint,
+	'entering Trash deletes pending metadata for single and bulk transitions'
+);
+select is(
+	(
+		select count(*)
+		from public.media_enrichment_jobs as job
+		inner join public.threads as thread on thread.id = job.thread_id
+		where thread.url in (
+			'https://phase2-trash-cancel.test/single',
+			'https://phase2-trash-cancel.test/saved',
+			'https://phase2-trash-cancel.test/bulk'
+		)
+	),
+	0::bigint,
+	'entering Trash cascades queued, retry, and processing job cancellation'
+);
+select is(
+	public.complete_media_enrichment_job(
+		(
+			select id
+			from public.threads
+			where url = 'https://phase2-trash-cancel.test/bulk'
+		),
+		'00000000-0000-4000-8000-000000000901'::uuid,
+		'{"status":"ready","media_kind":"video"}'::jsonb
+	),
+	false,
+	'a worker cannot complete a processing lease after Trash cancellation'
+);
+select ok(
+	(
+		select metadata.status = 'ready' and job.state = 'succeeded'
+		from public.thread_media_metadata as metadata
+		inner join public.media_enrichment_jobs as job using (thread_id)
+		inner join public.threads as thread on thread.id = metadata.thread_id
+		where thread.url = 'https://phase2-trash-cancel.test/succeeded'
+			and thread.state = 'trash'
+	),
+	'Trash preserves already completed metadata and its terminal job'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
+select lives_ok(
+	format(
+		'select public.transition_thread_state(%s, %L, %L)',
+		(
+			select id
+			from public.threads
+			where url = 'https://phase2-trash-cancel.test/bulk'
+		),
+		'trash',
+		'inbox'
+	),
+	'restoring a cancelled Trash thread succeeds'
+);
+reset role;
+select is(
+	(
+		select count(*)
+		from public.thread_media_metadata as metadata
+		inner join public.threads as thread on thread.id = metadata.thread_id
+		where thread.url = 'https://phase2-trash-cancel.test/bulk'
+	),
+	0::bigint,
+	'restoring a cancelled thread does not recreate metadata'
+);
+select is(
+	(
+		select count(*)
+		from public.media_enrichment_jobs as job
+		inner join public.threads as thread on thread.id = job.thread_id
+		where thread.url = 'https://phase2-trash-cancel.test/bulk'
+	),
+	0::bigint,
+	'restoring a cancelled thread does not enqueue a non-new job'
 );
 
 select * from finish();

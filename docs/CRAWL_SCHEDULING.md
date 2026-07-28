@@ -61,6 +61,13 @@ Imgur는 `imgur_enrichment_cutoff_at` 이전에 수집된 항목의 metadata와 
 기존 thread와 crawl history는 그대로 두고 일반 카드로 표시하며, cutover 이후 실제로 새로 삽입된
 Imgur thread만 pending metadata와 queued job을 원자적으로 생성합니다.
 
+재수집된 URL은 `crawl-history` 충돌로 기존 thread에 합쳐지며 metadata나 job을 새로 만들지
+않습니다. 스레드가 `inbox | saved`에서 Trash로 이동하면 아직 처리되지 않은 metadata와
+`queued | retry | processing` job을 같은 트랜잭션에서 삭제합니다. claim RPC도 Trash 상태를
+제외하므로 상태 이동과 worker claim이 인접해도 이후 retry가 이어지지 않습니다. 이미
+`succeeded | dead`인 종단 job과 완료 metadata는 API를 추가 사용하지 않으므로 보존합니다.
+Trash에서 inbox로 복원해도 취소된 job은 다시 생성하지 않습니다.
+
 Vault 값은 migration이나 `media_worker_dispatches`에 저장하지 않습니다. Vault 값이 없거나
 base URL·secret 형식이 올바르지 않으면 media scheduler만 즉시 비활성화하고
 `configuration-missing`을 반환합니다. 기존 `crawl_runtime_settings.scheduler_enabled`는 변경하지

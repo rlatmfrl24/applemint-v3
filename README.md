@@ -48,9 +48,9 @@
 2. Supabase Cron이 5분마다 cooldown과 가용 동시성을 확인해 Next 예약 API를 비동기로 호출
 3. DB가 소스별 cooldown, source lock, 최대 2개 동시 실행을 원자적으로 판정
 4. 크롤링 결과를 `filter-keyword` 기준으로 필터링/타입 분류
-5. `ingest_crawl_items` RPC가 `crawl-history`, `threads`, YouTube와 cutover 이후 신규 Imgur의 media metadata·queue 생성을 하나의 트랜잭션으로 확정
+5. `ingest_crawl_items` RPC가 `crawl-history`, `threads`, YouTube와 cutover 이후 실제 신규 Imgur의 media metadata·queue 생성을 하나의 트랜잭션으로 확정
 6. 별도 Supabase Cron이 durable queue가 있는 provider의 내부 media worker를 `pg_net`으로 호출
-7. YouTube·Imgur worker가 lease 안에서 정규화된 요약만 저장하고 retry·dead 상태를 보존
+7. YouTube·Imgur worker가 Trash가 아닌 신규 queue만 lease로 처리하고 정규화된 요약과 retry·dead 상태를 보존
 8. `finish_crawl_run`이 크롤링 결과 저장과 lock 해제를 원자적으로 완료
 9. UI는 tRPC `thread.*`, `crawl.runs`, `crawlPolicy.*`로 목록·운영 이력을 조회
 
@@ -171,6 +171,7 @@ erDiagram
 - `crawl_alert_incidents`는 소스 장애의 발생·복구 상태를 보존하고 설정 화면에 표시합니다.
 - `thread_media_metadata`는 외부 원시 응답 없이 YouTube·Imgur 표시용 요약만 저장합니다.
 - `media_enrichment_jobs`는 provider별 lease·retry·dead 상태를 보존하며 사용자 클라이언트에 직접 노출하지 않습니다.
+- 스레드가 Trash로 이동하면 아직 처리 중인 metadata와 `queued | retry | processing` job을 원자적으로 삭제합니다. 이미 완료된 metadata는 보존하며 복원해도 취소된 job을 다시 만들지 않습니다.
 - media worker Cron은 기존 crawl scheduler와 별도이며 migration 적용 직후에는 비활성입니다.
 - `crawl-history` 용량 측정, 백업·복구, 성능 검증 절차는 [`docs/CRAWL_HISTORY_RETENTION.md`](docs/CRAWL_HISTORY_RETENTION.md)를 참고합니다.
 - media queue 조회, 승인 후 수동 smoke·활성화와 롤백 절차는 [`docs/CRAWL_SCHEDULING.md`](docs/CRAWL_SCHEDULING.md)를 참고합니다.
