@@ -208,14 +208,14 @@ select is(
 
 insert into public.threads (type, url, title, host, state)
 values (
-	'imgur',
+	'youtube',
 	'https://phase2-concurrency.test/trash-transition',
 	'concurrent Trash transition',
-	'imgur.com',
+	'youtube.com',
 	'inbox'
 );
 insert into public.thread_media_metadata (thread_id, provider)
-select id, 'imgur'
+select id, 'youtube'
 from public.threads
 where url = 'https://phase2-concurrency.test/trash-transition';
 insert into public.media_enrichment_jobs (
@@ -228,7 +228,7 @@ insert into public.media_enrichment_jobs (
 )
 select
 	id,
-	'imgur',
+	'youtube',
 	'processing',
 	1,
 	'00000000-0000-4000-8000-000000000902'::uuid,

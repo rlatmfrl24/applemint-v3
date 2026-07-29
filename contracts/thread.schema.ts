@@ -9,23 +9,31 @@ import {
 const threadStateSchema = z.enum(["inbox", "saved", "trash"]);
 
 const threadMediaMetadataSchema = z.object({
-	provider: z.enum(["youtube", "imgur"]),
+	provider: z.literal("youtube"),
 	external_id: z.string().nullable(),
-	media_kind: z
-		.enum(["video", "short", "live", "image", "album", "gallery", "unsupported"])
-		.nullable(),
+	media_kind: z.enum(["video", "short", "live", "unsupported"]).nullable(),
 	status: z.enum(["pending", "ready", "unavailable", "unsupported", "failed"]),
 	title: z.string().nullable(),
 	channel_title: z.string().nullable(),
 	thumbnail_url: z.string().nullable(),
 	duration_seconds: nonNegativeIntegerSchema.nullable(),
 	live_status: z.enum(["none", "live", "upcoming"]).nullable(),
-	media_count: nonNegativeIntegerSchema.nullable(),
-	preview_urls: z.array(z.string()),
 	last_error_code: z.string().nullable(),
 	fetched_at: isoTimestampSchema.nullable(),
 	updated_at: isoTimestampSchema,
 });
+
+const nullableThreadMediaMetadataSchema = z.preprocess((value) => {
+	if (
+		value &&
+		typeof value === "object" &&
+		"provider" in value &&
+		(value as { provider?: unknown }).provider !== "youtube"
+	) {
+		return null;
+	}
+	return value;
+}, threadMediaMetadataSchema.nullable());
 
 export const threadItemSchema = z.object({
 	id: decimalIdSchema,
@@ -39,7 +47,7 @@ export const threadItemSchema = z.object({
 	created_at: isoTimestampSchema,
 	captured_at: isoTimestampSchema,
 	state_changed_at: isoTimestampSchema,
-	media_metadata: threadMediaMetadataSchema.nullable().optional(),
+	media_metadata: nullableThreadMediaMetadataSchema.optional(),
 });
 
 export const threadPageSchema = z.object({

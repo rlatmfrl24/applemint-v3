@@ -35,8 +35,6 @@ const youtubeMetadata: NonNullable<ThreadItemType["media_metadata"]> = {
 	thumbnail_url: "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg",
 	duration_seconds: 125,
 	live_status: "none",
-	media_count: null,
-	preview_urls: [],
 	last_error_code: null,
 	fetched_at: "2026-07-22T00:00:00.000Z",
 	updated_at: "2026-07-22T00:00:00.000Z",
@@ -49,28 +47,11 @@ const youtubeThread: ThreadItemType = {
 	media_metadata: youtubeMetadata,
 };
 
-const imgurMetadata: NonNullable<ThreadItemType["media_metadata"]> = {
-	provider: "imgur",
-	external_id: "Album12",
-	media_kind: "album",
-	status: "ready",
-	title: "Imgur 공식 앨범",
-	channel_title: null,
-	thumbnail_url: "https://i.imgur.com/Cover12.jpg",
-	duration_seconds: null,
-	live_status: null,
-	media_count: 6,
-	preview_urls: ["https://i.imgur.com/First12.png", "https://i.imgur.com/Cover12.jpg"],
-	last_error_code: null,
-	fetched_at: "2026-07-27T00:00:00.000Z",
-	updated_at: "2026-07-27T00:00:00.000Z",
-};
-
 const imgurThread: ThreadItemType = {
 	...thread,
 	type: "imgur",
 	url: "https://imgur.com/a/Album12",
-	media_metadata: imgurMetadata,
+	media_metadata: null,
 };
 
 const cycleStates = ["inbox", "saved", "trash"] as const;
@@ -253,8 +234,6 @@ describe("thread query cache", () => {
 				thumbnail_url: "https://i.ytimg.com/vi/video/hqdefault.jpg",
 				duration_seconds: 125,
 				live_status: "none",
-				media_count: null,
-				preview_urls: [],
 				last_error_code: null,
 				fetched_at: "2026-07-22T00:00:00.000Z",
 				updated_at: "2026-07-22T00:00:00.000Z",
@@ -337,7 +316,7 @@ describe("thread query cache", () => {
 		queryClient.clear();
 	});
 
-	it("Imgur metadata와 필터 통계를 모든 상태 이동에서 보존한다", () => {
+	it("metadata 없는 Imgur 일반 카드 항목과 필터 통계를 모든 상태 이동에서 보존한다", () => {
 		const queryClient = new QueryClient();
 		seedMediaCycleCaches(queryClient, imgurThread, "imgur", "Imgur");
 
@@ -352,7 +331,7 @@ describe("thread query cache", () => {
 			const item = queryClient.getQueryData<{ pages: ThreadInfinitePage[] }>(key)?.pages[0]
 				.items[0];
 			expect(item?.state).toBe("inbox");
-			expect(item?.media_metadata).toEqual(imgurMetadata);
+			expect(item?.media_metadata).toBeNull();
 		}
 		expect(queryClient.getQueryData(["threads", "stats", "inbox", null])).toEqual({
 			counts: [{ key: "imgur", label: "Imgur", count: 1 }],

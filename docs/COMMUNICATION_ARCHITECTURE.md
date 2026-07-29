@@ -33,7 +33,7 @@
 | Supabase Cron·`pg_net` | 내부 REST endpoint 유지 |
 | Supabase Auth callback | 공급자 표준 REST 흐름 유지 |
 | DB transaction·lock·원자성 | Supabase RPC/PostgreSQL이 소유 |
-| 외부 크롤링·YouTube·Imgur | provider adapter가 소유 |
+| 외부 크롤링·YouTube | provider adapter가 소유 |
 | 입력·출력 계약 | Zod schema를 단일 원본으로 사용 |
 | 업무 규칙 | transport와 분리된 application service가 소유 |
 | 전환된 기존 REST | 동일 use case의 중복 계약을 남기지 않고 제거 |
@@ -54,7 +54,7 @@ flowchart TB
     Service --> Repository["Supabase Repository"]
     Repository --> Rpc["Supabase RPC / PostgreSQL<br/>transaction·lock·RLS"]
     Service --> Provider["External Provider Adapter"]
-    Provider --> Source["크롤링 대상·YouTube·Imgur"]
+    Provider --> Source["크롤링 대상·YouTube"]
     Callback --> SupabaseAuth["Supabase Auth session"]
 ```
 
@@ -135,7 +135,7 @@ UI / System Caller
 
 ### 4.8 External Provider Adapter
 
-- 크롤링 대상, YouTube Data API와 Imgur API의 URL, 인증, timeout, retry와 raw response 정규화를
+- 크롤링 대상과 YouTube Data API의 URL, 인증, timeout, retry와 raw response 정규화를
   담당합니다.
 - provider raw response를 tRPC나 UI에 직접 반환하지 않습니다.
 - service에는 정규화된 결과 또는 분류된 provider error만 반환합니다.
@@ -187,7 +187,6 @@ UI / System Caller
 | `POST /api/crawl/manual` | 소유자 UI | Supabase cookie + owner | 최대 60초 장시간 실행, 전용 bundle과 `activeRunId` 오류 계약 |
 | `POST /api/crawl/scheduled` | Supabase `pg_net` | internal secret | scheduler 정산, `Retry-After`, fail-closed 운영 계약 |
 | `POST /api/media/youtube/enrich` | Supabase `pg_net` | internal secret | durable queue worker와 provider별 batch 계약 |
-| `POST /api/media/imgur/enrich` | Supabase `pg_net` | internal secret | provider별 concurrency·lease 계약 |
 | `GET /auth/callback` | Supabase Auth | authorization code | OAuth/PKCE 표준 redirect 흐름 |
 
 수동 크롤링은 브라우저 호출의 예외입니다. 일반 CRUD와 달리 serverless 실행 제한, 무거운 parser
@@ -413,7 +412,6 @@ app/
     crawl/manual/route.ts
     crawl/scheduled/route.ts
     media/youtube/enrich/route.ts
-    media/imgur/enrich/route.ts
   auth/callback/route.ts
 ```
 
@@ -433,7 +431,7 @@ app/
 | Thread UI | 완료 | infinite query, 30초/5분 stale 정책, AbortSignal, optimistic update와 rollback을 유지한 채 tRPC로 전환 |
 | Crawl UI | 완료 | 실행 dashboard의 5초 active polling과 정책의 60초 polling, 충돌 복구 데이터를 유지한 채 tRPC로 전환 |
 | 기존 REST 정리 | 완료 | 7개 사용자 REST route와 해당 수동 fetch client 제거 |
-| 운영 REST 보존 | 완료 | manual, scheduled, YouTube/Imgur worker, Auth callback 경계 유지 |
+| 운영 REST 보존 | 완료 | manual, scheduled, YouTube worker, Auth callback 경계 유지 |
 | DB 무결성 | 완료 | RLS, lock, transaction과 scheduler 의미는 유지하고 thread ID 반환만 migration에서 decimal text로 보강 |
 | 배포 후 측정 | 대기 | p95 latency, batch 비율, 오류율과 production log 검색성 확인 필요 |
 

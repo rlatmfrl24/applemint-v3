@@ -38,7 +38,7 @@
 - 인증 사용자만 `/main` 접근 가능 (서버 레이아웃 + 미들웨어 세션 갱신)
 - 소스별 크롤링 결과 수집 후 중복 제거 및 키워드 기반 타입 분류
 - `threads` inbox 무한 스크롤 목록 + 타입별 통계/필터
-- YouTube·Imgur 정확 URL 분류, 비동기 메타데이터 수집과 공급자 전용 카드
+- YouTube·Imgur 정확 URL 분류와 타입 필터, YouTube 비동기 메타데이터·전용 카드
 - `Quick Save` 이동, `Trash` 이동/복원 워크플로우
 - 설정의 기능별 화면에서 소스별 예약 주기·수동 수집, 최근 90일 실행 이력, 신규 글 일괄 정리
 
@@ -48,9 +48,9 @@
 2. Supabase Cron이 5분마다 cooldown과 가용 동시성을 확인해 Next 예약 API를 비동기로 호출
 3. DB가 소스별 cooldown, source lock, 최대 2개 동시 실행을 원자적으로 판정
 4. 크롤링 결과를 `filter-keyword` 기준으로 필터링/타입 분류
-5. `ingest_crawl_items` RPC가 `crawl-history`, `threads`, YouTube와 cutover 이후 실제 신규 Imgur의 media metadata·queue 생성을 하나의 트랜잭션으로 확정
-6. 별도 Supabase Cron이 durable queue가 있는 provider의 내부 media worker를 `pg_net`으로 호출하며 Imgur provider cooldown 동안에는 YouTube만 계속 dispatch
-7. YouTube·Imgur worker가 Trash가 아닌 신규 queue만 lease로 처리하고 정규화된 요약과 retry·dead 상태를 보존. Imgur rate-limit은 provider cooldown과 durable retry로 API 호출을 억제
+5. `ingest_crawl_items` RPC가 `crawl-history`, `threads`, YouTube media metadata·queue 생성을 하나의 트랜잭션으로 확정. Imgur는 thread 분류와 필터만 저장
+6. 별도 Supabase Cron이 YouTube durable queue의 내부 media worker를 `pg_net`으로 호출
+7. YouTube worker가 Trash가 아닌 신규 queue만 lease로 처리하고 정규화된 요약과 retry·dead 상태를 보존
 8. `finish_crawl_run`이 크롤링 결과 저장과 lock 해제를 원자적으로 완료
 9. UI는 tRPC `thread.*`, `crawl.runs`, `crawlPolicy.*`로 목록·운영 이력을 조회
 
@@ -66,7 +66,7 @@ heartbeat, 비정상 종료 복구, 비활성 media scheduler의 승인·smoke·
 app/
   api/
     crawl/                 # 소스별 크롤러 + 수동/예약 실행 엔드포인트
-    media/                 # YouTube·Imgur adapter + lease worker + 내부 엔드포인트
+    media/                 # YouTube adapter + lease worker + 내부 엔드포인트
     trpc/                  # 브라우저 일반 조회·변경의 단일 tRPC 진입점
   auth/, login/, signout/  # 인증 흐름
   main/                    # 메인, 퀵세이브, 휴지통, 설정 화면
@@ -142,8 +142,6 @@ erDiagram
       text title
       text thumbnail_url
       int duration_seconds
-      int media_count
-      text[] preview_urls
     }
 
     MEDIA_ENRICHMENT_JOBS {
@@ -169,10 +167,11 @@ erDiagram
 - `crawl-history`는 `(crawl_source, url)` 유니크 인덱스로 중복 유입을 영구적으로 방지합니다. 사용자 목록에서 삭제된 URL도 재수집하지 않으며, 기간 만료 삭제·아카이브·월별 파티셔닝을 적용하지 않습니다.
 - `crawl_runs`는 재시도를 포함한 한 번의 실행을 한 행으로 보존하며 90일이 지난 이력은 매일 03:15 KST에 정리합니다.
 - `crawl_alert_incidents`는 소스 장애의 발생·복구 상태를 보존하고 설정 화면에 표시합니다.
-- `thread_media_metadata`는 외부 원시 응답 없이 YouTube·Imgur 표시용 요약만 저장합니다.
-- `media_enrichment_jobs`는 provider별 lease·retry·dead 상태를 보존하며 사용자 클라이언트에 직접 노출하지 않습니다.
+- `thread_media_metadata`는 외부 원시 응답 없이 YouTube 표시용 요약만 저장합니다.
+- `media_enrichment_jobs`는 YouTube lease·retry·dead 상태를 보존하며 사용자 클라이언트에 직접 노출하지 않습니다.
+- Imgur URL은 `threads.type='imgur'`로 분류해 상단 필터와 통계에 표시하지만 metadata·queue·외부 API 호출·전용 preview 카드를 만들지 않습니다.
 - 스레드가 Trash로 이동하면 아직 처리 중인 metadata와 `queued | retry | processing` job을 원자적으로 삭제합니다. 이미 완료된 metadata는 보존하며 복원해도 취소된 job을 다시 만들지 않습니다.
-- media worker Cron은 기존 crawl scheduler와 별도입니다. 초기 migration은 전역 비활성으로 배포되며 Imgur 복구 migration은 전역·YouTube 상태를 보존한 채 Imgur만 `imgur_enabled=false`, batch 1로 전환합니다.
+- YouTube media worker Cron은 기존 crawl scheduler와 별도이며 전역·YouTube switch를 각각 유지합니다.
 - `crawl-history` 용량 측정, 백업·복구, 성능 검증 절차는 [`docs/CRAWL_HISTORY_RETENTION.md`](docs/CRAWL_HISTORY_RETENTION.md)를 참고합니다.
 - media queue 조회, 승인 후 수동 smoke·활성화와 롤백 절차는 [`docs/CRAWL_SCHEDULING.md`](docs/CRAWL_SCHEDULING.md)를 참고합니다.
 - PWA 설치, VAPID 배포, Web Push 활성화·롤백과 기기 검증은 [`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)를 참고합니다.
@@ -240,12 +239,11 @@ erDiagram
 - `SUPABASE_URL` (서버 전용, 미설정 시 `NEXT_PUBLIC_SUPABASE_URL` 사용)
 - `CRAWL_INTERNAL_SECRET` (Next 예약 API와 Supabase Vault가 공유하는 32바이트 이상 secret)
 - `YOUTUBE_API_KEY` (YouTube metadata worker 전용 서버 환경 변수)
-- `IMGUR_CLIENT_ID` (Imgur metadata worker 전용 서버 환경 변수)
 - `WEB_PUSH_ENABLED` (기본 `false`, Web Push 신규 구독·발송 switch)
 - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (서버 전용 Web Push 설정)
 - `DEBUG_CRAWL`, `LOG_LEVEL`
 - `GITHUB_TOKEN` 또는 `GH_TOKEN` (보안 스크립트 실행 시)
-- Supabase Vault `crawl_app_base_url`, `crawl_internal_secret` (크롤러와 media worker 정기 예약 호출)
+- Supabase Vault `crawl_app_base_url`, `crawl_internal_secret` (크롤러와 YouTube worker 정기 예약 호출)
 
 Applemint는 migration에 고정한 단일 Supabase Auth 계정만 사용할 수 있습니다. 신규 가입은 비활성화하며 목록 조회는 소유자에게만 허용되고, 스레드 변경은 소유자 확인이 포함된 RPC를 통해서만 수행합니다.
 

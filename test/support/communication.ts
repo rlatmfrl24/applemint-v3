@@ -24,8 +24,6 @@ export const threadRow = {
 		thumbnail_url: "https://i.ytimg.com/vi/video/hqdefault.jpg",
 		duration_seconds: 125,
 		live_status: "none" as const,
-		media_count: null,
-		preview_urls: [],
 		last_error_code: null,
 		fetched_at: "2026-07-20T11:00:00.000Z",
 		updated_at: "2026-07-20T11:00:00.000Z",
