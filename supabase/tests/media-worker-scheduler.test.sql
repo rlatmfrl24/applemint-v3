@@ -1,7 +1,7 @@
 -- Media-only Cron, pg_net dispatch audit, fail-closed settings, and recovery contract.
 begin;
 
-select plan(44);
+select no_plan();
 
 select has_table(
 	'public',
@@ -33,9 +33,39 @@ select has_column(
 );
 select has_column(
 	'public',
+	'media_worker_runtime_settings',
+	'imgur_cooldown_until',
+	'Imgur runtime settings store provider cooldown'
+);
+select has_column(
+	'public',
+	'media_worker_runtime_settings',
+	'imgur_last_rate_limit_at',
+	'Imgur runtime settings store the last rate-limit observation time'
+);
+select has_column(
+	'public',
 	'media_worker_dispatches',
 	'response_reason',
 	'dispatch audit stores a safe normalized response reason'
+);
+select has_column(
+	'public',
+	'media_worker_dispatches',
+	'provider_outcome',
+	'dispatch audit separates provider outcome from transport state'
+);
+select has_column(
+	'public',
+	'media_worker_dispatches',
+	'provider_error_counts',
+	'dispatch audit stores bounded safe provider error counts'
+);
+select has_column(
+	'public',
+	'media_worker_dispatches',
+	'provider_http_status_counts',
+	'dispatch audit stores bounded provider HTTP status counts'
 );
 select is(
 	(
@@ -48,6 +78,10 @@ select is(
 				'media_worker_dispatches_http_status_check',
 				'media_worker_dispatches_response_reason_check',
 				'media_worker_dispatches_counts_check',
+				'media_worker_dispatches_provider_outcome_check',
+				'media_worker_dispatches_provider_diagnostic_counts_check',
+				'media_worker_dispatches_provider_error_counts_check',
+				'media_worker_dispatches_provider_http_status_counts_check',
 				'media_worker_dispatches_unique_bucket_provider'
 			)
 	),
@@ -55,6 +89,10 @@ select is(
 		'media_worker_dispatches_counts_check',
 		'media_worker_dispatches_http_status_check',
 		'media_worker_dispatches_provider_check',
+		'media_worker_dispatches_provider_diagnostic_counts_check',
+		'media_worker_dispatches_provider_error_counts_check',
+		'media_worker_dispatches_provider_http_status_counts_check',
+		'media_worker_dispatches_provider_outcome_check',
 		'media_worker_dispatches_response_reason_check',
 		'media_worker_dispatches_state_check',
 		'media_worker_dispatches_unique_bucket_provider'
@@ -125,9 +163,40 @@ select ok(
 			'authenticated',
 			'public.dispatch_due_media_enrichment_workers()',
 			'EXECUTE'
+		)
+		and has_function_privilege(
+			'service_role',
+			'public.set_imgur_enrichment_cooldown(timestamp with time zone,text)',
+			'EXECUTE'
+		)
+		and not has_function_privilege(
+			'authenticated',
+			'public.set_imgur_enrichment_cooldown(timestamp with time zone,text)',
+			'EXECUTE'
 		),
-	'media scheduler maintenance RPCs are restricted to service role'
+	'media scheduler and cooldown RPCs are restricted to service role'
 );
+set local role service_role;
+select lives_ok(
+	$$
+		insert into public.media_worker_dispatches (
+			scheduled_for,
+			provider,
+			provider_error_counts,
+			provider_http_status_counts
+		)
+		values (
+			'2026-07-26 23:59:00+00',
+			'imgur',
+			'{"IMGUR_HTTP_429":1}'::jsonb,
+			'{"429":1}'::jsonb
+		)
+	$$,
+	'service role can write bounded dispatch diagnostics through table constraints'
+);
+reset role;
+delete from public.media_worker_dispatches
+where scheduled_for = '2026-07-26 23:59:00+00';
 select is(
 	(
 		select row(
@@ -140,18 +209,35 @@ select is(
 		from public.media_worker_runtime_settings
 		where id = true
 	),
-	row(false, true, true, 50, 4),
-	'media scheduler is deployed globally disabled with provider switches and batch bounds'
+	row(false, true, false, 50, 1),
+	'media scheduler keeps YouTube available while Imgur recovery starts disabled at batch one'
 );
 select throws_ok(
 	$$
 		update public.media_worker_runtime_settings
-		set imgur_batch_size = 5
+		set imgur_batch_size = 3
 		where id = true
 	$$,
 	23514,
 	null,
-	'Imgur batch setting cannot exceed one four-request concurrency wave'
+	'Imgur batch setting cannot exceed two sequential jobs'
+);
+select throws_ok(
+	$$
+		insert into public.media_worker_dispatches (
+			scheduled_for,
+			provider,
+			provider_error_counts
+		)
+		select
+			'2026-07-27 00:00:00+00',
+			'imgur',
+			jsonb_object_agg('IMGUR_ERROR_' || value, 1)
+		from generate_series(1, 17) as value
+	$$,
+	23514,
+	null,
+	'dispatch diagnostics reject more than 16 aggregate keys'
 );
 select is(
 	(
@@ -214,7 +300,12 @@ update public.crawl_runtime_settings
 set scheduler_enabled = true
 where id = true;
 update public.media_worker_runtime_settings
-set scheduler_enabled = true
+set
+	scheduler_enabled = true,
+	youtube_enabled = true,
+	imgur_enabled = true,
+	imgur_cooldown_until = null,
+	imgur_cooldown_reason = null
 where id = true;
 
 set local role service_role;
@@ -339,7 +430,7 @@ select is(
 		from net.http_request_queue as request
 		where request.url like 'https://phase6-media-worker.invalid/api/media/%'
 	),
-	'{"youtube":50,"imgur":4}'::jsonb,
+	'{"youtube":50,"imgur":1}'::jsonb,
 	'pg_net bodies use the bounded provider batch sizes'
 );
 select ok(
@@ -401,9 +492,44 @@ delete from public.media_worker_dispatches;
 update public.media_worker_runtime_settings
 set
 	youtube_enabled = true,
-	imgur_enabled = true
+	imgur_enabled = true,
+	imgur_cooldown_until = clock_timestamp() + interval '10 minutes',
+	imgur_cooldown_reason = 'IMGUR_HTTP_429'
 where id = true;
 
+set local role service_role;
+select is(
+	public.dispatch_due_media_enrichment_workers() ->> 'dispatchedCount',
+	'1',
+	'active Imgur cooldown skips only Imgur dispatch'
+);
+reset role;
+select is(
+	(
+		select array_agg(provider order by provider)
+		from public.media_worker_dispatches
+		where state = 'queued'
+	),
+	array['youtube']::text[],
+	'Imgur cooldown does not interrupt YouTube scheduler work'
+);
+
+delete from public.media_worker_dispatches;
+update public.media_worker_runtime_settings
+set
+	imgur_cooldown_until = clock_timestamp() - interval '1 second',
+	imgur_cooldown_reason = 'IMGUR_HTTP_429'
+where id = true;
+
+set local role service_role;
+select is(
+	public.dispatch_due_media_enrichment_workers() ->> 'dispatchedCount',
+	'2',
+	'expired Imgur cooldown resumes provider dispatch automatically'
+);
+reset role;
+
+delete from public.media_worker_dispatches;
 insert into public.media_worker_dispatches (
 	scheduled_for,
 	provider,
@@ -492,6 +618,15 @@ select is(
 );
 select is(
 	(
+		select row(provider_outcome, api_request_count, provider_error_counts)
+		from public.media_worker_dispatches
+		where request_id = 960001
+	),
+	row(null::text, null::integer, null::jsonb),
+	'legacy YouTube worker responses remain valid without Imgur diagnostics'
+);
+select is(
+	(
 		select response_reason
 		from public.media_worker_dispatches
 		where request_id = 960006
@@ -505,8 +640,17 @@ select is(
 		from public.media_worker_runtime_settings
 		where id = true
 	),
-	false,
-	'authentication, endpoint, or configuration failures fail closed'
+	true,
+	'provider route failures do not disable the global media scheduler'
+);
+select is(
+	(
+		select row(youtube_enabled, imgur_enabled)
+		from public.media_worker_runtime_settings
+		where id = true
+	),
+	row(false, true),
+	'YouTube route failures disable only the affected provider switch'
 );
 select is(
 	(
@@ -516,6 +660,101 @@ select is(
 	),
 	true,
 	'media response failures never disable the existing crawl scheduler'
+);
+
+insert into public.media_worker_dispatches (
+	scheduled_for,
+	provider,
+	request_id,
+	created_at
+)
+values (
+	'2026-07-27 00:10:00+00',
+	'imgur',
+	960010,
+	now()
+);
+insert into net._http_response (
+	id,
+	status_code,
+	content_type,
+	headers,
+	content,
+	timed_out,
+	error_msg
+)
+values (
+	960010,
+	200,
+	'application/json',
+	'{}'::jsonb,
+	'{
+		"claimedCount":2,
+		"readyCount":0,
+		"unavailableCount":0,
+		"unsupportedCount":0,
+		"retriedCount":2,
+		"failedCount":0,
+		"leaseRejectedCount":0,
+		"diagnostics":{
+			"providerOutcome":"rate-limited",
+			"apiRequestCount":1,
+			"rateLimitedCount":2,
+			"errorCounts":{"IMGUR_HTTP_429":2},
+			"httpStatusCounts":{"429":1},
+			"nextAvailableAt":"2026-07-27T01:10:00.000Z",
+			"cooldownUntil":"2026-07-27T01:10:00.000Z",
+			"rateLimit":{
+				"clientRemaining":0,
+				"userRemaining":4,
+				"userResetAt":"2026-07-27T01:05:00.000Z"
+			}
+		}
+	}',
+	false,
+	null
+);
+
+set local role service_role;
+select is(
+	public.reconcile_media_worker_dispatches(),
+	1::bigint,
+	'reconciler stores a successful transport with provider rate limiting'
+);
+reset role;
+select is(
+	(
+		select row(
+			state,
+			provider_outcome,
+			api_request_count,
+			rate_limited_count,
+			provider_error_counts,
+			provider_http_status_counts,
+			rate_limit_client_remaining
+		)
+		from public.media_worker_dispatches
+		where request_id = 960010
+	),
+	row(
+		'succeeded'::text,
+		'rate-limited'::text,
+		1,
+		2,
+		'{"IMGUR_HTTP_429":2}'::jsonb,
+		'{"429":1}'::jsonb,
+		0
+	),
+	'HTTP 200 transport remains succeeded while Imgur outcome and bounded diagnostics stay visible'
+);
+select is(
+	(
+		select scheduler_enabled
+		from public.media_worker_runtime_settings
+		where id = true
+	),
+	true,
+	'provider rate limiting does not disable the global media scheduler'
 );
 
 insert into public.media_worker_dispatches (
@@ -552,14 +791,14 @@ update public.media_worker_runtime_settings
 set
 	scheduler_enabled = true,
 	youtube_enabled = true,
-	imgur_enabled = false
+	imgur_enabled = true
 where id = true;
 
 set local role service_role;
 select is(
 	public.reconcile_media_worker_dispatches(),
 	1::bigint,
-	'reconciler settles a late response from a provider disabled after dispatch'
+	'reconciler settles an Imgur provider configuration failure'
 );
 reset role;
 select is(
@@ -569,16 +808,16 @@ select is(
 		where request_id = 960009
 	),
 	row('server-error'::text, 'configuration-missing'::text),
-	'disabled provider failure remains visible in the dispatch audit'
+	'provider configuration failure remains visible in the dispatch audit'
 );
 select is(
 	(
-		select scheduler_enabled
+		select row(scheduler_enabled, youtube_enabled, imgur_enabled)
 		from public.media_worker_runtime_settings
 		where id = true
 	),
-	true,
-	'disabled provider configuration failure does not stop enabled providers'
+	row(true, true, false),
+	'Imgur configuration failure disables only Imgur and leaves YouTube scheduled'
 );
 
 insert into public.media_worker_dispatches (
@@ -645,6 +884,40 @@ select is(
 	),
 	'youtube',
 	'lease recovery dispatch remains provider-specific'
+);
+
+delete from public.media_worker_dispatches;
+insert into public.media_worker_dispatches (
+	scheduled_for,
+	provider,
+	state,
+	created_at,
+	resolved_at
+)
+values
+	(
+		'2026-05-01 00:00:00+00',
+		'imgur',
+		'succeeded',
+		clock_timestamp() - interval '31 days',
+		clock_timestamp() - interval '31 days'
+	),
+	(
+		'2026-07-29 00:00:00+00',
+		'youtube',
+		'succeeded',
+		clock_timestamp() - interval '29 days',
+		clock_timestamp() - interval '29 days'
+	);
+select is(
+	public.cleanup_media_worker_dispatches(),
+	1::bigint,
+	'dispatch cleanup removes only aggregate diagnostics older than 30 days'
+);
+select is(
+	(select count(*) from public.media_worker_dispatches),
+	1::bigint,
+	'30-day cleanup preserves recent dispatch diagnostics'
 );
 
 select * from finish();
