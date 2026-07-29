@@ -5,7 +5,6 @@ import { useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { ThreadItemType } from "@/lib/type-defs";
-import { ImgurThreadContent, shouldRenderImgurAsDefaultCard } from "./imgur-thread-content";
 import { YouTubeThreadContent } from "./youtube-thread-content";
 
 function DefaultThreadContent({
@@ -70,7 +69,6 @@ export function ThreadCard({
 	const handleOpen = useCallback(() => {
 		window.open(thread.url, "_blank", "noopener,noreferrer");
 	}, [thread.url]);
-	const useDefaultImgurCard = shouldRenderImgurAsDefaultCard(thread);
 
 	return (
 		<Card
@@ -81,8 +79,6 @@ export function ThreadCard({
 			<CardContent className="flex flex-col gap-3 p-3">
 				{thread.type === "youtube" ? (
 					<YouTubeThreadContent thread={thread} onOpen={handleOpen} meta={meta} />
-				) : thread.type === "imgur" && !useDefaultImgurCard ? (
-					<ImgurThreadContent thread={thread} onOpen={handleOpen} meta={meta} />
 				) : (
 					<DefaultThreadContent thread={thread} onOpen={handleOpen} meta={meta} />
 				)}

@@ -4,7 +4,7 @@ import { ImageOff, Link2, Radio, Youtube } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { getAllowedMediaUrl } from "@/lib/media-preview";
+import { getAllowedYouTubeThumbnailUrl } from "@/lib/media-preview";
 import type { ThreadItemType } from "@/lib/type-defs";
 
 type YouTubeCardStatus = "pending" | "ready" | "failed" | "unavailable" | "unsupported" | "legacy";
@@ -62,7 +62,7 @@ function getYouTubeCardModel(thread: ThreadItemType) {
 		status,
 		title,
 		sourceContext,
-		thumbnailUrl: getAllowedMediaUrl(metadata?.thumbnail_url, "youtube"),
+		thumbnailUrl: getAllowedYouTubeThumbnailUrl(metadata?.thumbnail_url),
 		duration:
 			status === "ready" && metadata?.live_status !== "live" && metadata?.live_status !== "upcoming"
 				? formatYouTubeDuration(metadata?.duration_seconds)

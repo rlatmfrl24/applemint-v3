@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	createMediaWorkerRequestSchema,
-	mediaWorkerDiagnosticsSchema,
-	mediaWorkerResultSchema,
-} from "./media-worker.schema";
+import { createMediaWorkerRequestSchema, mediaWorkerResultSchema } from "./media-worker.schema";
 
 describe("media worker contracts", () => {
 	it("빈 객체에는 provider별 최대 batch를 적용한다", () => {
@@ -39,41 +35,17 @@ describe("media worker contracts", () => {
 		expect(mediaWorkerResultSchema.safeParse({ ...result, failedCount: -1 }).success).toBe(false);
 	});
 
-	it("Imgur diagnostics를 선택적으로 허용하고 bounded map과 timestamp를 검증한다", () => {
-		const diagnostics = {
-			providerOutcome: "rate-limited",
-			apiRequestCount: 1,
-			rateLimitedCount: 2,
-			errorCounts: { IMGUR_HTTP_429: 2 },
-			httpStatusCounts: { "429": 1 },
-			nextAvailableAt: "2026-07-27T01:00:00.000Z",
-			cooldownUntil: "2026-07-27T01:00:00.000Z",
-			rateLimit: {
-				clientRemaining: 0,
-				userRemaining: null,
-				userResetAt: null,
-			},
+	it("제거된 provider diagnostics 필드를 허용하지 않는다", () => {
+		const result = {
+			claimedCount: 1,
+			readyCount: 1,
+			unavailableCount: 0,
+			unsupportedCount: 0,
+			retriedCount: 0,
+			failedCount: 0,
+			leaseRejectedCount: 0,
+			diagnostics: { providerOutcome: "completed" },
 		};
-		expect(mediaWorkerDiagnosticsSchema.safeParse(diagnostics).success).toBe(true);
-		expect(
-			mediaWorkerDiagnosticsSchema.safeParse({
-				...diagnostics,
-				httpStatusCounts: { secret: 1 },
-			}).success
-		).toBe(false);
-		expect(
-			mediaWorkerDiagnosticsSchema.safeParse({
-				...diagnostics,
-				errorCounts: Object.fromEntries(
-					Array.from({ length: 17 }, (_, index) => [`IMGUR_ERROR_${index}`, 1])
-				),
-			}).success
-		).toBe(false);
-		expect(
-			mediaWorkerDiagnosticsSchema.safeParse({
-				...diagnostics,
-				errorCounts: { ["X".repeat(128)]: 9_999_999_999 },
-			}).success
-		).toBe(true);
+		expect(mediaWorkerResultSchema.safeParse(result).success).toBe(false);
 	});
 });

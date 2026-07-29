@@ -1,7 +1,7 @@
 import { createElement, type ImgHTMLAttributes } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { getAllowedMediaUrl } from "@/lib/media-preview";
+import { getAllowedYouTubeThumbnailUrl } from "@/lib/media-preview";
 import type { ThreadItemType } from "@/lib/type-defs";
 
 vi.mock("next/image", () => ({
@@ -36,8 +36,6 @@ const baseMetadata: MediaMetadata = {
 	thumbnail_url: "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg",
 	duration_seconds: 125,
 	live_status: "none",
-	media_count: null,
-	preview_urls: [],
 	last_error_code: null,
 	fetched_at: "2026-07-27T00:00:00.000Z",
 	updated_at: "2026-07-27T00:00:00.000Z",
@@ -195,6 +193,22 @@ describe("YouTube thread card", () => {
 		expect(markup).toContain("example.com");
 		expect(markup).not.toContain(">Open<");
 	});
+
+	it("Imgur thread는 metadata 없이 일반 카드와 Imgur 필터 타입을 유지한다", () => {
+		const markup = renderThread({
+			type: "imgur",
+			url: "https://imgur.com/a/Album12",
+			title: "수집된 Imgur 링크",
+			host: "imgur.com",
+			media_metadata: null,
+		});
+
+		expect(markup).toContain('data-testid="default-thread-content"');
+		expect(markup).not.toContain('data-testid="youtube-thread-content"');
+		expect(markup).toContain("수집된 Imgur 링크");
+		expect(markup).toContain("https://imgur.com/a/Album12");
+		expect(markup).toContain(">imgur<");
+	});
 });
 
 describe("YouTube card formatters", () => {
@@ -210,15 +224,13 @@ describe("YouTube card formatters", () => {
 		expect(formatYouTubeDuration(seconds)).toBe(expected);
 	});
 
-	it("provider별 최소 https hostname만 허용한다", () => {
-		expect(getAllowedMediaUrl("https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg", "youtube")).toBe(
+	it("YouTube 썸네일의 최소 https hostname만 허용한다", () => {
+		expect(getAllowedYouTubeThumbnailUrl("https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg")).toBe(
 			"https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg"
 		);
-		expect(getAllowedMediaUrl("https://i.imgur.com/image.jpg", "imgur")).toBe(
-			"https://i.imgur.com/image.jpg"
-		);
-		expect(getAllowedMediaUrl("http://i.ytimg.com/image.jpg", "youtube")).toBeNull();
-		expect(getAllowedMediaUrl("https://i.ytimg.com.evil.example/image.jpg", "youtube")).toBeNull();
-		expect(getAllowedMediaUrl("https://example.com/image.jpg", "youtube")).toBeNull();
+		expect(getAllowedYouTubeThumbnailUrl("http://i.ytimg.com/image.jpg")).toBeNull();
+		expect(getAllowedYouTubeThumbnailUrl("https://i.ytimg.com.evil.example/image.jpg")).toBeNull();
+		expect(getAllowedYouTubeThumbnailUrl("https://i.imgur.com/image.jpg")).toBeNull();
+		expect(getAllowedYouTubeThumbnailUrl("https://example.com/image.jpg")).toBeNull();
 	});
 });

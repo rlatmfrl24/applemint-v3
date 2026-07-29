@@ -11,11 +11,6 @@ const nextConfig: NextConfig = {
 				hostname: "i.ytimg.com",
 				pathname: "/**",
 			},
-			{
-				protocol: "https",
-				hostname: "i.imgur.com",
-				pathname: "/**",
-			},
 		],
 	},
 	async headers() {
