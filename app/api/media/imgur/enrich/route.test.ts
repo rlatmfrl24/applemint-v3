@@ -9,7 +9,7 @@ vi.mock("@/utils/supabase/service-role", () => ({
 	createServiceRoleClient: createServiceRoleClientMock,
 }));
 vi.mock("../worker", () => ({
-	IMGUR_MAX_BATCH_SIZE: 4,
+	IMGUR_MAX_BATCH_SIZE: 2,
 	runImgurEnrichmentWorker: runImgurEnrichmentWorkerMock,
 	ImgurWorkerError: class extends Error {
 		constructor(readonly code: string) {
@@ -64,17 +64,17 @@ describe("POST /api/media/imgur/enrich", () => {
 	});
 
 	it("검증된 요청만 service-role worker에 제한된 batch 크기로 전달한다", async () => {
-		const response = await POST(request(INTERNAL_SECRET, { limit: 4 }));
+		const response = await POST(request(INTERNAL_SECRET, { limit: 2 }));
 
 		expect(response.status).toBe(200);
 		expect(runImgurEnrichmentWorkerMock).toHaveBeenCalledWith(
 			createServiceRoleClientMock.mock.results[0].value,
-			{ clientId: "fixture-client-id", limit: 4 }
+			{ clientId: "fixture-client-id", limit: 2 }
 		);
 	});
 
 	it("잘못된 limit과 service-role 설정 오류를 fail closed한다", async () => {
-		expect((await POST(request(INTERNAL_SECRET, { limit: 5 }))).status).toBe(400);
+		expect((await POST(request(INTERNAL_SECRET, { limit: 3 }))).status).toBe(400);
 		expect(createServiceRoleClientMock).not.toHaveBeenCalled();
 
 		createServiceRoleClientMock.mockImplementationOnce(() => {
@@ -90,7 +90,7 @@ describe("POST /api/media/imgur/enrich", () => {
 		expect(defaultResponse.status).toBe(200);
 		expect(runImgurEnrichmentWorkerMock).toHaveBeenLastCalledWith(expect.anything(), {
 			clientId: "fixture-client-id",
-			limit: 4,
+			limit: 2,
 		});
 
 		runImgurEnrichmentWorkerMock.mockClear();

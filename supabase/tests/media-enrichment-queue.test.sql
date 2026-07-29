@@ -19,6 +19,18 @@ select has_column(
 	'imgur_enrichment_cutoff_at',
 	'Imgur enrichment cutover is recorded in runtime settings'
 );
+select has_column(
+	'public',
+	'media_worker_runtime_settings',
+	'imgur_cooldown_until',
+	'Imgur provider cooldown is stored separately from the enrichment cutover'
+);
+select has_column(
+	'public',
+	'media_worker_runtime_settings',
+	'imgur_cooldown_reason',
+	'Imgur provider cooldown stores only a normalized reason'
+);
 select ok(
 	(
 		select imgur_enrichment_cutoff_at <= clock_timestamp()
@@ -196,8 +208,13 @@ select ok(
 			'service_role',
 			'public.fail_media_enrichment_job(bigint,uuid,text)',
 			'EXECUTE'
+		)
+		and has_function_privilege(
+			'service_role',
+			'public.set_imgur_enrichment_cooldown(timestamp with time zone,text)',
+			'EXECUTE'
 		),
-	'service role can execute all queue lifecycle RPCs'
+	'service role can execute queue lifecycle and Imgur cooldown RPCs'
 );
 select ok(
 	not has_function_privilege(
@@ -219,8 +236,13 @@ select ok(
 			'authenticated',
 			'public.fail_media_enrichment_job(bigint,uuid,text)',
 			'EXECUTE'
+		)
+		and not has_function_privilege(
+			'authenticated',
+			'public.set_imgur_enrichment_cooldown(timestamp with time zone,text)',
+			'EXECUTE'
 		),
-	'authenticated cannot execute queue lifecycle RPCs'
+	'authenticated cannot execute queue lifecycle or Imgur cooldown RPCs'
 );
 select is(
 	(
@@ -405,6 +427,177 @@ select is(
 	),
 	2::bigint,
 	'duplicate ingest leaves one current job per provider thread'
+);
+
+select set_config(
+	'test.imgur_cooldown_until',
+	(clock_timestamp() + interval '10 minutes')::text,
+	true
+);
+set local role service_role;
+select is(
+	public.set_imgur_enrichment_cooldown(
+		current_setting('test.imgur_cooldown_until')::timestamp with time zone,
+		'IMGUR_HTTP_429'
+	),
+	true,
+	'service role can set an Imgur provider cooldown'
+);
+reset role;
+select is(
+	(
+		select row(imgur_cooldown_until, imgur_cooldown_reason)
+		from public.media_worker_runtime_settings
+		where id = true
+	),
+	row(
+		current_setting('test.imgur_cooldown_until')::timestamp with time zone,
+		'IMGUR_HTTP_429'::text
+	),
+	'cooldown stores only the effective time and normalized reason'
+);
+
+set local role service_role;
+select is(
+	public.set_imgur_enrichment_cooldown(
+		clock_timestamp() + interval '5 minutes',
+		'IMGUR_USER_RATE_LIMITED'
+	),
+	true,
+	'a shorter cooldown request is accepted without shortening existing protection'
+);
+reset role;
+select is(
+	(
+		select row(imgur_cooldown_until, imgur_cooldown_reason)
+		from public.media_worker_runtime_settings
+		where id = true
+	),
+	row(
+		current_setting('test.imgur_cooldown_until')::timestamp with time zone,
+		'IMGUR_HTTP_429'::text
+	),
+	'a shorter cooldown cannot overwrite the longer time or its reason'
+);
+select is(
+	(
+		select row(job.available_at, job.last_error_code, metadata.last_error_code)
+		from public.media_enrichment_jobs as job
+		inner join public.thread_media_metadata as metadata using (thread_id)
+		inner join public.threads as thread on thread.id = job.thread_id
+		where thread.url = 'https://phase2-ingest.test/imgur'
+	),
+	row(
+		current_setting('test.imgur_cooldown_until')::timestamp with time zone,
+		'IMGUR_HTTP_429'::text,
+		'IMGUR_HTTP_429'::text
+	),
+	'cooldown atomically delays queued Imgur work and annotates pending metadata'
+);
+
+insert into public.threads (type, url, title, host, state)
+values (
+	'imgur',
+	'https://phase2-cooldown.test/expired-lease',
+	'expired Imgur lease',
+	'imgur.com',
+	'inbox'
+);
+insert into public.thread_media_metadata (thread_id, provider)
+select id, 'imgur'
+from public.threads
+where url = 'https://phase2-cooldown.test/expired-lease';
+insert into public.media_enrichment_jobs (
+	thread_id,
+	provider,
+	state,
+	lease_token,
+	lease_expires_at
+)
+select
+	id,
+	'imgur',
+	'processing',
+	gen_random_uuid(),
+	clock_timestamp() - interval '1 minute'
+from public.threads
+where url = 'https://phase2-cooldown.test/expired-lease';
+
+set local role service_role;
+select is(
+	(
+		select count(*)
+		from public.claim_media_enrichment_jobs('imgur', 1, 60)
+	),
+	0::bigint,
+	'active provider cooldown blocks manual claim of an expired Imgur lease'
+);
+reset role;
+
+select is(
+	public.ingest_crawl_items(
+		'battlepage',
+		'[
+			{"url":"https://phase2-cooldown.test/imgur","title":"imgur","type":"imgur"},
+			{"url":"https://phase2-cooldown.test/youtube","title":"youtube","type":"youtube"}
+		]'::jsonb
+	),
+	'{"insertedCount": 2, "skippedCount": 0}'::jsonb,
+	'new provider ingest remains atomic during an Imgur cooldown'
+);
+select is(
+	(
+		select row(
+			imgur_metadata.last_error_code,
+			imgur_job.last_error_code,
+			imgur_job.available_at,
+			youtube_metadata.last_error_code,
+			youtube_job.last_error_code
+		)
+		from public.thread_media_metadata as imgur_metadata
+		inner join public.threads as imgur_thread
+			on imgur_thread.id = imgur_metadata.thread_id
+		inner join public.media_enrichment_jobs as imgur_job
+			on imgur_job.thread_id = imgur_thread.id
+		cross join public.thread_media_metadata as youtube_metadata
+		inner join public.threads as youtube_thread
+			on youtube_thread.id = youtube_metadata.thread_id
+		inner join public.media_enrichment_jobs as youtube_job
+			on youtube_job.thread_id = youtube_thread.id
+		where imgur_thread.url = 'https://phase2-cooldown.test/imgur'
+			and youtube_thread.url = 'https://phase2-cooldown.test/youtube'
+	),
+	row(
+		'IMGUR_HTTP_429'::text,
+		'IMGUR_HTTP_429'::text,
+		current_setting('test.imgur_cooldown_until')::timestamp with time zone,
+		null::text,
+		null::text
+	),
+	'cooldown delays only new Imgur jobs while YouTube ingest remains immediately available'
+);
+select throws_ok(
+	$$
+		select public.set_imgur_enrichment_cooldown(
+			clock_timestamp() + interval '10 minutes',
+			'IMGUR_HTTP_403'
+		)
+	$$,
+	'22023',
+	'Unsupported Imgur cooldown reason.',
+	'cooldown RPC rejects terminal or unnormalized error codes'
+);
+
+update public.media_worker_runtime_settings
+set
+	imgur_cooldown_until = null,
+	imgur_cooldown_reason = null
+where id = true;
+delete from public.thread_media_metadata
+where thread_id = (
+	select id
+	from public.threads
+	where url = 'https://phase2-cooldown.test/expired-lease'
 );
 
 create function pg_temp.reject_phase2_imgur_job()
