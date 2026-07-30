@@ -74,7 +74,7 @@ export const updateSession = async (request: NextRequest) => {
 				},
 				setAll(cookiesToSet, headers) {
 					for (const cookie of cookiesToSet) {
-						request.cookies.set(cookie);
+						request.cookies.set(cookie.name, cookie.value);
 						pendingCookies.set(cookie.name, cookie);
 					}
 					for (const [name, value] of Object.entries(headers)) {
@@ -83,7 +83,7 @@ export const updateSession = async (request: NextRequest) => {
 
 					response = createForwardedResponse(request, requestId);
 					for (const cookie of pendingCookies.values()) {
-						response.cookies.set(cookie);
+						response.cookies.set(cookie.name, cookie.value, cookie.options);
 					}
 					authHeaders.forEach((value, name) => {
 						response.headers.set(name, value);

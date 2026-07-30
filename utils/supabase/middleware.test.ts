@@ -50,7 +50,12 @@ describe("updateSession", () => {
 							{
 								name: "sb-session",
 								value: "refreshed",
-								options: { httpOnly: true, path: "/" },
+								options: {
+									httpOnly: true,
+									maxAge: 400 * 24 * 60 * 60,
+									path: "/",
+									sameSite: "lax",
+								},
 							},
 						],
 						{
@@ -71,7 +76,15 @@ describe("updateSession", () => {
 
 		expect(readCookies).toContainEqual({ name: "sb-session", value: "stale" });
 		expect(request.cookies.get("sb-session")?.value).toBe("refreshed");
-		expect(response.cookies.get("sb-session")?.value).toBe("refreshed");
+		expect(response.cookies.get("sb-session")).toEqual(
+			expect.objectContaining({
+				value: "refreshed",
+				httpOnly: true,
+				maxAge: 400 * 24 * 60 * 60,
+				path: "/",
+				sameSite: "lax",
+			})
+		);
 		expect(response.headers.get("x-middleware-request-cookie")).toContain("sb-session=refreshed");
 		expect(response.headers.get("cache-control")).toContain("no-store");
 		expect(response.headers.get("pragma")).toBe("no-cache");

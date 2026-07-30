@@ -24,7 +24,7 @@ export const createClient = async () => {
 			setAll(cookiesToSet) {
 				try {
 					for (const cookie of cookiesToSet) {
-						cookieStore.set(cookie);
+						cookieStore.set(cookie.name, cookie.value, cookie.options);
 					}
 				} catch (_error) {
 					// `setAll` was called from a Server Component.

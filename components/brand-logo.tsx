@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -16,25 +17,24 @@ export function BrandLogo({ className, wordmarkClassName }: BrandLogoProps) {
 			)}
 			href="/main"
 		>
-			<svg
+			<Image
+				alt=""
 				aria-hidden="true"
-				className="size-8 shrink-0"
-				viewBox="0 0 64 64"
-				xmlns="http://www.w3.org/2000/svg"
-			>
-				<rect x="4" y="14" width="42" height="42" rx="9" fill="#0F172A" />
-				<rect x="9" y="9" width="42" height="42" rx="9" fill="#99F6E4" />
-				<rect x="14" y="4" width="46" height="46" rx="10" fill="#111827" />
-				<path d="M39 4h11c5.5 0 10 4.5 10 10v11L39 4Z" fill="#2DD4BF" />
-				<path
-					d="m46 14.5 3 3 6-6.5"
-					fill="none"
-					stroke="#FFFFFF"
-					strokeLinecap="round"
-					strokeLinejoin="round"
-					strokeWidth="2.8"
-				/>
-			</svg>
+				className="h-8 w-auto shrink-0 dark:hidden"
+				height={32}
+				src="/brand/applemint-mark-light.svg"
+				unoptimized
+				width={38}
+			/>
+			<Image
+				alt=""
+				aria-hidden="true"
+				className="hidden h-8 w-auto shrink-0 dark:block"
+				height={32}
+				src="/brand/applemint-mark-dark.svg"
+				unoptimized
+				width={38}
+			/>
 			<span className={cn("font-bold text-xl tracking-[-0.04em]", wordmarkClassName)}>
 				Applemint
 			</span>
