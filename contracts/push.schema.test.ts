@@ -3,9 +3,12 @@ import {
 	claimedPushDeliveriesSchema,
 	pushAcknowledgeResultSchema,
 	pushConfigurationSchema,
+	pushSendTestResultSchema,
 	pushSubscriptionInputSchema,
+	pushTestClaimResultSchema,
 	retryPushDeliveryResultSchema,
 	webPushPayloadSchema,
+	webPushTestPayloadSchema,
 } from "./push.schema";
 
 describe("Web Push contracts", () => {
@@ -25,6 +28,36 @@ describe("Web Push contracts", () => {
 		);
 		expect(webPushPayloadSchema.safeParse({ ...payload, v: 2 }).success).toBe(false);
 		expect(webPushPayloadSchema.safeParse({ ...payload, badgeCount: 0 }).success).toBe(false);
+	});
+
+	it("테스트 payload는 설정 URL 외 필드와 URL을 허용하지 않는다", () => {
+		const payload = { v: 1, type: "test", url: "/main/setting/app" } as const;
+		expect(webPushTestPayloadSchema.parse(payload)).toEqual(payload);
+		expect(webPushPayloadSchema.parse(payload)).toEqual(payload);
+		expect(webPushPayloadSchema.safeParse({ ...payload, badgeCount: 1 }).success).toBe(false);
+		expect(webPushPayloadSchema.safeParse({ ...payload, url: "/main" }).success).toBe(false);
+	});
+
+	it("테스트 claim 비밀값은 claimed 상태에서만 서버 내부 계약으로 허용한다", () => {
+		expect(
+			pushTestClaimResultSchema.parse({
+				status: "claimed",
+				subscriptionId: 1,
+				endpoint: "https://push.test/device",
+				p256dh: "A".repeat(43),
+				auth: "B".repeat(22),
+			})
+		).toMatchObject({ status: "claimed", subscriptionId: 1 });
+		expect(pushTestClaimResultSchema.parse({ status: "cooldown", retryAfterSeconds: 60 })).toEqual({
+			status: "cooldown",
+			retryAfterSeconds: 60,
+		});
+		expect(
+			pushSendTestResultSchema.parse({
+				sent: true,
+				sentAt: "2026-07-30T00:00:00.000Z",
+			})
+		).toEqual({ sent: true, sentAt: "2026-07-30T00:00:00.000Z" });
 	});
 
 	it("PushSubscriptionJSON의 endpoint와 암호화 키를 strict하게 검증한다", () => {

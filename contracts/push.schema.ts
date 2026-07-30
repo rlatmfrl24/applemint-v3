@@ -66,7 +66,7 @@ export const pushAcknowledgeResultSchema = z
 
 const pushSourceSchema = z.enum(["arcalive", "battlepage", "insagirl"]);
 
-export const webPushPayloadSchema = z
+const webPushNewItemsPayloadSchema = z
 	.object({
 		v: z.literal(1),
 		type: z.literal("new-items"),
@@ -77,6 +77,49 @@ export const webPushPayloadSchema = z
 		url: z.literal("/main"),
 	})
 	.strict();
+
+export const webPushTestPayloadSchema = z
+	.object({
+		v: z.literal(1),
+		type: z.literal("test"),
+		url: z.literal("/main/setting/app"),
+	})
+	.strict();
+
+export const webPushPayloadSchema = z.discriminatedUnion("type", [
+	webPushNewItemsPayloadSchema,
+	webPushTestPayloadSchema,
+]);
+
+export const pushSendTestResultSchema = z
+	.object({
+		sent: z.literal(true),
+		sentAt: z.string().datetime({ offset: true }),
+	})
+	.strict();
+
+const claimedPushTestSubscriptionSchema = z
+	.object({
+		status: z.literal("claimed"),
+		subscriptionId: z.coerce.number().int().positive(),
+		endpoint: z.string().url().startsWith("https://").max(4096),
+		p256dh: z.string().min(32).max(512),
+		auth: z.string().min(8).max(128),
+	})
+	.strict();
+
+export const pushTestClaimResultSchema = z.discriminatedUnion("status", [
+	claimedPushTestSubscriptionSchema,
+	z.object({ status: z.literal("not-found") }).strict(),
+	z.object({ status: z.literal("inactive") }).strict(),
+	z.object({ status: z.literal("expired") }).strict(),
+	z
+		.object({
+			status: z.literal("cooldown"),
+			retryAfterSeconds: z.coerce.number().int().positive().max(600),
+		})
+		.strict(),
+]);
 
 export const pushDispatchRequestSchema = z
 	.object({
@@ -142,5 +185,7 @@ export const invalidatePushSubscriptionResultSchema = z
 export type PushConfiguration = z.infer<typeof pushConfigurationSchema>;
 export type PushSubscriptionInput = z.infer<typeof pushSubscriptionInputSchema>;
 export type WebPushPayload = z.infer<typeof webPushPayloadSchema>;
+export type WebPushTestPayload = z.infer<typeof webPushTestPayloadSchema>;
+export type PushTestClaimResult = z.infer<typeof pushTestClaimResultSchema>;
 export type ClaimedPushDelivery = z.infer<typeof claimedPushDeliverySchema>;
 export type PushDispatchResult = z.infer<typeof pushDispatchResultSchema>;

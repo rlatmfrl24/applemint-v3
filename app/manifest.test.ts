@@ -156,6 +156,26 @@ describe("PWA manifest", () => {
 		]);
 	});
 
+	it("홈 화면 바로가기 3개를 고정된 순서와 기존 아이콘으로 선언한다", () => {
+		expect(manifest().shortcuts).toEqual([
+			{
+				name: "Inbox",
+				url: "/main",
+				icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+			},
+			{
+				name: "Quick Save",
+				url: "/main/quick",
+				icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+			},
+			{
+				name: "수집 운영",
+				url: "/main/setting/operations",
+				icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+			},
+		]);
+	});
+
 	it.each([
 		["public/icons/icon-192.png", 192, 192],
 		["public/icons/icon-512.png", 512, 512],

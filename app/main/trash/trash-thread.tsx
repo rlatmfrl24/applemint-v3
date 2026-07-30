@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { Copy, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { ThreadCard } from "@/app/main/thread-card";
+import { ThreadShareButton } from "@/components/thread-share-button";
 import { Button } from "@/components/ui/button";
 import {
 	applyMoveThreadOptimisticUpdates,
@@ -96,6 +97,7 @@ export function TrashThread() {
 					actions={
 						<>
 							<RestoreButton thread={thread} />
+							<ThreadShareButton thread={thread} />
 							<Button
 								variant="outline"
 								size="sm"

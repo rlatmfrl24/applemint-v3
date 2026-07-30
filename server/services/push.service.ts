@@ -1,10 +1,14 @@
 import type { PushSubscriptionInput } from "@/contracts/push.schema";
 import { DomainError } from "@/server/errors/domain-error";
 import { getWebPushServerConfiguration } from "@/server/push/configuration";
+import { sendWebPushTest } from "@/server/push/test-sender";
 import type { PushRepository } from "@/server/repositories/push.repository";
 
 export class PushService {
-	constructor(private readonly repository: PushRepository) {}
+	constructor(
+		private readonly repository: PushRepository,
+		private readonly sendTestNotification = sendWebPushTest
+	) {}
 
 	configuration() {
 		return getWebPushServerConfiguration().public;
@@ -30,5 +34,15 @@ export class PushService {
 
 	acknowledgeInbox(endpoint: string) {
 		return this.repository.acknowledgeInbox(endpoint);
+	}
+
+	sendTest(endpoint: string) {
+		const configuration = getWebPushServerConfiguration();
+		if (!configuration.enabled) {
+			throw new DomainError("ConfigurationUnavailable", "Web Push 서버 설정이 중단되어 있습니다.", {
+				reasonCode: configuration.public.reason ?? "configuration-missing",
+			});
+		}
+		return this.sendTestNotification(endpoint, configuration);
 	}
 }

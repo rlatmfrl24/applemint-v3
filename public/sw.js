@@ -1,4 +1,13 @@
-const PUSH_PAYLOAD_KEYS = ["badgeCount", "insertedCount", "runId", "source", "type", "url", "v"];
+const NEW_ITEMS_PAYLOAD_KEYS = [
+	"badgeCount",
+	"insertedCount",
+	"runId",
+	"source",
+	"type",
+	"url",
+	"v",
+];
+const TEST_PAYLOAD_KEYS = ["type", "url", "v"];
 const SOURCE_LABELS = {
 	arcalive: "Arcalive",
 	battlepage: "Battlepage",
@@ -9,16 +18,19 @@ function isPositiveInteger(value) {
 	return Number.isSafeInteger(value) && value > 0;
 }
 
-function isValidPayload(value) {
+function hasExactKeys(value, expectedKeys) {
+	const keys = Object.keys(value).sort();
+	return (
+		keys.length === expectedKeys.length && keys.every((key, index) => key === expectedKeys[index])
+	);
+}
+
+function isValidNewItemsPayload(value) {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
 		return false;
 	}
 
-	const keys = Object.keys(value).sort();
-	if (
-		keys.length !== PUSH_PAYLOAD_KEYS.length ||
-		keys.some((key, index) => key !== PUSH_PAYLOAD_KEYS[index])
-	) {
+	if (!hasExactKeys(value, NEW_ITEMS_PAYLOAD_KEYS)) {
 		return false;
 	}
 
@@ -31,6 +43,18 @@ function isValidPayload(value) {
 		isPositiveInteger(value.insertedCount) &&
 		isPositiveInteger(value.badgeCount) &&
 		value.url === "/main"
+	);
+}
+
+function isValidTestPayload(value) {
+	return (
+		value !== null &&
+		typeof value === "object" &&
+		!Array.isArray(value) &&
+		hasExactKeys(value, TEST_PAYLOAD_KEYS) &&
+		value.v === 1 &&
+		value.type === "test" &&
+		value.url === "/main/setting/app"
 	);
 }
 
@@ -54,7 +78,20 @@ self.addEventListener("push", (event) => {
 		return;
 	}
 
-	if (!isValidPayload(payload)) {
+	if (isValidTestPayload(payload)) {
+		event.waitUntil(
+			self.registration.showNotification("Applemint 테스트 알림", {
+				body: "이 기기의 Web Push 연결이 정상입니다.",
+				icon: "/icons/icon-192.png",
+				badge: "/icons/notification-badge-96.png",
+				tag: "applemint-test",
+				data: { url: "/main/setting/app" },
+			})
+		);
+		return;
+	}
+
+	if (!isValidNewItemsPayload(payload)) {
 		return;
 	}
 
@@ -73,12 +110,26 @@ self.addEventListener("push", (event) => {
 	);
 });
 
+self.addEventListener("message", (event) => {
+	if (
+		event.data !== null &&
+		typeof event.data === "object" &&
+		!Array.isArray(event.data) &&
+		Object.keys(event.data).length === 1 &&
+		event.data.type === "SKIP_WAITING"
+	) {
+		event.waitUntil(self.skipWaiting());
+	}
+});
+
 self.addEventListener("notificationclick", (event) => {
 	event.notification.close();
 
 	event.waitUntil(
 		(async () => {
-			const targetUrl = new URL("/main", self.location.origin).href;
+			const path =
+				event.notification.data?.url === "/main/setting/app" ? "/main/setting/app" : "/main";
+			const targetUrl = new URL(path, self.location.origin).href;
 			const windowClients = await self.clients.matchAll({
 				type: "window",
 				includeUncontrolled: true,

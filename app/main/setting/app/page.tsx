@@ -129,6 +129,29 @@ interface Feedback {
 	message: string;
 }
 
+function pushTestFailureFeedback(error: unknown): Feedback {
+	const retryAfterSeconds =
+		typeof error === "object" &&
+		error !== null &&
+		"data" in error &&
+		typeof error.data === "object" &&
+		error.data !== null &&
+		"retryAfterSeconds" in error.data &&
+		typeof error.data.retryAfterSeconds === "number"
+			? error.data.retryAfterSeconds
+			: null;
+	if (retryAfterSeconds !== null) {
+		return {
+			success: false,
+			message: `테스트 알림은 ${retryAfterSeconds}초 후 다시 보낼 수 있습니다.`,
+		};
+	}
+	return {
+		success: false,
+		message: error instanceof Error ? error.message : "테스트 알림을 보내지 못했습니다.",
+	};
+}
+
 function usePwaBrowserState() {
 	const [standalone, setStandalone] = useState(false);
 	const [ios, setIos] = useState(false);
@@ -210,6 +233,7 @@ function useNotificationActions({
 	const queryClient = useQueryClient();
 	const subscribeMutation = useMutation(trpc.push.subscribe.mutationOptions());
 	const unsubscribeMutation = useMutation(trpc.push.unsubscribe.mutationOptions());
+	const sendTestMutation = useMutation(trpc.push.sendTest.mutationOptions());
 	const [pending, setPending] = useState(false);
 
 	const enable = async () => {
@@ -270,10 +294,33 @@ function useNotificationActions({
 		}
 	};
 
+	const sendTest = async () => {
+		if (pending || !subscription || serverSubscribed !== true) return;
+		setFeedback(null);
+		setPending(true);
+		try {
+			const result = await sendTestMutation.mutateAsync({ endpoint: subscription.endpoint });
+			setFeedback({
+				success: true,
+				message: `${new Date(result.sentAt).toLocaleTimeString("ko-KR")}에 테스트 알림을 보냈습니다.`,
+			});
+		} catch (error) {
+			setFeedback(pushTestFailureFeedback(error));
+		} finally {
+			await queryClient.invalidateQueries(trpc.push.status.queryFilter());
+			setPending(false);
+		}
+	};
+
 	return {
 		enable,
 		disable,
-		busy: pending || subscribeMutation.isPending || unsubscribeMutation.isPending,
+		sendTest,
+		busy:
+			pending ||
+			subscribeMutation.isPending ||
+			unsubscribeMutation.isPending ||
+			sendTestMutation.isPending,
 	};
 }
 
@@ -366,16 +413,20 @@ function NotificationSurface({
 	status,
 	canEnable,
 	canDisable,
+	canSendTest,
 	busy,
 	onEnable,
 	onDisable,
+	onSendTest,
 }: {
 	status: NotificationStatus;
 	canEnable: boolean;
 	canDisable: boolean;
+	canSendTest: boolean;
 	busy: boolean;
 	onEnable: () => Promise<void>;
 	onDisable: () => Promise<void>;
+	onSendTest: () => Promise<void>;
 }) {
 	return (
 		<SettingsSurface
@@ -407,9 +458,17 @@ function NotificationSurface({
 					</Button>
 				) : null}
 				{canDisable ? (
-					<Button variant="outline" onClick={onDisable} disabled={busy}>
-						알림 비활성화
-					</Button>
+					<div className="flex flex-wrap gap-2">
+						{canSendTest ? (
+							<Button variant="outline" onClick={onSendTest} disabled={busy}>
+								{busy ? <Loader2 aria-hidden="true" className="mr-2 size-4 animate-spin" /> : null}
+								테스트 알림 보내기
+							</Button>
+						) : null}
+						<Button variant="outline" onClick={onDisable} disabled={busy}>
+							알림 비활성화
+						</Button>
+					</div>
 				) : null}
 			</div>
 
@@ -512,9 +571,11 @@ export default function AppNotificationSettingPage() {
 				status={notificationStatus}
 				canEnable={canEnable}
 				canDisable={browser.subscription !== null}
+				canSendTest={notificationStatus === "활성화"}
 				busy={notificationActions.busy}
 				onEnable={notificationActions.enable}
 				onDisable={notificationActions.disable}
+				onSendTest={notificationActions.sendTest}
 			/>
 			<PageFeedback
 				error={
