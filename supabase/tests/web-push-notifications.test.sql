@@ -1,7 +1,7 @@
 -- Per-device Web Push outbox, badge, retry, and security contract.
 begin;
 
-select plan(47);
+select plan(61);
 
 select has_table(
 	'public',
@@ -684,6 +684,212 @@ select is(
 	),
 	'skipped:subscription-expired',
 	'expired subscription deliveries are terminally skipped'
+);
+
+select has_column(
+	'public',
+	'web_push_subscriptions',
+	'last_test_requested_at',
+	'web push subscriptions track per-device test cooldown'
+);
+select ok(
+	has_function_privilege(
+		'service_role',
+		'public.claim_web_push_test_subscription(text,integer)',
+		'EXECUTE'
+	)
+		and has_function_privilege(
+			'service_role',
+			'public.invalidate_web_push_test_subscription(bigint,text)',
+			'EXECUTE'
+		)
+		and not has_function_privilege(
+			'public',
+			'public.claim_web_push_test_subscription(text,integer)',
+			'EXECUTE'
+		)
+		and not has_function_privilege(
+			'anon',
+			'public.claim_web_push_test_subscription(text,integer)',
+			'EXECUTE'
+		)
+		and not has_function_privilege(
+			'authenticated',
+			'public.claim_web_push_test_subscription(text,integer)',
+			'EXECUTE'
+		)
+		and not has_function_privilege(
+			'authenticated',
+			'public.invalidate_web_push_test_subscription(bigint,text)',
+			'EXECUTE'
+		),
+	'test claim and invalidation RPCs are service-role only'
+);
+
+create temporary table push_test_seen_before as
+select last_seen_at
+from public.web_push_subscriptions
+where endpoint = 'https://push.test/device-a';
+
+set local role service_role;
+select is(
+	public.claim_web_push_test_subscription(
+		'https://push.test/device-a',
+		60
+	) ->> 'status',
+	'claimed',
+	'an active unexpired subscription can be claimed for a test'
+);
+reset role;
+select ok(
+	(
+		select last_test_requested_at is not null
+		from public.web_push_subscriptions
+		where endpoint = 'https://push.test/device-a'
+	),
+	'a successful claim records the per-device cooldown timestamp'
+);
+
+set local role service_role;
+select is(
+	public.claim_web_push_test_subscription(
+		'https://push.test/device-a',
+		60
+	) ->> 'status',
+	'cooldown',
+	'a repeated test inside sixty seconds is atomically throttled'
+);
+select ok(
+	(
+		public.claim_web_push_test_subscription(
+			'https://push.test/device-a',
+			60
+		) ->> 'retryAfterSeconds'
+	)::integer between 1 and 60,
+	'cooldown reports a bounded retry delay'
+);
+select is(
+	public.claim_web_push_test_subscription(
+		'https://push.test/device-b',
+		60
+	) ->> 'status',
+	'claimed',
+	'a second device has an independent cooldown'
+);
+reset role;
+
+select is(
+	(
+		select subscription.last_seen_at
+		from public.web_push_subscriptions as subscription
+		where subscription.endpoint = 'https://push.test/device-a'
+	),
+	(select last_seen_at from push_test_seen_before),
+	'test claims do not change the Inbox badge acknowledgement window'
+);
+
+insert into public.crawl_runs (
+	id,
+	source,
+	lock_token,
+	status,
+	started_at,
+	stale_after,
+	run_trigger
+)
+values (
+	910006,
+	'battlepage',
+	'91000000-0000-4000-8000-000000000006',
+	'running',
+	now() - interval '1 minute',
+	now() + interval '5 minutes',
+	'scheduled'
+);
+
+insert into public.web_push_deliveries (
+	run_id,
+	subscription_id,
+	source,
+	inserted_count
+)
+select
+	910006,
+	subscription.id,
+	'battlepage',
+	3
+from public.web_push_subscriptions as subscription
+where subscription.endpoint = 'https://push.test/device-b';
+
+set local role service_role;
+select is(
+	public.invalidate_web_push_test_subscription(
+		(
+			select id
+			from public.web_push_subscriptions
+			where endpoint = 'https://push.test/device-b'
+		),
+		'push-410'
+	) ->> 'invalidated',
+	'true',
+	'a 404 or 410 test failure invalidates the claimed subscription'
+);
+reset role;
+select is(
+	(
+		select active::text || ':' || (disabled_at is not null)::text
+		from public.web_push_subscriptions
+		where endpoint = 'https://push.test/device-b'
+	),
+	'false:true',
+	'test invalidation marks only that device inactive'
+);
+select is(
+	(
+		select state || ':' || last_error_code
+		from public.web_push_deliveries as delivery
+		inner join public.web_push_subscriptions as subscription
+			on subscription.id = delivery.subscription_id
+		where subscription.endpoint = 'https://push.test/device-b'
+			and delivery.run_id = 910006
+	),
+	'skipped:subscription-invalid',
+	'test invalidation skips remaining unsent deliveries'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
+select lives_ok(
+	$$
+		select public.upsert_web_push_subscription(
+			'https://push.test/device-test-expired',
+			'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG',
+			'HHHHHHHHHHHHHHHHHHHHHH',
+			now() - interval '1 minute'
+		)
+	$$,
+	'an expired test subscription fixture can be registered'
+);
+reset role;
+
+set local role service_role;
+select is(
+	public.claim_web_push_test_subscription(
+		'https://push.test/device-test-expired',
+		60
+	) ->> 'status',
+	'expired',
+	'an expired subscription cannot be claimed for a test'
+);
+reset role;
+select is(
+	(
+		select active::text || ':' || (disabled_at is not null)::text
+		from public.web_push_subscriptions
+		where endpoint = 'https://push.test/device-test-expired'
+	),
+	'false:true',
+	'an expired test claim deactivates that subscription'
 );
 
 select * from finish();

@@ -9,6 +9,7 @@ function loadServiceWorker() {
 	const focus = vi.fn().mockResolvedValue(undefined);
 	const navigate = vi.fn().mockResolvedValue(undefined);
 	const openWindow = vi.fn().mockResolvedValue(undefined);
+	const skipWaiting = vi.fn().mockResolvedValue(undefined);
 	const self = {
 		location: { origin: "https://applemint.test" },
 		navigator: { setAppBadge },
@@ -19,6 +20,7 @@ function loadServiceWorker() {
 				.mockResolvedValue([{ url: "https://applemint.test/saved", navigate, focus }]),
 			openWindow,
 		},
+		skipWaiting,
 		addEventListener: (type: string, listener: (event: unknown) => void) => {
 			listeners.set(type, listener);
 		},
@@ -30,7 +32,7 @@ function loadServiceWorker() {
 		Number,
 		Object,
 	});
-	return { listeners, showNotification, setAppBadge, navigate, focus, openWindow };
+	return { listeners, showNotification, setAppBadge, navigate, focus, openWindow, skipWaiting };
 }
 
 function pushEvent(payload: unknown) {
@@ -47,9 +49,25 @@ function pushEvent(payload: unknown) {
 }
 
 describe("PWA service worker", () => {
-	it("fetch handler 없이 Push·클릭만 등록한다", () => {
+	it("fetch handler 없이 Push·업데이트 메시지·클릭만 등록한다", () => {
 		const worker = loadServiceWorker();
-		expect([...worker.listeners.keys()]).toEqual(["push", "notificationclick"]);
+		expect([...worker.listeners.keys()]).toEqual(["push", "message", "notificationclick"]);
+	});
+
+	it("테스트 payload는 알림만 표시하고 badge를 변경하지 않는다", async () => {
+		const worker = loadServiceWorker();
+		const event = pushEvent({ v: 1, type: "test", url: "/main/setting/app" });
+		worker.listeners.get("push")?.(event);
+		await event.task;
+
+		expect(worker.showNotification).toHaveBeenCalledWith(
+			"Applemint 테스트 알림",
+			expect.objectContaining({
+				body: "이 기기의 Web Push 연결이 정상입니다.",
+				data: { url: "/main/setting/app" },
+			})
+		);
+		expect(worker.setAppBadge).not.toHaveBeenCalled();
 	});
 
 	it("검증된 payload만 알림과 누적 badge에 적용한다", async () => {
@@ -77,6 +95,26 @@ describe("PWA service worker", () => {
 		expect(worker.setAppBadge).toHaveBeenCalledWith(20);
 	});
 
+	it("정확한 SKIP_WAITING 메시지만 처리한다", async () => {
+		const worker = loadServiceWorker();
+		let task: Promise<unknown> | undefined;
+		const validEvent = {
+			data: { type: "SKIP_WAITING" },
+			waitUntil(nextTask: Promise<unknown>) {
+				task = nextTask;
+			},
+		};
+		worker.listeners.get("message")?.(validEvent);
+		await task;
+		expect(worker.skipWaiting).toHaveBeenCalledOnce();
+
+		worker.listeners.get("message")?.({
+			data: { type: "SKIP_WAITING", extra: true },
+			waitUntil: vi.fn(),
+		});
+		expect(worker.skipWaiting).toHaveBeenCalledOnce();
+	});
+
 	it("malformed·알 수 없는 버전·추가 개인정보 payload를 안전하게 무시한다", () => {
 		const worker = loadServiceWorker();
 		for (const payload of [
@@ -96,6 +134,24 @@ describe("PWA service worker", () => {
 		}
 		expect(worker.showNotification).not.toHaveBeenCalled();
 		expect(worker.setAppBadge).not.toHaveBeenCalled();
+	});
+
+	it("테스트 알림 클릭 시 설정 화면으로 이동한다", async () => {
+		const worker = loadServiceWorker();
+		let task: Promise<unknown> | undefined;
+		const event = {
+			notification: {
+				close: vi.fn(),
+				data: { url: "/main/setting/app" },
+			},
+			waitUntil(nextTask: Promise<unknown>) {
+				task = nextTask;
+			},
+		};
+		worker.listeners.get("notificationclick")?.(event);
+		await task;
+
+		expect(worker.navigate).toHaveBeenCalledWith("https://applemint.test/main/setting/app");
 	});
 
 	it("알림 클릭 시 같은 origin 창을 /main으로 이동하고 포커스한다", async () => {

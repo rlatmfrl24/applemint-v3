@@ -55,6 +55,10 @@ function createContext(
 				acknowledged: true,
 				acknowledgedAt: "2026-07-28T00:00:00.000Z",
 			}),
+			sendTest: vi.fn().mockResolvedValue({
+				sent: true,
+				sentAt: "2026-07-30T00:00:00.000Z",
+			}),
 		},
 	};
 	const getAuthenticatedAccess = vi.fn().mockResolvedValue({
@@ -78,7 +82,7 @@ describe("AppRouter", () => {
 		vi.spyOn(console, "error").mockImplementation(() => undefined);
 	});
 
-	it("문서화된 12개 procedure를 service에 연결한다", async () => {
+	it("문서화된 13개 procedure를 service에 연결한다", async () => {
 		const { context, services } = createContext();
 		const caller = createCaller(context);
 
@@ -107,6 +111,7 @@ describe("AppRouter", () => {
 		await caller.push.status({ endpoint: "https://push.test/device" });
 		await caller.push.unsubscribe({ endpoint: "https://push.test/device" });
 		await caller.push.acknowledgeInbox({ endpoint: "https://push.test/device" });
+		await caller.push.sendTest({ endpoint: "https://push.test/device" });
 
 		expect(services.thread.list).toHaveBeenCalledOnce();
 		expect(services.thread.stats).toHaveBeenCalledOnce();
@@ -120,6 +125,22 @@ describe("AppRouter", () => {
 		expect(services.push.status).toHaveBeenCalledOnce();
 		expect(services.push.unsubscribe).toHaveBeenCalledOnce();
 		expect(services.push.acknowledgeInbox).toHaveBeenCalledOnce();
+		expect(services.push.sendTest).toHaveBeenCalledOnce();
+	});
+
+	it("테스트 알림은 owner 검사에 실패하면 service를 호출하지 않는다", async () => {
+		const { context, services } = createContext({
+			kind: "forbidden",
+			status: 403,
+			message: "소유자만 접근할 수 있습니다.",
+		});
+
+		const error = await createCaller(context)
+			.push.sendTest({ endpoint: "https://push.test/device" })
+			.catch((caught) => caught);
+
+		expect(error).toMatchObject({ code: "FORBIDDEN" });
+		expect(services.push.sendTest).not.toHaveBeenCalled();
 	});
 
 	it("목록·통계는 claims만 확인하고 owner 사전 RPC를 생략한다", async () => {

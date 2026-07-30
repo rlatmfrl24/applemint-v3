@@ -33,5 +33,22 @@ export default function manifest(): MetadataRoute.Manifest {
 				purpose: "maskable",
 			},
 		],
+		shortcuts: [
+			{
+				name: "Inbox",
+				url: "/main",
+				icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+			},
+			{
+				name: "Quick Save",
+				url: "/main/quick",
+				icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+			},
+			{
+				name: "수집 운영",
+				url: "/main/setting/operations",
+				icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+			},
+		],
 	};
 }

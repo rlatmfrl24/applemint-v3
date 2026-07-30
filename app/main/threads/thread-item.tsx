@@ -3,6 +3,7 @@ import { Copy, Loader2, Trash2 } from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
 import { ThreadCard } from "@/app/main/thread-card";
+import { ThreadShareButton } from "@/components/thread-share-button";
 import { Button } from "@/components/ui/button";
 import {
 	applyMoveThreadOptimisticUpdates,
@@ -92,6 +93,7 @@ export const DefaultThreadItem = ({
 						</Button>
 					)}
 					{extraButtons}
+					<ThreadShareButton thread={thread} />
 					<Button
 						variant="outline"
 						size="sm"

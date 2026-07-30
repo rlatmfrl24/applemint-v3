@@ -2,6 +2,7 @@ import {
 	pushAcknowledgeResultSchema,
 	pushConfigurationSchema,
 	pushEndpointInputSchema,
+	pushSendTestResultSchema,
 	pushSubscribeResultSchema,
 	pushSubscriptionInputSchema,
 	pushSubscriptionStatusSchema,
@@ -29,4 +30,8 @@ export const pushRouter = createTRPCRouter({
 		.input(pushEndpointInputSchema)
 		.output(pushAcknowledgeResultSchema)
 		.mutation(({ ctx, input }) => ctx.services.push.acknowledgeInbox(input.endpoint)),
+	sendTest: ownerProcedure
+		.input(pushEndpointInputSchema)
+		.output(pushSendTestResultSchema)
+		.mutation(({ ctx, input }) => ctx.services.push.sendTest(input.endpoint)),
 });
