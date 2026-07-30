@@ -10,6 +10,7 @@ import type { ThreadListFilterParam } from "@/lib/thread-list-contract";
 import { threadStatsOptions } from "@/lib/thread-query-options";
 import { useTRPCClient } from "@/trpc/client";
 import { ThreadInfiniteList } from "../thread-infinite-list";
+import { InboxEmptyState } from "./inbox-empty-state";
 import { QuickSaveButton } from "./quick-save-button";
 import { DefaultThreadItem } from "./thread-item";
 
@@ -115,6 +116,7 @@ export const ThreadList = () => {
 				state="inbox"
 				filters={filterParams}
 				onInitialLoadSuccess={acknowledgeInbox}
+				emptyState={selectedType === "all" ? <InboxEmptyState /> : undefined}
 				renderItem={(thread) => (
 					<DefaultThreadItem
 						thread={thread}

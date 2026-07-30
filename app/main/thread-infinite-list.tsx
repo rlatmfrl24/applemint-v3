@@ -19,12 +19,14 @@ export function ThreadInfiniteList({
 	renderItem,
 	loadingCount = 3,
 	onInitialLoadSuccess,
+	emptyState,
 }: {
 	state: ThreadState;
 	filters?: ThreadListFilterParam[];
 	renderItem: (thread: ThreadItemType) => ReactNode;
 	loadingCount?: number;
 	onInitialLoadSuccess?: () => void | Promise<void>;
+	emptyState?: ReactNode;
 }) {
 	const trpc = useTRPCClient();
 	const filterType = useMemo(
@@ -95,7 +97,7 @@ export function ThreadInfiniteList({
 	return (
 		<div className="flex w-full flex-col gap-2">
 			{query.isLoading ? <ThreadLoading count={loadingCount} /> : null}
-			{!query.isLoading && threads.length === 0 ? <NoDataBox /> : null}
+			{!query.isLoading && threads.length === 0 ? (emptyState ?? <NoDataBox />) : null}
 			{threads.map((thread) => (
 				<Fragment key={String(thread.id)}>{renderItem(thread)}</Fragment>
 			))}
