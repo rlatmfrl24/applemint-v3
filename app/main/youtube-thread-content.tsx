@@ -1,6 +1,6 @@
 "use client";
 
-import { ImageOff, Link2, Radio, Youtube } from "lucide-react";
+import { CirclePlay, ImageOff, Link2, Radio } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -254,7 +254,7 @@ export function YouTubeThreadContent({
 				</button>
 				{model.metadata?.channel_title ? (
 					<div className="flex min-w-0 items-center gap-1 text-xs text-zinc-600 leading-4 dark:text-zinc-300">
-						<Youtube aria-hidden="true" className="size-3.5 shrink-0" />
+						<CirclePlay aria-hidden="true" className="size-3.5 shrink-0" />
 						<span className="truncate">{model.metadata.channel_title}</span>
 					</div>
 				) : null}
