@@ -4,12 +4,12 @@
 		{
 			"manager": "pnpm.overrides",
 			"selector": "next>postcss",
-			"version": "8.5.20",
-			"reason": "Next 16.2.12 pins vulnerable postcss 8.4.31 (GHSA-qx2v-qp2m-jg93).",
+			"version": "8.5.25",
+			"reason": "Next 16.2.12 pins vulnerable postcss 8.4.31; use a release patched for GHSA-qx2v-qp2m-jg93 and GHSA-fxqj-rqcc-2cmp.",
 			"introducedAt": "2026-07-21",
-			"lastReviewedAt": "2026-08-03",
+			"lastReviewedAt": "2026-08-06",
 			"nextReviewAt": "2026-10-19",
-			"removalCriteria": "Remove when Next.js depends on postcss 8.5.10 or later."
+			"removalCriteria": "Remove when Next.js depends on postcss 8.5.23 or later."
 		},
 		{
 			"manager": "pnpm.overrides",
