@@ -8,6 +8,12 @@ updates:
       time: "09:00"
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
+    # Keep compile-time Node APIs aligned with the repository's Node 24 runtime contract.
+    # Review this rule together with package.json and CI runtimes when upgrading Node.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types:
+          - "version-update:semver-major"
     groups:
       security-updates:
         applies-to: "security-updates"
