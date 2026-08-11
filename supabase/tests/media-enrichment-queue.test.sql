@@ -1,4 +1,4 @@
--- YouTube-only metadata queue and Imgur filter-only contract.
+-- YouTube-only metadata queue contract.
 begin;
 
 select no_plan();
@@ -13,48 +13,13 @@ select has_table(
 	'media_enrichment_jobs',
 	'YouTube enrichment durable queue exists'
 );
-select is(
-	to_regprocedure(
-		'public.set_imgur_enrichment_cooldown(timestamp with time zone,text)'
-	),
-	null::regprocedure,
-	'Imgur cooldown RPC is removed'
-);
-select is(
-	(
-		select count(*)
-		from information_schema.columns
-		where table_schema = 'public'
-			and table_name = 'thread_media_metadata'
-			and column_name in ('media_count', 'preview_urls')
-	),
-	0::bigint,
-	'Imgur preview summary columns are removed'
-);
-select is(
-	(
-		select count(*)
-		from information_schema.columns
-		where table_schema = 'public'
-			and table_name = 'media_worker_runtime_settings'
-			and column_name like 'imgur%'
-	),
-	0::bigint,
-	'Imgur runtime settings are removed'
-);
 select ok(
 	(
 		select pg_get_constraintdef(oid)
 		from pg_constraint
 		where conrelid = 'public.thread_media_metadata'::regclass
 			and conname = 'thread_media_metadata_provider_check'
-	) like '%youtube%'
-		and (
-			select pg_get_constraintdef(oid)
-			from pg_constraint
-			where conrelid = 'public.thread_media_metadata'::regclass
-				and conname = 'thread_media_metadata_provider_check'
-		) not like '%imgur%',
+	) like '%youtube%',
 	'metadata provider constraint is YouTube-only'
 );
 select ok(
@@ -63,13 +28,7 @@ select ok(
 		from pg_constraint
 		where conrelid = 'public.media_enrichment_jobs'::regclass
 			and conname = 'media_enrichment_jobs_provider_check'
-	) like '%youtube%'
-		and (
-			select pg_get_constraintdef(oid)
-			from pg_constraint
-			where conrelid = 'public.media_enrichment_jobs'::regclass
-				and conname = 'media_enrichment_jobs_provider_check'
-		) not like '%imgur%',
+	) like '%youtube%',
 	'job provider constraint is YouTube-only'
 );
 select ok(
@@ -166,22 +125,18 @@ select is(
 		'arcalive',
 		'[
 			{"url":"https://www.youtube.com/watch?v=phase2video","title":"youtube","type":"youtube"},
-			{"url":"https://imgur.com/a/FilterOnly","title":"imgur","type":"imgur"},
 			{"url":"https://example.com/normal","title":"normal","type":"normal"}
 		]'::jsonb
 	),
-	jsonb_build_object('insertedCount', 3, 'skippedCount', 0),
-	'ingest accepts YouTube, Imgur, and normal thread types'
+	jsonb_build_object('insertedCount', 2, 'skippedCount', 0),
+	'ingest accepts YouTube and normal thread types'
 );
 select is(
 	(
 		select count(*)
 		from public.thread_media_metadata as metadata
 		inner join public.threads as thread on thread.id = metadata.thread_id
-		where thread.url in (
-			'https://www.youtube.com/watch?v=phase2video',
-			'https://imgur.com/a/FilterOnly'
-		)
+		where thread.url in ('https://www.youtube.com/watch?v=phase2video', 'https://example.com/normal')
 			and metadata.provider = 'youtube'
 	),
 	1::bigint,
@@ -192,59 +147,36 @@ select is(
 		select count(*)
 		from public.media_enrichment_jobs as job
 		inner join public.threads as thread on thread.id = job.thread_id
-		where thread.url in (
-			'https://www.youtube.com/watch?v=phase2video',
-			'https://imgur.com/a/FilterOnly'
-		)
+		where thread.url in ('https://www.youtube.com/watch?v=phase2video', 'https://example.com/normal')
 			and job.provider = 'youtube'
 	),
 	1::bigint,
 	'only the YouTube thread receives a queue job'
 );
-select is(
-	(
-		select count(*)
-		from public.thread_media_metadata as metadata
-		inner join public.threads as thread on thread.id = metadata.thread_id
-		where thread.type = 'imgur'
-	),
-	0::bigint,
-	'Imgur threads never receive preview metadata'
-);
-select is(
-	(
-		select count(*)
-		from public.media_enrichment_jobs as job
-		inner join public.threads as thread on thread.id = job.thread_id
-		where thread.type = 'imgur'
-	),
-	0::bigint,
-	'Imgur threads never enter the enrichment queue'
-);
 select throws_ok(
-	$$select * from public.claim_media_enrichment_jobs('imgur', 1, 60)$$,
+	$$select * from public.claim_media_enrichment_jobs('unsupported', 1, 60)$$,
 	'22023',
 	'Unsupported media provider.',
-	'Imgur jobs cannot be claimed'
+	'unsupported providers cannot be claimed'
 );
 select throws_ok(
 	$$
 		insert into public.thread_media_metadata (thread_id, provider)
-		select id, 'imgur'
+		select id, 'unsupported'
 		from public.threads
-		where url = 'https://imgur.com/a/FilterOnly'
+		where url = 'https://example.com/normal'
 	$$,
 	'23514',
 	null,
-	'Imgur metadata cannot be inserted directly'
+	'unsupported metadata providers cannot be inserted directly'
 );
 select is(
 	public.ingest_crawl_items(
 		'arcalive',
-		'[{"url":"https://imgur.com/a/FilterOnly","title":"duplicate","type":"imgur"}]'::jsonb
+		'[{"url":"https://example.com/normal","title":"duplicate","type":"normal"}]'::jsonb
 	),
 	jsonb_build_object('insertedCount', 0, 'skippedCount', 1),
-	'duplicate Imgur crawl remains idempotent through crawl-history'
+	'duplicate crawl remains idempotent through crawl-history'
 );
 
 create temporary table claimed_youtube_job as
@@ -376,42 +308,6 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
 select is(
 	(
-		select media_metadata
-		from public.list_threads_page('inbox', 100, null, null, 'imgur')
-		where url = 'https://imgur.com/a/FilterOnly'
-	),
-	null::jsonb,
-	'Imgur type filter returns the original thread with null metadata'
-);
-select is(
-	(
-		select count(*)
-		from public.list_threads_page('inbox', 100, null, null, 'imgur')
-		where type = 'imgur'
-	),
-	1::bigint,
-	'Imgur list filter remains active'
-);
-select is(
-	(
-		select count
-		from public.get_thread_stats('inbox', null)
-		where key = 'imgur'
-	),
-	1::bigint,
-	'Imgur stats filter remains active'
-);
-select is(
-	(
-		select count
-		from public.get_thread_stats('inbox', 'imgur')
-		where key = 'imgur'
-	),
-	1::bigint,
-	'Imgur filtered stats use the existing lowercase key'
-);
-select is(
-	(
 		select media_metadata ->> 'provider'
 		from public.list_threads_page('inbox', 100, null, null, 'youtube')
 		where url = 'https://www.youtube.com/watch?v=phase2video'
@@ -420,34 +316,6 @@ select is(
 	'YouTube list response keeps nullable metadata summary'
 );
 reset role;
-
-select is(
-	(
-		select count(*)
-		from public.thread_media_metadata
-		where provider = 'imgur'
-	),
-	0::bigint,
-	'no Imgur metadata remains after the removal migration'
-);
-select is(
-	(
-		select count(*)
-		from public.media_enrichment_jobs
-		where provider = 'imgur'
-	),
-	0::bigint,
-	'no Imgur queue job remains after the removal migration'
-);
-select is(
-	(
-		select count(*)
-		from public.media_worker_dispatches
-		where provider = 'imgur'
-	),
-	0::bigint,
-	'no Imgur worker dispatch remains after the removal migration'
-);
 
 select * from finish();
 

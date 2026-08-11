@@ -31,52 +31,13 @@ select has_column(
 	'youtube_batch_size',
 	'YouTube worker keeps a bounded batch size'
 );
-select is(
-	(
-		select count(*)
-		from information_schema.columns
-		where table_schema = 'public'
-			and table_name = 'media_worker_runtime_settings'
-			and column_name like 'imgur%'
-	),
-	0::bigint,
-	'Imgur scheduler and cooldown settings are removed'
-);
-select is(
-	(
-		select count(*)
-		from information_schema.columns
-		where table_schema = 'public'
-			and table_name = 'media_worker_dispatches'
-			and column_name in (
-				'provider_outcome',
-				'api_request_count',
-				'rate_limited_count',
-				'provider_error_counts',
-				'provider_http_status_counts',
-				'next_available_at',
-				'provider_cooldown_until',
-				'rate_limit_client_remaining',
-				'rate_limit_user_remaining',
-				'rate_limit_user_reset_at'
-			)
-	),
-	0::bigint,
-	'Imgur provider diagnostics columns are removed'
-);
 select ok(
 	(
 		select pg_get_constraintdef(oid)
 		from pg_constraint
 		where conrelid = 'public.media_worker_dispatches'::regclass
 			and conname = 'media_worker_dispatches_provider_check'
-	) like '%youtube%'
-		and (
-			select pg_get_constraintdef(oid)
-			from pg_constraint
-			where conrelid = 'public.media_worker_dispatches'::regclass
-				and conname = 'media_worker_dispatches_provider_check'
-		) not like '%imgur%',
+	) like '%youtube%',
 	'dispatch audit accepts only YouTube'
 );
 select ok(
@@ -139,11 +100,11 @@ select throws_ok(
 			scheduled_for,
 			provider
 		)
-		values ('2026-07-30 00:00:00+00', 'imgur')
+		values ('2026-07-30 00:00:00+00', 'unsupported')
 	$$,
 	'23514',
 	null,
-	'Imgur dispatch audit cannot be created'
+	'unsupported dispatch audit cannot be created'
 );
 
 select is(
@@ -312,15 +273,6 @@ select is(
 		where id = true
 	),
 	'pg_net uses the configured YouTube batch size'
-);
-select is(
-	(
-		select count(*)
-		from net.http_request_queue
-		where url like '%/api/media/imgur/%'
-	),
-	0::bigint,
-	'no Imgur endpoint request is queued'
 );
 select ok(
 	not exists (

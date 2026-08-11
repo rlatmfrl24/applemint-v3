@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { detectMediaProvider } from "./media-provider";
+import { detectKnownThreadType } from "./detected-thread-type";
 
-describe("detectMediaProvider", () => {
+describe("detectKnownThreadType", () => {
 	it.each([
 		"https://youtube.com/watch?v=video",
 		"https://www.youtube.com/watch?v=video",
@@ -14,7 +14,7 @@ describe("detectMediaProvider", () => {
 		"https://www.youtube.com/playlist?list=playlist-id",
 		"HTTP://YOUTUBE.COM:80/WATCH?v=video",
 	])("YouTube URL을 분류한다: %s", (url) => {
-		expect(detectMediaProvider(url)).toBe("youtube");
+		expect(detectKnownThreadType(url)).toBe("youtube");
 	});
 
 	it.each([
@@ -24,7 +24,7 @@ describe("detectMediaProvider", () => {
 		"https://i.imgur.com/image-id.jpg",
 		"HTTPS://IMGUR.COM:443/a/album-id?utm_source=test#preview",
 	])("Imgur URL을 분류한다: %s", (url) => {
-		expect(detectMediaProvider(url)).toBe("imgur");
+		expect(detectKnownThreadType(url)).toBe("imgur");
 	});
 
 	it.each([
@@ -41,7 +41,7 @@ describe("detectMediaProvider", () => {
 		"https://example.com/?next=https://youtube.com/watch?v=video",
 		"https://example.com/#https://imgur.com/a/album-id",
 		"https://user:password@youtube.com/watch?v=video",
-	])("공급자가 아닌 URL을 거부한다: %s", (url) => {
-		expect(detectMediaProvider(url)).toBeNull();
+	])("알려진 타입이 아닌 URL을 거부한다: %s", (url) => {
+		expect(detectKnownThreadType(url)).toBeNull();
 	});
 });

@@ -1,4 +1,4 @@
-export type MediaProvider = "youtube" | "imgur";
+export type DetectedThreadType = "youtube" | "imgur";
 
 const YOUTUBE_HOSTNAMES = new Set([
 	"youtube.com",
@@ -11,7 +11,7 @@ const IMGUR_HOSTNAMES = new Set(["imgur.com", "www.imgur.com", "i.imgur.com"]);
 
 const hasContentPath = (pathname: string) => pathname.split("/").some(Boolean);
 
-export function detectMediaProvider(value: string): MediaProvider | null {
+export function detectKnownThreadType(value: string): DetectedThreadType | null {
 	let url: URL;
 	try {
 		url = new URL(value);
@@ -29,11 +29,7 @@ export function detectMediaProvider(value: string): MediaProvider | null {
 	}
 
 	const hostname = url.hostname.toLowerCase();
-	if (YOUTUBE_HOSTNAMES.has(hostname)) {
-		return "youtube";
-	}
-	if (IMGUR_HOSTNAMES.has(hostname)) {
-		return "imgur";
-	}
+	if (YOUTUBE_HOSTNAMES.has(hostname)) return "youtube";
+	if (IMGUR_HOSTNAMES.has(hostname)) return "imgur";
 	return null;
 }

@@ -34,9 +34,7 @@ Vault 값이 없거나 올바르지 않으면 dispatcher는 `configuration-missi
 
 ## YouTube 메타데이터 worker 자동화
 
-YouTube 메타데이터 worker는 크롤러와 별도 scheduler를 사용합니다. Imgur는 정확한 URL 분류,
-`threads.type='imgur'`, 목록·통계 필터만 유지합니다. Imgur metadata, queue, 외부 API 호출,
-전용 카드와 preview는 존재하지 않습니다.
+YouTube 메타데이터 worker는 크롤러와 별도 scheduler를 사용합니다.
 
 - `applemint-dispatch-media-workers`: 1분마다 실행 가능한 YouTube queue를 확인합니다.
 - `applemint-reconcile-media-worker-dispatches`: 1분마다 `pg_net` 응답을 정산합니다.
@@ -45,7 +43,6 @@ YouTube 메타데이터 worker는 크롤러와 별도 scheduler를 사용합니�
 - 내부 endpoint는 `/api/media/youtube/enrich` 하나이며 한 번에 최대 50개를 처리합니다.
 
 `ingest_crawl_items`는 YouTube thread에만 pending metadata와 queued job을 원자적으로 생성합니다.
-Imgur thread는 원문 제목·URL을 가진 일반 카드로 저장하며 metadata나 job을 만들지 않습니다.
 재수집된 URL은 `crawl-history` 충돌로 새 thread, metadata, job을 만들지 않습니다.
 
 YouTube thread가 Trash로 이동하면 아직 처리되지 않은 metadata와
@@ -74,10 +71,9 @@ YouTube worker가 job을 claim한 뒤 중단되면 45초 lease가 만료된 후 
 
 ## 읽기 전용 운영 조회
 
-### 분류와 enrichment 범위
+### YouTube enrichment 범위
 
-다음 쿼리는 측정 시각과 YouTube enrichment 상태, metadata가 없어야 하는 Imgur 상태를 함께
-확인합니다.
+다음 쿼리는 측정 시각과 YouTube enrichment 상태를 확인합니다.
 
 ```sql
 select
@@ -91,20 +87,14 @@ select
 	) as youtube_jobs,
 	count(*) filter (
 		where thread.type = 'youtube' and metadata.thread_id is null
-	) as youtube_missing_metadata,
-	count(*) filter (where thread.type = 'imgur') as imgur_threads,
-	count(*) filter (
-		where thread.type = 'imgur' and metadata.thread_id is not null
-	) as unexpected_imgur_metadata
+	) as youtube_missing_metadata
 from public.threads as thread
 left join public.thread_media_metadata as metadata
 	on metadata.thread_id = thread.id
 left join public.media_enrichment_jobs as job
 	on job.thread_id = thread.id
-where thread.type in ('youtube', 'imgur');
+where thread.type = 'youtube';
 ```
-
-`unexpected_imgur_metadata`는 반드시 0이어야 합니다.
 
 ### queue 지연과 lease
 
@@ -194,5 +184,4 @@ RLS와 role grant를 migration에서 명시합니다.
 ## DB 작업 큐 도입 기준
 
 외부 호출이 길어지거나 실패 재시도가 중요하고, 여러 worker가 같은 작업을 경쟁할 수 있는 경우에만
-lease, `available_at`, attempt count를 가진 durable queue를 사용합니다. 단순 분류와 필터만 필요한
-Imgur에는 작업 큐를 만들지 않습니다.
+lease, `available_at`, attempt count를 가진 durable queue를 사용합니다.
