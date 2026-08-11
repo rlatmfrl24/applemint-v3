@@ -1,22 +1,36 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getImgurEmbedTarget } from "@/lib/imgur-embed";
+import { checkApplemintOwner } from "@/utils/supabase/owner-access";
+import { createClient } from "@/utils/supabase/server";
 import { getImgurPreviewImageUrl } from "./preview";
 
 const MAX_EMBED_HTML_BYTES = 2_000_000;
 const IMGUR_FETCH_TIMEOUT_MS = 7_000;
-const CACHE_CONTROL = "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400";
+const PRIVATE_CACHE_CONTROL = "private, max-age=86400";
+
+export const dynamic = "force-dynamic";
 
 function errorResponse(message: string, status: number) {
 	return NextResponse.json(
 		{ error: message },
 		{
 			status,
-			headers: { "Cache-Control": status === 400 ? CACHE_CONTROL : "no-store" },
+			headers: { "Cache-Control": "no-store" },
 		}
 	);
 }
 
 export async function GET(request: NextRequest) {
+	let ownerAccess: Awaited<ReturnType<typeof checkApplemintOwner>>;
+	try {
+		ownerAccess = await checkApplemintOwner(await createClient());
+	} catch {
+		return errorResponse("소유자 권한을 확인할 수 없습니다.", 503);
+	}
+	if (ownerAccess.kind !== "owner") {
+		return errorResponse(ownerAccess.message, ownerAccess.status);
+	}
+
 	const sourceUrl = request.nextUrl.searchParams.get("url");
 	const target = sourceUrl ? getImgurEmbedTarget(sourceUrl) : null;
 	if (!target) {
@@ -53,7 +67,10 @@ export async function GET(request: NextRequest) {
 
 		return NextResponse.redirect(previewUrl, {
 			status: 307,
-			headers: { "Cache-Control": CACHE_CONTROL },
+			headers: {
+				"Cache-Control": PRIVATE_CACHE_CONTROL,
+				Vary: "Cookie",
+			},
 		});
 	} catch {
 		return errorResponse("Imgur 미리보기를 불러오지 못했습니다.", 502);
