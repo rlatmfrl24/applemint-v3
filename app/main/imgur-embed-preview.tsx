@@ -1,10 +1,10 @@
 "use client";
 
 import { ChevronUp, Images, Link2, Loader2, Maximize2 } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import Image from "next/image";
+import { useId, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getImgurEmbedResizeHeight, type ImgurEmbedTarget } from "@/lib/imgur-embed";
 import type { ThreadItemType } from "@/lib/type-defs";
 import { cn } from "@/lib/utils";
 import { MEDIA_CARD_LAYOUT_CLASS } from "./media-card-layout";
@@ -15,14 +15,12 @@ function getThreadTitle(thread: ThreadItemType) {
 
 export function ImgurThreadContent({
 	thread,
-	target,
 	onOpen,
 	previewOpen,
 	onPreviewOpenChange,
 	meta,
 }: {
 	thread: ThreadItemType;
-	target: ImgurEmbedTarget;
 	onOpen: () => void;
 	previewOpen: boolean;
 	onPreviewOpenChange: (open: boolean) => void;
@@ -42,7 +40,7 @@ export function ImgurThreadContent({
 					data-testid="imgur-thumbnail"
 					className="group relative aspect-video w-full overflow-hidden rounded-md bg-zinc-100 dark:bg-zinc-900"
 				>
-					<ImgurEmbedFrame target={target} title={title} variant="thumbnail" />
+					<ImgurPreviewImage sourceUrl={thread.url} title={title} variant="thumbnail" />
 					<button
 						type="button"
 						aria-expanded={previewOpen}
@@ -118,8 +116,8 @@ export function ImgurThreadContent({
 							미리보기 접기
 						</Button>
 					</div>
-					<div className="max-h-[36rem] overflow-y-auto">
-						<ImgurEmbedFrame target={target} title={title} variant="full" />
+					<div className="relative h-[min(70vh,36rem)] min-h-80 bg-zinc-100 dark:bg-zinc-950">
+						<ImgurPreviewImage sourceUrl={thread.url} title={title} variant="full" />
 					</div>
 				</section>
 			) : null}
@@ -127,39 +125,25 @@ export function ImgurThreadContent({
 	);
 }
 
-export function ImgurEmbedFrame({
-	target,
+function ImgurPreviewImage({
+	sourceUrl,
 	title,
-	variant = "full",
+	variant,
 }: {
-	target: ImgurEmbedTarget;
+	sourceUrl: string;
 	title: string;
-	variant?: "thumbnail" | "full";
+	variant: "thumbnail" | "full";
 }) {
-	const [height, setHeight] = useState(540);
 	const [loaded, setLoaded] = useState(false);
-
-	useEffect(() => {
-		const handleMessage = (event: MessageEvent) => {
-			const nextHeight = getImgurEmbedResizeHeight(event, target);
-			if (nextHeight) setHeight(nextHeight);
-		};
-
-		window.addEventListener("message", handleMessage);
-		return () => window.removeEventListener("message", handleMessage);
-	}, [target]);
+	const [failed, setFailed] = useState(false);
+	const previewUrl = `/api/media/imgur/thumbnail?url=${encodeURIComponent(sourceUrl)}`;
 
 	return (
-		<div
-			className={cn(
-				"relative bg-zinc-100 dark:bg-zinc-950",
-				variant === "thumbnail" ? "h-full min-h-0" : "min-h-80"
-			)}
-		>
-			{loaded ? null : (
+		<>
+			{loaded || failed ? null : (
 				<div
 					role="status"
-					className="absolute inset-0 z-10 flex items-center justify-center gap-2 text-sm text-zinc-500 dark:text-zinc-400"
+					className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-zinc-500 dark:text-zinc-400"
 				>
 					<Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
 					<span className={cn(variant === "thumbnail" && "sr-only")}>
@@ -167,24 +151,32 @@ export function ImgurEmbedFrame({
 					</span>
 				</div>
 			)}
-			<iframe
-				data-testid="imgur-embed-frame"
-				data-embed-variant={variant}
-				src={target.embedUrl}
-				title={`${title} Imgur 미리보기`}
-				loading="lazy"
-				referrerPolicy="no-referrer"
-				sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-				allowFullScreen
-				onLoad={() => setLoaded(true)}
-				className={cn(
-					"w-full border-0 bg-white transition-opacity",
-					variant === "thumbnail" && "pointer-events-none min-h-[20rem]",
-					loaded ? "opacity-100" : "opacity-0"
-				)}
-				tabIndex={variant === "thumbnail" ? -1 : undefined}
-				style={{ height }}
-			/>
-		</div>
+			{failed ? (
+				<div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center text-zinc-500 dark:text-zinc-400">
+					<Images aria-hidden="true" className="size-6" />
+					<span className={cn("text-xs", variant === "thumbnail" && "sr-only")}>
+						Imgur 이미지를 표시하지 못했습니다.
+					</span>
+				</div>
+			) : (
+				<Image
+					data-testid="imgur-preview-image"
+					data-preview-variant={variant}
+					src={previewUrl}
+					alt={title}
+					fill
+					unoptimized
+					loading="lazy"
+					sizes={variant === "thumbnail" ? "(min-width: 640px) 17rem, 100vw" : "100vw"}
+					onLoad={() => setLoaded(true)}
+					onError={() => setFailed(true)}
+					className={cn(
+						"transition-opacity",
+						variant === "thumbnail" ? "object-cover" : "object-contain",
+						loaded ? "opacity-100" : "opacity-0"
+					)}
+				/>
+			)}
+		</>
 	);
 }

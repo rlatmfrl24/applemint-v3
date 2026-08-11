@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { getImgurEmbedTarget } from "@/lib/imgur-embed";
 import type { ThreadItemType } from "@/lib/type-defs";
-import { ImgurEmbedFrame, ImgurThreadContent } from "./imgur-embed-preview";
+import { ImgurThreadContent } from "./imgur-embed-preview";
 import { ThreadCard } from "./thread-card";
 
 const thread: ThreadItemType = {
@@ -31,9 +31,12 @@ describe("Imgur embed preview", () => {
 		expect(markup).toContain('data-testid="imgur-thumbnail"');
 		expect(markup).toContain("aspect-video");
 		expect(markup).toContain("sm:grid-cols-[minmax(14rem,17rem)_minmax(0,1fr)]");
-		expect(markup).toContain('data-testid="imgur-embed-frame"');
-		expect(markup).toContain('data-embed-variant="thumbnail"');
-		expect(markup).toContain('tabindex="-1"');
+		expect(markup).toContain('data-testid="imgur-preview-image"');
+		expect(markup).toContain('data-preview-variant="thumbnail"');
+		expect(markup).toContain(
+			'src="/api/media/imgur/thumbnail?url=https%3A%2F%2Fimgur.com%2Fa%2FAlbum12"'
+		);
+		expect(markup).toContain("object-cover");
 		expect(markup).toContain("전체 보기");
 		expect(markup).toContain('aria-expanded="false"');
 		expect(markup).toContain('aria-label="수집된 Imgur 링크 Imgur에서 열기"');
@@ -49,7 +52,6 @@ describe("Imgur embed preview", () => {
 		const markup = renderToStaticMarkup(
 			<ImgurThreadContent
 				thread={thread}
-				target={target}
 				onOpen={() => undefined}
 				previewOpen
 				onPreviewOpenChange={() => undefined}
@@ -60,25 +62,7 @@ describe("Imgur embed preview", () => {
 		expect(markup).toContain('aria-expanded="true"');
 		expect(markup).toContain("미리보기 접기");
 		expect(markup).toContain('data-testid="imgur-full-preview"');
-		expect(markup).toContain('data-embed-variant="full"');
-	});
-
-	it("공식 embed URL을 지연 로딩하고 부모 페이지 이동 권한을 주지 않는다", () => {
-		const target = getImgurEmbedTarget(thread.url);
-		expect(target).not.toBeNull();
-		if (!target) return;
-
-		const markup = renderToStaticMarkup(
-			<ImgurEmbedFrame target={target} title={thread.title ?? ""} />
-		);
-
-		expect(markup).toContain('data-testid="imgur-embed-frame"');
-		expect(markup).toContain('src="https://imgur.com/a/Album12/embed?context=false"');
-		expect(markup).toContain('loading="lazy"');
-		expect(markup).toContain('referrerPolicy="no-referrer"');
-		expect(markup).toContain(
-			'sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"'
-		);
-		expect(markup).not.toContain("allow-top-navigation");
+		expect(markup).toContain('data-preview-variant="full"');
+		expect(markup).toContain("object-contain");
 	});
 });

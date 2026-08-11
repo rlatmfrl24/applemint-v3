@@ -89,7 +89,6 @@ export function ThreadCard({
 				) : imgurEmbedTarget ? (
 					<ImgurThreadContent
 						thread={thread}
-						target={imgurEmbedTarget}
 						onOpen={handleOpen}
 						previewOpen={isImgurPreviewExpanded}
 						onPreviewOpenChange={setIsImgurPreviewExpanded}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getImgurEmbedResizeHeight, getImgurEmbedTarget } from "./imgur-embed";
+import { getImgurEmbedTarget } from "./imgur-embed";
 
 describe("getImgurEmbedTarget", () => {
 	it.each([
@@ -47,62 +47,5 @@ describe("getImgurEmbedTarget", () => {
 		"not-a-url",
 	])("지원하지 않거나 위장된 URL을 거부한다: %s", (url) => {
 		expect(getImgurEmbedTarget(url)).toBeNull();
-	});
-});
-
-describe("getImgurEmbedResizeHeight", () => {
-	const target = getImgurEmbedTarget("https://imgur.com/a/Album12");
-
-	it("일치하는 Imgur embed 메시지만 높이로 사용한다", () => {
-		expect(target).not.toBeNull();
-		if (!target) return;
-
-		expect(
-			getImgurEmbedResizeHeight(
-				{
-					origin: "https://imgur.com",
-					data: JSON.stringify({
-						message: "resize_imgur",
-						height: "812.4",
-						href: target.embedUrl,
-					}),
-				},
-				target
-			)
-		).toBe(812);
-	});
-
-	it("다른 origin, 다른 게시물, 과도한 높이를 안전하게 처리한다", () => {
-		expect(target).not.toBeNull();
-		if (!target) return;
-
-		expect(
-			getImgurEmbedResizeHeight(
-				{ origin: "https://evil.example", data: { message: "resize_imgur", height: 800 } },
-				target
-			)
-		).toBeNull();
-		expect(
-			getImgurEmbedResizeHeight(
-				{
-					origin: "https://imgur.com",
-					data: {
-						message: "resize_imgur",
-						height: 800,
-						href: "https://imgur.com/Other12/embed",
-					},
-				},
-				target
-			)
-		).toBeNull();
-		expect(
-			getImgurEmbedResizeHeight(
-				{
-					origin: "https://imgur.com",
-					data: { message: "resize_imgur", height: 99_999, href: target.embedUrl },
-				},
-				target
-			)
-		).toBe(4_000);
 	});
 });
