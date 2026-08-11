@@ -1,5 +1,11 @@
 import { NextRequest } from "next/server";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createOwnerClientMock } from "@/test/support/supabase";
+
+const createClientMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/utils/supabase/server", () => ({ createClient: createClientMock }));
+
 import { GET } from "./route";
 
 function request(url: string | null) {
@@ -9,6 +15,11 @@ function request(url: string | null) {
 }
 
 describe("GET /api/media/imgur/thumbnail", () => {
+	beforeEach(() => {
+		createClientMock.mockReset();
+		createClientMock.mockImplementation(async () => createOwnerClientMock().client);
+	});
+
 	afterEach(() => vi.unstubAllGlobals());
 
 	it("앨범 embed HTML의 첫 썸네일을 카드용 이미지로 리다이렉트한다", async () => {
@@ -24,7 +35,8 @@ describe("GET /api/media/imgur/thumbnail", () => {
 
 		expect(response.status).toBe(307);
 		expect(response.headers.get("location")).toBe("https://i.imgur.com/ucGf9Gyl.jpg");
-		expect(response.headers.get("cache-control")).toContain("s-maxage=604800");
+		expect(response.headers.get("cache-control")).toBe("private, max-age=86400");
+		expect(response.headers.get("vary")).toBe("Cookie");
 		expect(fetchMock).toHaveBeenCalledWith(
 			"https://imgur.com/a/VUmDe9h/embed?context=false",
 			expect.objectContaining({ signal: expect.any(AbortSignal) })
@@ -87,6 +99,33 @@ describe("GET /api/media/imgur/thumbnail", () => {
 
 		expect((await GET(request("https://imgur.com.evil.example/a/VUmDe9h"))).status).toBe(400);
 		expect((await GET(request(null))).status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		[{ userId: null }, 401],
+		[{ isOwner: false }, 403],
+		[{ ownerError: new Error("database unavailable") }, 503],
+	] as const)("소유자 검증 실패 시 Imgur fetch 전에 닫는다: %s", async (access, status) => {
+		createClientMock.mockResolvedValue(createOwnerClientMock(access).client);
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		const response = await GET(request("https://imgur.com/a/VUmDe9h"));
+
+		expect(response.status).toBe(status);
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("인증 클라이언트 생성 실패도 Imgur fetch 전에 503으로 닫는다", async () => {
+		createClientMock.mockRejectedValue(new Error("missing auth configuration"));
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		const response = await GET(request("https://imgur.com/a/VUmDe9h"));
+
+		expect(response.status).toBe(503);
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
