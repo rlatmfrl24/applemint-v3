@@ -21,17 +21,14 @@ describe("thread Zod contract", () => {
 		expect(threadItemSchema.safeParse({ ...threadRow, id: "not-an-id" }).success).toBe(false);
 	});
 
-	it("배포 전 남아 있는 Imgur metadata는 일반 카드용 null로 정규화한다", () => {
+	it("YouTube가 아닌 legacy metadata는 일반 카드용 null로 정규화한다", () => {
 		const parsed = threadItemSchema.parse({
 			...threadRow,
-			type: "imgur",
-			url: "https://imgur.com/a/Legacy12",
+			type: "normal",
+			url: "https://example.com/legacy-media",
 			media_metadata: {
 				...threadRow.media_metadata,
-				provider: "imgur",
-				media_kind: "album",
-				media_count: 3,
-				preview_urls: ["https://i.imgur.com/legacy.jpg"],
+				provider: "legacy-provider",
 			},
 		});
 

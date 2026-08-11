@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { getAllowedYouTubeThumbnailUrl } from "@/lib/media-preview";
 import type { ThreadItemType } from "@/lib/type-defs";
+import { MEDIA_CARD_LAYOUT_CLASS } from "./media-card-layout";
 
 type YouTubeCardStatus = "pending" | "ready" | "failed" | "unavailable" | "unsupported" | "legacy";
 
@@ -24,9 +25,6 @@ const STATUS_MESSAGES: Partial<Record<YouTubeCardStatus, string>> = {
 	unsupported: "이 YouTube URL 형식은 영상 메타데이터를 지원하지 않습니다.",
 	legacy: "아직 수집된 영상 정보가 없습니다.",
 };
-
-const YOUTUBE_CARD_LAYOUT_CLASS =
-	"grid grid-cols-1 items-start gap-2.5 sm:grid-cols-[minmax(14rem,17rem)_minmax(0,1fr)]";
 
 export function formatYouTubeDuration(seconds: number | null | undefined) {
 	if (!Number.isSafeInteger(seconds) || (seconds ?? -1) < 0) return null;
@@ -128,7 +126,7 @@ function YouTubePendingContent({
 			role="status"
 			aria-label="YouTube 영상 정보를 불러오는 중"
 			data-media-status="pending"
-			className={YOUTUBE_CARD_LAYOUT_CLASS}
+			className={MEDIA_CARD_LAYOUT_CLASS}
 		>
 			<div className="aspect-video w-full animate-pulse rounded-md bg-zinc-100 motion-reduce:animate-none dark:bg-zinc-900" />
 			<div className="flex min-w-0 flex-col gap-1.5">
@@ -187,7 +185,7 @@ export function YouTubeThreadContent({
 		<div
 			data-testid="youtube-thread-content"
 			data-media-status={model.status}
-			className={YOUTUBE_CARD_LAYOUT_CLASS}
+			className={MEDIA_CARD_LAYOUT_CLASS}
 		>
 			<YouTubeThumbnail src={model.thumbnailUrl} title={model.title} duration={model.duration} />
 			<div className="flex min-w-0 flex-col gap-1">

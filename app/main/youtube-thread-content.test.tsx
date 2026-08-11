@@ -193,22 +193,6 @@ describe("YouTube thread card", () => {
 		expect(markup).toContain("example.com");
 		expect(markup).not.toContain(">Open<");
 	});
-
-	it("Imgur thread는 metadata 없이 일반 카드와 Imgur 필터 타입을 유지한다", () => {
-		const markup = renderThread({
-			type: "imgur",
-			url: "https://imgur.com/a/Album12",
-			title: "수집된 Imgur 링크",
-			host: "imgur.com",
-			media_metadata: null,
-		});
-
-		expect(markup).toContain('data-testid="default-thread-content"');
-		expect(markup).not.toContain('data-testid="youtube-thread-content"');
-		expect(markup).toContain("수집된 Imgur 링크");
-		expect(markup).toContain("https://imgur.com/a/Album12");
-		expect(markup).toContain(">imgur<");
-	});
 });
 
 describe("YouTube card formatters", () => {

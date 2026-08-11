@@ -38,7 +38,7 @@
 - 인증 사용자만 `/main` 접근 가능 (서버 레이아웃 + 미들웨어 세션 갱신)
 - 소스별 크롤링 결과 수집 후 중복 제거 및 키워드 기반 타입 분류
 - `threads` inbox 무한 스크롤 목록 + 타입별 통계/필터
-- YouTube·Imgur 정확 URL 분류와 타입 필터, YouTube 비동기 메타데이터·전용 카드
+- YouTube·Imgur 정확 URL 분류와 타입 필터, YouTube 전용 카드와 Imgur 공식 embed 미리보기
 - `Quick Save` 이동, `Trash` 이동/복원 워크플로우
 - 설정의 기능별 화면에서 소스별 예약 주기·수동 수집, 최근 90일 실행 이력, 신규 글 일괄 정리
 
@@ -48,7 +48,7 @@
 2. Supabase Cron이 5분마다 cooldown과 가용 동시성을 확인해 Next 예약 API를 비동기로 호출
 3. DB가 소스별 cooldown, source lock, 최대 2개 동시 실행을 원자적으로 판정
 4. 크롤링 결과를 `filter-keyword` 기준으로 필터링/타입 분류
-5. `ingest_crawl_items` RPC가 `crawl-history`, `threads`, YouTube media metadata·queue 생성을 하나의 트랜잭션으로 확정. Imgur는 thread 분류와 필터만 저장
+5. `ingest_crawl_items` RPC가 `crawl-history`, `threads`, YouTube media metadata·queue 생성을 하나의 트랜잭션으로 확정
 6. 별도 Supabase Cron이 YouTube durable queue의 내부 media worker를 `pg_net`으로 호출
 7. YouTube worker가 Trash가 아닌 신규 queue만 lease로 처리하고 정규화된 요약과 retry·dead 상태를 보존
 8. `finish_crawl_run`이 크롤링 결과 저장과 lock 해제를 원자적으로 완료
@@ -169,7 +169,7 @@ erDiagram
 - `crawl_alert_incidents`는 소스 장애의 발생·복구 상태를 보존하고 설정 화면에 표시합니다.
 - `thread_media_metadata`는 외부 원시 응답 없이 YouTube 표시용 요약만 저장합니다.
 - `media_enrichment_jobs`는 YouTube lease·retry·dead 상태를 보존하며 사용자 클라이언트에 직접 노출하지 않습니다.
-- Imgur URL은 `threads.type='imgur'`로 분류해 상단 필터와 통계에 표시하지만 metadata·queue·외부 API 호출·전용 preview 카드를 만들지 않습니다.
+- Imgur URL은 `threads.type='imgur'`로 분류하며 YouTube 카드와 같은 썸네일 크기로 공식 embed를 기본 표시합니다.
 - 스레드가 Trash로 이동하면 아직 처리 중인 metadata와 `queued | retry | processing` job을 원자적으로 삭제합니다. 이미 완료된 metadata는 보존하며 복원해도 취소된 job을 다시 만들지 않습니다.
 - YouTube media worker Cron은 기존 crawl scheduler와 별도이며 전역·YouTube switch를 각각 유지합니다.
 - `crawl-history` 용량 측정, 백업·복구, 성능 검증 절차는 [`docs/CRAWL_HISTORY_RETENTION.md`](docs/CRAWL_HISTORY_RETENTION.md)를 참고합니다.

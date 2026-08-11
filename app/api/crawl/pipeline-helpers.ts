@@ -1,5 +1,5 @@
 import type { CrawlExecutionResult } from "./contracts";
-import { detectMediaProvider } from "./media-provider";
+import { detectKnownThreadType } from "./detected-thread-type";
 
 export interface FilterKeyword {
 	value: string;
@@ -20,7 +20,7 @@ export function matchFilteredUrl(value: string, filterList: FilterKeyword[]) {
 
 	return {
 		ignored: false,
-		type: detectMediaProvider(value) ?? (matchedType || "normal"),
+		type: detectKnownThreadType(value) ?? (matchedType || "normal"),
 	};
 }
 

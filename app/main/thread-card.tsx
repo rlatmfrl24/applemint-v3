@@ -1,10 +1,12 @@
 "use client";
 
 import { Link2 } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { getImgurEmbedTarget } from "@/lib/imgur-embed";
 import type { ThreadItemType } from "@/lib/type-defs";
+import { ImgurThreadContent } from "./imgur-embed-preview";
 import { YouTubeThreadContent } from "./youtube-thread-content";
 
 function DefaultThreadContent({
@@ -66,6 +68,11 @@ export function ThreadCard({
 	actions?: React.ReactNode;
 	meta?: React.ReactNode;
 }) {
+	const [isImgurPreviewExpanded, setIsImgurPreviewExpanded] = useState(false);
+	const imgurEmbedTarget = useMemo(
+		() => (thread.type === "imgur" ? getImgurEmbedTarget(thread.url) : null),
+		[thread.type, thread.url]
+	);
 	const handleOpen = useCallback(() => {
 		window.open(thread.url, "_blank", "noopener,noreferrer");
 	}, [thread.url]);
@@ -79,6 +86,15 @@ export function ThreadCard({
 			<CardContent className="flex flex-col gap-3 p-3">
 				{thread.type === "youtube" ? (
 					<YouTubeThreadContent thread={thread} onOpen={handleOpen} meta={meta} />
+				) : imgurEmbedTarget ? (
+					<ImgurThreadContent
+						thread={thread}
+						target={imgurEmbedTarget}
+						onOpen={handleOpen}
+						previewOpen={isImgurPreviewExpanded}
+						onPreviewOpenChange={setIsImgurPreviewExpanded}
+						meta={meta}
+					/>
 				) : (
 					<DefaultThreadContent thread={thread} onOpen={handleOpen} meta={meta} />
 				)}
