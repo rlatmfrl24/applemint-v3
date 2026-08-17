@@ -59,7 +59,7 @@
 		"zod": "4.4.3"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.5.7",
+		"@biomejs/biome": "2.5.8",
 		"@playwright/test": "1.62.1",
 		"@tailwindcss/postcss": "^4.3.3",
 		"@types/node": "24.13.3",
@@ -68,7 +68,7 @@
 		"@types/web-push": "^3.6.4",
 		"@vitest/coverage-v8": "4.1.10",
 		"cross-env": "^10.1.0",
-		"knip": "6.32.0",
+		"knip": "6.32.2",
 		"tailwindcss": "4.3.3",
 		"tailwindcss-animate": "^1.0.7",
 		"typescript": "7.0.2",
