@@ -28,6 +28,7 @@ export function ImgurThreadContent({
 }) {
 	const title = getThreadTitle(thread);
 	const previewId = useId();
+	const previewToggleLabel = previewOpen ? "미리보기 접기" : "전체 보기";
 
 	return (
 		<div
@@ -45,13 +46,17 @@ export function ImgurThreadContent({
 						type="button"
 						aria-expanded={previewOpen}
 						aria-controls={previewId}
-						aria-label={`${title} 전체 미리보기`}
-						onClick={() => onPreviewOpenChange(true)}
+						aria-label={`${title} ${previewToggleLabel}`}
+						onClick={() => onPreviewOpenChange(!previewOpen)}
 						className="absolute inset-0 flex items-end justify-end bg-gradient-to-t from-black/35 via-transparent to-transparent p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-inset"
 					>
 						<span className="inline-flex items-center rounded bg-black/75 px-2 py-1 font-medium text-[11px] text-white opacity-90 transition-opacity group-hover:opacity-100">
-							<Maximize2 aria-hidden="true" className="mr-1 size-3" />
-							전체 보기
+							{previewOpen ? (
+								<ChevronUp aria-hidden="true" className="mr-1 size-3" />
+							) : (
+								<Maximize2 aria-hidden="true" className="mr-1 size-3" />
+							)}
+							{previewToggleLabel}
 						</span>
 					</button>
 				</div>

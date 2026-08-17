@@ -39,12 +39,13 @@ describe("Imgur embed preview", () => {
 		expect(markup).toContain("object-cover");
 		expect(markup).toContain("전체 보기");
 		expect(markup).toContain('aria-expanded="false"');
+		expect(markup).toContain('aria-label="수집된 Imgur 링크 전체 보기"');
 		expect(markup).toContain('aria-label="수집된 Imgur 링크 Imgur에서 열기"');
 		expect(markup).not.toContain(">Imgur에서 열기<");
 		expect(markup).not.toContain('data-testid="imgur-full-preview"');
 	});
 
-	it("썸네일의 전체 보기를 펼치면 카드 안에 전체 embed를 추가한다", () => {
+	it("펼친 상태에서는 썸네일 버튼이 접기 토글로 바뀐다", () => {
 		const target = getImgurEmbedTarget(thread.url);
 		expect(target).not.toBeNull();
 		if (!target) return;
@@ -60,6 +61,7 @@ describe("Imgur embed preview", () => {
 
 		expect(markup).toContain('data-preview-state="open"');
 		expect(markup).toContain('aria-expanded="true"');
+		expect(markup).toContain('aria-label="수집된 Imgur 링크 미리보기 접기"');
 		expect(markup).toContain("미리보기 접기");
 		expect(markup).toContain('data-testid="imgur-full-preview"');
 		expect(markup).toContain('data-preview-variant="full"');
