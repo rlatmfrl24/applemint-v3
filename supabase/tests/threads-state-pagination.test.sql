@@ -1,7 +1,7 @@
 -- Canonical thread state, pagination, and atomicity contract.
 begin;
 
-select plan(59);
+select plan(63);
 
 select has_table('public', 'threads', 'threads is the canonical table');
 select has_index('public', 'threads', 'idx_threads_state_changed_at_id', 'state cursor index exists');
@@ -14,8 +14,8 @@ select has_index(
 select has_index(
 	'public',
 	'threads',
-	'idx_threads_state_type_host_changed_at_id',
-	'state, type, and host cursor index exists'
+	'idx_threads_state_type_site_changed_at_id',
+	'state, type, and canonical site cursor index exists'
 );
 select ok(
 	(select relrowsecurity from pg_class where oid = 'public.threads'::regclass),
@@ -607,15 +607,15 @@ select is(
 	'state filter keeps saved rows out of inbox pages'
 );
 
--- Isolate the exact normal-host denominator after the preceding canonical tests.
+-- Isolate the exact normal-site denominator after the preceding canonical tests.
 update public.threads
-set type = 'host-test-baseline'
+set type = 'site-test-baseline'
 where state = 'inbox' and type = 'normal';
 
 insert into public.threads (type, url, host, state, state_changed_at)
 select
 	'normal',
-	'https://host-filter.test/count-only/' || value,
+	'https://site-filter.test/count-only/' || value,
 	'https://www.count-only.test/',
 	'inbox',
 	'2202-01-01 00:00:00+00'::timestamp with time zone + make_interval(secs => value)
@@ -623,25 +623,63 @@ from generate_series(1, 10) as value
 union all
 select
 	'normal',
-	'https://host-filter.test/dominant/' || value,
-	'https://www.dominant.test/',
+	'https://site-filter.test/dominant/' || value,
+	case
+		when value <= 20 then 'www.fmkorea.com'
+		when value <= 30 then 'https://www.fmkorea.com'
+		else 'm.fmkorea.com'
+	end,
 	'inbox',
 	'2202-01-02 00:00:00+00'::timestamp with time zone + make_interval(secs => value)
 from generate_series(1, 41) as value;
 
 select ok(
 	not exists (
-		select 1 from public.get_normal_host_stats()
-		where host = 'https://www.count-only.test/'
+		select 1 from public.get_normal_site_stats()
+		where site_key = 'count-only.test'
 	),
-	'host count alone does not qualify below the twenty-percent share'
+	'site count alone does not qualify below the twenty-percent share'
+);
+select is(
+	(
+		select row(count(*), count(*) filter (where host = 'https://www.count-only.test/'))
+		from public.list_threads_page('inbox', 100, null, null, 'normal', null)
+		where url like 'https://site-filter.test/%'
+	),
+	row(10::bigint, 10::bigint),
+	'Normal excludes every alias of the promoted site while retaining non-promoted rows'
+);
+select is(
+	(
+		select count(*)
+		from public.list_threads_page('inbox', 100, null, null, null, null)
+		where url like 'https://site-filter.test/%'
+	),
+	51::bigint,
+	'All retains promoted and non-promoted normal rows exactly once'
+);
+select is(
+	(
+		select count(*)
+		from public.list_threads_page(
+			'inbox', 100, null, null, 'normal', 'fmkorea.com'
+		)
+	),
+	41::bigint,
+	'promoted site filter retains every raw host alias excluded from Normal'
 );
 
-delete from public.threads where url like 'https://host-filter.test/%';
+select is(
+	public.get_thread_stats_with_normal_sites('inbox', null) -> 'sites' -> 0 ->> 'site_key',
+	'fmkorea.com',
+	'atomic statistics expose the canonical promoted site key'
+);
+
+delete from public.threads where url like 'https://site-filter.test/%';
 insert into public.threads (type, url, host, state, state_changed_at)
 select
 	'normal',
-	'https://host-filter.test/ratio-only/' || value,
+	'https://site-filter.test/ratio-only/' || value,
 	'https://www.ratio-only.test/',
 	'inbox',
 	'2202-02-01 00:00:00+00'::timestamp with time zone + make_interval(secs => value)
@@ -649,7 +687,7 @@ from generate_series(1, 9) as value
 union all
 select
 	'normal',
-	'https://host-filter.test/ratio-denominator/' || value,
+	'https://site-filter.test/ratio-denominator/' || value,
 	'https://www.ratio-denominator.test/',
 	'inbox',
 	'2202-02-02 00:00:00+00'::timestamp with time zone + make_interval(secs => value)
@@ -657,17 +695,17 @@ from generate_series(1, 36) as value;
 
 select ok(
 	not exists (
-		select 1 from public.get_normal_host_stats()
-		where host = 'https://www.ratio-only.test/'
+		select 1 from public.get_normal_site_stats()
+		where site_key = 'ratio-only.test'
 	),
 	'twenty-percent share alone does not qualify below ten items'
 );
 
-delete from public.threads where url like 'https://host-filter.test/%';
+delete from public.threads where url like 'https://site-filter.test/%';
 insert into public.threads (type, url, host, state, state_changed_at)
 select
 	'normal',
-	format('https://host-filter.test/final/%s/%s', host_key, value),
+	format('https://site-filter.test/final/%s/%s', host_key, value),
 	format('https://www.%s.test/', host_key),
 	'inbox',
 	'2202-03-01 00:00:00+00'::timestamp with time zone
@@ -677,60 +715,60 @@ cross join generate_series(1, 10) as value;
 
 insert into public.threads (type, url, host, state, state_changed_at)
 values
-	('normal', 'https://host-filter.test/final/saved', 'https://www.a.test/', 'saved', '2202-03-02 00:00:00+00'),
-	('youtube', 'https://host-filter.test/final/youtube', 'https://www.a.test/', 'inbox', '2202-03-02 00:00:01+00');
+	('normal', 'https://site-filter.test/final/saved', 'https://www.a.test/', 'saved', '2202-03-02 00:00:00+00'),
+	('youtube', 'https://site-filter.test/final/youtube', 'https://www.a.test/', 'inbox', '2202-03-02 00:00:01+00');
 
 select is(
 	(
-		select string_agg(host, ',' order by count desc, host asc)
-		from public.get_normal_host_stats()
+		select string_agg(site_key, ',' order by count desc, site_key asc)
+		from public.get_normal_site_stats()
 	),
-	'https://www.a.test/,https://www.b.test/,https://www.c.test/,https://www.d.test/,https://www.e.test/',
-	'exactly five qualifying hosts are ordered by count then host'
+	'a.test,b.test,c.test,d.test,e.test',
+	'exactly five qualifying sites are ordered by count then canonical key'
 );
 select is(
 	(
 		select count(*)
 		from public.list_threads_page(
-			'inbox', 100, null, null, 'normal', 'https://www.a.test/'
+			'inbox', 100, null, null, 'normal', 'a.test'
 		)
 	),
 	10::bigint,
-	'host filtering isolates inbox normal rows from other states and types'
+	'site filtering isolates inbox normal rows from other states and types'
 );
 
-create temporary table host_page_one as
+create temporary table site_page_one as
 select *
 from public.list_threads_page(
-	'inbox', 4, null, null, 'normal', 'https://www.a.test/'
+	'inbox', 4, null, null, 'normal', 'a.test'
 );
-create temporary table host_page_two as
+create temporary table site_page_two as
 select *
 from public.list_threads_page(
 	'inbox',
 	10,
-	(select state_changed_at from host_page_one order by state_changed_at desc, id desc offset 3 limit 1),
-	(select id::bigint from host_page_one order by state_changed_at desc, id desc offset 3 limit 1),
+	(select state_changed_at from site_page_one order by state_changed_at desc, id desc offset 3 limit 1),
+	(select id::bigint from site_page_one order by state_changed_at desc, id desc offset 3 limit 1),
 	'normal',
-	'https://www.a.test/'
+	'a.test'
 );
 select is(
 	(
 		select row(count(*), count(distinct id))
 		from (
-			(select id from host_page_one order by state_changed_at desc, id desc limit 4)
+			(select id from site_page_one order by state_changed_at desc, id desc limit 4)
 			union all
-			(select id from host_page_two order by state_changed_at desc, id desc)
+			(select id from site_page_two order by state_changed_at desc, id desc)
 		) as paged
 	),
 	row(10::bigint, 10::bigint),
-	'host-filtered cursor pages contain every row exactly once'
+	'site-filtered cursor pages contain every row exactly once'
 );
 select throws_ok(
-	$$select * from public.list_threads_page('inbox', 24, null, null, 'youtube', 'https://www.a.test/')$$,
+	$$select * from public.list_threads_page('inbox', 24, null, null, 'youtube', 'a.test')$$,
 	'22023',
-	'Thread host filters require the normal thread type.',
-	'host filtering cannot escape the normal type boundary'
+	'Thread site filters require the normal thread type.',
+	'site filtering cannot escape the normal type boundary'
 );
 
 insert into public.threads (

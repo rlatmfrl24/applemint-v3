@@ -1,27 +1,10 @@
 import * as cheerio from "cheerio";
+import { getIssueLinkCommunityHost } from "@/lib/community";
 import type { CrawlItemType } from "@/lib/type-defs";
 import { createParserFailure, createParserSuccess, type ParserOutcome } from "./parser-contracts";
 
 export const ISSUELINK_BASE_URL = "https://www.issuelink.co.kr";
 export const ISSUELINK_MINIMUM_ITEMS = 50;
-
-const ISSUELINK_HOSTS: Record<string, string> = {
-	"82cook": "https://www.82cook.com",
-	bobae: "https://www.bobaedream.co.kr",
-	clien: "https://www.clien.net",
-	etoland: "https://www.etoland.co.kr",
-	fmkorea: "https://www.fmkorea.com",
-	humoruniv: "https://www.humoruniv.com",
-	instiz: "https://www.instiz.net",
-	inven: "https://www.inven.co.kr",
-	mlbpark: "https://www.mlbpark.com",
-	ppomppu: "https://www.ppomppu.co.kr",
-	ruliweb: "https://www.ruliweb.com",
-	slr: "https://www.slrclub.com",
-	theqoo: "https://theqoo.net",
-	todayhumor: "https://www.todayhumor.co.kr",
-	ygosu: "https://www.ygosu.com",
-};
 
 interface IssueLinkUrl {
 	url: string;
@@ -92,7 +75,7 @@ export function parseIssueLinkHtml(html: string): ParserOutcome {
 			url: parsedUrl.url,
 			title,
 			description: "",
-			host: ISSUELINK_HOSTS[parsedUrl.sourceKey] ?? ISSUELINK_BASE_URL,
+			host: getIssueLinkCommunityHost(parsedUrl.sourceKey) ?? ISSUELINK_BASE_URL,
 			tag: ["issuelink", parsedUrl.sourceKey],
 		});
 	});

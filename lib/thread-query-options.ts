@@ -18,14 +18,14 @@ interface ThreadListOptionsInput {
 	state: ThreadState;
 	limit?: number;
 	filterType?: string | null;
-	filterHost?: string | null;
+	filterSite?: string | null;
 }
 
 export const threadListOptions = (
 	trpc: AppTRPCClient,
-	{ state, limit = 24, filterType, filterHost }: ThreadListOptionsInput
+	{ state, limit = 24, filterType, filterSite }: ThreadListOptionsInput
 ) => {
-	const filterKey = createThreadListFilterKey(filterType, filterHost);
+	const filterKey = createThreadListFilterKey(filterType, filterSite);
 
 	return infiniteQueryOptions({
 		queryKey: threadListQueryKey(state, filterKey),
@@ -35,7 +35,7 @@ export const threadListOptions = (
 					state,
 					limit,
 					filterType: filterType ?? null,
-					filterHost: filterHost ?? null,
+					filterSite: filterSite ?? null,
 					cursor: pageParam ?? null,
 				},
 				{ signal }

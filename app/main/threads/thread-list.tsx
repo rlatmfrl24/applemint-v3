@@ -18,11 +18,11 @@ import { DefaultThreadItem } from "./thread-item";
 export type ThreadFilterSelection =
 	| { kind: "all" }
 	| { kind: "type"; type: string }
-	| { kind: "host"; host: string };
+	| { kind: "site"; siteKey: string };
 
 const ALL_SELECTION: ThreadFilterSelection = { kind: "all" };
 
-const hostFilterValue = (host: string) => `host:${encodeURIComponent(host)}`;
+const siteFilterValue = (siteKey: string) => `site:${encodeURIComponent(siteKey)}`;
 
 export function getThreadListFilterParams(
 	selection: ThreadFilterSelection
@@ -31,17 +31,17 @@ export function getThreadListFilterParams(
 	if (selection.kind === "type") return [{ key: "filterType", value: selection.type }];
 	return [
 		{ key: "filterType", value: "normal" },
-		{ key: "filterHost", value: selection.host },
+		{ key: "filterSite", value: selection.siteKey },
 	];
 }
 
 export function reconcileThreadFilterSelection(
 	selection: ThreadFilterSelection,
-	hostCounts: ThreadStats["hostCounts"]
+	siteCounts: ThreadStats["siteCounts"]
 ): ThreadFilterSelection {
 	if (
-		selection.kind === "host" &&
-		!hostCounts.some((hostCount) => hostCount.host === selection.host)
+		selection.kind === "site" &&
+		!siteCounts.some((siteCount) => siteCount.siteKey === selection.siteKey)
 	) {
 		return { kind: "type", type: "normal" };
 	}
@@ -68,7 +68,7 @@ export const TypeStats = ({
 			? "all"
 			: selection.kind === "type"
 				? `type:${selection.type}`
-				: hostFilterValue(selection.host);
+				: siteFilterValue(selection.siteKey);
 
 	return (
 		<Card className="w-full border-zinc-200/80 shadow-none dark:border-zinc-800">
@@ -84,11 +84,11 @@ export const TypeStats = ({
 							onSelectionChange(ALL_SELECTION);
 							return;
 						}
-						const hostCount = stats?.hostCounts.find(
-							(item) => hostFilterValue(item.host) === value
+						const siteCount = stats?.siteCounts.find(
+							(item) => siteFilterValue(item.siteKey) === value
 						);
-						if (hostCount) {
-							onSelectionChange({ kind: "host", host: hostCount.host });
+						if (siteCount) {
+							onSelectionChange({ kind: "site", siteKey: siteCount.siteKey });
 							return;
 						}
 						if (value.startsWith("type:")) {
@@ -115,14 +115,14 @@ export const TypeStats = ({
 								<Badge className="px-1.5 py-0">{type.count}</Badge>
 							</ToggleGroupItem>
 						))}
-						{stats?.hostCounts.map((hostCount) => (
+						{stats?.siteCounts.map((siteCount) => (
 							<ToggleGroupItem
-								key={hostCount.host}
-								value={hostFilterValue(hostCount.host)}
+								key={siteCount.siteKey}
+								value={siteFilterValue(siteCount.siteKey)}
 								className="flex justify-between gap-2 px-2"
 							>
-								<span className="font-medium text-xs sm:text-sm">Host · {hostCount.label}</span>
-								<Badge className="px-1.5 py-0">{hostCount.count}</Badge>
+								<span className="font-medium text-xs sm:text-sm">{siteCount.label}</span>
+								<Badge className="px-1.5 py-0">{siteCount.count}</Badge>
 							</ToggleGroupItem>
 						))}
 					</div>
@@ -136,8 +136,8 @@ export const ThreadList = () => {
 	const trpc = useTRPCClient();
 	const [selection, setSelection] = useState<ThreadFilterSelection>(ALL_SELECTION);
 	const selectionKey =
-		selection.kind === "host"
-			? hostFilterValue(selection.host)
+		selection.kind === "site"
+			? siteFilterValue(selection.siteKey)
 			: selection.kind === "type"
 				? `type:${selection.type}`
 				: "all";
@@ -153,7 +153,7 @@ export const ThreadList = () => {
 
 	useEffect(() => {
 		if (!statsQuery.data) return;
-		setSelection((current) => reconcileThreadFilterSelection(current, statsQuery.data.hostCounts));
+		setSelection((current) => reconcileThreadFilterSelection(current, statsQuery.data.siteCounts));
 	}, [statsQuery.data]);
 
 	useEffect(() => {
@@ -168,7 +168,7 @@ export const ThreadList = () => {
 	return (
 		<div className="flex w-full flex-col gap-3">
 			{statsQuery.data &&
-				(statsQuery.data.counts.length > 0 || statsQuery.data.hostCounts.length > 0) && (
+				(statsQuery.data.counts.length > 0 || statsQuery.data.siteCounts.length > 0) && (
 					<TypeStats
 						stats={statsQuery.data}
 						selection={selection}

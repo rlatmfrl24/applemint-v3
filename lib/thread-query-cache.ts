@@ -1,4 +1,5 @@
 import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
+import { getNormalSiteKey } from "./community";
 import { normalizeThreadId, type ThreadPage } from "./thread-list-contract";
 import { getThreadTypeLabel } from "./thread-type";
 import type { ThreadItemType, ThreadState, ThreadStats } from "./type-defs";
@@ -44,10 +45,17 @@ const parseFilterKey = (filterKey: string | undefined) => {
 	return filters;
 };
 
-const matchesThreadFilter = (thread: ThreadItemType, filterKey: string | undefined) => {
+const matchesThreadFilter = (
+	thread: ThreadItemType,
+	filterKey: string | undefined,
+	promotedSiteKeys: Set<string>
+) => {
 	const filterType = parseFilterKey(filterKey).get("filterType");
-	const filterHost = parseFilterKey(filterKey).get("filterHost");
-	return (!filterType || thread.type === filterType) && (!filterHost || thread.host === filterHost);
+	const filterSite = parseFilterKey(filterKey).get("filterSite");
+	const siteKey = thread.host ? getNormalSiteKey(thread.host) : "";
+	if (filterType && thread.type !== filterType) return false;
+	if (filterSite) return thread.type === "normal" && siteKey === filterSite;
+	return !(filterType === "normal" && promotedSiteKeys.has(siteKey));
 };
 
 const removeThread = (data: InfiniteData<ThreadPage>, threadId: string | number) => {
@@ -102,6 +110,9 @@ const updateThreadStats = (
 		) {
 			return { queryKey: query.queryKey, data: previousData } satisfies QuerySnapshot;
 		}
+		if (state === "inbox" && thread.type === "normal") {
+			return { queryKey: query.queryKey, data: previousData } satisfies QuerySnapshot;
+		}
 
 		let matched = false;
 		const counts = previousData.counts
@@ -122,7 +133,7 @@ const updateThreadStats = (
 
 		queryClient.setQueryData<ThreadStats>(query.queryKey, {
 			counts,
-			hostCounts: previousData.hostCounts,
+			siteCounts: previousData.siteCounts,
 			totalCount: Math.max(0, previousData.totalCount + delta),
 		});
 		return { queryKey: query.queryKey, data: previousData } satisfies QuerySnapshot;
@@ -134,8 +145,13 @@ const updateThreadLists = (
 	state: ThreadState,
 	thread: ThreadItemType,
 	operation: "remove" | "insert"
-) =>
-	queryClient
+) => {
+	const promotedSiteKeys = new Set(
+		(
+			queryClient.getQueryData<ThreadStats>(["threads", "stats", state, null])?.siteCounts ?? []
+		).map((site) => site.siteKey)
+	);
+	return queryClient
 		.getQueryCache()
 		.findAll({ predicate: (query) => isThreadListQueryKey(query.queryKey, state) })
 		.map((query) => {
@@ -143,7 +159,8 @@ const updateThreadLists = (
 			const filterKey = Array.isArray(query.queryKey) ? query.queryKey[3] : undefined;
 			if (
 				previousData &&
-				(operation === "remove" || matchesThreadFilter(thread, String(filterKey ?? "")))
+				(operation === "remove" ||
+					matchesThreadFilter(thread, String(filterKey ?? ""), promotedSiteKeys))
 			) {
 				queryClient.setQueryData(
 					query.queryKey,
@@ -154,6 +171,7 @@ const updateThreadLists = (
 			}
 			return { queryKey: query.queryKey, data: previousData } satisfies QuerySnapshot;
 		});
+};
 
 export const rollbackSnapshots = (queryClient: QueryClient, snapshots: QuerySnapshot[]) => {
 	for (const { queryKey, data } of snapshots) queryClient.setQueryData(queryKey, data);

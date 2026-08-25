@@ -7,7 +7,6 @@ describe("ThreadService", () => {
 	const repository = {
 		list: vi.fn(),
 		stats: vi.fn(),
-		normalHostStats: vi.fn(),
 		transition: vi.fn(),
 		bulkTrashInbox: vi.fn(),
 	};
@@ -77,42 +76,56 @@ describe("ThreadService", () => {
 			state: "inbox",
 			limit: 24,
 			filterType: "normal",
-			filterHost: "https://www.fmkorea.com",
+			filterSite: "fmkorea.com",
 			cursor,
 		});
 		expect(repository.list).toHaveBeenCalledWith("inbox", {
 			limit: 24,
 			cursor: { stateChangedAt: threadRow.state_changed_at, id: "2" },
 			filterType: "normal",
-			filterHost: "https://www.fmkorea.com",
+			filterSite: "fmkorea.com",
 		});
 	});
 
 	it("통계 표시 라벨과 totalCount를 정규화한다", async () => {
-		repository.stats.mockResolvedValue([
-			{ key: "youtube", label: "youtube", count: 3, total_count: 5 },
-			{ key: "imgur", label: "imgur", count: 2, total_count: 5 },
-		]);
-		repository.normalHostStats.mockResolvedValue([{ host: "https://www.fmkorea.com/", count: 12 }]);
-		await expect(service.stats({ state: "inbox" })).resolves.toEqual({
-			totalCount: 5,
-			counts: [
-				{ key: "youtube", label: "YouTube", count: 3 },
-				{ key: "imgur", label: "Imgur", count: 2 },
+		repository.stats.mockResolvedValue({
+			rows: [
+				{ key: "normal", count: 20, total_count: 25 },
+				{ key: "youtube", count: 5, total_count: 25 },
 			],
-			hostCounts: [{ host: "https://www.fmkorea.com/", label: "fmkorea.com", count: 12 }],
+			sites: [{ site_key: "fmkorea.com", count: 12 }],
+		});
+		await expect(service.stats({ state: "inbox" })).resolves.toEqual({
+			totalCount: 25,
+			counts: [
+				{ key: "normal", label: "normal", count: 8 },
+				{ key: "youtube", label: "YouTube", count: 5 },
+			],
+			siteCounts: [{ siteKey: "fmkorea.com", label: "에펨코리아", count: 12 }],
 		});
 	});
 
-	it("Inbox 전체 통계가 아니면 host 통계를 중복 조회하지 않는다", async () => {
-		repository.stats.mockResolvedValue([]);
+	it("Normal 통계는 승격 site 건수를 제외하고 site 분류를 중복 노출하지 않는다", async () => {
+		repository.stats.mockResolvedValue({
+			rows: [{ key: "normal", count: 20, total_count: 20 }],
+			sites: [{ site_key: "fmkorea.com", count: 12 }],
+		});
+
+		await expect(service.stats({ state: "inbox", filterType: "normal" })).resolves.toEqual({
+			totalCount: 8,
+			counts: [{ key: "normal", label: "normal", count: 8 }],
+			siteCounts: [],
+		});
+	});
+
+	it("Inbox 전체 통계가 아니면 site 통계를 빈 배열로 유지한다", async () => {
+		repository.stats.mockResolvedValue({ rows: [], sites: [] });
 
 		await expect(service.stats({ state: "saved" })).resolves.toEqual({
 			totalCount: 0,
 			counts: [],
-			hostCounts: [],
+			siteCounts: [],
 		});
-		expect(repository.normalHostStats).not.toHaveBeenCalled();
 	});
 
 	it("상태 이동은 repository에 위임한다", async () => {

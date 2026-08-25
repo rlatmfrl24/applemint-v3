@@ -17,7 +17,7 @@ import {
 
 function createClient() {
 	const list = vi.fn().mockResolvedValue({ items: [], nextCursor: null });
-	const stats = vi.fn().mockResolvedValue({ counts: [], hostCounts: [], totalCount: 0 });
+	const stats = vi.fn().mockResolvedValue({ counts: [], siteCounts: [], totalCount: 0 });
 	const transition = vi.fn().mockResolvedValue({ id: "1" });
 	const bulkTrash = vi.fn().mockResolvedValue({ movedCount: 3 });
 	return {
@@ -50,12 +50,12 @@ describe("thread tRPC query options", () => {
 		expect(statsOptions.refetchOnWindowFocus).toBe("always");
 	});
 
-	it("host 필터를 cache key와 normal 목록 입력에 함께 전달한다", async () => {
+	it("site 필터를 cache key와 normal 목록 입력에 함께 전달한다", async () => {
 		const { client, list } = createClient();
 		const options = threadListOptions(client, {
 			state: "inbox",
 			filterType: "normal",
-			filterHost: "https://www.fmkorea.com",
+			filterSite: "fmkorea.com",
 		});
 		const signal = new AbortController().signal;
 		if (typeof options.queryFn !== "function") throw new Error("queryFn이 필요합니다.");
@@ -66,14 +66,14 @@ describe("thread tRPC query options", () => {
 			"threads",
 			"list",
 			"inbox",
-			"filterType:normal|filterHost:https%3A%2F%2Fwww.fmkorea.com",
+			"filterType:normal|filterSite:fmkorea.com",
 		]);
 		expect(list).toHaveBeenCalledWith(
 			{
 				state: "inbox",
 				limit: 24,
 				filterType: "normal",
-				filterHost: "https://www.fmkorea.com",
+				filterSite: "fmkorea.com",
 				cursor: null,
 			},
 			{ signal }
@@ -169,7 +169,7 @@ describe("thread tRPC query options", () => {
 				state: "saved",
 				limit: 10,
 				filterType: null,
-				filterHost: null,
+				filterSite: null,
 				cursor: "cursor",
 			},
 			{ signal }
