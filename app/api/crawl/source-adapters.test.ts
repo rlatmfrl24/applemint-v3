@@ -177,6 +177,7 @@ describe("crawler parser adapters", () => {
 			ISSUELINK_TARGET,
 			expect.objectContaining({ cache: "no-store", signal: expect.any(AbortSignal) })
 		);
+		expect(ISSUELINK_TARGET).toContain("/community/listview/all/12/adj/");
 	});
 
 	it("IssueLink HTTP·timeout·parser failure를 올바른 failure 종류로 구분한다", async () => {

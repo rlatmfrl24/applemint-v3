@@ -3,7 +3,9 @@
 ## 기본 정책
 
 - 활성 크롤링 소스의 초기 최소 실행 간격은 `arcalive` 2시간, `battlepage` 4시간,
-  `insagirl` 3시간입니다.
+  `insagirl` 3시간, `issuelink` 12시간입니다.
+- IssueLink는 12시간 인기순 한 페이지에서 순위를 보존하되 전체 50건, 원 커뮤니티별 10건까지
+  수집합니다. 제한으로 제외한 정상 후보는 parser 오류가 아닌 ignored 항목으로 관측합니다.
 - 소스 실행 예산은 45초이며, 서로 다른 소스는 최대 2개까지 동시에 실행합니다.
 - 동일 소스 중복 실행은 `crawl:<source>` 잠금으로 차단합니다.
 - 수동 실행은 예약 cooldown과 `schedule_enabled`만 우회합니다.

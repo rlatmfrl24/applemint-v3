@@ -12,7 +12,7 @@ import { ISSUELINK_BASE_URL, parseIssueLinkHtml } from "./issuelink-parser";
 import { debugLog } from "./logger";
 import { adaptParserOutcome } from "./parser-adapter";
 
-export const ISSUELINK_TARGET = `${ISSUELINK_BASE_URL}/community/listview/all/3/adj/_self/blank/blank/blank`;
+export const ISSUELINK_TARGET = `${ISSUELINK_BASE_URL}/community/listview/all/12/adj/_self/blank/blank/blank`;
 
 interface IssueLinkPageResult {
 	items: CrawlItemType[];

@@ -37,8 +37,8 @@ export const crawlPolicySettings: CrawlPolicySettings = {
 	sources: (["arcalive", "battlepage", "insagirl", "issuelink"] as const).map((source) => ({
 		source,
 		scheduleEnabled: source !== "issuelink",
-		cooldownSeconds: 10800,
-		recommendedCooldownSeconds: 10800,
+		cooldownSeconds: source === "issuelink" ? 43200 : 10800,
+		recommendedCooldownSeconds: source === "issuelink" ? 43200 : 10800,
 		runBudgetSeconds: 45,
 		updatedAt: NOW,
 		lastFinishedAt: null,
