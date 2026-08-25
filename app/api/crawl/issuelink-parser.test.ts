@@ -80,7 +80,7 @@ describe("parseIssueLinkHtml", () => {
 
 	it("최소 수집량 이상이면 volume 경고를 만들지 않는다", () => {
 		const html = Array.from({ length: ISSUELINK_MINIMUM_ITEMS }, (_, index) =>
-			row(`source-${index % 3}`, index + 1)
+			row(`source-${index % 5}`, index + 1)
 		).join("");
 		const result = parseIssueLinkHtml(html);
 
@@ -88,11 +88,20 @@ describe("parseIssueLinkHtml", () => {
 		expect(result.warnings).toEqual([]);
 	});
 
-	it("인기순을 유지하면서 전체 50건과 source별 10건으로 제한한다", () => {
-		const sources = ["fmkorea", "theqoo", "ruliweb", "clien", "slr", "ppomppu"];
+	it("인기순을 유지하면서 전체 20건과 source별 3건으로 제한한다", () => {
+		const sources = [
+			"fmkorea",
+			"theqoo",
+			"ruliweb",
+			"clien",
+			"slr",
+			"ppomppu",
+			"instiz",
+			"etoland",
+		];
 		const html = sources
 			.flatMap((source, sourceIndex) =>
-				Array.from({ length: 12 }, (_, index) => row(source, sourceIndex * 100 + index + 1))
+				Array.from({ length: 5 }, (_, index) => row(source, sourceIndex * 100 + index + 1))
 			)
 			.join("");
 
@@ -110,7 +119,7 @@ describe("parseIssueLinkHtml", () => {
 			"https://www.issuelink.co.kr/community/go/fmkorea/2",
 			"https://www.issuelink.co.kr/community/go/fmkorea/3",
 		]);
-		expect(result.ignoredCount).toBe(22);
+		expect(result.ignoredCount).toBe(20);
 		expect(result.warnings).toEqual([]);
 	});
 });

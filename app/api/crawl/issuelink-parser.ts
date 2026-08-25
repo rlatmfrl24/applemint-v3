@@ -4,9 +4,9 @@ import type { CrawlItemType } from "@/lib/type-defs";
 import { createParserFailure, createParserSuccess, type ParserOutcome } from "./parser-contracts";
 
 export const ISSUELINK_BASE_URL = "https://www.issuelink.co.kr";
-export const ISSUELINK_MINIMUM_ITEMS = 30;
-export const ISSUELINK_MAX_ITEMS = 50;
-export const ISSUELINK_MAX_ITEMS_PER_SOURCE = 10;
+export const ISSUELINK_MINIMUM_ITEMS = 15;
+export const ISSUELINK_MAX_ITEMS = 20;
+export const ISSUELINK_MAX_ITEMS_PER_SOURCE = 3;
 
 interface IssueLinkUrl {
 	url: string;

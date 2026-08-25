@@ -23,8 +23,8 @@ select is(
 		select row(cooldown_seconds, recommended_cooldown_seconds, run_budget_seconds, schedule_enabled)
 		from public.crawl_source_policies where source = 'issuelink'
 	),
-	row(43200, 43200, 45, false),
-	'IssueLink starts disabled with the twelve-hour policy and a 45 second budget'
+	row(10800, 10800, 45, false),
+	'IssueLink starts disabled with the three-hour policy and a 45 second budget'
 );
 select is(
 	(
@@ -248,7 +248,7 @@ select is(
 		)
 		from public.crawl_source_policies
 	),
-	'{"arcalive":[7200,7200],"battlepage":[14400,14400],"insagirl":[10800,10800],"issuelink":[43200,43200]}'::jsonb,
+	'{"arcalive":[7200,7200],"battlepage":[14400,14400],"insagirl":[10800,10800],"issuelink":[10800,10800]}'::jsonb,
 	'optimized source cooldowns and recommendations are seeded'
 );
 select is(
