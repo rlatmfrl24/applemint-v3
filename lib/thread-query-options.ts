@@ -2,7 +2,11 @@ import { infiniteQueryOptions, mutationOptions, queryOptions } from "@tanstack/r
 import type { TRPCClient } from "@trpc/client";
 import type { ThreadTransitionInput } from "@/contracts/thread.schema";
 import type { AppRouter } from "@/server/trpc/router";
-import { threadListQueryKey, threadStatsQueryKey } from "./thread-list-contract";
+import {
+	createThreadListFilterKey,
+	threadListQueryKey,
+	threadStatsQueryKey,
+} from "./thread-list-contract";
 import type { ThreadState } from "./type-defs";
 
 export type TransitionThreadInput = ThreadTransitionInput;
@@ -14,13 +18,14 @@ interface ThreadListOptionsInput {
 	state: ThreadState;
 	limit?: number;
 	filterType?: string | null;
+	filterSite?: string | null;
 }
 
 export const threadListOptions = (
 	trpc: AppTRPCClient,
-	{ state, limit = 24, filterType }: ThreadListOptionsInput
+	{ state, limit = 24, filterType, filterSite }: ThreadListOptionsInput
 ) => {
-	const filterKey = filterType ? `filterType:${filterType}` : "";
+	const filterKey = createThreadListFilterKey(filterType, filterSite);
 
 	return infiniteQueryOptions({
 		queryKey: threadListQueryKey(state, filterKey),
@@ -30,6 +35,7 @@ export const threadListOptions = (
 					state,
 					limit,
 					filterType: filterType ?? null,
+					filterSite: filterSite ?? null,
 					cursor: pageParam ?? null,
 				},
 				{ signal }

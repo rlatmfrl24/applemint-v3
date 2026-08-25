@@ -1,14 +1,14 @@
 -- Scheduling policy, lock, dispatch, reconciliation, and fail-closed contract.
 begin;
 
-select plan(63);
+select plan(64);
 
 select has_table('public', 'crawl_source_policies', 'source scheduling policy table exists');
 select has_table('public', 'crawl_runtime_settings', 'crawl runtime singleton exists');
 select is(
 	(select count(*) from public.crawl_source_policies),
-	3::bigint,
-	'exactly three active source policies are seeded'
+	4::bigint,
+	'exactly four active source policies are seeded'
 );
 select is(
 	(
@@ -17,6 +17,14 @@ select is(
 	),
 	row(14400, 45, true),
 	'battlepage policy defaults to four hours and a 45 second budget'
+);
+select is(
+	(
+		select row(cooldown_seconds, recommended_cooldown_seconds, run_budget_seconds, schedule_enabled)
+		from public.crawl_source_policies where source = 'issuelink'
+	),
+	row(10800, 10800, 45, false),
+	'IssueLink starts disabled with the three-hour policy and a 45 second budget'
 );
 select is(
 	(
@@ -213,7 +221,9 @@ delete from public.crawl_schedule_dispatches;
 delete from public.crawl_run_locks;
 delete from public.crawl_runs;
 update public.crawl_source_policies
-set schedule_enabled = true, cooldown_seconds = recommended_cooldown_seconds;
+set
+	schedule_enabled = source <> 'issuelink',
+	cooldown_seconds = recommended_cooldown_seconds;
 
 select has_extension('pg_net', 'pg_net extension is available for asynchronous dispatch');
 select has_extension('supabase_vault', 'Vault extension is available for scheduler secrets');
@@ -238,7 +248,7 @@ select is(
 		)
 		from public.crawl_source_policies
 	),
-	'{"arcalive":[7200,7200],"battlepage":[14400,14400],"insagirl":[10800,10800]}'::jsonb,
+	'{"arcalive":[7200,7200],"battlepage":[14400,14400],"insagirl":[10800,10800],"issuelink":[10800,10800]}'::jsonb,
 	'optimized source cooldowns and recommendations are seeded'
 );
 select is(
@@ -301,7 +311,7 @@ select is(
 );
 select is(
 	jsonb_array_length(public.get_crawl_source_policy_settings() -> 'sources'),
-	3,
+	4,
 	'owner policy response includes all active sources'
 );
 reset role;
@@ -366,7 +376,8 @@ select is(
 );
 
 update public.crawl_source_policies
-set schedule_enabled = true, cooldown_seconds = recommended_cooldown_seconds;
+set schedule_enabled = true, cooldown_seconds = recommended_cooldown_seconds
+where source <> 'issuelink';
 
 select is(
 	(

@@ -5,6 +5,7 @@ import type {
 	ThreadStats,
 	ThreadTransitionInput,
 } from "@/contracts/thread.schema";
+import { getSiteDisplayLabel } from "@/lib/community";
 import { getThreadTypeLabel } from "@/lib/thread-type";
 import { DomainError } from "@/server/errors/domain-error";
 import type { ThreadPageCursor, ThreadRepository } from "@/server/repositories/thread.repository";
@@ -63,6 +64,7 @@ export class ThreadService {
 			limit,
 			cursor: input.cursor ? decodeThreadCursor(input.cursor, input.state) : null,
 			filterType: input.filterType ?? null,
+			filterSite: input.filterSite ?? null,
 		});
 		const hasMore = rows.length > limit;
 		const items = hasMore ? rows.slice(0, limit) : rows;
@@ -81,14 +83,31 @@ export class ThreadService {
 	}
 
 	async stats(input: { state: ThreadState; filterType?: string | null }) {
-		const rows = await this.repository.stats(input.state, input.filterType ?? null);
+		const snapshot = await this.repository.stats(input.state, input.filterType ?? null);
+		const rows = snapshot.rows;
+		const siteRows = snapshot.sites;
+		const promotedNormalCount = siteRows.reduce((total, row) => total + row.count, 0);
+		const rawTotalCount = rows.length > 0 ? rows[0].total_count : 0;
 		return {
-			totalCount: rows.length > 0 ? rows[0].total_count : 0,
+			totalCount:
+				input.state === "inbox" && input.filterType === "normal"
+					? Math.max(0, rawTotalCount - promotedNormalCount)
+					: rawTotalCount,
 			counts: rows.map((row) => ({
 				key: row.key,
 				label: getThreadTypeLabel(row.key),
-				count: row.count,
+				count:
+					input.state === "inbox" && row.key === "normal"
+						? Math.max(0, row.count - promotedNormalCount)
+						: row.count,
 			})),
+			siteCounts: input.filterType
+				? []
+				: siteRows.map((row) => ({
+						siteKey: row.site_key,
+						label: getSiteDisplayLabel(row.site_key),
+						count: row.count,
+					})),
 		} satisfies ThreadStats;
 	}
 

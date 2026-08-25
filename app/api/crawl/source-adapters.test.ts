@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { crawlArcalive } from "./arcalive";
 import { crawlBattlepage } from "./battlepage";
+import { runCrawlerWithRetry } from "./crawl-runner";
 import { crawlInsagirl } from "./insagirl";
+import { crawlIssueLink, ISSUELINK_TARGET } from "./issuelink";
 
 const arcaliveFixture = readFileSync(
 	new URL("./fixtures/arcalive-current.html", import.meta.url),
@@ -14,6 +16,10 @@ const battlepageEmptyFixture = readFileSync(
 );
 const insagirlFixture = readFileSync(
 	new URL("./fixtures/insagirl-current.json", import.meta.url),
+	"utf8"
+);
+const issuelinkFixture = readFileSync(
+	new URL("./fixtures/issuelink-current.html", import.meta.url),
 	"utf8"
 );
 
@@ -92,6 +98,70 @@ describe("crawler parser adapters", () => {
 		expect(result.failures).toEqual([
 			expect.objectContaining({ kind: "parser", message: expect.stringContaining("v 배열") }),
 		]);
+	});
+
+	it("IssueLink는 단일 고정 URL을 수집하고 parser 관측치를 남긴다", async () => {
+		const fetchMock = vi.fn(() => Promise.resolve(htmlResponse(issuelinkFixture)));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await crawlIssueLink();
+
+		expect(result).toMatchObject({ attempted: 1, succeeded: 1 });
+		expect(result.items).toHaveLength(3);
+		expect(result.parserObservations).toEqual([
+			expect.objectContaining({ url: ISSUELINK_TARGET, status: "ok", validCount: 3 }),
+		]);
+		expect(fetchMock).toHaveBeenCalledWith(
+			ISSUELINK_TARGET,
+			expect.objectContaining({ cache: "no-store", signal: expect.any(AbortSignal) })
+		);
+	});
+
+	it("IssueLink HTTP·timeout·parser failure를 올바른 failure 종류로 구분한다", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(() => Promise.resolve(new Response("bad", { status: 503 })))
+		);
+		expect(await crawlIssueLink()).toMatchObject({
+			attempted: 1,
+			succeeded: 0,
+			failures: [
+				expect.objectContaining({ kind: "network", message: expect.stringContaining("503") }),
+			],
+		});
+
+		const timeout = new Error("timed out");
+		timeout.name = "TimeoutError";
+		vi.stubGlobal("fetch", vi.fn().mockRejectedValue(timeout));
+		expect(await crawlIssueLink()).toMatchObject({
+			failures: [expect.objectContaining({ kind: "network", timeout: true })],
+		});
+
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(() => Promise.resolve(htmlResponse("<main>changed</main>")))
+		);
+		expect(await crawlIssueLink()).toMatchObject({
+			failures: [expect.objectContaining({ kind: "parser" })],
+		});
+	});
+
+	it("IssueLink 단일 실패 URL만 선택 재시도해 결과를 복구한다", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(new Response("bad", { status: 503 }))
+			.mockResolvedValueOnce(htmlResponse(issuelinkFixture));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await runCrawlerWithRetry("issuelink", crawlIssueLink, async () => {});
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(result).toMatchObject({
+			retryCount: 1,
+			recoveredCount: 1,
+			failures: [],
+			parserValidCount: 3,
+		});
 	});
 
 	it("HTTP·timeout 오류는 network failure로 유지한다", async () => {

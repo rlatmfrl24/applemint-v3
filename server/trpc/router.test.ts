@@ -28,7 +28,7 @@ function createContext(
 				items: [{ ...threadRow, id: "3" }],
 				nextCursor: null,
 			}),
-			stats: vi.fn().mockResolvedValue({ counts: [], totalCount: 0 }),
+			stats: vi.fn().mockResolvedValue({ counts: [], siteCounts: [], totalCount: 0 }),
 			transition: vi.fn().mockResolvedValue({ ...threadRow, id: "3", state: "saved" }),
 			bulkTrashInbox: vi.fn().mockResolvedValue({ movedCount: 2 }),
 		},

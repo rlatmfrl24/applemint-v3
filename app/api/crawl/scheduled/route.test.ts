@@ -55,7 +55,7 @@ describe("POST /api/crawl/scheduled", () => {
 
 	it("내부 secret과 활성 target을 검증한다", async () => {
 		expect((await POST(request("arcalive", "wrong"))).status).toBe(401);
-		expect((await POST(request("issuelink"))).status).toBe(400);
+		expect((await POST(request("unsupported"))).status).toBe(400);
 		const strictRequest = new Request("http://localhost/api/crawl/scheduled", {
 			method: "POST",
 			headers: {
@@ -94,6 +94,20 @@ describe("POST /api/crawl/scheduled", () => {
 		expect(response.status).toBe(200);
 		expect(executeCrawlPipelineMock).toHaveBeenCalledWith(
 			"battlepage",
+			createServiceRoleClientMock.mock.results[0].value,
+			undefined,
+			{ trigger: "scheduled" }
+		);
+	});
+
+	it("IssueLink target을 기존 예약 파이프라인으로 전달한다", async () => {
+		executeCrawlPipelineMock.mockResolvedValue(createCrawlPipelineResult({ target: "issuelink" }));
+
+		const response = await POST(request("issuelink"));
+
+		expect(response.status).toBe(200);
+		expect(executeCrawlPipelineMock).toHaveBeenCalledWith(
+			"issuelink",
 			createServiceRoleClientMock.mock.results[0].value,
 			undefined,
 			{ trigger: "scheduled" }

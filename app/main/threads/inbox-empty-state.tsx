@@ -7,14 +7,9 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { CrawlPolicySettings, CrawlSourcePolicy } from "@/lib/crawl-policy-contract";
+import { CRAWL_SOURCE_LABELS } from "@/lib/crawl-source";
 import { invalidateThreadQueries } from "@/lib/thread-query-cache";
 import { useTRPC } from "@/trpc/client";
-
-const SOURCE_LABELS: Record<CrawlSourcePolicy["source"], string> = {
-	arcalive: "Arcalive",
-	battlepage: "Battlepage",
-	insagirl: "Insagirl",
-};
 
 const ACTIVE_REFETCH_INTERVAL_MS = 5_000;
 const IDLE_REFETCH_INTERVAL_MS = 60_000;
@@ -75,7 +70,7 @@ export function formatCountdown(remainingMs: number) {
 
 export function formatSourceSummary(sources: CrawlSourcePolicy["source"][]) {
 	if (sources.length === 0) return "";
-	const first = SOURCE_LABELS[sources[0]];
+	const first = CRAWL_SOURCE_LABELS[sources[0]];
 	return sources.length === 1 ? first : `${first} 외 ${sources.length - 1}개`;
 }
 

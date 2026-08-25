@@ -29,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import type { CrawlPolicySettings, CrawlSourcePolicy } from "@/lib/crawl-policy-contract";
 import { CRAWL_RUNS_QUERY_KEY } from "@/lib/crawl-run-query-options";
+import { CRAWL_SOURCE_LABELS } from "@/lib/crawl-source";
 import { invalidateThreadQueries } from "@/lib/thread-query-cache";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
@@ -40,12 +41,6 @@ import {
 	SettingsSurface,
 } from "../admin-ui";
 import { ManualCrawlError, requestManualCrawl } from "../crawl-client";
-
-const SOURCE_LABELS: Record<CrawlSourcePolicy["source"], string> = {
-	arcalive: "Arcalive",
-	battlepage: "Battlepage",
-	insagirl: "Insagirl",
-};
 
 export const INTERVAL_PRESETS = [1, 2, 3, 4, 6, 12, 24].map((hours) => ({
 	label: `${hours}시간`,
@@ -181,7 +176,7 @@ function ScheduleSwitch({
 			<span className="relative inline-flex h-6 w-11 shrink-0 items-center">
 				<input
 					aria-checked={checked}
-					aria-label={`${SOURCE_LABELS[source]} 예약 수집`}
+					aria-label={`${CRAWL_SOURCE_LABELS[source]} 예약 수집`}
 					checked={checked}
 					className="peer absolute inset-0 z-10 size-full cursor-pointer opacity-0"
 					onChange={(event) => onCheckedChange(event.target.checked)}
@@ -220,7 +215,7 @@ function PolicyRow({
 		...trpc.crawlPolicy.update.mutationOptions(),
 		onSuccess: (settings) => {
 			queryClient.setQueryData(trpc.crawlPolicy.get.queryKey(), settings);
-			toast.success(`${SOURCE_LABELS[policy.source]} 수집 정책을 저장했습니다.`);
+			toast.success(`${CRAWL_SOURCE_LABELS[policy.source]} 수집 정책을 저장했습니다.`);
 		},
 		onError: (error) => {
 			if (error.data?.latestSettings) {
@@ -264,7 +259,9 @@ function PolicyRow({
 							<Globe2 aria-hidden="true" className="size-5" />
 						</div>
 						<div className="min-w-0">
-							<h3 className="truncate font-semibold text-base">{SOURCE_LABELS[policy.source]}</h3>
+							<h3 className="truncate font-semibold text-base">
+								{CRAWL_SOURCE_LABELS[policy.source]}
+							</h3>
 							<div className="mt-1 text-muted-foreground text-xs leading-5">
 								권장 {formatInterval(policy.recommendedCooldownSeconds)}
 								<br />
@@ -291,7 +288,7 @@ function PolicyRow({
 						최소 수집 간격
 					</label>
 					<select
-						aria-label={`${SOURCE_LABELS[policy.source]} 최소 수집 간격`}
+						aria-label={`${CRAWL_SOURCE_LABELS[policy.source]} 최소 수집 간격`}
 						className="h-10 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						id={`${policy.source}-interval`}
 						value={intervalMode === "custom" ? "custom" : String(cooldownSeconds)}
@@ -378,7 +375,7 @@ function PolicyRow({
 						</AlertDialogTrigger>
 						<AlertDialogContent>
 							<AlertDialogHeader>
-								<AlertDialogTitle>{SOURCE_LABELS[policy.source]} 지금 수집</AlertDialogTitle>
+								<AlertDialogTitle>{CRAWL_SOURCE_LABELS[policy.source]} 지금 수집</AlertDialogTitle>
 								<AlertDialogDescription>
 									예약 설정과 관계없이 즉시 실행합니다. 소스 잠금과 최대 동시성 제한은 유지됩니다.
 								</AlertDialogDescription>
@@ -498,7 +495,8 @@ function PolicySettingsPanel({
 			{manualResult ? (
 				<Alert className="mt-5" variant={manualResult.success ? "default" : "destructive"}>
 					<AlertTitle>
-						{SOURCE_LABELS[manualResult.source]} 수동 수집 {manualResult.success ? "완료" : "실패"}
+						{CRAWL_SOURCE_LABELS[manualResult.source]} 수동 수집{" "}
+						{manualResult.success ? "완료" : "실패"}
 					</AlertTitle>
 					<AlertDescription>{manualResult.message}</AlertDescription>
 				</Alert>
@@ -567,7 +565,7 @@ export default function CrawlingSettingPage() {
 			const result = await requestManualCrawl(source);
 			const message = `${result.insertedCount}건 저장 · ${result.skippedCount}건 중복 · 경고 ${result.warningCount}건`;
 			setManualResult({ source, success: true, message });
-			toast.success(`${SOURCE_LABELS[source]} 수집이 완료되었습니다.`);
+			toast.success(`${CRAWL_SOURCE_LABELS[source]} 수집이 완료되었습니다.`);
 			await invalidateThreadQueries(queryClient, ["inbox"]);
 		} catch (error) {
 			const message = getManualErrorMessage(error);

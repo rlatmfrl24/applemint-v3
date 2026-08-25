@@ -1,7 +1,7 @@
 -- Single-owner security boundary and schema integrity contract.
 begin;
 
-select plan(56);
+select plan(61);
 
 select ok(
 	to_regclass('public."new-threads"') is null
@@ -61,8 +61,11 @@ select ok(
 		select 1
 		from unnest(array[
 			'public.is_applemint_owner()',
-			'public.list_threads_page(text,integer,timestamp with time zone,bigint,text)',
+			'public.list_threads_page(text,integer,timestamp with time zone,bigint,text,text)',
 			'public.get_thread_stats(text,text)',
+			'public.normalize_normal_site_key(text)',
+			'public.get_normal_site_stats()',
+			'public.get_thread_stats_with_normal_sites(text,text)',
 			'public.transition_thread_state(bigint,text,text)',
 			'public.bulk_move_inbox_to_trash()',
 			'public.clean_trash()',
@@ -212,12 +215,23 @@ select ok(
 	'authenticated can execute canonical thread transitions'
 );
 select ok(
-	has_function_privilege('authenticated', 'public.list_threads_page(text,integer,timestamp with time zone,bigint,text)', 'EXECUTE'),
+	has_function_privilege('authenticated', 'public.list_threads_page(text,integer,timestamp with time zone,bigint,text,text)', 'EXECUTE'),
 	'authenticated can execute canonical thread pagination'
 );
 select ok(
 	has_function_privilege('authenticated', 'public.get_thread_stats(text,text)', 'EXECUTE'),
 	'authenticated can execute canonical thread statistics'
+);
+select ok(
+	has_function_privilege('authenticated', 'public.normalize_normal_site_key(text)', 'EXECUTE')
+		and has_function_privilege('service_role', 'public.normalize_normal_site_key(text)', 'EXECUTE')
+		and has_function_privilege('authenticated', 'public.get_normal_site_stats()', 'EXECUTE')
+		and has_function_privilege(
+			'authenticated',
+			'public.get_thread_stats_with_normal_sites(text,text)',
+			'EXECUTE'
+		),
+	'canonical site helpers expose only their required execution roles'
 );
 select ok(
 	has_function_privilege('authenticated', 'public.bulk_move_inbox_to_trash()', 'EXECUTE'),
@@ -257,6 +271,18 @@ select throws_ok(
 	'non-owner cannot read thread statistics'
 );
 select throws_ok(
+	$$select * from public.get_normal_site_stats()$$,
+	'42501',
+	'Only the Applemint owner can read normal site statistics.',
+	'non-owner cannot read normal site statistics'
+);
+select throws_ok(
+	$$select public.get_thread_stats_with_normal_sites('inbox', null)$$,
+	'42501',
+	'Only the Applemint owner can read thread statistics.',
+	'non-owner cannot read atomic thread and site statistics'
+);
+select throws_ok(
 	$$select public.get_crawl_alerts_dashboard()$$,
 	'42501',
 	'Only the Applemint owner can read crawl alerts.',
@@ -279,6 +305,14 @@ select lives_ok(
 select lives_ok(
 	$$select * from public.get_thread_stats('inbox', null)$$,
 	'owner can read canonical thread statistics'
+);
+select lives_ok(
+	$$select * from public.get_normal_site_stats()$$,
+	'owner can read normal site statistics'
+);
+select lives_ok(
+	$$select public.get_thread_stats_with_normal_sites('inbox', null)$$,
+	'owner can read atomic thread and site statistics'
 );
 select lives_ok(
 	$$select public.get_crawl_alerts_dashboard()$$,

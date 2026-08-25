@@ -72,25 +72,59 @@ describe("ThreadService", () => {
 			stateChangedAt: threadRow.state_changed_at,
 			id: "2",
 		});
-		await service.list({ state: "inbox", limit: 24, filterType: "youtube", cursor });
+		await service.list({
+			state: "inbox",
+			limit: 24,
+			filterType: "normal",
+			filterSite: "fmkorea.com",
+			cursor,
+		});
 		expect(repository.list).toHaveBeenCalledWith("inbox", {
 			limit: 24,
 			cursor: { stateChangedAt: threadRow.state_changed_at, id: "2" },
-			filterType: "youtube",
+			filterType: "normal",
+			filterSite: "fmkorea.com",
 		});
 	});
 
 	it("통계 표시 라벨과 totalCount를 정규화한다", async () => {
-		repository.stats.mockResolvedValue([
-			{ key: "youtube", label: "youtube", count: 3, total_count: 5 },
-			{ key: "imgur", label: "imgur", count: 2, total_count: 5 },
-		]);
-		await expect(service.stats({ state: "inbox" })).resolves.toEqual({
-			totalCount: 5,
-			counts: [
-				{ key: "youtube", label: "YouTube", count: 3 },
-				{ key: "imgur", label: "Imgur", count: 2 },
+		repository.stats.mockResolvedValue({
+			rows: [
+				{ key: "normal", count: 20, total_count: 25 },
+				{ key: "youtube", count: 5, total_count: 25 },
 			],
+			sites: [{ site_key: "fmkorea.com", count: 12 }],
+		});
+		await expect(service.stats({ state: "inbox" })).resolves.toEqual({
+			totalCount: 25,
+			counts: [
+				{ key: "normal", label: "normal", count: 8 },
+				{ key: "youtube", label: "YouTube", count: 5 },
+			],
+			siteCounts: [{ siteKey: "fmkorea.com", label: "에펨코리아", count: 12 }],
+		});
+	});
+
+	it("Normal 통계는 승격 site 건수를 제외하고 site 분류를 중복 노출하지 않는다", async () => {
+		repository.stats.mockResolvedValue({
+			rows: [{ key: "normal", count: 20, total_count: 20 }],
+			sites: [{ site_key: "fmkorea.com", count: 12 }],
+		});
+
+		await expect(service.stats({ state: "inbox", filterType: "normal" })).resolves.toEqual({
+			totalCount: 8,
+			counts: [{ key: "normal", label: "normal", count: 8 }],
+			siteCounts: [],
+		});
+	});
+
+	it("Inbox 전체 통계가 아니면 site 통계를 빈 배열로 유지한다", async () => {
+		repository.stats.mockResolvedValue({ rows: [], sites: [] });
+
+		await expect(service.stats({ state: "saved" })).resolves.toEqual({
+			totalCount: 0,
+			counts: [],
+			siteCounts: [],
 		});
 	});
 

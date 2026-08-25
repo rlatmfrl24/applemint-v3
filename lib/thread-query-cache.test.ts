@@ -77,6 +77,7 @@ function seedMediaCycleCaches(
 		for (const statsFilter of [null, filterType]) {
 			queryClient.setQueryData(["threads", "stats", state, statsFilter], {
 				counts: state === "inbox" ? [{ key: filterType, label, count: 1 }] : [],
+				siteCounts: [],
 				totalCount: state === "inbox" ? 1 : 0,
 			});
 		}
@@ -110,6 +111,7 @@ describe("thread query cache", () => {
 		queryClient.setQueryData(sourceKey, sourceData);
 		queryClient.setQueryData(["threads", "stats", "inbox", null], {
 			counts: [{ key: "normal", label: "normal", count: 1 }],
+			siteCounts: [],
 			totalCount: 1,
 		});
 		const trashData = {
@@ -133,8 +135,51 @@ describe("thread query cache", () => {
 		expect(queryClient.getQueryData(trashKey)).toEqual(trashData);
 		expect(queryClient.getQueryData(["threads", "stats", "inbox", null])).toEqual({
 			counts: [{ key: "normal", label: "normal", count: 1 }],
+			siteCounts: [],
 			totalCount: 1,
 		});
+		queryClient.clear();
+	});
+
+	it("승격 사이트 항목을 Inbox로 복원할 때 Normal과 site 통계를 잘못 갱신하지 않는다", () => {
+		const queryClient = new QueryClient();
+		const promotedThread = {
+			...thread,
+			state: "saved" as const,
+			host: "m.fmkorea.com",
+		};
+		const allKey = threadListQueryKey("inbox");
+		const normalKey = threadListQueryKey("inbox", "filterType:normal");
+		const siteKey = threadListQueryKey("inbox", "filterType:normal|filterSite:fmkorea.com");
+		for (const key of [allKey, normalKey, siteKey]) {
+			queryClient.setQueryData(key, {
+				pages: [{ items: [], nextCursor: null }],
+				pageParams: [undefined],
+			});
+		}
+		const stats = {
+			counts: [{ key: "normal", label: "normal", count: 8 }],
+			siteCounts: [{ siteKey: "fmkorea.com", label: "에펨코리아", count: 12 }],
+			totalCount: 20,
+		};
+		queryClient.setQueryData(["threads", "stats", "inbox", null], stats);
+
+		applyMoveThreadOptimisticUpdates(queryClient, {
+			sourceState: "saved",
+			destinationState: "inbox",
+			thread: promotedThread,
+		});
+
+		expect(
+			queryClient.getQueryData<{ pages: ThreadInfinitePage[] }>(allKey)?.pages[0].items
+		).toHaveLength(1);
+		expect(
+			queryClient.getQueryData<{ pages: ThreadInfinitePage[] }>(normalKey)?.pages[0].items
+		).toEqual([]);
+		expect(
+			queryClient.getQueryData<{ pages: ThreadInfinitePage[] }>(siteKey)?.pages[0].items
+		).toHaveLength(1);
+		expect(queryClient.getQueryData(["threads", "stats", "inbox", null])).toEqual(stats);
 		queryClient.clear();
 	});
 
@@ -200,6 +245,7 @@ describe("thread query cache", () => {
 		};
 		queryClient.setQueryData(["threads", "stats", "trash", null], {
 			counts: [],
+			siteCounts: [],
 			totalCount: 0,
 		});
 
@@ -211,6 +257,7 @@ describe("thread query cache", () => {
 
 		expect(queryClient.getQueryData(["threads", "stats", "trash", null])).toEqual({
 			counts: [{ key: "youtube", label: "YouTube", count: 1 }],
+			siteCounts: [],
 			totalCount: 1,
 		});
 		queryClient.clear();
@@ -297,10 +344,12 @@ describe("thread query cache", () => {
 		).toEqual([]);
 		expect(queryClient.getQueryData(["threads", "stats", "inbox", null])).toEqual({
 			counts: [{ key: "youtube", label: "YouTube", count: 1 }],
+			siteCounts: [],
 			totalCount: 1,
 		});
 		expect(queryClient.getQueryData(["threads", "stats", "inbox", "youtube"])).toEqual({
 			counts: [{ key: "youtube", label: "YouTube", count: 1 }],
+			siteCounts: [],
 			totalCount: 1,
 		});
 		for (const state of cycleStates.slice(1)) {
@@ -310,6 +359,7 @@ describe("thread query cache", () => {
 			).toEqual([]);
 			expect(queryClient.getQueryData(["threads", "stats", state, null])).toEqual({
 				counts: [],
+				siteCounts: [],
 				totalCount: 0,
 			});
 		}
@@ -335,10 +385,12 @@ describe("thread query cache", () => {
 		}
 		expect(queryClient.getQueryData(["threads", "stats", "inbox", null])).toEqual({
 			counts: [{ key: "imgur", label: "Imgur", count: 1 }],
+			siteCounts: [],
 			totalCount: 1,
 		});
 		expect(queryClient.getQueryData(["threads", "stats", "inbox", "imgur"])).toEqual({
 			counts: [{ key: "imgur", label: "Imgur", count: 1 }],
+			siteCounts: [],
 			totalCount: 1,
 		});
 		queryClient.clear();
@@ -349,7 +401,11 @@ describe("thread query cache", () => {
 		const newThreadsKey = threadListQueryKey("inbox");
 		const trashKey = threadListQueryKey("trash");
 		queryClient.setQueryData(newThreadsKey, { pages: [], pageParams: [] });
-		queryClient.setQueryData(["threads", "stats", "inbox", null], { counts: [], totalCount: 0 });
+		queryClient.setQueryData(["threads", "stats", "inbox", null], {
+			counts: [],
+			siteCounts: [],
+			totalCount: 0,
+		});
 		queryClient.setQueryData(trashKey, { pages: [], pageParams: [] });
 
 		await invalidateThreadQueries(queryClient, ["inbox", "trash"]);

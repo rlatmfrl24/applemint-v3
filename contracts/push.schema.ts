@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { crawlSourceSchema } from "./crawl-source.schema";
 
 const pushConfigurationReasonSchema = z.enum(["disabled", "configuration-missing"]);
 const postgresTimestampSchema = z.string().datetime({ offset: true });
@@ -64,14 +65,12 @@ export const pushAcknowledgeResultSchema = z
 	})
 	.strict();
 
-const pushSourceSchema = z.enum(["arcalive", "battlepage", "insagirl"]);
-
 const webPushNewItemsPayloadSchema = z
 	.object({
 		v: z.literal(1),
 		type: z.literal("new-items"),
 		runId: z.string().regex(/^[1-9]\d*$/),
-		source: pushSourceSchema,
+		source: crawlSourceSchema,
 		insertedCount: z.number().int().positive(),
 		badgeCount: z.number().int().positive(),
 		url: z.literal("/main"),
@@ -158,7 +157,7 @@ const claimedPushDeliverySchema = z
 		auth: z.string().min(8).max(128),
 		expiration_time: postgresTimestampSchema.nullable(),
 		run_id: z.string().regex(/^[1-9]\d*$/),
-		source: pushSourceSchema,
+		source: crawlSourceSchema,
 		inserted_count: z.coerce.number().int().positive(),
 		badge_count: z.coerce.number().int().positive(),
 		created_at: postgresTimestampSchema,
