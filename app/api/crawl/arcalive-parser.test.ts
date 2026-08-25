@@ -1,11 +1,18 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ARCALIVE_MINIMUM_ITEMS, parseArcaliveHtml } from "./arcalive-parser";
+import {
+	ARCALIVE_MINIMUM_ITEMS,
+	parseArcaliveApiPayload,
+	parseArcaliveHtml,
+} from "./arcalive-parser";
 
 const currentFixture = readFileSync(
 	new URL("./fixtures/arcalive-current.html", import.meta.url),
 	"utf8"
 );
+const apiFixture = JSON.parse(
+	readFileSync(new URL("./fixtures/arcalive-api-current.json", import.meta.url), "utf8")
+) as unknown;
 
 const arcaliveRow = (href: string, title: string) => `
 	<a class="vrow column" href="${href}">
@@ -15,6 +22,53 @@ const arcaliveRow = (href: string, title: string) => `
 		</span></div></div>
 	</a>
 `;
+
+describe("parseArcaliveApiPayload", () => {
+	it("앱 API의 게시물과 cursor를 canonical 수집 계약으로 변환한다", () => {
+		const page = parseArcaliveApiPayload(apiFixture);
+
+		expect(page.next).toEqual({ before: "2026-08-24T21:34:12.000Z", offset: "1" });
+		expect(page.outcome).toMatchObject({
+			status: "ok",
+			candidateCount: ARCALIVE_MINIMUM_ITEMS,
+			discardedCount: 0,
+			warnings: [],
+		});
+		expect(page.outcome.items).toHaveLength(ARCALIVE_MINIMUM_ITEMS);
+		expect(page.outcome.items[0]).toMatchObject({
+			url: "https://arca.live/b/iloveanimal/2001",
+			title: "첫 번째 베스트 게시물",
+			host: "https://arca.live",
+			tag: ["arcalive", "유머"],
+		});
+	});
+
+	it("빈 목록·손상 payload·전부 잘못된 게시물을 구분한다", () => {
+		expect(parseArcaliveApiPayload({ articles: [] }).outcome.status).toBe("empty");
+		expect(parseArcaliveApiPayload(null).outcome).toMatchObject({
+			status: "failure",
+			failure: { code: "invalid-payload" },
+		});
+		expect(parseArcaliveApiPayload({ articles: [{ id: null, title: "" }] }).outcome).toMatchObject({
+			status: "failure",
+			failure: { code: "all-items-invalid" },
+		});
+	});
+
+	it("best가 아닌 게시물은 수집 대상에서 제외한다", () => {
+		const page = parseArcaliveApiPayload({
+			articles: [
+				{ id: 3001, title: "베스트 게시물", mark: "best" },
+				{ id: 3002, title: "일반 게시물", mark: "normal" },
+			],
+		});
+
+		expect(page.outcome.items.map((item) => item.url)).toEqual([
+			"https://arca.live/b/iloveanimal/3001",
+		]);
+		expect(page.outcome).toMatchObject({ candidateCount: 2, discardedCount: 1 });
+	});
+});
 
 describe("parseArcaliveHtml", () => {
 	it("현재 실제 구조에서 최소 건수와 필수 필드를 추출한다", () => {

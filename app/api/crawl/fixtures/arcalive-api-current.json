@@ -1,0 +1,83 @@
+{
+	"articles": [
+		{
+			"id": 2001,
+			"title": "첫 번째 베스트 게시물",
+			"category": "humor",
+			"categoryDisplayName": "유머",
+			"commentCount": 3,
+			"createdAt": "2026-08-25T00:00:00.000Z",
+			"mark": "best",
+			"ratingUp": 20,
+			"ratingDown": 0,
+			"viewCount": 100
+		},
+		{
+			"id": 2002,
+			"title": "두 번째 베스트 게시물",
+			"category": null,
+			"categoryDisplayName": null,
+			"mark": "best"
+		},
+		{
+			"id": 2003,
+			"title": "세 번째 베스트 게시물",
+			"category": "animal",
+			"categoryDisplayName": "동물",
+			"mark": "best"
+		},
+		{
+			"id": 2004,
+			"title": "네 번째 베스트 게시물",
+			"category": "animal",
+			"categoryDisplayName": "동물",
+			"mark": "best"
+		},
+		{
+			"id": 2005,
+			"title": "다섯 번째 베스트 게시물",
+			"category": "animal",
+			"categoryDisplayName": "동물",
+			"mark": "best"
+		},
+		{
+			"id": 2006,
+			"title": "여섯 번째 베스트 게시물",
+			"category": "animal",
+			"categoryDisplayName": "동물",
+			"mark": "best"
+		},
+		{
+			"id": 2007,
+			"title": "일곱 번째 베스트 게시물",
+			"category": "animal",
+			"categoryDisplayName": "동물",
+			"mark": "best"
+		},
+		{
+			"id": 2008,
+			"title": "여덟 번째 베스트 게시물",
+			"category": "animal",
+			"categoryDisplayName": "동물",
+			"mark": "best"
+		},
+		{
+			"id": 2009,
+			"title": "아홉 번째 베스트 게시물",
+			"category": "animal",
+			"categoryDisplayName": "동물",
+			"mark": "best"
+		},
+		{
+			"id": 2010,
+			"title": "열 번째 베스트 게시물",
+			"category": "animal",
+			"categoryDisplayName": "동물",
+			"mark": "best"
+		}
+	],
+	"next": {
+		"before": "2026-08-24T21:34:12.000Z",
+		"offset": "1"
+	}
+}

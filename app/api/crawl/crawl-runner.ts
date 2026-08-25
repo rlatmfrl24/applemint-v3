@@ -13,6 +13,8 @@ import { debugLog } from "./logger";
 
 type Crawler = (options?: CrawlAdapterOptions) => Promise<CrawlSourceResult>;
 
+const FULL_RETRY_TARGETS = new Set<CrawlTarget>(["arcalive"]);
+
 const CRAWLERS: Record<CrawlTarget, Crawler> = {
 	arcalive: crawlArcalive,
 	battlepage: crawlBattlepage,
@@ -53,12 +55,34 @@ export async function runCrawlerWithRetry(
 		return aggregateCrawlAttempts([firstAttempt]);
 	}
 
-	const retryUrls = Array.from(new Set(firstAttempt.failures.map((failure) => failure.url)));
+	const hasUpstreamChallenge = firstAttempt.failures.some(
+		(failure) => failure.kind === "upstream-challenge"
+	);
+	if (FULL_RETRY_TARGETS.has(target) && hasUpstreamChallenge) {
+		debugLog(`[Crawl] ${target} upstream challenge가 포함되어 전체 재시도를 생략합니다.`);
+		return aggregateCrawlAttempts([firstAttempt]);
+	}
+
+	const retryUrls = Array.from(
+		new Set(
+			firstAttempt.failures
+				.filter((failure) => failure.kind !== "upstream-challenge")
+				.map((failure) => failure.url)
+		)
+	);
+	if (retryUrls.length === 0) {
+		debugLog(`[Crawl] ${target} 재시도 불가능한 upstream challenge 감지`);
+		return aggregateCrawlAttempts([firstAttempt]);
+	}
+
 	debugLog(`[Crawl] ${target} 실패 작업 ${retryUrls.length}개, 1000ms 후 선택 재시도`);
 	await delay(1000);
 	if (options.signal?.aborted) {
 		return aggregateCrawlAttempts([firstAttempt]);
 	}
-	const retryAttempt = await crawler({ ...options, urls: retryUrls });
+	const retryAttempt = await crawler({
+		...options,
+		urls: FULL_RETRY_TARGETS.has(target) ? undefined : retryUrls,
+	});
 	return aggregateCrawlAttempts([firstAttempt, retryAttempt]);
 }

@@ -104,6 +104,84 @@ describe("runCrawlerWithRetry", () => {
 		expect(execution.failures).toEqual([expect.objectContaining({ attempt: 2, timeout: true })]);
 	});
 
+	it("Cloudflare upstream challenge는 재시도하지 않고 첫 실패를 보존한다", async () => {
+		const crawler = vi.fn().mockResolvedValue(
+			result({
+				attemptedUrls: ["https://arca.live/api/app/list/channel/iloveanimal"],
+				attempted: 1,
+				failures: [
+					{
+						url: "https://arca.live/api/app/list/channel/iloveanimal",
+						message: "HTTP 403 Cloudflare Challenge",
+						kind: "upstream-challenge",
+					},
+				],
+			})
+		);
+
+		const execution = await runCrawlerWithRetry("arcalive", crawler, async () => {});
+
+		expect(crawler).toHaveBeenCalledTimes(1);
+		expect(execution).toMatchObject({ attempted: 1, retryCount: 0, recoveredCount: 0 });
+		expect(execution.failures).toEqual([
+			expect.objectContaining({ attempt: 1, kind: "upstream-challenge" }),
+		]);
+	});
+
+	it("Arcalive 혼합 실패에 upstream challenge가 있으면 전체 재시도를 생략한다", async () => {
+		const crawler = vi.fn().mockResolvedValue(
+			result({
+				attemptedUrls: ["page-a", "page-b"],
+				attempted: 2,
+				failures: [
+					{ url: "page-a", message: "invalid payload", kind: "parser" },
+					{
+						url: "page-b",
+						message: "HTTP 403 Cloudflare Challenge",
+						kind: "upstream-challenge",
+					},
+				],
+			})
+		);
+
+		const execution = await runCrawlerWithRetry("arcalive", crawler, async () => {});
+
+		expect(crawler).toHaveBeenCalledTimes(1);
+		expect(execution).toMatchObject({ attempted: 2, retryCount: 0, recoveredCount: 0 });
+		expect(execution.failures).toHaveLength(2);
+	});
+
+	it("cursor 기반 Arcalive의 재시도는 첫 페이지부터 전체 순회를 다시 시작한다", async () => {
+		const crawler = vi
+			.fn<(options?: CrawlAdapterOptions) => Promise<CrawlSourceResult>>()
+			.mockResolvedValueOnce(
+				result({
+					attemptedUrls: ["page-a", "page-b"],
+					attempted: 2,
+					succeeded: 1,
+					failures: [{ url: "page-b", message: "HTTP 503", kind: "network" }],
+				})
+			)
+			.mockResolvedValueOnce(
+				result({
+					attemptedUrls: ["page-a", "page-b", "page-c"],
+					attempted: 3,
+					succeeded: 3,
+				})
+			);
+
+		const execution = await runCrawlerWithRetry("arcalive", crawler, async () => {});
+
+		expect(crawler).toHaveBeenNthCalledWith(2, { urls: undefined });
+		expect(execution).toMatchObject({
+			attempted: 5,
+			succeeded: 4,
+			retryCount: 3,
+			recoveredCount: 1,
+			failures: [],
+		});
+	});
+
 	it("작업 단위를 만들기 전 발생한 예외는 소스 전체를 한 번 재시도한다", async () => {
 		const crawler = vi
 			.fn<(options?: CrawlAdapterOptions) => Promise<CrawlSourceResult>>()
