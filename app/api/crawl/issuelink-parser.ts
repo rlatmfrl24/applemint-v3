@@ -4,7 +4,9 @@ import type { CrawlItemType } from "@/lib/type-defs";
 import { createParserFailure, createParserSuccess, type ParserOutcome } from "./parser-contracts";
 
 export const ISSUELINK_BASE_URL = "https://www.issuelink.co.kr";
-export const ISSUELINK_MINIMUM_ITEMS = 50;
+export const ISSUELINK_MINIMUM_ITEMS = 15;
+export const ISSUELINK_MAX_ITEMS = 20;
+export const ISSUELINK_MAX_ITEMS_PER_SOURCE = 3;
 
 interface IssueLinkUrl {
 	url: string;
@@ -53,8 +55,11 @@ export function parseIssueLinkHtml(html: string): ParserOutcome {
 		});
 	}
 
-	const items = new Map<string, CrawlItemType>();
+	const items: CrawlItemType[] = [];
+	const seenUrls = new Set<string>();
+	const sourceCounts = new Map<string, number>();
 	let discardedCount = 0;
+	let ignoredCount = 0;
 	let duplicateCount = 0;
 	candidates.each((_index, element) => {
 		const href = $(element).attr("href");
@@ -66,35 +71,45 @@ export function parseIssueLinkHtml(html: string): ParserOutcome {
 			discardedCount += 1;
 			return;
 		}
-		if (items.has(parsedUrl.url)) {
+		if (seenUrls.has(parsedUrl.url)) {
 			duplicateCount += 1;
 			return;
 		}
+		seenUrls.add(parsedUrl.url);
 
-		items.set(parsedUrl.url, {
+		const sourceCount = sourceCounts.get(parsedUrl.sourceKey) ?? 0;
+		if (items.length >= ISSUELINK_MAX_ITEMS || sourceCount >= ISSUELINK_MAX_ITEMS_PER_SOURCE) {
+			ignoredCount += 1;
+			return;
+		}
+
+		items.push({
 			url: parsedUrl.url,
 			title,
 			description: "",
 			host: getIssueLinkCommunityHost(parsedUrl.sourceKey) ?? ISSUELINK_BASE_URL,
 			tag: ["issuelink", parsedUrl.sourceKey],
 		});
+		sourceCounts.set(parsedUrl.sourceKey, sourceCount + 1);
 	});
 
-	if (items.size === 0) {
+	if (items.length === 0) {
 		return createParserFailure({
 			code: "all-items-invalid",
 			message: "IssueLink 게시물 후보가 모두 URL 또는 필수 필드 검증에 실패했습니다.",
 			candidateCount,
 			discardedCount,
+			ignoredCount,
 			duplicateCount,
 			minimumItems: ISSUELINK_MINIMUM_ITEMS,
 		});
 	}
 
 	return createParserSuccess({
-		items: Array.from(items.values()),
+		items,
 		candidateCount,
 		discardedCount,
+		ignoredCount,
 		duplicateCount,
 		minimumItems: ISSUELINK_MINIMUM_ITEMS,
 		source: "IssueLink",

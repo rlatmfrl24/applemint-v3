@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ISSUELINK_MINIMUM_ITEMS, parseIssueLinkHtml } from "./issuelink-parser";
+import {
+	ISSUELINK_MAX_ITEMS,
+	ISSUELINK_MAX_ITEMS_PER_SOURCE,
+	ISSUELINK_MINIMUM_ITEMS,
+	parseIssueLinkHtml,
+} from "./issuelink-parser";
 
 const currentFixture = readFileSync(
 	new URL("./fixtures/issuelink-current.html", import.meta.url),
@@ -73,13 +78,48 @@ describe("parseIssueLinkHtml", () => {
 		});
 	});
 
-	it("50건 이상이면 최소 수집량 경고를 만들지 않는다", () => {
+	it("최소 수집량 이상이면 volume 경고를 만들지 않는다", () => {
 		const html = Array.from({ length: ISSUELINK_MINIMUM_ITEMS }, (_, index) =>
-			row("fmkorea", index + 1)
+			row(`source-${index % 5}`, index + 1)
 		).join("");
 		const result = parseIssueLinkHtml(html);
 
 		expect(result.items).toHaveLength(ISSUELINK_MINIMUM_ITEMS);
+		expect(result.warnings).toEqual([]);
+	});
+
+	it("인기순을 유지하면서 전체 20건과 source별 3건으로 제한한다", () => {
+		const sources = [
+			"fmkorea",
+			"theqoo",
+			"ruliweb",
+			"clien",
+			"slr",
+			"ppomppu",
+			"instiz",
+			"etoland",
+		];
+		const html = sources
+			.flatMap((source, sourceIndex) =>
+				Array.from({ length: 5 }, (_, index) => row(source, sourceIndex * 100 + index + 1))
+			)
+			.join("");
+
+		const result = parseIssueLinkHtml(html);
+		const sourceCounts = result.items.reduce<Record<string, number>>((counts, item) => {
+			const source = item.tag?.[1] ?? "unknown";
+			counts[source] = (counts[source] ?? 0) + 1;
+			return counts;
+		}, {});
+
+		expect(result.items).toHaveLength(ISSUELINK_MAX_ITEMS);
+		expect(Math.max(...Object.values(sourceCounts))).toBe(ISSUELINK_MAX_ITEMS_PER_SOURCE);
+		expect(result.items.slice(0, 3).map((item) => item.url)).toEqual([
+			"https://www.issuelink.co.kr/community/go/fmkorea/1",
+			"https://www.issuelink.co.kr/community/go/fmkorea/2",
+			"https://www.issuelink.co.kr/community/go/fmkorea/3",
+		]);
+		expect(result.ignoredCount).toBe(20);
 		expect(result.warnings).toEqual([]);
 	});
 });
