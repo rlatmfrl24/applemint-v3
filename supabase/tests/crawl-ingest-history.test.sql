@@ -477,18 +477,29 @@ values (
 	now() - interval '2 minutes',
 	now() - interval '1 minute',
 	now() - interval '1 minute',
-	'{}'::jsonb
+	'{"testFixture":"issuelink-history"}'::jsonb
 );
 reset role;
 
 select is(
-	(select count(*) from public.crawl_runs where source = 'issuelink'),
+	(
+		select count(*)
+		from public.crawl_runs
+		where lock_token in (
+			'40000000-0000-4000-8000-000000000001'::uuid,
+			'40000000-0000-4000-8000-000000000002'::uuid
+		)
+	),
 	2::bigint,
 	'active and completed IssueLink crawl run history remains preservable'
 );
 
 select is(
-	(select count(*) from public.crawl_alert_incidents where source = 'issuelink'),
+	(
+		select count(*)
+		from public.crawl_alert_incidents
+		where source = 'issuelink' and snapshot ->> 'testFixture' = 'issuelink-history'
+	),
 	1::bigint,
 	'recovered IssueLink incident history remains preservable'
 );

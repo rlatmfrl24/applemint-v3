@@ -1,16 +1,27 @@
 -- Cross-session SKIP LOCKED media job claim contract.
+select exists (
+	select 1 from pg_extension where extname = 'dblink'
+) as phase2_dblink_preexisting \gset
+
 create extension if not exists dblink with schema extensions;
+
+drop function if exists public.phase2_finish_media_job_with_delay(bigint);
 
 do $$
 begin
 	if exists (select 1 from pg_roles where rolname = 'phase2_claim_worker') then
-		execute 'revoke execute on function public.claim_media_enrichment_jobs(text, integer, integer) from phase2_claim_worker';
-		execute 'revoke select on public.threads from phase2_claim_worker';
+		execute 'revoke select, update on public.threads from phase2_claim_worker';
+		execute 'revoke select, update on public.thread_media_metadata from phase2_claim_worker';
 		execute 'revoke select, update on public.media_enrichment_jobs from phase2_claim_worker';
+		execute 'revoke execute on function public.normalize_normal_site_key(text) from phase2_claim_worker';
+		execute 'revoke execute on function public.claim_media_enrichment_jobs(text, integer, integer) from phase2_claim_worker';
 		execute 'drop role phase2_claim_worker';
 	end if;
 end;
 $$;
+
+delete from public.threads
+where url like 'https://phase2-concurrency.test/%';
 
 select replace(gen_random_uuid()::text, '-', '') as phase2_worker_password \gset
 
@@ -20,6 +31,8 @@ create role phase2_claim_worker
 	password :'phase2_worker_password';
 
 grant execute on function public.claim_media_enrichment_jobs(text, integer, integer)
+	to phase2_claim_worker;
+grant execute on function public.normalize_normal_site_key(text)
 	to phase2_claim_worker;
 grant select, update on public.threads to phase2_claim_worker;
 grant select, update on public.thread_media_metadata to phase2_claim_worker;
@@ -80,6 +93,20 @@ from public.threads
 where url like 'https://phase2-concurrency.test/%';
 
 select plan(23);
+
+begin;
+do $$
+begin
+	-- Keep every non-fixture queue row locked in this session so the dblink
+	-- workers exercise the production claim function without mutating local data.
+	perform 1
+	from public.media_enrichment_jobs as job
+	inner join public.threads as thread on thread.id = job.thread_id
+	where job.provider = 'youtube'
+		and thread.url not like 'https://phase2-concurrency.test/%'
+	for update of job;
+end;
+$$;
 
 select is(
 	extensions.dblink_connect(
@@ -205,6 +232,7 @@ select is(
 	0::bigint,
 	'thread deletion cascades through metadata to jobs'
 );
+commit;
 
 insert into public.threads (type, url, title, host, state)
 values (
@@ -354,10 +382,15 @@ where url = 'https://phase2-concurrency.test/trash-transition';
 
 select * from finish();
 
+\if :phase2_dblink_preexisting
+\else
 drop extension dblink;
+\endif
 revoke execute on function public.phase2_finish_media_job_with_delay(bigint)
 	from phase2_claim_worker;
 revoke execute on function public.claim_media_enrichment_jobs(text, integer, integer)
+	from phase2_claim_worker;
+revoke execute on function public.normalize_normal_site_key(text)
 	from phase2_claim_worker;
 revoke select, update on public.threads from phase2_claim_worker;
 revoke select, update on public.thread_media_metadata from phase2_claim_worker;

@@ -1,10 +1,15 @@
 -- Cross-session ingest serialization contract.
+select exists (
+	select 1 from pg_extension where extname = 'dblink'
+) as p0_dblink_preexisting \gset
+
 create extension if not exists dblink with schema extensions;
 
 do $$
 begin
 	if exists (select 1 from pg_roles where rolname = 'p0_concurrent_ingest_login') then
 		execute 'revoke execute on function public.ingest_crawl_items(text, jsonb) from p0_concurrent_ingest_login';
+		execute 'revoke execute on function public.normalize_normal_site_key(text) from p0_concurrent_ingest_login';
 		execute 'revoke select, insert, delete on public."crawl-history", public.threads from p0_concurrent_ingest_login';
 		execute 'revoke select, insert, delete on public.thread_media_metadata, public.media_enrichment_jobs from p0_concurrent_ingest_login';
 		execute 'revoke select on public.media_worker_runtime_settings from p0_concurrent_ingest_login';
@@ -14,6 +19,10 @@ begin
 end;
 $$;
 
+delete from public.threads where url = 'https://p0.test/concurrent-ingest';
+delete from public."crawl-history"
+where crawl_source = 'arcalive' and url = 'https://p0.test/concurrent-ingest';
+
 select replace(gen_random_uuid()::text, '-', '') as p0_test_password \gset
 
 create role p0_concurrent_ingest_login
@@ -22,6 +31,8 @@ create role p0_concurrent_ingest_login
 	password :'p0_test_password';
 
 grant execute on function public.ingest_crawl_items(text, jsonb)
+	to p0_concurrent_ingest_login;
+grant execute on function public.normalize_normal_site_key(text)
 	to p0_concurrent_ingest_login;
 grant select, insert, delete on public."crawl-history", public.threads
 	to p0_concurrent_ingest_login;
@@ -147,8 +158,13 @@ select is(
 
 select * from finish();
 
+\if :p0_dblink_preexisting
+\else
 drop extension dblink;
+\endif
 revoke execute on function public.ingest_crawl_items(text, jsonb)
+	from p0_concurrent_ingest_login;
+revoke execute on function public.normalize_normal_site_key(text)
 	from p0_concurrent_ingest_login;
 revoke select, insert, delete on public."crawl-history", public.threads
 	from p0_concurrent_ingest_login;

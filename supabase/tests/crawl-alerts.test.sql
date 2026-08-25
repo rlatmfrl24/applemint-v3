@@ -3,6 +3,11 @@ begin;
 
 select plan(16);
 
+-- Keep assertions deterministic when the local database contains real crawl operations.
+-- The surrounding transaction rolls these deletions back after the test.
+delete from public.crawl_alert_incidents;
+delete from public.crawl_runs;
+
 select has_table('public', 'crawl_alert_settings', 'crawl alert settings table exists');
 select has_table('public', 'crawl_alert_incidents', 'crawl alert incidents table exists');
 select ok(
