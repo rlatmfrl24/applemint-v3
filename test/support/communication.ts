@@ -34,9 +34,9 @@ export const crawlPolicySettings: CrawlPolicySettings = {
 	schedulerEnabled: true,
 	serverNow: NOW,
 	dispatcherIntervalSeconds: 300,
-	sources: (["arcalive", "battlepage", "insagirl"] as const).map((source) => ({
+	sources: (["arcalive", "battlepage", "insagirl", "issuelink"] as const).map((source) => ({
 		source,
-		scheduleEnabled: true,
+		scheduleEnabled: source !== "issuelink",
 		cooldownSeconds: 10800,
 		recommendedCooldownSeconds: 10800,
 		runBudgetSeconds: 45,

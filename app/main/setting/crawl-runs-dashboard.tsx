@@ -24,6 +24,7 @@ import type {
 	CrawlSourceSummary,
 } from "@/lib/crawl-run-contract";
 import { createCrawlRunsQueryOptions } from "@/lib/crawl-run-query-options";
+import { CRAWL_SOURCE_LABELS } from "@/lib/crawl-source";
 import { cn } from "@/lib/utils";
 import { useTRPCClient } from "@/trpc/client";
 import {
@@ -33,12 +34,6 @@ import {
 	SettingsStatusStrip,
 	SettingsSurface,
 } from "./admin-ui";
-
-const SOURCE_LABELS: Record<CrawlSource, string> = {
-	arcalive: "Arcalive",
-	battlepage: "Battlepage",
-	insagirl: "Insagirl",
-};
 
 const ALERT_SIGNAL_LABELS: Record<CrawlAlertSignal, string> = {
 	"parser-failure": "Parser failure 2회 연속",
@@ -118,7 +113,7 @@ function SourceTrend({ summary }: { summary: CrawlSourceSummary }) {
 				<div
 					className="flex h-20 items-end gap-1"
 					role="img"
-					aria-label={`${SOURCE_LABELS[summary.source]} 파서 추세`}
+					aria-label={`${CRAWL_SOURCE_LABELS[summary.source]} 파서 추세`}
 				>
 					{summary.trend.map((point) => {
 						const validHeight = Math.max(4, (point.parserValidCount / maximum) * 100);
@@ -176,7 +171,7 @@ function SourceRow({
 								!failed && !warning && "text-emerald-600 dark:text-emerald-400"
 							)}
 						/>
-						<h3 className="font-semibold text-base">{SOURCE_LABELS[summary.source]}</h3>
+						<h3 className="font-semibold text-base">{CRAWL_SOURCE_LABELS[summary.source]}</h3>
 					</div>
 					<div className="mt-2 flex flex-wrap gap-2">
 						{summary.activeAlertCount > 0 ? <Badge variant="destructive">장애 감지</Badge> : null}
@@ -260,7 +255,7 @@ function ActiveAlerts({ alerts }: { alerts: CrawlAlertIncident[] }) {
 		<div className="mt-4 space-y-3" data-testid="active-crawl-alerts">
 			{alerts.map((alert) => (
 				<Alert key={alert.id} variant="destructive">
-					<AlertTitle>{SOURCE_LABELS[alert.source]} 장애 감지</AlertTitle>
+					<AlertTitle>{CRAWL_SOURCE_LABELS[alert.source]} 장애 감지</AlertTitle>
 					<AlertDescription className="space-y-2">
 						<p>
 							시작 {formatDate(alert.openedAt)} · 최근 확인 {formatDate(alert.lastObservedAt)}
@@ -420,7 +415,7 @@ function RunRow({ run }: { run: CrawlRun }) {
 			<div className="grid gap-4 lg:grid-cols-[1fr_1.3fr_2fr] lg:items-start">
 				<div>
 					<div className="flex items-center gap-2">
-						<strong>{SOURCE_LABELS[run.source]}</strong>
+						<strong>{CRAWL_SOURCE_LABELS[run.source]}</strong>
 						<Badge variant={statusVariant(run.status)}>{STATUS_LABELS[run.status]}</Badge>
 					</div>
 					<div className="mt-1 text-muted-foreground text-xs">
@@ -553,7 +548,7 @@ export function CrawlRunsDashboard({ manualCrawlRunning }: { manualCrawlRunning:
 
 			{dashboard?.activeRuns.map((activeRun) => (
 				<Alert className="mt-5" data-testid="active-crawl-run" key={activeRun.id}>
-					<AlertTitle>{SOURCE_LABELS[activeRun.source]} 크롤링 실행 중</AlertTitle>
+					<AlertTitle>{CRAWL_SOURCE_LABELS[activeRun.source]} 크롤링 실행 중</AlertTitle>
 					<AlertDescription>
 						시작 {formatDate(activeRun.startedAt)} · 경과{" "}
 						{formatDuration(Math.max(0, now - new Date(activeRun.startedAt).getTime()))} · 마지막

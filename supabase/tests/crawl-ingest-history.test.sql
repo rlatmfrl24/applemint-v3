@@ -1,7 +1,7 @@
 -- Crawl run lifecycle, permanent history, and retained legacy history contract.
 begin;
 
-select plan(38);
+select plan(42);
 
 select ok(
 	not has_function_privilege('anon', 'public.cleanup_crawl_runs()', 'EXECUTE')
@@ -169,8 +169,8 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
 select is(
 	jsonb_array_length(public.get_crawl_runs_dashboard(20, 20) -> 'sources'),
-	3,
-	'owner dashboard always contains the three active sources'
+	4,
+	'owner dashboard always contains the four active sources'
 );
 reset role;
 
@@ -360,17 +360,39 @@ select ok(
 );
 
 set local role service_role;
-select throws_ok(
-	$$select public.ingest_crawl_items('issuelink', '[{"url":"https://legacy.test/issue"}]'::jsonb)$$,
-	'22023',
-	'Unsupported crawl source.',
-	'new IssueLink crawl items are rejected'
+select is(
+	(public.ingest_crawl_items(
+		'issuelink',
+		'[{"url":"https://legacy.test/issue","title":"IssueLink normal","host":"https://www.fmkorea.com","type":"normal","tag":["issuelink","fmkorea"]}]'::jsonb
+	) ->> 'insertedCount')::integer,
+	1,
+	'IssueLink can ingest a normal thread'
+);
+select is(
+	(
+		select row(type, host, tag)
+		from public.threads where url = 'https://legacy.test/issue'
+	),
+	row('normal'::text, 'https://www.fmkorea.com'::text, array['issuelink', 'fmkorea']::text[]),
+	'IssueLink preserves normal type, original host, and provenance tags'
+);
+select is(
+	(public.ingest_crawl_items(
+		'issuelink',
+		'[{"url":"https://legacy.test/issue","title":"duplicate","host":"https://www.fmkorea.com","type":"normal"}]'::jsonb
+	) ->> 'insertedCount')::integer,
+	0,
+	'a second IssueLink ingest inserts no duplicate'
 );
 select throws_ok(
+	$$select public.ingest_crawl_items('issuelink', '[{"url":"https://legacy.test/retired-type","type":"issuelink"}]'::jsonb)$$,
+	'23514',
+	'Retired thread types cannot be ingested.',
+	'the retired IssueLink thread type remains rejected'
+);
+select lives_ok(
 	$$select public.begin_crawl_run('issuelink', '40000000-0000-4000-8000-000000000001'::uuid, 300)$$,
-	'22023',
-	'Unsupported crawl source.',
-	'new IssueLink crawl runs are rejected'
+	'IssueLink can start through the shared crawl run contract'
 );
 reset role;
 
@@ -386,6 +408,17 @@ select is(
 	1::bigint,
 	'legacy IssueLink crawl history remains preservable'
 );
+
+set local role service_role;
+select is(
+	(public.ingest_crawl_items(
+		'issuelink',
+		'[{"url":"https://legacy.test/issue-history","title":"historical duplicate","type":"normal"}]'::jsonb
+	) ->> 'insertedCount')::integer,
+	0,
+	'preserved IssueLink crawl history prevents reingestion'
+);
+reset role;
 
 select is(
 	(
@@ -450,8 +483,8 @@ reset role;
 
 select is(
 	(select count(*) from public.crawl_runs where source = 'issuelink'),
-	1::bigint,
-	'completed IssueLink crawl run history remains preservable'
+	2::bigint,
+	'active and completed IssueLink crawl run history remains preservable'
 );
 
 select is(
@@ -464,22 +497,22 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
 select is(
 	jsonb_array_length(public.get_crawl_runs_dashboard(20, 20) -> 'sources'),
-	3,
-	'crawl dashboard returns exactly three source summaries'
+	4,
+	'crawl dashboard returns exactly four source summaries'
 );
 select ok(
-	not jsonb_path_exists(
+	jsonb_path_exists(
 		public.get_crawl_runs_dashboard(20, 20),
 		'$.sources[*] ? (@.source == "issuelink")'
 	),
-	'crawl dashboard does not expose IssueLink'
+	'crawl dashboard exposes IssueLink source policy'
 );
 select ok(
-	not jsonb_path_exists(
+	jsonb_path_exists(
 		public.get_crawl_runs_dashboard(20, 20),
 		'$.runs[*] ? (@.source == "issuelink")'
 	),
-	'crawl dashboard hides preserved IssueLink run history'
+	'crawl dashboard exposes IssueLink run history'
 );
 reset role;
 
