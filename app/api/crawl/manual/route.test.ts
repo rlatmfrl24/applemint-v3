@@ -112,6 +112,18 @@ describe("POST /api/crawl/manual", () => {
 		);
 	});
 
+	it("DogDrip target을 기존 수동 파이프라인으로 전달한다", async () => {
+		executeCrawlPipelineMock.mockResolvedValue(createCrawlPipelineResult({ target: "dogdrip" }));
+
+		const response = await POST(createRequest("dogdrip"));
+
+		expect(response.status).toBe(200);
+		expect(executeCrawlPipelineMock).toHaveBeenCalledWith(
+			"dogdrip",
+			createServiceRoleClientMock.mock.results[0].value
+		);
+	});
+
 	it("lock 충돌과 timeout을 구조화된 오류로 반환한다", async () => {
 		executeCrawlPipelineMock.mockRejectedValueOnce(
 			new CrawlPipelineError(

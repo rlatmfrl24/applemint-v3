@@ -194,6 +194,15 @@ describe("runCrawlerWithRetry", () => {
 		expect(execution).toMatchObject({ attempted: 1, succeeded: 1, retryCount: 1 });
 	});
 
+	it("DogDrip adapter 예외도 사이트 정책에 따라 재시도하지 않는다", async () => {
+		const crawler = vi.fn().mockRejectedValue(new Error("adapter failed"));
+
+		await expect(runCrawlerWithRetry("dogdrip", crawler, async () => {})).rejects.toThrow(
+			"adapter failed"
+		);
+		expect(crawler).toHaveBeenCalledTimes(1);
+	});
+
 	it("실행 예산이 재시도 전에 끝나면 이미 성공한 결과를 부분 결과로 보존한다", async () => {
 		const controller = new AbortController();
 		const crawler = vi.fn().mockResolvedValue(

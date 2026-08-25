@@ -34,19 +34,21 @@ export const crawlPolicySettings: CrawlPolicySettings = {
 	schedulerEnabled: true,
 	serverNow: NOW,
 	dispatcherIntervalSeconds: 300,
-	sources: (["arcalive", "battlepage", "insagirl", "issuelink"] as const).map((source) => ({
-		source,
-		scheduleEnabled: source !== "issuelink",
-		cooldownSeconds: 10800,
-		recommendedCooldownSeconds: 10800,
-		runBudgetSeconds: 45,
-		updatedAt: NOW,
-		lastFinishedAt: null,
-		nextEligibleAt: NOW,
-		nextScheduledAt: null,
-		activeRunId: null,
-		latest: null,
-	})),
+	sources: (["arcalive", "battlepage", "dogdrip", "insagirl", "issuelink"] as const).map(
+		(source) => ({
+			source,
+			scheduleEnabled: source !== "issuelink" && source !== "dogdrip",
+			cooldownSeconds: 10800,
+			recommendedCooldownSeconds: 10800,
+			runBudgetSeconds: 45,
+			updatedAt: NOW,
+			lastFinishedAt: null,
+			nextEligibleAt: NOW,
+			nextScheduledAt: null,
+			activeRunId: null,
+			latest: null,
+		})
+	),
 };
 
 export const crawlRunsBaseDashboard = {

@@ -9,6 +9,7 @@ describe("crawl command contracts", () => {
 	it("활성 source만 허용하고 알 수 없는 필드를 거부한다", () => {
 		expect(crawlCommandRequestSchema.safeParse({ target: "arcalive" }).success).toBe(true);
 		expect(crawlCommandRequestSchema.safeParse({ target: "issuelink" }).success).toBe(true);
+		expect(crawlCommandRequestSchema.safeParse({ target: "dogdrip" }).success).toBe(true);
 		expect(
 			crawlCommandRequestSchema.safeParse({ target: "arcalive", unexpected: true }).success
 		).toBe(false);

@@ -114,6 +114,20 @@ describe("POST /api/crawl/scheduled", () => {
 		);
 	});
 
+	it("DogDrip target을 기존 예약 파이프라인으로 전달한다", async () => {
+		executeCrawlPipelineMock.mockResolvedValue(createCrawlPipelineResult({ target: "dogdrip" }));
+
+		const response = await POST(request("dogdrip"));
+
+		expect(response.status).toBe(200);
+		expect(executeCrawlPipelineMock).toHaveBeenCalledWith(
+			"dogdrip",
+			createServiceRoleClientMock.mock.results[0].value,
+			undefined,
+			{ trigger: "scheduled" }
+		);
+	});
+
 	it("cooldown과 capacity 응답 계약을 유지한다", async () => {
 		executeCrawlPipelineMock.mockRejectedValueOnce(
 			new CrawlPipelineError(

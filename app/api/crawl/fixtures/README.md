@@ -8,5 +8,6 @@
 - `battlepage-empty.html`: `https://v12.battlepage.com/??=Board.Humor.Table&page=9999`
 - `insagirl-current.json`: `https://insagirl-hrm.appspot.com/json2/1/1/2/`
 - `issuelink-current.html`: `https://www.issuelink.co.kr/community/listview/all/12/adj/_self/blank/blank/blank` (2026-08-26 확인)
+- `dogdrip-popular-current.html`: `https://www.dogdrip.net/dogdrip?sort_index=popular` (2026-08-26 확인)
 
 CI에서는 fixture만 사용합니다. fixture를 갱신할 때는 실제 응답 구조와 source URL을 다시 확인합니다.

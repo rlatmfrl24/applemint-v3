@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { crawlArcalive } from "./arcalive";
 import { crawlBattlepage } from "./battlepage";
 import { runCrawlerWithRetry } from "./crawl-runner";
+import { crawlDogdrip, DOGDRIP_TARGET } from "./dogdrip";
 import { crawlInsagirl } from "./insagirl";
 import { crawlIssueLink, ISSUELINK_TARGET } from "./issuelink";
 
@@ -22,6 +23,10 @@ const insagirlFixture = readFileSync(
 );
 const issuelinkFixture = readFileSync(
 	new URL("./fixtures/issuelink-current.html", import.meta.url),
+	"utf8"
+);
+const dogdripFixture = readFileSync(
+	new URL("./fixtures/dogdrip-popular-current.html", import.meta.url),
 	"utf8"
 );
 
@@ -225,6 +230,84 @@ describe("crawler parser adapters", () => {
 			failures: [],
 			parserValidCount: 3,
 		});
+	});
+
+	it("DogDrip은 인기글 고정 URL 한 페이지만 수집하고 parser 관측치를 남긴다", async () => {
+		const fetchMock = vi.fn(() => Promise.resolve(htmlResponse(dogdripFixture)));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await crawlDogdrip();
+
+		expect(result).toMatchObject({ attempted: 1, succeeded: 1 });
+		expect(result.items).toHaveLength(2);
+		expect(result.parserObservations).toEqual([
+			expect.objectContaining({ url: DOGDRIP_TARGET, status: "ok", validCount: 2 }),
+		]);
+		expect(fetchMock).toHaveBeenCalledWith(
+			DOGDRIP_TARGET,
+			expect.objectContaining({
+				cache: "no-store",
+				signal: expect.any(AbortSignal),
+				headers: expect.objectContaining({ "user-agent": expect.stringContaining("Chrome/") }),
+			})
+		);
+	});
+
+	it("DogDrip HTTP·timeout·parser failure를 구분하고 Cloudflare 403을 challenge로 기록한다", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(() => Promise.resolve(new Response("bad", { status: 503 })))
+		);
+		expect(await crawlDogdrip()).toMatchObject({
+			failures: [
+				expect.objectContaining({ kind: "network", message: expect.stringContaining("503") }),
+			],
+		});
+
+		const timeout = new Error("timed out");
+		timeout.name = "TimeoutError";
+		vi.stubGlobal("fetch", vi.fn().mockRejectedValue(timeout));
+		expect(await crawlDogdrip()).toMatchObject({
+			failures: [expect.objectContaining({ kind: "network", timeout: true })],
+		});
+
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(() => Promise.resolve(htmlResponse("<main>changed</main>")))
+		);
+		expect(await crawlDogdrip()).toMatchObject({
+			failures: [expect.objectContaining({ kind: "parser" })],
+		});
+
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(() =>
+				Promise.resolve(
+					new Response('<script src="/cdn-cgi/challenge-platform/"></script>', {
+						status: 403,
+						headers: { server: "cloudflare" },
+					})
+				)
+			)
+		);
+		expect(await crawlDogdrip()).toMatchObject({
+			failures: [
+				expect.objectContaining({
+					kind: "upstream-challenge",
+					message: "HTTP 403 Cloudflare access denied",
+				}),
+			],
+		});
+	});
+
+	it("DogDrip은 Crawl-delay를 침해할 수 있는 동일 실행 재시도를 하지 않는다", async () => {
+		const fetchMock = vi.fn(() => Promise.resolve(new Response("bad", { status: 503 })));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await runCrawlerWithRetry("dogdrip", crawlDogdrip, async () => {});
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(result).toMatchObject({ attempted: 1, succeeded: 0, retryCount: 0 });
 	});
 
 	it("HTTP·timeout 오류는 network failure로 유지한다", async () => {

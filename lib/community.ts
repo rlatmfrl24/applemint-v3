@@ -61,6 +61,7 @@ const SITE_DISPLAY_LABELS = new Map<string, string>([
 		(community) => [community.siteKey, community.label] as const
 	),
 	["battlepage.com", "배틀페이지"],
+	["dogdrip.net", "개드립"],
 	["arca.live", "아카라이브"],
 	["issuelink.co.kr", "IssueLink"],
 ]);
