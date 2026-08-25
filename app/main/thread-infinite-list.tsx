@@ -33,7 +33,13 @@ export function ThreadInfiniteList({
 		() => filters.find((filter) => filter.key === "filterType")?.value ?? null,
 		[filters]
 	);
-	const query = useInfiniteQuery(threadListOptions(trpc, { state, limit: 24, filterType }));
+	const filterHost = useMemo(
+		() => filters.find((filter) => filter.key === "filterHost")?.value ?? null,
+		[filters]
+	);
+	const query = useInfiniteQuery(
+		threadListOptions(trpc, { state, limit: 24, filterType, filterHost })
+	);
 	const threads = useMemo(() => flattenThreadPages(query.data?.pages), [query.data?.pages]);
 	const observerRef = useRef<IntersectionObserver | null>(null);
 	const loadMoreRef = useRef<HTMLDivElement | null>(null);

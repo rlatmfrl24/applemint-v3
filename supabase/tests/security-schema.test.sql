@@ -1,7 +1,7 @@
 -- Single-owner security boundary and schema integrity contract.
 begin;
 
-select plan(56);
+select plan(59);
 
 select ok(
 	to_regclass('public."new-threads"') is null
@@ -61,8 +61,9 @@ select ok(
 		select 1
 		from unnest(array[
 			'public.is_applemint_owner()',
-			'public.list_threads_page(text,integer,timestamp with time zone,bigint,text)',
+			'public.list_threads_page(text,integer,timestamp with time zone,bigint,text,text)',
 			'public.get_thread_stats(text,text)',
+			'public.get_normal_host_stats()',
 			'public.transition_thread_state(bigint,text,text)',
 			'public.bulk_move_inbox_to_trash()',
 			'public.clean_trash()',
@@ -212,12 +213,16 @@ select ok(
 	'authenticated can execute canonical thread transitions'
 );
 select ok(
-	has_function_privilege('authenticated', 'public.list_threads_page(text,integer,timestamp with time zone,bigint,text)', 'EXECUTE'),
+	has_function_privilege('authenticated', 'public.list_threads_page(text,integer,timestamp with time zone,bigint,text,text)', 'EXECUTE'),
 	'authenticated can execute canonical thread pagination'
 );
 select ok(
 	has_function_privilege('authenticated', 'public.get_thread_stats(text,text)', 'EXECUTE'),
 	'authenticated can execute canonical thread statistics'
+);
+select ok(
+	has_function_privilege('authenticated', 'public.get_normal_host_stats()', 'EXECUTE'),
+	'authenticated owner can execute normal host statistics'
 );
 select ok(
 	has_function_privilege('authenticated', 'public.bulk_move_inbox_to_trash()', 'EXECUTE'),
@@ -257,6 +262,12 @@ select throws_ok(
 	'non-owner cannot read thread statistics'
 );
 select throws_ok(
+	$$select * from public.get_normal_host_stats()$$,
+	'42501',
+	'Only the Applemint owner can read normal host statistics.',
+	'non-owner cannot read normal host statistics'
+);
+select throws_ok(
 	$$select public.get_crawl_alerts_dashboard()$$,
 	'42501',
 	'Only the Applemint owner can read crawl alerts.',
@@ -279,6 +290,10 @@ select lives_ok(
 select lives_ok(
 	$$select * from public.get_thread_stats('inbox', null)$$,
 	'owner can read canonical thread statistics'
+);
+select lives_ok(
+	$$select * from public.get_normal_host_stats()$$,
+	'owner can read normal host statistics'
 );
 select lives_ok(
 	$$select public.get_crawl_alerts_dashboard()$$,

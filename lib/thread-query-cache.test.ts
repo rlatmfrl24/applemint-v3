@@ -77,6 +77,7 @@ function seedMediaCycleCaches(
 		for (const statsFilter of [null, filterType]) {
 			queryClient.setQueryData(["threads", "stats", state, statsFilter], {
 				counts: state === "inbox" ? [{ key: filterType, label, count: 1 }] : [],
+				hostCounts: [],
 				totalCount: state === "inbox" ? 1 : 0,
 			});
 		}
@@ -110,6 +111,7 @@ describe("thread query cache", () => {
 		queryClient.setQueryData(sourceKey, sourceData);
 		queryClient.setQueryData(["threads", "stats", "inbox", null], {
 			counts: [{ key: "normal", label: "normal", count: 1 }],
+			hostCounts: [],
 			totalCount: 1,
 		});
 		const trashData = {
@@ -133,6 +135,7 @@ describe("thread query cache", () => {
 		expect(queryClient.getQueryData(trashKey)).toEqual(trashData);
 		expect(queryClient.getQueryData(["threads", "stats", "inbox", null])).toEqual({
 			counts: [{ key: "normal", label: "normal", count: 1 }],
+			hostCounts: [],
 			totalCount: 1,
 		});
 		queryClient.clear();
@@ -200,6 +203,7 @@ describe("thread query cache", () => {
 		};
 		queryClient.setQueryData(["threads", "stats", "trash", null], {
 			counts: [],
+			hostCounts: [],
 			totalCount: 0,
 		});
 
@@ -211,6 +215,7 @@ describe("thread query cache", () => {
 
 		expect(queryClient.getQueryData(["threads", "stats", "trash", null])).toEqual({
 			counts: [{ key: "youtube", label: "YouTube", count: 1 }],
+			hostCounts: [],
 			totalCount: 1,
 		});
 		queryClient.clear();
@@ -297,10 +302,12 @@ describe("thread query cache", () => {
 		).toEqual([]);
 		expect(queryClient.getQueryData(["threads", "stats", "inbox", null])).toEqual({
 			counts: [{ key: "youtube", label: "YouTube", count: 1 }],
+			hostCounts: [],
 			totalCount: 1,
 		});
 		expect(queryClient.getQueryData(["threads", "stats", "inbox", "youtube"])).toEqual({
 			counts: [{ key: "youtube", label: "YouTube", count: 1 }],
+			hostCounts: [],
 			totalCount: 1,
 		});
 		for (const state of cycleStates.slice(1)) {
@@ -310,6 +317,7 @@ describe("thread query cache", () => {
 			).toEqual([]);
 			expect(queryClient.getQueryData(["threads", "stats", state, null])).toEqual({
 				counts: [],
+				hostCounts: [],
 				totalCount: 0,
 			});
 		}
@@ -335,10 +343,12 @@ describe("thread query cache", () => {
 		}
 		expect(queryClient.getQueryData(["threads", "stats", "inbox", null])).toEqual({
 			counts: [{ key: "imgur", label: "Imgur", count: 1 }],
+			hostCounts: [],
 			totalCount: 1,
 		});
 		expect(queryClient.getQueryData(["threads", "stats", "inbox", "imgur"])).toEqual({
 			counts: [{ key: "imgur", label: "Imgur", count: 1 }],
+			hostCounts: [],
 			totalCount: 1,
 		});
 		queryClient.clear();
@@ -349,7 +359,11 @@ describe("thread query cache", () => {
 		const newThreadsKey = threadListQueryKey("inbox");
 		const trashKey = threadListQueryKey("trash");
 		queryClient.setQueryData(newThreadsKey, { pages: [], pageParams: [] });
-		queryClient.setQueryData(["threads", "stats", "inbox", null], { counts: [], totalCount: 0 });
+		queryClient.setQueryData(["threads", "stats", "inbox", null], {
+			counts: [],
+			hostCounts: [],
+			totalCount: 0,
+		});
 		queryClient.setQueryData(trashKey, { pages: [], pageParams: [] });
 
 		await invalidateThreadQueries(queryClient, ["inbox", "trash"]);

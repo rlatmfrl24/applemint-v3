@@ -7,6 +7,7 @@ describe("ThreadService", () => {
 	const repository = {
 		list: vi.fn(),
 		stats: vi.fn(),
+		normalHostStats: vi.fn(),
 		transition: vi.fn(),
 		bulkTrashInbox: vi.fn(),
 	};
@@ -72,11 +73,18 @@ describe("ThreadService", () => {
 			stateChangedAt: threadRow.state_changed_at,
 			id: "2",
 		});
-		await service.list({ state: "inbox", limit: 24, filterType: "youtube", cursor });
+		await service.list({
+			state: "inbox",
+			limit: 24,
+			filterType: "normal",
+			filterHost: "https://www.fmkorea.com",
+			cursor,
+		});
 		expect(repository.list).toHaveBeenCalledWith("inbox", {
 			limit: 24,
 			cursor: { stateChangedAt: threadRow.state_changed_at, id: "2" },
-			filterType: "youtube",
+			filterType: "normal",
+			filterHost: "https://www.fmkorea.com",
 		});
 	});
 
@@ -85,13 +93,26 @@ describe("ThreadService", () => {
 			{ key: "youtube", label: "youtube", count: 3, total_count: 5 },
 			{ key: "imgur", label: "imgur", count: 2, total_count: 5 },
 		]);
+		repository.normalHostStats.mockResolvedValue([{ host: "https://www.fmkorea.com/", count: 12 }]);
 		await expect(service.stats({ state: "inbox" })).resolves.toEqual({
 			totalCount: 5,
 			counts: [
 				{ key: "youtube", label: "YouTube", count: 3 },
 				{ key: "imgur", label: "Imgur", count: 2 },
 			],
+			hostCounts: [{ host: "https://www.fmkorea.com/", label: "fmkorea.com", count: 12 }],
 		});
+	});
+
+	it("Inbox 전체 통계가 아니면 host 통계를 중복 조회하지 않는다", async () => {
+		repository.stats.mockResolvedValue([]);
+
+		await expect(service.stats({ state: "saved" })).resolves.toEqual({
+			totalCount: 0,
+			counts: [],
+			hostCounts: [],
+		});
+		expect(repository.normalHostStats).not.toHaveBeenCalled();
 	});
 
 	it("상태 이동은 repository에 위임한다", async () => {

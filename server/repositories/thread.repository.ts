@@ -14,6 +14,13 @@ const statsRowsSchema = z.array(
 	})
 );
 
+const normalHostStatsRowsSchema = z.array(
+	z.object({
+		host: z.string().min(1).max(512),
+		count: z.coerce.number().int().nonnegative(),
+	})
+);
+
 const movedCountSchema = z.coerce.number().int().nonnegative();
 
 export interface ThreadPageCursor {
@@ -37,6 +44,7 @@ export class ThreadRepository {
 			limit: number;
 			cursor: ThreadPageCursor | null;
 			filterType: string | null;
+			filterHost: string | null;
 		}
 	) {
 		return this.measure("thread.list", async () => {
@@ -46,12 +54,26 @@ export class ThreadRepository {
 				p_cursor_state_changed_at: input.cursor?.stateChangedAt ?? null,
 				p_cursor_id: input.cursor?.id ?? null,
 				p_filter_type: input.filterType,
+				p_filter_host: input.filterHost,
 			});
 			if (error) throw mapPostgrestError(error, "스레드 목록을 불러오지 못했습니다.");
 
 			const parsed = z.array(threadItemSchema).safeParse(data ?? []);
 			if (!parsed.success) {
 				throw unexpectedFailure("스레드 목록 응답이 올바르지 않습니다.", parsed.error);
+			}
+			return parsed.data;
+		});
+	}
+
+	async normalHostStats() {
+		return this.measure("thread.normalHostStats", async () => {
+			const { data, error } = await this.supabase.rpc("get_normal_host_stats");
+			if (error) throw mapPostgrestError(error, "일반 스레드 host 통계를 불러오지 못했습니다.");
+
+			const parsed = normalHostStatsRowsSchema.safeParse(data ?? []);
+			if (!parsed.success) {
+				throw unexpectedFailure("일반 스레드 host 통계 응답이 올바르지 않습니다.", parsed.error);
 			}
 			return parsed.data;
 		});

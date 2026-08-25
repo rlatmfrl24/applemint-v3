@@ -32,15 +32,22 @@ const parseFilterKey = (filterKey: string | undefined) => {
 	const filters = new Map<string, string>();
 	for (const segment of filterKey?.split("|") ?? []) {
 		const separatorIndex = segment.indexOf(":");
-		if (separatorIndex > 0)
-			filters.set(segment.slice(0, separatorIndex), segment.slice(separatorIndex + 1));
+		if (separatorIndex > 0) {
+			const value = segment.slice(separatorIndex + 1);
+			try {
+				filters.set(segment.slice(0, separatorIndex), decodeURIComponent(value));
+			} catch {
+				filters.set(segment.slice(0, separatorIndex), value);
+			}
+		}
 	}
 	return filters;
 };
 
 const matchesThreadFilter = (thread: ThreadItemType, filterKey: string | undefined) => {
 	const filterType = parseFilterKey(filterKey).get("filterType");
-	return !filterType || thread.type === filterType;
+	const filterHost = parseFilterKey(filterKey).get("filterHost");
+	return (!filterType || thread.type === filterType) && (!filterHost || thread.host === filterHost);
 };
 
 const removeThread = (data: InfiniteData<ThreadPage>, threadId: string | number) => {
@@ -115,6 +122,7 @@ const updateThreadStats = (
 
 		queryClient.setQueryData<ThreadStats>(query.queryKey, {
 			counts,
+			hostCounts: previousData.hostCounts,
 			totalCount: Math.max(0, previousData.totalCount + delta),
 		});
 		return { queryKey: query.queryKey, data: previousData } satisfies QuerySnapshot;

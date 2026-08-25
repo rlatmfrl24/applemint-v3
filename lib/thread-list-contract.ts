@@ -2,7 +2,7 @@ import type { ThreadPage } from "@/contracts/thread.schema";
 import type { ThreadItemType, ThreadState } from "./type-defs";
 
 export interface ThreadListFilterParam {
-	key: "filterType";
+	key: "filterType" | "filterHost";
 	value: string;
 }
 
@@ -10,6 +10,17 @@ export type { ThreadPage } from "@/contracts/thread.schema";
 
 export const threadListQueryKey = (state: ThreadState, filterKey = "") =>
 	["threads", "list", state, filterKey] as const;
+
+export const createThreadListFilterKey = (
+	filterType: string | null | undefined,
+	filterHost: string | null | undefined
+) =>
+	[
+		filterType ? `filterType:${encodeURIComponent(filterType)}` : "",
+		filterHost ? `filterHost:${encodeURIComponent(filterHost)}` : "",
+	]
+		.filter(Boolean)
+		.join("|");
 
 export const threadStatsQueryKey = (state: ThreadState, filterType: string | null = null) =>
 	["threads", "stats", state, filterType] as const;

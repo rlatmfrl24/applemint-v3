@@ -1,7 +1,7 @@
 -- Canonical thread state, pagination, and atomicity contract.
 begin;
 
-select plan(52);
+select plan(59);
 
 select has_table('public', 'threads', 'threads is the canonical table');
 select has_index('public', 'threads', 'idx_threads_state_changed_at_id', 'state cursor index exists');
@@ -10,6 +10,12 @@ select has_index(
 	'threads',
 	'idx_threads_state_type_changed_at_id',
 	'state and type cursor index exists'
+);
+select has_index(
+	'public',
+	'threads',
+	'idx_threads_state_type_host_changed_at_id',
+	'state, type, and host cursor index exists'
 );
 select ok(
 	(select relrowsecurity from pg_class where oid = 'public.threads'::regclass),
@@ -599,6 +605,132 @@ select is(
 	(select count(*) from public.list_threads_page('saved', 24, null, null, 'page-normal')),
 	1::bigint,
 	'state filter keeps saved rows out of inbox pages'
+);
+
+-- Isolate the exact normal-host denominator after the preceding canonical tests.
+update public.threads
+set type = 'host-test-baseline'
+where state = 'inbox' and type = 'normal';
+
+insert into public.threads (type, url, host, state, state_changed_at)
+select
+	'normal',
+	'https://host-filter.test/count-only/' || value,
+	'https://www.count-only.test/',
+	'inbox',
+	'2202-01-01 00:00:00+00'::timestamp with time zone + make_interval(secs => value)
+from generate_series(1, 10) as value
+union all
+select
+	'normal',
+	'https://host-filter.test/dominant/' || value,
+	'https://www.dominant.test/',
+	'inbox',
+	'2202-01-02 00:00:00+00'::timestamp with time zone + make_interval(secs => value)
+from generate_series(1, 41) as value;
+
+select ok(
+	not exists (
+		select 1 from public.get_normal_host_stats()
+		where host = 'https://www.count-only.test/'
+	),
+	'host count alone does not qualify below the twenty-percent share'
+);
+
+delete from public.threads where url like 'https://host-filter.test/%';
+insert into public.threads (type, url, host, state, state_changed_at)
+select
+	'normal',
+	'https://host-filter.test/ratio-only/' || value,
+	'https://www.ratio-only.test/',
+	'inbox',
+	'2202-02-01 00:00:00+00'::timestamp with time zone + make_interval(secs => value)
+from generate_series(1, 9) as value
+union all
+select
+	'normal',
+	'https://host-filter.test/ratio-denominator/' || value,
+	'https://www.ratio-denominator.test/',
+	'inbox',
+	'2202-02-02 00:00:00+00'::timestamp with time zone + make_interval(secs => value)
+from generate_series(1, 36) as value;
+
+select ok(
+	not exists (
+		select 1 from public.get_normal_host_stats()
+		where host = 'https://www.ratio-only.test/'
+	),
+	'twenty-percent share alone does not qualify below ten items'
+);
+
+delete from public.threads where url like 'https://host-filter.test/%';
+insert into public.threads (type, url, host, state, state_changed_at)
+select
+	'normal',
+	format('https://host-filter.test/final/%s/%s', host_key, value),
+	format('https://www.%s.test/', host_key),
+	'inbox',
+	'2202-03-01 00:00:00+00'::timestamp with time zone
+		+ make_interval(secs => host_order * 100 + value)
+from (values ('a', 1), ('b', 2), ('c', 3), ('d', 4), ('e', 5)) as hosts(host_key, host_order)
+cross join generate_series(1, 10) as value;
+
+insert into public.threads (type, url, host, state, state_changed_at)
+values
+	('normal', 'https://host-filter.test/final/saved', 'https://www.a.test/', 'saved', '2202-03-02 00:00:00+00'),
+	('youtube', 'https://host-filter.test/final/youtube', 'https://www.a.test/', 'inbox', '2202-03-02 00:00:01+00');
+
+select is(
+	(
+		select string_agg(host, ',' order by count desc, host asc)
+		from public.get_normal_host_stats()
+	),
+	'https://www.a.test/,https://www.b.test/,https://www.c.test/,https://www.d.test/,https://www.e.test/',
+	'exactly five qualifying hosts are ordered by count then host'
+);
+select is(
+	(
+		select count(*)
+		from public.list_threads_page(
+			'inbox', 100, null, null, 'normal', 'https://www.a.test/'
+		)
+	),
+	10::bigint,
+	'host filtering isolates inbox normal rows from other states and types'
+);
+
+create temporary table host_page_one as
+select *
+from public.list_threads_page(
+	'inbox', 4, null, null, 'normal', 'https://www.a.test/'
+);
+create temporary table host_page_two as
+select *
+from public.list_threads_page(
+	'inbox',
+	10,
+	(select state_changed_at from host_page_one order by state_changed_at desc, id desc offset 3 limit 1),
+	(select id::bigint from host_page_one order by state_changed_at desc, id desc offset 3 limit 1),
+	'normal',
+	'https://www.a.test/'
+);
+select is(
+	(
+		select row(count(*), count(distinct id))
+		from (
+			(select id from host_page_one order by state_changed_at desc, id desc limit 4)
+			union all
+			(select id from host_page_two order by state_changed_at desc, id desc)
+		) as paged
+	),
+	row(10::bigint, 10::bigint),
+	'host-filtered cursor pages contain every row exactly once'
+);
+select throws_ok(
+	$$select * from public.list_threads_page('inbox', 24, null, null, 'youtube', 'https://www.a.test/')$$,
+	'22023',
+	'Thread host filters require the normal thread type.',
+	'host filtering cannot escape the normal type boundary'
 );
 
 insert into public.threads (

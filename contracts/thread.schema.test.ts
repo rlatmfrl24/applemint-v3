@@ -45,6 +45,30 @@ describe("thread Zod contract", () => {
 		);
 	});
 
+	it("host 필터는 최대 길이와 normal 하위 필터 계약을 강제한다", () => {
+		expect(
+			threadListInputSchema.parse({
+				state: "inbox",
+				filterType: "normal",
+				filterHost: "https://www.fmkorea.com",
+			})
+		).toMatchObject({ filterType: "normal", filterHost: "https://www.fmkorea.com" });
+		expect(
+			threadListInputSchema.safeParse({
+				state: "inbox",
+				filterType: "youtube",
+				filterHost: "youtube.com",
+			}).success
+		).toBe(false);
+		expect(
+			threadListInputSchema.safeParse({
+				state: "inbox",
+				filterType: "normal",
+				filterHost: "x".repeat(513),
+			}).success
+		).toBe(false);
+	});
+
 	it("상태 전이 입력은 정식 상태와 decimal string ID만 허용한다", () => {
 		expect(
 			threadTransitionInputSchema.parse({

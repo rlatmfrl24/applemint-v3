@@ -19,7 +19,8 @@ describe("ThreadRepository", () => {
 		const result = await repository.list("inbox", {
 			limit: 24,
 			cursor: { stateChangedAt: threadRow.state_changed_at, id: "2" },
-			filterType: "youtube",
+			filterType: "normal",
+			filterHost: "https://www.fmkorea.com",
 		});
 
 		expect(result[0].id).toBe("9007199254740993");
@@ -28,15 +29,33 @@ describe("ThreadRepository", () => {
 			p_limit: 24,
 			p_cursor_state_changed_at: threadRow.state_changed_at,
 			p_cursor_id: "2",
-			p_filter_type: "youtube",
+			p_filter_type: "normal",
+			p_filter_host: "https://www.fmkorea.com",
 		});
 	});
 
 	it("손상된 목록 응답을 fail closed 한다", async () => {
 		rpc.mockResolvedValue({ data: [{ ...threadRow, state: "unknown" }], error: null });
 		await expect(
-			repository.list("inbox", { limit: 24, cursor: null, filterType: null })
+			repository.list("inbox", {
+				limit: 24,
+				cursor: null,
+				filterType: null,
+				filterHost: null,
+			})
 		).rejects.toMatchObject({ code: "UnexpectedFailure" });
+	});
+
+	it("동적 normal host 통계를 별도 RPC에서 정규화한다", async () => {
+		rpc.mockResolvedValue({
+			data: [{ host: "https://www.fmkorea.com", count: "12" }],
+			error: null,
+		});
+
+		await expect(repository.normalHostStats()).resolves.toEqual([
+			{ host: "https://www.fmkorea.com", count: 12 },
+		]);
+		expect(rpc).toHaveBeenCalledWith("get_normal_host_stats");
 	});
 
 	it("통계의 numeric string을 유한 정수로 정규화한다", async () => {

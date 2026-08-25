@@ -12,6 +12,11 @@ import type { ThreadPageCursor, ThreadRepository } from "@/server/repositories/t
 const MAX_CURSOR_LENGTH = 512;
 const MAX_POSTGRES_BIGINT = BigInt("9223372036854775807");
 
+function normalizeHostLabel(host: string) {
+	const withoutProtocol = host.replace(/^[a-z][a-z\d+.-]*:\/\//iu, "");
+	return withoutProtocol.replace(/^www\./iu, "").replace(/\/+$/u, "") || host;
+}
+
 interface ThreadCursor {
 	v: 1;
 	state: ThreadState;
@@ -63,6 +68,7 @@ export class ThreadService {
 			limit,
 			cursor: input.cursor ? decodeThreadCursor(input.cursor, input.state) : null,
 			filterType: input.filterType ?? null,
+			filterHost: input.filterHost ?? null,
 		});
 		const hasMore = rows.length > limit;
 		const items = hasMore ? rows.slice(0, limit) : rows;
@@ -81,12 +87,22 @@ export class ThreadService {
 	}
 
 	async stats(input: { state: ThreadState; filterType?: string | null }) {
-		const rows = await this.repository.stats(input.state, input.filterType ?? null);
+		const [rows, hostRows] = await Promise.all([
+			this.repository.stats(input.state, input.filterType ?? null),
+			input.state === "inbox" && !input.filterType
+				? this.repository.normalHostStats()
+				: Promise.resolve([]),
+		]);
 		return {
 			totalCount: rows.length > 0 ? rows[0].total_count : 0,
 			counts: rows.map((row) => ({
 				key: row.key,
 				label: getThreadTypeLabel(row.key),
+				count: row.count,
+			})),
+			hostCounts: hostRows.map((row) => ({
+				host: row.host,
+				label: normalizeHostLabel(row.host),
 				count: row.count,
 			})),
 		} satisfies ThreadStats;
