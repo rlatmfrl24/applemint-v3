@@ -1,7 +1,7 @@
 -- Crawl run lifecycle, permanent history, and retained legacy history contract.
 begin;
 
-select plan(46);
+select plan(45);
 
 select ok(
 	not has_function_privilege('anon', 'public.cleanup_crawl_runs()', 'EXECUTE')
@@ -169,8 +169,8 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
 select is(
 	jsonb_array_length(public.get_crawl_runs_dashboard(20, 20) -> 'sources'),
-	5,
-	'owner dashboard always contains the five active sources'
+	4,
+	'owner dashboard always contains the four active sources'
 );
 reset role;
 
@@ -384,35 +384,11 @@ select is(
 	0,
 	'a second IssueLink ingest inserts no duplicate'
 );
-select is(
-	(public.ingest_crawl_items(
-		'dogdrip',
-		'[{"url":"https://www.dogdrip.net/dogdrip/1001","title":"DogDrip popular","host":"https://www.dogdrip.net","type":"normal","tag":["dogdrip","popular"]}]'::jsonb
-	) ->> 'insertedCount')::integer,
-	1,
-	'DogDrip can ingest a normal thread'
-);
-select is(
-	(
-		select row(type, host, tag)
-		from public.threads where url = 'https://www.dogdrip.net/dogdrip/1001'
-	),
-	row('normal'::text, 'https://www.dogdrip.net'::text, array['dogdrip', 'popular']::text[]),
-	'DogDrip preserves normal type, host, and provenance tags'
-);
-select is(
-	(public.ingest_crawl_items(
-		'dogdrip',
-		'[{"url":"https://www.dogdrip.net/dogdrip/1001","title":"duplicate","host":"https://www.dogdrip.net","type":"normal"}]'::jsonb
-	) ->> 'insertedCount')::integer,
-	0,
-	'a second DogDrip ingest inserts no duplicate'
-);
 select throws_ok(
-	$$select public.ingest_crawl_items('dogdrip', '[{"url":"https://www.dogdrip.net/dogdrip/1002","type":"issuelink"}]'::jsonb)$$,
-	'23514',
-	'Retired thread types cannot be ingested.',
-	'DogDrip cannot reintroduce the retired IssueLink thread type'
+	$$select public.ingest_crawl_items('dogdrip', '[{"url":"https://www.dogdrip.net/dogdrip/1001","type":"normal"}]'::jsonb)$$,
+	'22023',
+	'Unsupported crawl source.',
+	'retired Dogdrip source cannot ingest threads'
 );
 select throws_ok(
 	$$select public.ingest_crawl_items('issuelink', '[{"url":"https://legacy.test/retired-type","type":"issuelink"}]'::jsonb)$$,
@@ -456,8 +432,17 @@ select is(
 		from pg_constraint
 		where conrelid = 'public.crawl_runs'::regclass and conname = 'crawl_runs_source_check'
 	),
-	'CHECK ((source = ANY (ARRAY[''arcalive''::text, ''battlepage''::text, ''dogdrip''::text, ''insagirl''::text, ''issuelink''::text])))',
-	'crawl runs accept every active source and preserve historical rows'
+	'CHECK ((source = ANY (ARRAY[''arcalive''::text, ''battlepage''::text, ''insagirl''::text, ''issuelink''::text]))) NOT VALID',
+	'crawl runs accept only active sources'
+);
+select is(
+	(
+		select convalidated
+		from pg_constraint
+		where conrelid = 'public.crawl_runs'::regclass and conname = 'crawl_runs_source_check'
+	),
+	false,
+	'crawl run source constraint preserves retired historical rows'
 );
 
 select is(
@@ -467,8 +452,18 @@ select is(
 		where conrelid = 'public.crawl_alert_incidents'::regclass
 			and conname = 'crawl_alert_incidents_source_check'
 	),
-	'CHECK ((source = ANY (ARRAY[''arcalive''::text, ''battlepage''::text, ''dogdrip''::text, ''insagirl''::text, ''issuelink''::text])))',
-	'crawl alert incidents accept every active source and preserve historical rows'
+	'CHECK ((source = ANY (ARRAY[''arcalive''::text, ''battlepage''::text, ''insagirl''::text, ''issuelink''::text]))) NOT VALID',
+	'crawl alert incidents accept only active sources'
+);
+select is(
+	(
+		select convalidated
+		from pg_constraint
+		where conrelid = 'public.crawl_alert_incidents'::regclass
+			and conname = 'crawl_alert_incidents_source_check'
+	),
+	false,
+	'crawl alert source constraint preserves retired historical rows'
 );
 
 set local role service_role;
@@ -538,8 +533,8 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
 select is(
 	jsonb_array_length(public.get_crawl_runs_dashboard(20, 20) -> 'sources'),
-	5,
-	'crawl dashboard returns exactly five source summaries'
+	4,
+	'crawl dashboard returns exactly four source summaries'
 );
 select ok(
 	jsonb_path_exists(

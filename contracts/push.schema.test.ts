@@ -29,7 +29,7 @@ describe("Web Push contracts", () => {
 		expect(webPushPayloadSchema.safeParse({ ...payload, v: 2 }).success).toBe(false);
 		expect(webPushPayloadSchema.safeParse({ ...payload, badgeCount: 0 }).success).toBe(false);
 		expect(webPushPayloadSchema.safeParse({ ...payload, source: "issuelink" }).success).toBe(true);
-		expect(webPushPayloadSchema.safeParse({ ...payload, source: "dogdrip" }).success).toBe(true);
+		expect(webPushPayloadSchema.safeParse({ ...payload, source: "dogdrip" }).success).toBe(false);
 	});
 
 	it("테스트 payload는 설정 URL 외 필드와 URL을 허용하지 않는다", () => {
