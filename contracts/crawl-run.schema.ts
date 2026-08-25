@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { decimalIdSchema, isoTimestampSchema, nonNegativeIntegerSchema } from "./common.schema";
+import { type CrawlSource, crawlSourceSchema } from "./crawl-source.schema";
 
-const crawlSourceSchema = z.enum(["arcalive", "battlepage", "insagirl"]);
 const crawlRunStatusSchema = z.enum(["running", "succeeded", "partial", "failed", "interrupted"]);
 const finishedCrawlRunStatusSchema = z.enum(["succeeded", "partial", "failed", "interrupted"]);
 const crawlRunTriggerSchema = z.enum(["manual", "scheduled"]);
@@ -175,7 +175,7 @@ export const crawlRunsInputSchema = z
 	})
 	.strict();
 
-export type CrawlSource = z.infer<typeof crawlSourceSchema>;
+export type { CrawlSource };
 export type CrawlRunStatus = z.infer<typeof crawlRunStatusSchema>;
 export type CrawlAlertSignal = z.infer<typeof crawlAlertSignalSchema>;
 export type CrawlRun = z.output<typeof crawlRunSchema>;

@@ -5,14 +5,21 @@ import { unexpectedFailure } from "@/server/errors/domain-error";
 import { mapPostgrestError } from "@/server/errors/error-mapper";
 import type { RequestMetrics } from "@/server/observability/request-metrics";
 
-const statsRowsSchema = z.array(
-	z.object({
-		key: z.string().min(1),
-		label: z.string(),
-		count: z.coerce.number().int().nonnegative(),
-		total_count: z.coerce.number().int().nonnegative(),
-	})
-);
+const statsSnapshotSchema = z.object({
+	rows: z.array(
+		z.object({
+			key: z.string().min(1),
+			count: z.coerce.number().int().nonnegative(),
+			total_count: z.coerce.number().int().nonnegative(),
+		})
+	),
+	sites: z.array(
+		z.object({
+			site_key: z.string().min(1).max(512),
+			count: z.coerce.number().int().nonnegative(),
+		})
+	),
+});
 
 const movedCountSchema = z.coerce.number().int().nonnegative();
 
@@ -37,6 +44,7 @@ export class ThreadRepository {
 			limit: number;
 			cursor: ThreadPageCursor | null;
 			filterType: string | null;
+			filterSite: string | null;
 		}
 	) {
 		return this.measure("thread.list", async () => {
@@ -46,6 +54,7 @@ export class ThreadRepository {
 				p_cursor_state_changed_at: input.cursor?.stateChangedAt ?? null,
 				p_cursor_id: input.cursor?.id ?? null,
 				p_filter_type: input.filterType,
+				p_filter_site: input.filterSite,
 			});
 			if (error) throw mapPostgrestError(error, "스레드 목록을 불러오지 못했습니다.");
 
@@ -59,13 +68,13 @@ export class ThreadRepository {
 
 	async stats(state: ThreadState, filterType: string | null) {
 		return this.measure("thread.stats", async () => {
-			const { data, error } = await this.supabase.rpc("get_thread_stats", {
+			const { data, error } = await this.supabase.rpc("get_thread_stats_with_normal_sites", {
 				p_state: state,
 				p_filter_type: filterType,
 			});
 			if (error) throw mapPostgrestError(error, "스레드 통계를 불러오지 못했습니다.");
 
-			const parsed = statsRowsSchema.safeParse(data ?? []);
+			const parsed = statsSnapshotSchema.safeParse(data);
 			if (!parsed.success) {
 				throw unexpectedFailure("스레드 통계 응답이 올바르지 않습니다.", parsed.error);
 			}

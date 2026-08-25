@@ -56,15 +56,32 @@ export const threadPageSchema = z.object({
 });
 
 const filterTypeSchema = z.string().trim().min(1).max(128).nullable().optional();
+const filterSiteSchema = z
+	.string()
+	.min(1)
+	.max(512)
+	.refine((value) => value.trim().length > 0, "Site filter cannot be blank.")
+	.nullable()
+	.optional();
 
 export const threadListInputSchema = z
 	.object({
 		state: threadStateSchema,
 		limit: z.number().int().min(1).max(100).default(24),
 		filterType: filterTypeSchema,
+		filterSite: filterSiteSchema,
 		cursor: z.string().max(512).nullable().optional(),
 	})
-	.strict();
+	.strict()
+	.superRefine((value, context) => {
+		if (value.filterSite != null && value.filterType !== "normal") {
+			context.addIssue({
+				code: "custom",
+				path: ["filterSite"],
+				message: "Site filters require the normal thread type.",
+			});
+		}
+	});
 
 export const threadStatsInputSchema = z
 	.object({
@@ -77,6 +94,13 @@ export const threadStatsSchema = z.object({
 	counts: z.array(
 		z.object({
 			key: z.string().min(1),
+			label: z.string().min(1),
+			count: nonNegativeIntegerSchema,
+		})
+	),
+	siteCounts: z.array(
+		z.object({
+			siteKey: z.string().min(1).max(512),
 			label: z.string().min(1),
 			count: nonNegativeIntegerSchema,
 		})

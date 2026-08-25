@@ -178,7 +178,7 @@ insert into public.crawl_runs (
 values
 	(
 		910001,
-		'battlepage',
+		'issuelink',
 		'91000000-0000-4000-8000-000000000001',
 		'running',
 		now() - interval '1 minute',

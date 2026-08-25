@@ -13,6 +13,7 @@ function createThreadServices() {
 	};
 	const stats = {
 		counts: [{ key: "normal", label: "일반", count: 1 }],
+		siteCounts: [],
 		totalCount: 1,
 	};
 	const list = vi.fn().mockResolvedValue(page);

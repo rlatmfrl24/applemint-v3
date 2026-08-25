@@ -3,7 +3,7 @@ import { crawlPolicySettings, NOW } from "@/test/support/communication";
 import { crawlPolicySettingsSchema, crawlPolicyUpdateInputSchema } from "./crawl-policy.schema";
 
 describe("crawl policy Zod contract", () => {
-	it("세 소스의 정책 응답을 검증한다", () => {
+	it("네 소스의 정책 응답을 검증한다", () => {
 		expect(crawlPolicySettingsSchema.parse(crawlPolicySettings)).toEqual(crawlPolicySettings);
 	});
 
@@ -40,7 +40,7 @@ describe("crawl policy Zod contract", () => {
 	it("지원하지 않는 소스와 여분의 입력 필드를 거부한다", () => {
 		expect(
 			crawlPolicyUpdateInputSchema.safeParse({
-				source: "issuelink",
+				source: "unsupported",
 				scheduleEnabled: true,
 				cooldownSeconds: 3600,
 				expectedUpdatedAt: NOW,

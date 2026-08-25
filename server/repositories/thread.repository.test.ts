@@ -19,7 +19,8 @@ describe("ThreadRepository", () => {
 		const result = await repository.list("inbox", {
 			limit: 24,
 			cursor: { stateChangedAt: threadRow.state_changed_at, id: "2" },
-			filterType: "youtube",
+			filterType: "normal",
+			filterSite: "fmkorea.com",
 		});
 
 		expect(result[0].id).toBe("9007199254740993");
@@ -28,25 +29,40 @@ describe("ThreadRepository", () => {
 			p_limit: 24,
 			p_cursor_state_changed_at: threadRow.state_changed_at,
 			p_cursor_id: "2",
-			p_filter_type: "youtube",
+			p_filter_type: "normal",
+			p_filter_site: "fmkorea.com",
 		});
 	});
 
 	it("손상된 목록 응답을 fail closed 한다", async () => {
 		rpc.mockResolvedValue({ data: [{ ...threadRow, state: "unknown" }], error: null });
 		await expect(
-			repository.list("inbox", { limit: 24, cursor: null, filterType: null })
+			repository.list("inbox", {
+				limit: 24,
+				cursor: null,
+				filterType: null,
+				filterSite: null,
+			})
 		).rejects.toMatchObject({ code: "UnexpectedFailure" });
 	});
 
-	it("통계의 numeric string을 유한 정수로 정규화한다", async () => {
+	it("타입과 canonical site 통계를 단일 RPC 응답에서 정규화한다", async () => {
 		rpc.mockResolvedValue({
-			data: [{ key: "youtube", label: "youtube", count: "2", total_count: "5" }],
+			data: {
+				rows: [{ key: "normal", count: "20", total_count: "25" }],
+				sites: [{ site_key: "fmkorea.com", count: "12" }],
+			},
 			error: null,
 		});
-		await expect(repository.stats("inbox", null)).resolves.toEqual([
-			{ key: "youtube", label: "youtube", count: 2, total_count: 5 },
-		]);
+
+		await expect(repository.stats("inbox", null)).resolves.toEqual({
+			rows: [{ key: "normal", count: 20, total_count: 25 }],
+			sites: [{ site_key: "fmkorea.com", count: 12 }],
+		});
+		expect(rpc).toHaveBeenCalledWith("get_thread_stats_with_normal_sites", {
+			p_state: "inbox",
+			p_filter_type: null,
+		});
 	});
 
 	it.each([

@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { isoTimestampSchema } from "./common.schema";
+import { crawlSourceSchema } from "./crawl-source.schema";
 
-const crawlTargetSchema = z.enum(["arcalive", "battlepage", "insagirl"]);
 const crawlAdmissionReasonSchema = z.enum(["disabled", "cooldown", "source-busy", "capacity"]);
 
 export const crawlCommandRequestSchema = z
 	.object({
-		target: crawlTargetSchema,
+		target: crawlSourceSchema,
 	})
 	.strict();
 
@@ -14,7 +14,7 @@ export const crawlCommandSuccessSchema = z
 	.object({
 		runId: z.string().min(1),
 		status: z.enum(["succeeded", "partial"]),
-		target: crawlTargetSchema,
+		target: crawlSourceSchema,
 		insertedCount: z.number().int().nonnegative(),
 		skippedCount: z.number().int().nonnegative(),
 		warningCount: z.number().int().nonnegative(),
@@ -33,7 +33,7 @@ const crawlFailedResponseSchema = z
 	.object({
 		runId: z.string().min(1).optional(),
 		status: z.literal("failed").optional(),
-		target: crawlTargetSchema.optional(),
+		target: crawlSourceSchema.optional(),
 		error: z.string().min(1),
 	})
 	.strict();
@@ -48,7 +48,7 @@ export const internalRestErrorResponseSchema = z
 const scheduledSkippedResponseSchema = z
 	.object({
 		status: z.literal("skipped"),
-		target: crawlTargetSchema,
+		target: crawlSourceSchema,
 		reason: crawlAdmissionReasonSchema.exclude(["capacity"]),
 		nextEligibleAt: isoTimestampSchema.nullable(),
 		activeRunId: z.string().nullable(),
@@ -58,7 +58,7 @@ const scheduledSkippedResponseSchema = z
 const scheduledDeferredResponseSchema = z
 	.object({
 		status: z.literal("deferred"),
-		target: crawlTargetSchema,
+		target: crawlSourceSchema,
 		reason: z.literal("capacity"),
 		retryAfterSeconds: z.number().int().positive(),
 	})
@@ -79,6 +79,6 @@ export const scheduledCrawlResponseSchema = z.union([
 	internalRestErrorResponseSchema,
 ]);
 
-export type CrawlTarget = z.infer<typeof crawlTargetSchema>;
+export type CrawlTarget = z.infer<typeof crawlSourceSchema>;
 export type CrawlAdmissionReason = z.infer<typeof crawlAdmissionReasonSchema>;
 export type CrawlCommandSuccess = z.infer<typeof crawlCommandSuccessSchema>;
