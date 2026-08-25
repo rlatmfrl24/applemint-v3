@@ -6,7 +6,7 @@ export type { CrawlTarget };
 export interface CrawlFailure {
 	url: string;
 	message: string;
-	kind: "network" | "parser";
+	kind: "network" | "parser" | "upstream-challenge";
 	timeout?: boolean;
 }
 

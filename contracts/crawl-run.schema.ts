@@ -15,7 +15,7 @@ const crawlAlertSignalSchema = z.enum([
 const crawlRunDetailItemSchema = z.object({
 	url: z.string().optional(),
 	message: z.string().optional(),
-	kind: z.enum(["network", "parser"]).optional(),
+	kind: z.enum(["network", "parser", "upstream-challenge"]).optional(),
 	timeout: z.boolean().optional(),
 	code: z.string().optional(),
 	severity: z.enum(["info", "warning"]).optional(),

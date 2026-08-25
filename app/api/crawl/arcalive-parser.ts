@@ -13,6 +13,120 @@ const EMPTY_LIST_TEXT = /(?:게시물|등록된 글|검색 결과)(?:이|가)?\s
 
 export const ARCALIVE_MINIMUM_ITEMS = 10;
 
+export interface ArcaliveApiPage {
+	outcome: ParserOutcome;
+	next: Record<string, string> | null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseArticleId(value: unknown) {
+	if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) {
+		return String(value);
+	}
+	if (typeof value === "string" && /^\d+$/.test(value)) {
+		return value;
+	}
+	return null;
+}
+
+function parseNextCursor(value: unknown) {
+	if (!isRecord(value) || typeof value.before !== "string" || !value.before.trim()) {
+		return null;
+	}
+	if (
+		(typeof value.offset !== "string" && typeof value.offset !== "number") ||
+		!String(value.offset).trim()
+	) {
+		return null;
+	}
+	return { before: value.before, offset: String(value.offset) };
+}
+
+function parseArcaliveApiArticle(value: unknown): CrawlItemType | null {
+	if (!isRecord(value)) return null;
+
+	const id = parseArticleId(value.id);
+	const title = typeof value.title === "string" ? value.title.replace(/\s+/g, " ").trim() : "";
+	if (!id || !title || value.mark !== "best") return null;
+
+	const category =
+		typeof value.categoryDisplayName === "string" && value.categoryDisplayName.trim()
+			? value.categoryDisplayName.trim()
+			: typeof value.category === "string" && value.category.trim()
+				? value.category.trim()
+				: null;
+	return {
+		url: `${ARCALIVE_BASE_URL}/b/iloveanimal/${id}`,
+		title,
+		description: "",
+		host: ARCALIVE_BASE_URL,
+		tag: category ? ["arcalive", category] : ["arcalive"],
+	};
+}
+
+export function parseArcaliveApiPayload(payload: unknown): ArcaliveApiPage {
+	if (!isRecord(payload) || !Array.isArray(payload.articles)) {
+		return {
+			outcome: createParserFailure({
+				code: "invalid-payload",
+				message: "Arcalive 앱 API 응답의 articles 배열을 찾지 못했습니다.",
+				minimumItems: ARCALIVE_MINIMUM_ITEMS,
+			}),
+			next: null,
+		};
+	}
+
+	const next = parseNextCursor(payload.next);
+	if (payload.articles.length === 0) {
+		return { outcome: createParserEmpty("Arcalive", ARCALIVE_MINIMUM_ITEMS), next };
+	}
+
+	const items = new Map<string, CrawlItemType>();
+	let discardedCount = 0;
+	let duplicateCount = 0;
+	for (const article of payload.articles) {
+		const item = parseArcaliveApiArticle(article);
+		if (!item) {
+			discardedCount += 1;
+			continue;
+		}
+		if (items.has(item.url)) {
+			duplicateCount += 1;
+			continue;
+		}
+		items.set(item.url, item);
+	}
+
+	if (items.size === 0) {
+		return {
+			outcome: createParserFailure({
+				code: "all-items-invalid",
+				message: "Arcalive 앱 API 게시물 후보가 모두 필수 필드 검증에 실패했습니다.",
+				candidateCount: payload.articles.length,
+				discardedCount,
+				duplicateCount,
+				minimumItems: ARCALIVE_MINIMUM_ITEMS,
+			}),
+			next,
+		};
+	}
+
+	return {
+		outcome: createParserSuccess({
+			items: Array.from(items.values()),
+			candidateCount: payload.articles.length,
+			discardedCount,
+			duplicateCount,
+			minimumItems: ARCALIVE_MINIMUM_ITEMS,
+			source: "Arcalive",
+		}),
+		next,
+	};
+}
+
 function parsePostUrl(href: string) {
 	try {
 		const url = new URL(href, ARCALIVE_BASE_URL);

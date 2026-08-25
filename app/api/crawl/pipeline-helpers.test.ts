@@ -159,4 +159,32 @@ describe("crawl pipeline helpers", () => {
 			errorStage: "source",
 		});
 	});
+
+	it("upstream challenge는 상세 kind를 보존하면서 transport 실패로 집계한다", () => {
+		const result = createRunResult(
+			"failed",
+			createExecutionResult({
+				failures: [
+					{
+						url: "https://arca.live/api/app/list/channel/iloveanimal",
+						message: "HTTP 403 Cloudflare Challenge",
+						kind: "upstream-challenge",
+						attempt: 1,
+					},
+				],
+			}),
+			0,
+			0,
+			"source",
+			"failed"
+		);
+
+		expect(result).toMatchObject({
+			failureCount: 1,
+			networkFailureCount: 1,
+			parserFailureCount: 0,
+			timeoutFailureCount: 0,
+			failures: [expect.objectContaining({ kind: "upstream-challenge" })],
+		});
+	});
 });

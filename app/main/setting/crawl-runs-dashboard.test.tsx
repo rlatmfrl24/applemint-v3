@@ -52,9 +52,9 @@ function createRun(overrides: Partial<CrawlRun> = {}): CrawlRun {
 		skippedCount: 4,
 		warningCount: 1,
 		failureCount: 1,
-		networkFailureCount: 0,
+		networkFailureCount: 1,
 		parserFailureCount: 0,
-		timeoutFailureCount: 1,
+		timeoutFailureCount: 0,
 		parserValidCount: 8,
 		parserMinimumCount: 10,
 		warnings: [
@@ -69,9 +69,8 @@ function createRun(overrides: Partial<CrawlRun> = {}): CrawlRun {
 		failures: [
 			{
 				url: "https://example.com/page",
-				kind: "network",
-				timeout: true,
-				message: "timed out",
+				kind: "upstream-challenge",
+				message: "HTTP 403 Cloudflare Challenge",
 				attempt: 1,
 			},
 		],
@@ -257,6 +256,7 @@ describe("CrawlRunsDashboard", () => {
 		expect(html).toContain("중단됨");
 		expect(html).toContain("경고·실패 상세보기");
 		expect(html).toContain("below-minimum-items");
+		expect(html).toContain("upstream-challenge");
 		expect(html).toContain("info · discarded-items");
 		expect(html).toContain("DB 적재 실패");
 		expect(html).toContain("Arcalive 장애 감지");

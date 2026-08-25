@@ -6,10 +6,12 @@ import { runCrawlerWithRetry } from "./crawl-runner";
 import { crawlInsagirl } from "./insagirl";
 import { crawlIssueLink, ISSUELINK_TARGET } from "./issuelink";
 
-const arcaliveFixture = readFileSync(
-	new URL("./fixtures/arcalive-current.html", import.meta.url),
-	"utf8"
-);
+const arcaliveApiFixture = JSON.parse(
+	readFileSync(new URL("./fixtures/arcalive-api-current.json", import.meta.url), "utf8")
+) as {
+	articles: Array<Record<string, unknown> & { id: number }>;
+	next: Record<string, string>;
+};
 const battlepageEmptyFixture = readFileSync(
 	new URL("./fixtures/battlepage-empty.html", import.meta.url),
 	"utf8"
@@ -28,31 +30,91 @@ const htmlResponse = (body: string) =>
 const jsonResponse = (body: string) =>
 	new Response(body, { status: 200, headers: { "Content-Type": "application/json" } });
 
+function arcaliveApiResponse(idOffset: number, next: Record<string, string> | null) {
+	return jsonResponse(
+		JSON.stringify({
+			articles: arcaliveApiFixture.articles.map((article) => ({
+				...article,
+				id: article.id + idOffset,
+			})),
+			next,
+		})
+	);
+}
+
 describe("crawler parser adapters", () => {
 	afterEach(() => {
 		vi.unstubAllGlobals();
 	});
 
-	it("Arcalive의 성공·empty·parser failure를 페이지별로 구분한다", async () => {
+	it("Arcalive 앱 API cursor를 따라 3페이지를 수집하고 canonical URL로 변환한다", async () => {
 		const fetchMock = vi
 			.fn()
-			.mockResolvedValueOnce(htmlResponse(arcaliveFixture))
 			.mockResolvedValueOnce(
-				htmlResponse(
-					'<div class="list-table table"><div class="list-empty">게시물이 없습니다.</div></div>'
-				)
+				arcaliveApiResponse(0, { before: "2026-08-24T21:34:12.000Z", offset: "1" })
 			)
-			.mockResolvedValueOnce(htmlResponse("<main>changed</main>"));
+			.mockResolvedValueOnce(
+				arcaliveApiResponse(100, { before: "2026-08-24T10:46:11.000Z", offset: "1" })
+			)
+			.mockResolvedValueOnce(arcaliveApiResponse(200, null));
 		vi.stubGlobal("fetch", fetchMock);
 
 		const result = await crawlArcalive();
 
-		expect(result).toMatchObject({ attempted: 3, succeeded: 2 });
-		expect(result.items).toHaveLength(10);
+		expect(result).toMatchObject({ attempted: 3, succeeded: 3, failures: [], warnings: [] });
+		expect(result.items).toHaveLength(30);
+		expect(result.items[0]?.url).toBe("https://arca.live/b/iloveanimal/2001");
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			1,
+			expect.stringContaining("/api/app/list/channel/iloveanimal?mode=best&limit=45"),
+			expect.objectContaining({
+				cache: "no-store",
+				headers: expect.objectContaining({
+					accept: "application/json",
+					"user-agent": "net.umanle.arca.android/0.9.85",
+					"x-device-token": expect.any(String),
+				}),
+			})
+		);
+		expect(fetchMock.mock.calls[1]?.[0]).toContain("before=2026-08-24T21%3A34%3A12.000Z");
+	});
+
+	it("Arcalive Cloudflare Challenge를 upstream-challenge로 기록하고 재시도하지 않는다", async () => {
+		const fetchMock = vi.fn(() =>
+			Promise.resolve(
+				new Response('<script src="/cdn-cgi/challenge-platform/h/b/orchestrate"></script>', {
+					status: 403,
+					statusText: "Forbidden",
+					headers: { server: "cloudflare", "cf-mitigated": "challenge" },
+				})
+			)
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await runCrawlerWithRetry("arcalive", crawlArcalive, async () => {});
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(result).toMatchObject({ attempted: 1, succeeded: 0, retryCount: 0 });
 		expect(result.failures).toEqual([
-			expect.objectContaining({ kind: "parser", message: expect.stringContaining("container") }),
+			expect.objectContaining({
+				attempt: 1,
+				kind: "upstream-challenge",
+				message: "HTTP 403 Cloudflare Challenge",
+			}),
 		]);
-		expect(result.warnings.map((warning) => warning.code)).toEqual(["empty-list"]);
+	});
+
+	it("Arcalive 선택 재시도 URL을 신뢰하지 않고 고정 API 시작점에서 순회한다", async () => {
+		const fetchMock = vi.fn().mockResolvedValueOnce(arcaliveApiResponse(0, null));
+		vi.stubGlobal("fetch", fetchMock);
+
+		await crawlArcalive({ urls: ["https://example.com/internal"] });
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(fetchMock.mock.calls[0]?.[0]).toMatch(
+			/^https:\/\/arca\.live\/api\/app\/list\/channel\/iloveanimal\?/
+		);
+		expect(fetchMock.mock.calls[0]?.[0]).not.toContain("example.com");
 	});
 
 	it("Battlepage의 정상 empty 응답은 성공과 warning으로 집계한다", async () => {
@@ -171,8 +233,8 @@ describe("crawler parser adapters", () => {
 
 		const result = await crawlArcalive();
 
-		expect(result).toMatchObject({ attempted: 3, succeeded: 0, warnings: [] });
-		expect(result.failures).toHaveLength(3);
+		expect(result).toMatchObject({ attempted: 1, succeeded: 0, warnings: [] });
+		expect(result.failures).toHaveLength(1);
 		expect(result.failures[0]).toMatchObject({ kind: "network", timeout: true });
 	});
 });
