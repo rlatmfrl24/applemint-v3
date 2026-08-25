@@ -1,14 +1,14 @@
 -- Scheduling policy, lock, dispatch, reconciliation, and fail-closed contract.
 begin;
 
-select plan(67);
+select plan(66);
 
 select has_table('public', 'crawl_source_policies', 'source scheduling policy table exists');
 select has_table('public', 'crawl_runtime_settings', 'crawl runtime singleton exists');
 select is(
 	(select count(*) from public.crawl_source_policies),
-	5::bigint,
-	'exactly five active source policies are seeded'
+	4::bigint,
+	'exactly four active source policies are seeded'
 );
 select is(
 	(
@@ -25,14 +25,6 @@ select is(
 	),
 	row(10800, 10800, 45, false),
 	'IssueLink starts disabled with the three-hour policy and a 45 second budget'
-);
-select is(
-	(
-		select row(cooldown_seconds, recommended_cooldown_seconds, run_budget_seconds, schedule_enabled)
-		from public.crawl_source_policies where source = 'dogdrip'
-	),
-	row(10800, 10800, 45, false),
-	'DogDrip starts disabled with the three-hour pilot policy and a 45 second budget'
 );
 select is(
 	(
@@ -61,31 +53,13 @@ create temporary table p5_state (key text primary key, value jsonb not null);
 grant all on table p5_state to service_role;
 
 set local role service_role;
-insert into p5_state values (
-	'dogdrip-first',
-	public.begin_crawl_run('dogdrip', '50000000-0000-4000-8000-000000000010'::uuid, 300)
-);
-select public.finish_crawl_run(
-	(select (value ->> 'runId')::bigint from p5_state where key = 'dogdrip-first'),
-	'50000000-0000-4000-8000-000000000010'::uuid,
-	'{"status":"succeeded"}'::jsonb
-);
-insert into p5_state values (
-	'dogdrip-manual-cooldown',
-	public.begin_crawl_run('dogdrip', '50000000-0000-4000-8000-000000000011'::uuid, 300)
+select throws_ok(
+	$$select public.begin_crawl_run('dogdrip', '50000000-0000-4000-8000-000000000010'::uuid, 300)$$,
+	'22023',
+	'Unsupported crawl source.',
+	'retired Dogdrip source cannot start a crawl run'
 );
 reset role;
-
-select is(
-	(select value ->> 'acquired' from p5_state where key = 'dogdrip-first'),
-	'true',
-	'first DogDrip manual run acquires its lease'
-);
-select is(
-	(select value ->> 'reason' from p5_state where key = 'dogdrip-manual-cooldown'),
-	'cooldown',
-	'DogDrip manual runs preserve the robots.txt crawl delay'
-);
 
 set local role service_role;
 insert into p5_state values (
@@ -257,7 +231,7 @@ delete from public.crawl_run_locks;
 delete from public.crawl_runs;
 update public.crawl_source_policies
 set
-	schedule_enabled = source not in ('dogdrip', 'issuelink'),
+	schedule_enabled = source <> 'issuelink',
 	cooldown_seconds = recommended_cooldown_seconds;
 
 select has_extension('pg_net', 'pg_net extension is available for asynchronous dispatch');
@@ -283,7 +257,7 @@ select is(
 		)
 		from public.crawl_source_policies
 	),
-	'{"arcalive":[7200,7200],"battlepage":[14400,14400],"dogdrip":[10800,10800],"insagirl":[10800,10800],"issuelink":[10800,10800]}'::jsonb,
+	'{"arcalive":[7200,7200],"battlepage":[14400,14400],"insagirl":[10800,10800],"issuelink":[10800,10800]}'::jsonb,
 	'optimized source cooldowns and recommendations are seeded'
 );
 select is(
@@ -346,8 +320,14 @@ select is(
 );
 select is(
 	jsonb_array_length(public.get_crawl_source_policy_settings() -> 'sources'),
-	5,
-	'owner policy response includes all five active sources'
+	4,
+	'owner policy response includes all four active sources'
+);
+select throws_ok(
+	$$select public.update_crawl_source_policy('dogdrip', true, 10800, now())$$,
+	'22023',
+	'Unsupported crawl source.',
+	'owner cannot restore the retired Dogdrip policy'
 );
 reset role;
 
@@ -412,7 +392,7 @@ select is(
 
 update public.crawl_source_policies
 set schedule_enabled = true, cooldown_seconds = recommended_cooldown_seconds
-where source not in ('dogdrip', 'issuelink');
+where source <> 'issuelink';
 
 select is(
 	(

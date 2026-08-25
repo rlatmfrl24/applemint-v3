@@ -20,7 +20,7 @@ vi.mock("@/trpc/client", () => ({
 	}),
 }));
 
-const sources: CrawlSource[] = ["arcalive", "battlepage", "dogdrip", "insagirl", "issuelink"];
+const sources: CrawlSource[] = ["arcalive", "battlepage", "insagirl", "issuelink"];
 
 const alertSettings = {
 	parserFailureStreak: 2,
@@ -261,7 +261,6 @@ describe("CrawlRunsDashboard", () => {
 		expect(html).toContain("DB 적재 실패");
 		expect(html).toContain("Arcalive 장애 감지");
 		expect(html).toContain("IssueLink");
-		expect(html).toContain("DogDrip");
 		expect(html).toContain("장애 감지 기준");
 	});
 

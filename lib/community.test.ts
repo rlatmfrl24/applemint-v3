@@ -6,7 +6,6 @@ describe("community labels", () => {
 		expect(getSiteDisplayLabel("https://www.fmkorea.com/")).toBe("에펨코리아");
 		expect(getSiteDisplayLabel("https://theqoo.net")).toBe("더쿠");
 		expect(getSiteDisplayLabel("v12.battlepage.com")).toBe("배틀페이지");
-		expect(getSiteDisplayLabel("https://www.dogdrip.net/")).toBe("개드립");
 	});
 
 	it("알려진 사이트의 protocol, www, mobile host를 하나의 site key로 정규화한다", () => {
@@ -14,7 +13,6 @@ describe("community labels", () => {
 		expect(getNormalSiteKey("https://www.fmkorea.com/")).toBe("fmkorea.com");
 		expect(getNormalSiteKey("m.fmkorea.com")).toBe("fmkorea.com");
 		expect(getNormalSiteKey("https://v12.battlepage.com")).toBe("battlepage.com");
-		expect(getNormalSiteKey("https://www.dogdrip.net")).toBe("dogdrip.net");
 	});
 
 	it("미등록 사이트는 정규화된 hostname으로 fallback한다", () => {

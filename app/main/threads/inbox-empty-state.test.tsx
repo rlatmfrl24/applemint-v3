@@ -18,7 +18,6 @@ function createSettings(
 	sourceTimes: Array<string | null> = [
 		"2026-07-30T03:00:00.000Z",
 		"2026-07-30T02:00:00.000Z",
-		null,
 		"2026-07-30T02:00:00.000Z",
 		null,
 	]
@@ -48,7 +47,6 @@ describe("Inbox 다음 수집 선택", () => {
 		const settings = createSettings({}, [
 			"2026-07-30T01:30:00.000Z",
 			"2026-07-30T02:00:00.000Z",
-			null,
 			null,
 			null,
 		]);
