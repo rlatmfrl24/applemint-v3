@@ -1,7 +1,7 @@
 -- Single-owner security boundary and schema integrity contract.
 begin;
 
-select plan(61);
+select plan(63);
 
 select ok(
 	to_regclass('public."new-threads"') is null
@@ -100,6 +100,30 @@ select ok(
 		where has_function_privilege('anon', business_function.function_name, 'EXECUTE')
 	),
 	'anon cannot execute any business RPC'
+);
+select is(
+	(
+		select array_agg(p.oid::regprocedure::text order by p.oid::regprocedure::text)
+		from pg_proc as p
+		inner join pg_namespace as n on n.oid = p.pronamespace
+		where n.nspname = 'public'
+			and p.prosecdef
+			and has_function_privilege('authenticated', p.oid, 'EXECUTE')
+	),
+	array[
+		'acknowledge_web_push_inbox(text)',
+		'bulk_move_inbox_to_trash()',
+		'disable_web_push_subscription(text)',
+		'get_crawl_alerts_dashboard()',
+		'get_crawl_runs_dashboard(integer,integer)',
+		'get_crawl_source_policy_settings()',
+		'get_crawl_source_registry()',
+		'get_web_push_subscription_status(text)',
+		'transition_thread_state(bigint,text,text)',
+		'update_crawl_source_policy(text,boolean,integer,timestamp with time zone)',
+		'upsert_web_push_subscription(text,text,text,timestamp with time zone)'
+	]::text[],
+	'authenticated SECURITY DEFINER advisor exceptions are explicitly allowlisted'
 );
 select ok(
 	not exists (
@@ -271,6 +295,12 @@ select throws_ok(
 	'42501',
 	'Only the Applemint owner can read crawl alerts.',
 	'non-owner cannot read crawl alerts'
+);
+select throws_ok(
+	$$select public.get_crawl_source_registry()$$,
+	'42501',
+	'Only the Applemint owner can read the crawl source registry.',
+	'non-owner cannot read the crawl source registry'
 );
 reset role;
 
