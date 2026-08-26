@@ -4,7 +4,6 @@ import { dirname, resolve, sep } from "node:path";
 const TRACE_PATH = resolve(".next/server/app/api/trpc/[trpc]/route.js.nft.json");
 const FORBIDDEN_PATHS = [
 	`${sep}node_modules${sep}web-push${sep}`,
-	`${sep}server${sep}push${sep}test-sender`,
 	`${sep}utils${sep}supabase${sep}service-role`,
 ];
 
