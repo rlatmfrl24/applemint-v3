@@ -7,6 +7,7 @@ export interface E2ERuntime {
 	publishableKey: string;
 	secretKey: string;
 	internalSecret: string;
+	databaseContainer: string;
 	ownerEmail: string;
 	ownerPassword: string;
 }

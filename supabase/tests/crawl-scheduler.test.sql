@@ -149,7 +149,9 @@ select public.finish_crawl_run(
 	'50000000-0000-4000-8000-000000000006'::uuid,
 	'{"status":"succeeded"}'::jsonb
 );
+reset role;
 update public.crawl_source_policies set schedule_enabled = false where source = 'insagirl';
+set local role service_role;
 insert into p5_state values (
 	'insagirl-disabled',
 	public.begin_scheduled_crawl_run('insagirl', '50000000-0000-4000-8000-000000000007'::uuid, 60)
@@ -267,8 +269,12 @@ select is(
 );
 select ok(
 	not has_table_privilege('authenticated', 'public.crawl_schedule_dispatches', 'SELECT')
-		and has_table_privilege('service_role', 'public.crawl_schedule_dispatches', 'INSERT,UPDATE,DELETE'),
-	'dispatch audit rows are not directly exposed to authenticated clients'
+		and not has_table_privilege(
+			'service_role',
+			'public.crawl_schedule_dispatches',
+			'SELECT,INSERT,UPDATE,DELETE'
+		),
+	'dispatch audit rows are reachable only through owner and internal RPCs'
 );
 select ok(
 	has_function_privilege('authenticated', 'public.get_crawl_source_policy_settings()', 'EXECUTE')
