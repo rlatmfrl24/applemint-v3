@@ -85,7 +85,13 @@ set search_path = ''
 as $$
 declare
 	v_now timestamp with time zone := now();
+	v_running_run_ids bigint[];
 begin
+	select coalesce(array_agg(run.id), array[]::bigint[])
+	into v_running_run_ids
+	from public.crawl_runs as run
+	where run.source = new.source and run.status = 'running';
+
 	perform pg_catalog.pg_advisory_xact_lock(
 		pg_catalog.hashtextextended(
 			'applemint:crawl-source-lifecycle:' || new.source,
@@ -103,7 +109,8 @@ begin
 		),
 		error_stage = coalesce(error_stage, 'source'),
 		error_message = coalesce(error_message, 'Crawl source was retired.')
-	where source = new.source and status = 'running';
+	where source = new.source
+		and (status = 'running' or id = any(v_running_run_ids));
 
 	delete from public.crawl_run_locks
 	where lock_key = 'crawl:' || new.source;
@@ -130,8 +137,8 @@ alter function private.reconcile_retired_crawl_source() owner to postgres;
 revoke all on function private.reconcile_retired_crawl_source()
 	from public, anon, authenticated, service_role;
 
-create trigger crawl_source_registry_reconcile_after_retire
-after update of active on public.crawl_source_registry
+create trigger crawl_source_registry_reconcile_on_retire
+before update of active on public.crawl_source_registry
 for each row
 when (old.active and not new.active)
 execute function private.reconcile_retired_crawl_source();

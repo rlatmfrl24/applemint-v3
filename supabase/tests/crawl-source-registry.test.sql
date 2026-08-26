@@ -341,7 +341,7 @@ select ok(
 			select 1
 			from pg_trigger
 			where tgrelid = 'public.crawl_source_registry'::regclass
-				and tgname = 'crawl_source_registry_reconcile_after_retire'
+				and tgname = 'crawl_source_registry_reconcile_on_retire'
 				and not tgisinternal
 		)
 		and (
