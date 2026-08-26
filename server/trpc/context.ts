@@ -1,5 +1,6 @@
 import { resolveRequestId as resolveHeaderRequestId } from "@/lib/request-id";
 import { RequestMetrics } from "@/server/observability/request-metrics";
+import { createWebPushTestClient } from "@/server/push/test-client";
 import { createServices } from "@/server/services";
 import type { AuthenticatedAccessResult } from "@/utils/supabase/auth-access";
 import { checkAuthenticatedAccess } from "@/utils/supabase/auth-access";
@@ -14,7 +15,13 @@ export function resolveRequestId(request: Request) {
 export async function createTRPCContext(request: Request, requestId = resolveRequestId(request)) {
 	const supabase = await createClient();
 	const metrics = new RequestMetrics();
-	const services = createServices(supabase, metrics);
+	const services = createServices(supabase, metrics, {
+		pushTestSender: createWebPushTestClient({
+			requestUrl: request.url,
+			cookie: request.headers.get("cookie"),
+			requestId,
+		}),
+	});
 	let authenticatedAccessPromise: Promise<AuthenticatedAccessResult> | undefined;
 	let ownerAccessPromise: Promise<OwnerAccessResult> | undefined;
 

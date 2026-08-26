@@ -1,13 +1,6 @@
 import { Buffer } from "node:buffer";
 import { type PushConfiguration, pushConfigurationSchema } from "@/contracts/push.schema";
-
-interface WebPushEnvironment {
-	[key: string]: string | undefined;
-	WEB_PUSH_ENABLED?: string;
-	VAPID_PUBLIC_KEY?: string;
-	VAPID_PRIVATE_KEY?: string;
-	VAPID_SUBJECT?: string;
-}
+import { getWebPushEnvironment, type OptionalServerEnvironment } from "@/server/env/features";
 
 export type WebPushServerConfiguration =
 	| {
@@ -47,7 +40,7 @@ function isValidSubject(value: string) {
 }
 
 export function getWebPushServerConfiguration(
-	environment: WebPushEnvironment = process.env
+	environment: OptionalServerEnvironment = getWebPushEnvironment()
 ): WebPushServerConfiguration {
 	if (environment.WEB_PUSH_ENABLED !== "true") {
 		return {

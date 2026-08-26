@@ -1,9 +1,10 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { type ThreadState, threadItemSchema } from "@/contracts/thread.schema";
 import { unexpectedFailure } from "@/server/errors/domain-error";
 import { mapPostgrestError } from "@/server/errors/error-mapper";
 import type { RequestMetrics } from "@/server/observability/request-metrics";
+import type { ThreadPageCursor, ThreadStore } from "@/server/ports/thread.store";
+import type { AppSupabaseClient } from "@/types/supabase";
 
 const statsSnapshotSchema = z.object({
 	rows: z.array(
@@ -23,14 +24,9 @@ const statsSnapshotSchema = z.object({
 
 const movedCountSchema = z.coerce.number().int().nonnegative();
 
-export interface ThreadPageCursor {
-	stateChangedAt: string;
-	id: string;
-}
-
-export class ThreadRepository {
+export class ThreadRepository implements ThreadStore {
 	constructor(
-		private readonly supabase: SupabaseClient,
+		private readonly supabase: AppSupabaseClient,
 		private readonly metrics?: RequestMetrics
 	) {}
 
@@ -55,7 +51,7 @@ export class ThreadRepository {
 				p_cursor_id: input.cursor?.id ?? null,
 				p_filter_type: input.filterType,
 				p_filter_site: input.filterSite,
-			});
+			} as never);
 			if (error) throw mapPostgrestError(error, "스레드 목록을 불러오지 못했습니다.");
 
 			const parsed = z.array(threadItemSchema).safeParse(data ?? []);
@@ -71,7 +67,7 @@ export class ThreadRepository {
 			const { data, error } = await this.supabase.rpc("get_thread_stats_with_normal_sites", {
 				p_state: state,
 				p_filter_type: filterType,
-			});
+			} as never);
 			if (error) throw mapPostgrestError(error, "스레드 통계를 불러오지 못했습니다.");
 
 			const parsed = statsSnapshotSchema.safeParse(data);
@@ -92,7 +88,7 @@ export class ThreadRepository {
 				p_thread_id: input.id,
 				p_expected_state: input.expectedState,
 				p_destination_state: input.destinationState,
-			});
+			} as never);
 			if (error) throw mapPostgrestError(error, "스레드 상태를 변경하지 못했습니다.");
 
 			const parsed = threadItemSchema.safeParse(data);

@@ -16,15 +16,16 @@ function claimedJob(
 		provider: "youtube",
 		url,
 		attempt_count: overrides.attempt_count ?? 1,
-		lease_token: overrides.lease_token ?? `lease-${threadId}`,
+		lease_token: overrides.lease_token ?? leaseToken(threadId),
 		lease_expires_at: "2026-07-27T01:00:00.000Z",
 	};
 }
 
-function createQueueClient(
-	jobs: ReturnType<typeof claimedJob>[],
-	options: { rejectLifecycle?: boolean } = {}
-) {
+function leaseToken(threadId: number) {
+	return `00000000-0000-4000-8000-${threadId.toString().padStart(12, "0")}`;
+}
+
+function createQueueClient(jobs: unknown[], options: { rejectLifecycle?: boolean } = {}) {
 	const rpc = vi.fn(async (name: string) => {
 		if (name === "claim_media_enrichment_jobs") {
 			return { data: jobs, error: null };
@@ -79,8 +80,8 @@ describe("runYouTubeEnrichmentWorker", () => {
 		expect(rpc).toHaveBeenCalledWith(
 			"complete_media_enrichment_job",
 			expect.objectContaining({
-				p_thread_id: 2,
-				p_lease_token: "lease-2",
+				p_thread_id: "2",
+				p_lease_token: leaseToken(2),
 				p_metadata: expect.objectContaining({
 					status: "ready",
 					media_kind: "short",
@@ -91,8 +92,8 @@ describe("runYouTubeEnrichmentWorker", () => {
 		expect(rpc).toHaveBeenCalledWith(
 			"complete_media_enrichment_job",
 			expect.objectContaining({
-				p_thread_id: 3,
-				p_lease_token: "lease-3",
+				p_thread_id: "3",
+				p_lease_token: leaseToken(3),
 				p_metadata: expect.objectContaining({
 					status: "ready",
 					media_kind: "live",
@@ -103,8 +104,8 @@ describe("runYouTubeEnrichmentWorker", () => {
 		expect(rpc).toHaveBeenCalledWith(
 			"complete_media_enrichment_job",
 			expect.objectContaining({
-				p_thread_id: 4,
-				p_lease_token: "lease-4",
+				p_thread_id: "4",
+				p_lease_token: leaseToken(4),
 				p_metadata: expect.objectContaining({
 					status: "ready",
 					media_kind: "live",
@@ -115,8 +116,8 @@ describe("runYouTubeEnrichmentWorker", () => {
 		expect(rpc).toHaveBeenCalledWith(
 			"complete_media_enrichment_job",
 			expect.objectContaining({
-				p_thread_id: 5,
-				p_lease_token: "lease-5",
+				p_thread_id: "5",
+				p_lease_token: leaseToken(5),
 				p_metadata: expect.objectContaining({
 					status: "unavailable",
 					last_error_code: "YOUTUBE_NOT_RETURNED",
@@ -127,8 +128,8 @@ describe("runYouTubeEnrichmentWorker", () => {
 		expect(rpc).toHaveBeenCalledWith(
 			"complete_media_enrichment_job",
 			expect.objectContaining({
-				p_thread_id: 6,
-				p_lease_token: "lease-6",
+				p_thread_id: "6",
+				p_lease_token: leaseToken(6),
 				p_metadata: expect.objectContaining({
 					status: "unsupported",
 					last_error_code: "YOUTUBE_UNSUPPORTED_URL",
@@ -136,8 +137,8 @@ describe("runYouTubeEnrichmentWorker", () => {
 			})
 		);
 		expect(rpc).toHaveBeenCalledWith("fail_media_enrichment_job", {
-			p_thread_id: 7,
-			p_lease_token: "lease-7",
+			p_thread_id: "7",
+			p_lease_token: leaseToken(7),
 			p_error_code: "YOUTUBE_INVALID_VIDEO_ID",
 		});
 	});
@@ -176,8 +177,8 @@ describe("runYouTubeEnrichmentWorker", () => {
 
 		expect(result.retriedCount).toBe(1);
 		expect(rpc).toHaveBeenCalledWith("retry_media_enrichment_job", {
-			p_thread_id: 10,
-			p_lease_token: "lease-10",
+			p_thread_id: "10",
+			p_lease_token: leaseToken(10),
 			p_error_code: errorCode,
 			p_available_at: "2026-07-27T00:01:00.000Z",
 		});
@@ -202,8 +203,8 @@ describe("runYouTubeEnrichmentWorker", () => {
 
 		expect(result).toMatchObject({ retriedCount: 1, failedCount: 0 });
 		expect(rpc).toHaveBeenCalledWith("retry_media_enrichment_job", {
-			p_thread_id: 11,
-			p_lease_token: "lease-11",
+			p_thread_id: "11",
+			p_lease_token: leaseToken(11),
 			p_error_code: "YOUTUBE_QUOTA_EXCEEDED",
 			p_available_at: "2026-07-28T01:00:00.000Z",
 		});
@@ -227,8 +228,8 @@ describe("runYouTubeEnrichmentWorker", () => {
 
 		expect(result).toMatchObject({ retriedCount: 0, failedCount: 1 });
 		expect(rpc).toHaveBeenCalledWith("fail_media_enrichment_job", {
-			p_thread_id: 12,
-			p_lease_token: "lease-12",
+			p_thread_id: "12",
+			p_lease_token: leaseToken(12),
 			p_error_code: "YOUTUBE_QUOTA_MAX_ATTEMPTS",
 		});
 	});
@@ -247,8 +248,8 @@ describe("runYouTubeEnrichmentWorker", () => {
 
 		expect(result).toMatchObject({ retriedCount: 0, failedCount: 1 });
 		expect(rpc).toHaveBeenCalledWith("fail_media_enrichment_job", {
-			p_thread_id: 20,
-			p_lease_token: "lease-20",
+			p_thread_id: "20",
+			p_lease_token: leaseToken(20),
 			p_error_code: "YOUTUBE_MAX_ATTEMPTS",
 		});
 		expect(rpc).not.toHaveBeenCalledWith("retry_media_enrichment_job", expect.anything());
@@ -268,7 +269,7 @@ describe("runYouTubeEnrichmentWorker", () => {
 		expect(result).toMatchObject({ readyCount: 0, leaseRejectedCount: 1 });
 		expect(rpc).toHaveBeenCalledWith(
 			"complete_media_enrichment_job",
-			expect.objectContaining({ p_thread_id: 30, p_lease_token: "lease-30" })
+			expect.objectContaining({ p_thread_id: "30", p_lease_token: leaseToken(30) })
 		);
 	});
 
@@ -287,7 +288,7 @@ describe("runYouTubeEnrichmentWorker", () => {
 		expect(result).toMatchObject({ retriedCount: 0, leaseRejectedCount: 1 });
 		expect(rpc).toHaveBeenCalledWith(
 			"retry_media_enrichment_job",
-			expect.objectContaining({ p_thread_id: 31, p_lease_token: "lease-31" })
+			expect.objectContaining({ p_thread_id: "31", p_lease_token: leaseToken(31) })
 		);
 	});
 
@@ -298,5 +299,18 @@ describe("runYouTubeEnrichmentWorker", () => {
 			runYouTubeEnrichmentWorker(client, { apiKey: "   ", fetchImpl: vi.fn() })
 		).rejects.toMatchObject({ code: "YOUTUBE_API_KEY_MISSING" });
 		expect(rpc).not.toHaveBeenCalled();
+	});
+
+	it("claim 응답의 lease 필드가 누락되면 queue 계약 오류로 실패한다", async () => {
+		const incompleteJob = claimedJob(40, "https://www.youtube.com/watch?v=abcDEF12345");
+		const { lease_expires_at: _leaseExpiresAt, ...invalidJob } = incompleteJob;
+		const { client } = createQueueClient([invalidJob]);
+
+		await expect(
+			runYouTubeEnrichmentWorker(client, {
+				apiKey: "fixture-api-key",
+				fetchImpl: vi.fn(),
+			})
+		).rejects.toMatchObject({ code: "YOUTUBE_INVALID_CLAIM_RESPONSE" });
 	});
 });

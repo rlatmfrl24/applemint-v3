@@ -96,7 +96,7 @@ describe("POST /api/crawl/scheduled", () => {
 			"battlepage",
 			createServiceRoleClientMock.mock.results[0].value,
 			undefined,
-			{ trigger: "scheduled" }
+			{ trigger: "scheduled", requestId: expect.any(String) }
 		);
 	});
 
@@ -110,7 +110,7 @@ describe("POST /api/crawl/scheduled", () => {
 			"issuelink",
 			createServiceRoleClientMock.mock.results[0].value,
 			undefined,
-			{ trigger: "scheduled" }
+			{ trigger: "scheduled", requestId: expect.any(String) }
 		);
 	});
 

@@ -1,6 +1,16 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CrawlAdmissionReason, CrawlCommandSuccess } from "@/contracts/crawl-command.schema";
+import {
+	type CrawlStartRawResponse,
+	crawlContractFailureRawResponseSchema,
+	crawlFinishRawResponseSchema,
+	crawlHeartbeatRawResponseSchema,
+	crawlHistoryRowsRawResponseSchema,
+	crawlIngestRawResponseSchema,
+	crawlStartRawResponseSchema,
+} from "@/contracts/crawl-pipeline.schema";
 import type { CrawlItemType } from "@/lib/type-defs";
+import type { Json } from "@/types/database.types";
+import type { AppSupabaseClient } from "@/types/supabase";
 import {
 	type CrawlAdapterOptions,
 	type CrawlExecutionResult,
@@ -21,9 +31,6 @@ import {
 } from "./pipeline-helpers";
 
 const CRAWL_LOCK_TTL_SECONDS = 60;
-const DEFAULT_RUN_BUDGET_SECONDS = 45;
-const DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 15;
-
 type CrawlRunTrigger = "manual" | "scheduled";
 
 interface CrawlRunHandle {
@@ -60,20 +67,9 @@ type CrawlRunner = (
 	options?: CrawlAdapterOptions
 ) => Promise<CrawlExecutionResult>;
 
-interface CrawlPipelineOptions {
+export interface CrawlPipelineOptions {
 	trigger?: CrawlRunTrigger;
-}
-
-interface CrawlStartResult {
-	acquired?: boolean;
-	runId?: string;
-	activeRunId?: string | null;
-	reason?: CrawlAdmissionReason;
-	nextEligibleAt?: string | null;
-	retryAfterSeconds?: number;
-	lockKey?: string;
-	runBudgetSeconds?: number;
-	heartbeatIntervalSeconds?: number;
+	requestId?: string;
 }
 
 function getAdmissionMessage(reason: CrawlAdmissionReason) {
@@ -86,38 +82,54 @@ function getAdmissionMessage(reason: CrawlAdmissionReason) {
 	return messages[reason];
 }
 
-function createAdmissionError(result: CrawlStartResult, trigger: CrawlRunTrigger) {
-	const reason = result.reason ?? "source-busy";
+function createAdmissionError(
+	result: Exclude<CrawlStartRawResponse, { acquired: true }>,
+	trigger: CrawlRunTrigger
+) {
+	const reason = result.reason;
 	return new CrawlPipelineError(
 		getAdmissionMessage(reason),
 		trigger === "scheduled" && reason === "capacity" ? 429 : 409,
 		"unknown",
 		null,
 		undefined,
-		result.activeRunId ?? null,
+		"activeRunId" in result ? (result.activeRunId ?? null) : null,
 		reason,
-		result.nextEligibleAt ?? null,
-		Number(result.retryAfterSeconds ?? 30)
+		"nextEligibleAt" in result ? result.nextEligibleAt : null,
+		"retryAfterSeconds" in result ? result.retryAfterSeconds : undefined
 	);
 }
 
-function createRunHandle(result: CrawlStartResult, lockToken: string, target: CrawlTarget) {
-	if (typeof result.runId !== "string") {
-		throw new CrawlPipelineError("Crawl run could not be created.", 500, "unknown");
-	}
+function createRunHandle(
+	result: Extract<CrawlStartRawResponse, { acquired: true }>,
+	lockToken: string
+) {
 	return {
 		runId: result.runId,
 		lockToken,
-		lockKey: result.lockKey ?? `crawl:${target}`,
-		runBudgetSeconds: Number(result.runBudgetSeconds ?? DEFAULT_RUN_BUDGET_SECONDS),
-		heartbeatIntervalSeconds: Number(
-			result.heartbeatIntervalSeconds ?? DEFAULT_HEARTBEAT_INTERVAL_SECONDS
-		),
+		lockKey: result.lockKey,
+		runBudgetSeconds: result.runBudgetSeconds,
+		heartbeatIntervalSeconds: result.heartbeatIntervalSeconds,
 	};
 }
 
+function invalidRpcResponse(name: string, stage: CrawlErrorStage) {
+	return new CrawlPipelineError(`${name} 응답 계약이 올바르지 않습니다.`, 500, stage);
+}
+
+function getSafeRunErrorMessage(stage: CrawlErrorStage) {
+	const messages: Record<CrawlErrorStage, string> = {
+		source: "수집 소스 처리에 실패했습니다.",
+		filter: "수집 필터 처리에 실패했습니다.",
+		history: "수집 이력 확인에 실패했습니다.",
+		ingest: "수집 항목 저장에 실패했습니다.",
+		unknown: "크롤링 실행 계약 처리에 실패했습니다.",
+	};
+	return messages[stage];
+}
+
 async function beginCrawlRun(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	target: CrawlTarget,
 	trigger: CrawlRunTrigger
 ): Promise<CrawlRunHandle> {
@@ -132,47 +144,62 @@ async function beginCrawlRun(
 		throw new CrawlPipelineError(error.message, 500, "unknown");
 	}
 
-	const result = (data ?? {}) as CrawlStartResult;
+	const parsed = crawlStartRawResponseSchema.safeParse(data);
+	if (!parsed.success) {
+		throw invalidRpcResponse(rpcName, "unknown");
+	}
+	const result = parsed.data;
 	if (!result.acquired) {
 		throw createAdmissionError(result, trigger);
 	}
-	return createRunHandle(result, lockToken, target);
+	return createRunHandle(result, lockToken);
 }
 
 function startLeaseHeartbeat(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	handle: CrawlRunHandle,
-	abortController: AbortController
+	abortController: AbortController,
+	requestId?: string
 ) {
 	let consecutiveErrors = 0;
 	let inFlight: Promise<void> | null = null;
 	let leaseFailure: Error | null = null;
+	const failLease = (error: Error) => {
+		leaseFailure = error;
+		abortController.abort(error);
+	};
 	const renew = async () => {
 		const { data, error } = await supabase.rpc("heartbeat_crawl_run", {
 			p_run_id: handle.runId,
 			p_lock_token: handle.lockToken,
-		});
+		} as never);
 		if (error) {
 			consecutiveErrors += 1;
 			console.error("[crawl] heartbeat_failed", {
+				requestId,
 				runId: handle.runId,
 				consecutiveErrors,
 				message: error.message,
 			});
 			if (consecutiveErrors >= 2) {
-				leaseFailure = new Error("크롤링 잠금 heartbeat가 연속으로 실패했습니다.");
-				leaseFailure.name = "CrawlLeaseError";
-				abortController.abort(leaseFailure);
+				const error = new Error("크롤링 잠금 heartbeat가 연속으로 실패했습니다.");
+				error.name = "CrawlLeaseError";
+				failLease(error);
 			}
 			return;
 		}
 
 		consecutiveErrors = 0;
-		const result = (data ?? {}) as { renewed?: boolean };
+		const parsed = crawlHeartbeatRawResponseSchema.safeParse(data);
+		if (!parsed.success) {
+			failLease(invalidRpcResponse("heartbeat_crawl_run", "unknown"));
+			return;
+		}
+		const result = parsed.data;
 		if (!result.renewed) {
-			leaseFailure = new Error("크롤링 잠금 소유권을 잃었습니다.");
-			leaseFailure.name = "CrawlLeaseError";
-			abortController.abort(leaseFailure);
+			const error = new Error("크롤링 잠금 소유권을 잃었습니다.");
+			error.name = "CrawlLeaseError";
+			failLease(error);
 		}
 	};
 	const timer = setInterval(() => {
@@ -191,7 +218,7 @@ function startLeaseHeartbeat(
 	};
 }
 
-async function loadFilterKeywords(supabase: SupabaseClient) {
+async function loadFilterKeywords(supabase: AppSupabaseClient) {
 	const { data, error } = await supabase.from("filter-keyword").select("value, method");
 	if (error) {
 		throw new CrawlPipelineError(error.message, 500, "filter");
@@ -199,7 +226,7 @@ async function loadFilterKeywords(supabase: SupabaseClient) {
 	return (data ?? []) as FilterKeyword[];
 }
 
-async function getExistingUrls(supabase: SupabaseClient, target: CrawlTarget, urls: string[]) {
+async function getExistingUrls(supabase: AppSupabaseClient, target: CrawlTarget, urls: string[]) {
 	const existingUrls = new Set<string>();
 	for (const chunk of chunkUrlsForHistoryQuery(urls)) {
 		const { data, error } = await supabase
@@ -210,17 +237,19 @@ async function getExistingUrls(supabase: SupabaseClient, target: CrawlTarget, ur
 		if (error) {
 			throw new CrawlPipelineError(error.message, 500, "history");
 		}
-		for (const row of (data ?? []) as { url: string | null }[]) {
-			if (typeof row.url === "string") {
-				existingUrls.add(row.url);
-			}
+		const parsed = crawlHistoryRowsRawResponseSchema.safeParse(data);
+		if (!parsed.success) {
+			throw invalidRpcResponse("crawl-history", "history");
+		}
+		for (const row of parsed.data) {
+			existingUrls.add(row.url);
 		}
 	}
 	return existingUrls;
 }
 
 async function prepareItems(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	target: CrawlTarget,
 	crawlData: CrawlExecutionResult,
 	filterList: FilterKeyword[]
@@ -240,37 +269,45 @@ async function prepareItems(
 }
 
 async function ingestItems(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	target: CrawlTarget,
 	items: PreparedCrawlItem[]
 ) {
 	const { data, error } = await supabase.rpc("ingest_crawl_items", {
 		p_crawl_source: target,
-		p_items: items,
+		p_items: items as unknown as Json,
 	});
 	if (error) {
 		throw new CrawlPipelineError(error.message, 500, "ingest");
 	}
-	return (data ?? {}) as { insertedCount?: number; skippedCount?: number };
+	const parsed = crawlIngestRawResponseSchema.safeParse(data);
+	if (!parsed.success) {
+		throw invalidRpcResponse("ingest_crawl_items", "ingest");
+	}
+	return parsed.data;
 }
 
 async function finishCrawlRun(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	handle: CrawlRunHandle,
 	result: ReturnType<typeof createRunResult>
 ) {
 	const { data, error } = await supabase.rpc("finish_crawl_run", {
 		p_run_id: handle.runId,
 		p_lock_token: handle.lockToken,
-		p_result: result,
-	});
+		p_result: result as unknown as Json,
+	} as never);
 	if (error) {
 		throw new CrawlPipelineError(error.message, 500, "unknown");
 	}
-	return (data ?? {}) as { durationMs?: number };
+	const parsed = crawlFinishRawResponseSchema.safeParse(data);
+	if (!parsed.success) {
+		throw invalidRpcResponse("finish_crawl_run", "unknown");
+	}
+	return parsed.data;
 }
 
-async function releaseCrawlLockFallback(supabase: SupabaseClient, handle: CrawlRunHandle) {
+async function releaseCrawlLockFallback(supabase: AppSupabaseClient, handle: CrawlRunHandle) {
 	const { error } = await supabase.rpc("release_crawl_lock", {
 		p_lock_key: handle.lockKey,
 		p_lock_token: handle.lockToken,
@@ -278,6 +315,28 @@ async function releaseCrawlLockFallback(supabase: SupabaseClient, handle: CrawlR
 	if (error) {
 		console.error("[crawl] lock_release_failed", { message: error.message });
 	}
+}
+
+async function recordCrawlContractFailure(
+	supabase: AppSupabaseClient,
+	handle: CrawlRunHandle,
+	stage: CrawlErrorStage,
+	message: string
+) {
+	const { data, error } = await supabase.rpc("record_crawl_run_contract_failure", {
+		p_run_id: handle.runId,
+		p_lock_token: handle.lockToken,
+		p_error_stage: stage,
+		p_error_message: message,
+	} as never);
+	if (error) {
+		throw new CrawlPipelineError(error.message, 500, "unknown");
+	}
+	const parsed = crawlContractFailureRawResponseSchema.safeParse(data);
+	if (!parsed.success) {
+		throw invalidRpcResponse("record_crawl_run_contract_failure", "unknown");
+	}
+	return parsed.data;
 }
 
 function normalizePipelineError(error: unknown, crawlData: CrawlExecutionResult | null) {
@@ -314,18 +373,19 @@ function assertSuccessfulSourceResult(crawlData: CrawlExecutionResult) {
 
 export async function executeCrawlPipeline(
 	target: CrawlTarget,
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	runCrawler: CrawlRunner = (crawlTarget, adapterOptions) =>
 		runCrawlerWithRetry(crawlTarget, undefined, undefined, adapterOptions),
 	options: CrawlPipelineOptions = {}
 ): Promise<CrawlCommandSuccess> {
 	const trigger = options.trigger ?? "manual";
+	const requestId = options.requestId;
 	const handle = await beginCrawlRun(supabase, target, trigger);
 	const abortController = new AbortController();
 	const budgetTimer = setTimeout(() => {
 		abortController.abort(new DOMException("Crawl run budget exceeded.", "TimeoutError"));
 	}, handle.runBudgetSeconds * 1000);
-	const heartbeat = startLeaseHeartbeat(supabase, handle, abortController);
+	const heartbeat = startLeaseHeartbeat(supabase, handle, abortController, requestId);
 	let crawlData: CrawlExecutionResult | null = null;
 	let finalized = false;
 	let heartbeatStopped = false;
@@ -334,11 +394,15 @@ export async function executeCrawlPipeline(
 		heartbeatStopped = true;
 		await heartbeat.stop();
 	};
-	console.info("[crawl] run_started", { runId: handle.runId, target, trigger });
+	console.info("[crawl] run_started", { requestId, runId: handle.runId, target, trigger });
 
 	try {
 		try {
-			crawlData = await runCrawler(target, { signal: abortController.signal });
+			crawlData = await runCrawler(target, {
+				signal: abortController.signal,
+				requestId,
+				runId: handle.runId,
+			});
 			if (heartbeat.getFailure()) throw heartbeat.getFailure();
 			assertSuccessfulSourceResult(crawlData);
 		} catch (error) {
@@ -348,8 +412,8 @@ export async function executeCrawlPipeline(
 		const filterList = await loadFilterKeywords(supabase);
 		const prepared = await prepareItems(supabase, target, crawlData, filterList);
 		const counts = await ingestItems(supabase, target, prepared.items);
-		const insertedCount = Number(counts.insertedCount ?? 0);
-		const skippedCount = prepared.existingCount + Number(counts.skippedCount ?? 0);
+		const insertedCount = counts.insertedCount;
+		const skippedCount = prepared.existingCount + counts.skippedCount;
 		const status = getCompletedRunStatus(crawlData);
 		await stopHeartbeat();
 		const completion = await finishCrawlRun(
@@ -358,8 +422,9 @@ export async function executeCrawlPipeline(
 			createRunResult(status, crawlData, insertedCount, skippedCount)
 		);
 		finalized = true;
-		const durationMs = Number(completion.durationMs ?? 0);
+		const durationMs = completion.durationMs;
 		console.info("[crawl] run_completed", {
+			requestId,
 			runId: handle.runId,
 			target,
 			status,
@@ -380,6 +445,7 @@ export async function executeCrawlPipeline(
 	} catch (error) {
 		await stopHeartbeat();
 		const pipelineError = normalizePipelineError(error, crawlData);
+		const safeErrorMessage = getSafeRunErrorMessage(pipelineError.stage);
 		try {
 			await finishCrawlRun(
 				supabase,
@@ -390,19 +456,36 @@ export async function executeCrawlPipeline(
 					0,
 					0,
 					pipelineError.stage,
-					pipelineError.message
+					safeErrorMessage
 				)
 			);
 			finalized = true;
 		} catch (finishError) {
 			console.error("[crawl] run_finalization_failed", {
+				requestId,
 				runId: handle.runId,
 				target,
 				message: getErrorMessage(finishError),
 			});
+			try {
+				finalized = await recordCrawlContractFailure(
+					supabase,
+					handle,
+					pipelineError.stage,
+					safeErrorMessage
+				);
+			} catch (recordError) {
+				console.error("[crawl] contract_failure_record_failed", {
+					requestId,
+					runId: handle.runId,
+					target,
+					message: getErrorMessage(recordError),
+				});
+			}
 		}
 
 		console.error("[crawl] run_failed", {
+			requestId,
 			runId: handle.runId,
 			target,
 			stage: pipelineError.stage,

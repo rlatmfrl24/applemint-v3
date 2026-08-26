@@ -1,13 +1,22 @@
-import type { PushSubscriptionInput } from "@/contracts/push.schema";
+import type { PushSendTestResult, PushSubscriptionInput } from "@/contracts/push.schema";
 import { DomainError } from "@/server/errors/domain-error";
+import type { PushStore } from "@/server/ports/push.store";
 import { getWebPushServerConfiguration } from "@/server/push/configuration";
-import { sendWebPushTest } from "@/server/push/test-sender";
-import type { PushRepository } from "@/server/repositories/push.repository";
+
+export type PushTestSender = (endpoint: string) => Promise<PushSendTestResult>;
+
+const unavailablePushTestSender: PushTestSender = async () => {
+	throw new DomainError(
+		"ConfigurationUnavailable",
+		"Web Push 테스트 처리 경로가 준비되지 않았습니다.",
+		{ reasonCode: "push-test-route-missing" }
+	);
+};
 
 export class PushService {
 	constructor(
-		private readonly repository: PushRepository,
-		private readonly sendTestNotification = sendWebPushTest
+		private readonly store: PushStore,
+		private readonly sendTestNotification: PushTestSender = unavailablePushTestSender
 	) {}
 
 	configuration() {
@@ -21,19 +30,19 @@ export class PushService {
 				reasonCode: configuration.public.reason ?? "configuration-missing",
 			});
 		}
-		return this.repository.subscribe(input);
+		return this.store.subscribe(input);
 	}
 
 	status(endpoint: string) {
-		return this.repository.status(endpoint);
+		return this.store.status(endpoint);
 	}
 
 	unsubscribe(endpoint: string) {
-		return this.repository.unsubscribe(endpoint);
+		return this.store.unsubscribe(endpoint);
 	}
 
 	acknowledgeInbox(endpoint: string) {
-		return this.repository.acknowledgeInbox(endpoint);
+		return this.store.acknowledgeInbox(endpoint);
 	}
 
 	sendTest(endpoint: string) {
@@ -43,6 +52,6 @@ export class PushService {
 				reasonCode: configuration.public.reason ?? "configuration-missing",
 			});
 		}
-		return this.sendTestNotification(endpoint, configuration);
+		return this.sendTestNotification(endpoint);
 	}
 }

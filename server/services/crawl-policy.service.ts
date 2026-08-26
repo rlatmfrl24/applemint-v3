@@ -1,16 +1,16 @@
 import type { CrawlPolicyUpdateInput } from "@/contracts/crawl-policy.schema";
 import { DomainError } from "@/server/errors/domain-error";
-import type { CrawlPolicyRepository } from "@/server/repositories/crawl-policy.repository";
+import type { CrawlPolicyStore } from "@/server/ports/crawl-policy.store";
 
 export class CrawlPolicyService {
-	constructor(private readonly repository: CrawlPolicyRepository) {}
+	constructor(private readonly store: CrawlPolicyStore) {}
 
 	get() {
-		return this.repository.get();
+		return this.store.get();
 	}
 
 	async update(input: CrawlPolicyUpdateInput) {
-		const result = await this.repository.update(input);
+		const result = await this.store.update(input);
 		if (!result.updated) {
 			throw new DomainError(
 				"StateConflict",

@@ -1,6 +1,8 @@
 import { type CookieOptions, createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { getClientEnvironment } from "@/lib/env/client";
 import { resolveRequestId } from "@/lib/request-id";
+import type { Database } from "@/types/database.types";
 
 const FORWARDED_HEADER_ALLOWLIST = [
 	"accept-language",
@@ -60,37 +62,41 @@ export const updateSession = async (request: NextRequest) => {
 			{ name: string; value: string; options: CookieOptions }
 		>();
 		const authHeaders = new Headers();
-		const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-		const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-		if (!supabaseUrl || !supabasePublishableKey) {
+		let environment: ReturnType<typeof getClientEnvironment>;
+		try {
+			environment = getClientEnvironment();
+		} catch {
 			return response;
 		}
 
-		const supabase = createServerClient(supabaseUrl, supabasePublishableKey, {
-			cookies: {
-				getAll() {
-					return request.cookies.getAll().map(({ name, value }) => ({ name, value }));
-				},
-				setAll(cookiesToSet, headers) {
-					for (const cookie of cookiesToSet) {
-						request.cookies.set(cookie.name, cookie.value);
-						pendingCookies.set(cookie.name, cookie);
-					}
-					for (const [name, value] of Object.entries(headers)) {
-						authHeaders.set(name, value);
-					}
+		const supabase = createServerClient<Database>(
+			environment.NEXT_PUBLIC_SUPABASE_URL,
+			environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+			{
+				cookies: {
+					getAll() {
+						return request.cookies.getAll().map(({ name, value }) => ({ name, value }));
+					},
+					setAll(cookiesToSet, headers) {
+						for (const cookie of cookiesToSet) {
+							request.cookies.set(cookie.name, cookie.value);
+							pendingCookies.set(cookie.name, cookie);
+						}
+						for (const [name, value] of Object.entries(headers)) {
+							authHeaders.set(name, value);
+						}
 
-					response = createForwardedResponse(request, requestId);
-					for (const cookie of pendingCookies.values()) {
-						response.cookies.set(cookie.name, cookie.value, cookie.options);
-					}
-					authHeaders.forEach((value, name) => {
-						response.headers.set(name, value);
-					});
+						response = createForwardedResponse(request, requestId);
+						for (const cookie of pendingCookies.values()) {
+							response.cookies.set(cookie.name, cookie.value, cookie.options);
+						}
+						authHeaders.forEach((value, name) => {
+							response.headers.set(name, value);
+						});
+					},
 				},
-			},
-		});
+			}
+		);
 
 		// Validate claims early so an expired session can be refreshed before the response is committed.
 		// https://supabase.com/docs/guides/auth/server-side/nextjs

@@ -1,4 +1,3 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import {
 	type CrawlPolicyUpdateInput,
 	crawlPolicySettingsSchema,
@@ -7,10 +6,12 @@ import {
 import { unexpectedFailure } from "@/server/errors/domain-error";
 import { mapPostgrestError } from "@/server/errors/error-mapper";
 import type { RequestMetrics } from "@/server/observability/request-metrics";
+import type { CrawlPolicyStore } from "@/server/ports/crawl-policy.store";
+import type { AppSupabaseClient } from "@/types/supabase";
 
-export class CrawlPolicyRepository {
+export class CrawlPolicyRepository implements CrawlPolicyStore {
 	constructor(
-		private readonly supabase: SupabaseClient,
+		private readonly supabase: AppSupabaseClient,
 		private readonly metrics?: RequestMetrics
 	) {}
 

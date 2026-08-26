@@ -30,10 +30,22 @@ export async function runCrawlerWithRetry(
 	options: CrawlAdapterOptions = {}
 ): Promise<CrawlExecutionResult> {
 	let firstAttempt: CrawlSourceResult;
+	debugLog("[crawl] source_attempt_started", {
+		requestId: options.requestId,
+		runId: options.runId,
+		target,
+		attempt: 1,
+	});
 	try {
 		firstAttempt = await crawler(options);
 	} catch {
-		debugLog(`[Crawl] ${target} 소스 실행 실패, 1000ms 후 전체 재시도`);
+		debugLog("[crawl] source_attempt_retry", {
+			requestId: options.requestId,
+			runId: options.runId,
+			target,
+			attempt: 2,
+			reason: "source-threw",
+		});
 		await delay(1000);
 		options.signal?.throwIfAborted();
 		const retryAttempt = await crawler(options);
@@ -59,7 +71,12 @@ export async function runCrawlerWithRetry(
 		(failure) => failure.kind === "upstream-challenge"
 	);
 	if (FULL_RETRY_TARGETS.has(target) && hasUpstreamChallenge) {
-		debugLog(`[Crawl] ${target} upstream challenge가 포함되어 전체 재시도를 생략합니다.`);
+		debugLog("[crawl] source_retry_skipped", {
+			requestId: options.requestId,
+			runId: options.runId,
+			target,
+			reason: "upstream-challenge",
+		});
 		return aggregateCrawlAttempts([firstAttempt]);
 	}
 
@@ -71,11 +88,23 @@ export async function runCrawlerWithRetry(
 		)
 	);
 	if (retryUrls.length === 0) {
-		debugLog(`[Crawl] ${target} 재시도 불가능한 upstream challenge 감지`);
+		debugLog("[crawl] source_retry_skipped", {
+			requestId: options.requestId,
+			runId: options.runId,
+			target,
+			reason: "no-retryable-url",
+		});
 		return aggregateCrawlAttempts([firstAttempt]);
 	}
 
-	debugLog(`[Crawl] ${target} 실패 작업 ${retryUrls.length}개, 1000ms 후 선택 재시도`);
+	debugLog("[crawl] source_attempt_retry", {
+		requestId: options.requestId,
+		runId: options.runId,
+		target,
+		attempt: 2,
+		retryUrlCount: retryUrls.length,
+		reason: "retryable-failures",
+	});
 	await delay(1000);
 	if (options.signal?.aborted) {
 		return aggregateCrawlAttempts([firstAttempt]);

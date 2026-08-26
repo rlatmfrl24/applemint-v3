@@ -96,7 +96,9 @@ describe("POST /api/crawl/manual", () => {
 		expect(await response.json()).toMatchObject({ runId: "42", insertedCount: 3 });
 		expect(executeCrawlPipelineMock).toHaveBeenCalledWith(
 			"arcalive",
-			createServiceRoleClientMock.mock.results[0].value
+			createServiceRoleClientMock.mock.results[0].value,
+			undefined,
+			{ requestId: expect.any(String) }
 		);
 	});
 
@@ -108,7 +110,9 @@ describe("POST /api/crawl/manual", () => {
 		expect(response.status).toBe(200);
 		expect(executeCrawlPipelineMock).toHaveBeenCalledWith(
 			"issuelink",
-			createServiceRoleClientMock.mock.results[0].value
+			createServiceRoleClientMock.mock.results[0].value,
+			undefined,
+			{ requestId: expect.any(String) }
 		);
 	});
 

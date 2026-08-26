@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CrawlPolicyRepository } from "@/server/repositories/crawl-policy.repository";
+import type { CrawlPolicyStore } from "@/server/ports/crawl-policy.store";
 import { crawlPolicySettings, NOW } from "@/test/support/communication";
 import { CrawlPolicyService } from "./crawl-policy.service";
 
 describe("CrawlPolicyService", () => {
 	it("정책 조회를 repository에 위임한다", async () => {
 		const repository = { get: vi.fn().mockResolvedValue(crawlPolicySettings) };
-		const service = new CrawlPolicyService(repository as unknown as CrawlPolicyRepository);
+		const service = new CrawlPolicyService(repository as unknown as CrawlPolicyStore);
 		await expect(service.get()).resolves.toEqual(crawlPolicySettings);
 	});
 
@@ -16,7 +16,7 @@ describe("CrawlPolicyService", () => {
 				.fn()
 				.mockResolvedValue({ updated: true, reason: null, settings: crawlPolicySettings }),
 		};
-		const service = new CrawlPolicyService(repository as unknown as CrawlPolicyRepository);
+		const service = new CrawlPolicyService(repository as unknown as CrawlPolicyStore);
 		await expect(
 			service.update({
 				source: "arcalive",
@@ -33,7 +33,7 @@ describe("CrawlPolicyService", () => {
 				.fn()
 				.mockResolvedValue({ updated: false, reason: "conflict", settings: crawlPolicySettings }),
 		};
-		const service = new CrawlPolicyService(repository as unknown as CrawlPolicyRepository);
+		const service = new CrawlPolicyService(repository as unknown as CrawlPolicyStore);
 		const error = await service
 			.update({
 				source: "arcalive",

@@ -1,8 +1,8 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AppSupabaseClient } from "@/types/supabase";
 import { isUnauthenticatedAuthError } from "./auth-error";
 
 export type VerifiedClaims = NonNullable<
-	Awaited<ReturnType<SupabaseClient["auth"]["getClaims"]>>["data"]
+	Awaited<ReturnType<AppSupabaseClient["auth"]["getClaims"]>>["data"]
 >["claims"];
 
 export type AuthenticatedAccessResult =
@@ -15,11 +15,11 @@ export interface AuthAccessMetrics {
 }
 
 export async function checkAuthenticatedAccess(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	metrics?: AuthAccessMetrics
 ): Promise<AuthenticatedAccessResult> {
 	const startedAt = performance.now();
-	let result: Awaited<ReturnType<SupabaseClient["auth"]["getClaims"]>>;
+	let result: Awaited<ReturnType<AppSupabaseClient["auth"]["getClaims"]>>;
 
 	try {
 		result = await supabase.auth.getClaims();

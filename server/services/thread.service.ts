@@ -8,7 +8,7 @@ import type {
 import { getSiteDisplayLabel } from "@/lib/community";
 import { getThreadTypeLabel } from "@/lib/thread-type";
 import { DomainError } from "@/server/errors/domain-error";
-import type { ThreadPageCursor, ThreadRepository } from "@/server/repositories/thread.repository";
+import type { ThreadPageCursor, ThreadStore } from "@/server/ports/thread.store";
 
 const MAX_CURSOR_LENGTH = 512;
 const MAX_POSTGRES_BIGINT = BigInt("9223372036854775807");
@@ -56,11 +56,11 @@ export function decodeThreadCursor(value: string, expectedState: ThreadState): T
 }
 
 export class ThreadService {
-	constructor(private readonly repository: ThreadRepository) {}
+	constructor(private readonly store: ThreadStore) {}
 
 	async list(input: ThreadListInput) {
 		const limit = input.limit ?? 24;
-		const rows = await this.repository.list(input.state, {
+		const rows = await this.store.list(input.state, {
 			limit,
 			cursor: input.cursor ? decodeThreadCursor(input.cursor, input.state) : null,
 			filterType: input.filterType ?? null,
@@ -83,7 +83,7 @@ export class ThreadService {
 	}
 
 	async stats(input: { state: ThreadState; filterType?: string | null }) {
-		const snapshot = await this.repository.stats(input.state, input.filterType ?? null);
+		const snapshot = await this.store.stats(input.state, input.filterType ?? null);
 		const rows = snapshot.rows;
 		const siteRows = snapshot.sites;
 		const promotedNormalCount = siteRows.reduce((total, row) => total + row.count, 0);
@@ -112,10 +112,10 @@ export class ThreadService {
 	}
 
 	transition(input: ThreadTransitionInput) {
-		return this.repository.transition(input);
+		return this.store.transition(input);
 	}
 
 	async bulkTrashInbox() {
-		return { movedCount: await this.repository.bulkTrashInbox() };
+		return { movedCount: await this.store.bulkTrashInbox() };
 	}
 }

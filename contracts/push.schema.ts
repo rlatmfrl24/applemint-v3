@@ -97,6 +97,35 @@ export const pushSendTestResultSchema = z
 	})
 	.strict();
 
+const pushTestInternalErrorSchema = z
+	.object({
+		error: z.string().min(1),
+		code: z.enum([
+			"InvalidInput",
+			"Unauthenticated",
+			"Forbidden",
+			"NotFound",
+			"StateConflict",
+			"CapacityExceeded",
+			"ConfigurationUnavailable",
+			"UpstreamTimeout",
+			"UnexpectedFailure",
+		]),
+		data: z
+			.object({
+				retryAfterSeconds: z.number().int().positive().optional(),
+				reasonCode: z.string().min(1).optional(),
+				requestId: z.string().min(1).optional(),
+			})
+			.strict(),
+	})
+	.strict();
+
+export const pushTestInternalResponseSchema = z.union([
+	pushSendTestResultSchema,
+	pushTestInternalErrorSchema,
+]);
+
 const claimedPushTestSubscriptionSchema = z
 	.object({
 		status: z.literal("claimed"),
@@ -188,3 +217,4 @@ export type WebPushTestPayload = z.infer<typeof webPushTestPayloadSchema>;
 export type PushTestClaimResult = z.infer<typeof pushTestClaimResultSchema>;
 export type ClaimedPushDelivery = z.infer<typeof claimedPushDeliverySchema>;
 export type PushDispatchResult = z.infer<typeof pushDispatchResultSchema>;
+export type PushSendTestResult = z.infer<typeof pushSendTestResultSchema>;

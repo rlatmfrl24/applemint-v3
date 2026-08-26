@@ -5,6 +5,7 @@ import {
 	scheduledCrawlResponseSchema,
 } from "@/contracts/crawl-command.schema";
 import { parseJsonRequest } from "@/lib/http-json";
+import { getInternalSecret } from "@/server/env/features";
 import {
 	type ObservedRequestContext,
 	observeHttpHandler,
@@ -64,7 +65,7 @@ function pipelineErrorResponse(target: CrawlTarget, error: CrawlPipelineError) {
 }
 
 async function handlePost(request: NextRequest, { requestId, metrics }: ObservedRequestContext) {
-	const expectedSecret = process.env.CRAWL_INTERNAL_SECRET;
+	const expectedSecret = getInternalSecret();
 	if (!hasMinimumInternalSecretLength(expectedSecret)) {
 		return NextResponse.json(
 			scheduledCrawlResponseSchema.parse({
@@ -106,6 +107,7 @@ async function handlePost(request: NextRequest, { requestId, metrics }: Observed
 	try {
 		const result = await executeCrawlPipeline(body.data.target, serviceRoleClient, undefined, {
 			trigger: "scheduled",
+			requestId,
 		});
 		metrics.recordResult(result);
 		return NextResponse.json(scheduledCrawlResponseSchema.parse(result));
