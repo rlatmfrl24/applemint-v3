@@ -209,7 +209,7 @@ function findLocalDatabaseContainers() {
 		"--filter",
 		"name=supabase_db_",
 		"--format",
-		"{{.ID}}",
+		"{{.Names}}",
 	])
 		.trim()
 		.split(/\r?\n/u)
@@ -290,6 +290,7 @@ async function main() {
 		publishableKey,
 		secretKey,
 		internalSecret,
+		databaseContainer,
 		ownerEmail: OWNER_EMAIL,
 		ownerPassword,
 	};
