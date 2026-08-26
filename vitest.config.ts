@@ -19,8 +19,10 @@ export default defineConfig({
 			reportsDirectory: "coverage",
 			include: [
 				"app/**/*.{ts,tsx}",
+				"components/**/*.{ts,tsx}",
 				"contracts/**/*.{ts,tsx}",
 				"lib/**/*.{ts,tsx}",
+				"proxy.ts",
 				"server/**/*.{ts,tsx}",
 				"trpc/**/*.{ts,tsx}",
 				"utils/**/*.{ts,tsx}",
@@ -29,10 +31,10 @@ export default defineConfig({
 			// public/sw.js는 raw public asset이므로 public/sw.test.ts가 VM에서 실제 파일 계약을 검증한다.
 			exclude: ["**/*.test.{ts,tsx}", "app/api/crawl/fixtures/**", "public/sw.js"],
 			thresholds: {
-				statements: 50,
-				branches: 44,
-				functions: 44,
-				lines: 50,
+				statements: 65,
+				branches: 55,
+				functions: 60,
+				lines: 65,
 			},
 		},
 	},

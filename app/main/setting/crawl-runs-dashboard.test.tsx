@@ -8,6 +8,7 @@ import type {
 	CrawlSourceSummary,
 } from "@/lib/crawl-run-contract";
 import { CRAWL_RUNS_QUERY_KEY } from "@/lib/crawl-run-query-options";
+import { CrawlRunDetails } from "./crawl-run-details";
 import { CrawlRunsDashboard, getCrawlRunsErrorMessage } from "./crawl-runs-dashboard";
 
 vi.mock("@/trpc/client", () => ({
@@ -263,13 +264,19 @@ describe("CrawlRunsDashboard", () => {
 		expect(html).toContain("부분 성공");
 		expect(html).toContain("중단됨");
 		expect(html).toContain("경고·실패 상세보기");
-		expect(html).toContain("below-minimum-items");
-		expect(html).toContain("upstream-challenge");
-		expect(html).toContain("info · discarded-items");
-		expect(html).toContain("DB 적재 실패");
+		expect(html).not.toContain("below-minimum-items");
 		expect(html).toContain("Arcalive 장애 감지");
 		expect(html).toContain("IssueLink");
 		expect(html).toContain("장애 감지 기준");
+
+		const details = renderToStaticMarkup(<CrawlRunDetails run={runs[0]} />);
+		expect(details).toContain("below-minimum-items");
+		expect(details).toContain("upstream-challenge");
+		expect(details).toContain("후보");
+
+		const errorDetails = renderToStaticMarkup(<CrawlRunDetails run={runs[2]} />);
+		expect(errorDetails).toContain("info · discarded-items");
+		expect(errorDetails).toContain("DB 적재 실패");
 	});
 
 	it("이력이 없을 때 empty 상태를 렌더링한다", () => {

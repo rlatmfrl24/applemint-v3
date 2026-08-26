@@ -1,8 +1,4 @@
-import {
-	type CrawlCommandSuccess,
-	type CrawlTarget,
-	crawlCommandSuccessSchema,
-} from "@/contracts/crawl-command.schema";
+import type { CrawlCommandSuccess, CrawlTarget } from "@/contracts/crawl-command.schema";
 
 export type ManualCrawlResult = CrawlCommandSuccess & { httpStatus: number };
 
@@ -35,6 +31,7 @@ export async function requestManualCrawl(
 	});
 	const data = (await response.json().catch(() => null)) as unknown;
 
+	const { crawlCommandSuccessSchema } = await import("@/contracts/crawl-command.schema");
 	const parsed = crawlCommandSuccessSchema.safeParse(data);
 	if (!response.ok || !parsed.success) {
 		throw new ManualCrawlError(response.status, data);
