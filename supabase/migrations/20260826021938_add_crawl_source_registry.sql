@@ -397,10 +397,13 @@ begin
 		'select source from (values
 			(''arcalive''::text), (''battlepage''), (''insagirl''), (''issuelink'')
 		) as sources(source)',
-		'select registry.source
-		from public.crawl_source_registry as registry
-		where registry.active
-		order by registry.source'
+		'select supported.source
+		from (values
+			(''arcalive''::text), (''battlepage''), (''insagirl''), (''issuelink'')
+		) as supported(source)
+		inner join public.crawl_source_registry as registry
+			on registry.source = supported.source and registry.active
+		order by supported.source'
 	);
 	if v_updated = v_definition then
 		raise exception 'Expected crawl alert source selection contract was not found.';
@@ -421,9 +424,12 @@ begin
 		)
 	)
 	from (
-		select registry.source
-		from public.crawl_source_registry as registry
-		where registry.active
+		select supported.source
+		from (values
+			(''arcalive''::text), (''battlepage''), (''insagirl''), (''issuelink'')
+		) as supported(source)
+		inner join public.crawl_source_registry as registry
+			on registry.source = supported.source and registry.active
 		union
 		select run.source
 		from public.crawl_runs as run

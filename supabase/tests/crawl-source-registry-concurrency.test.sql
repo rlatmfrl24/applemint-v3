@@ -86,7 +86,7 @@ security definer
 set search_path = ''
 as $$
 begin
-	if new.source = 'registryalertrace' then
+	if new.source = 'issuelink' then
 		perform pg_catalog.pg_sleep(0.75);
 	end if;
 	return new;
@@ -105,7 +105,7 @@ security definer
 set search_path = ''
 as $$
 begin
-	if old.source = 'registryalertrace'
+	if old.source = 'issuelink'
 		and old.status = 'running'
 		and new.status = 'interrupted'
 	then
@@ -282,16 +282,6 @@ select is(
 	'alert-race retirement connection opens'
 );
 
-insert into public.crawl_source_registry (source, label, active)
-values ('registryalertrace', 'Registry Alert Race', true);
-insert into public.crawl_source_policies (
-	source,
-	schedule_enabled,
-	cooldown_seconds,
-	recommended_cooldown_seconds,
-	run_budget_seconds
-)
-values ('registryalertrace', false, 3600, 3600, 45);
 insert into public.crawl_runs (
 	source,
 	lock_token,
@@ -307,7 +297,7 @@ insert into public.crawl_runs (
 	parser_minimum_count
 )
 values (
-	'registryalertrace',
+	'issuelink',
 	'94000000-0000-4000-8000-000000000002',
 	'failed',
 	'manual',
@@ -329,7 +319,7 @@ insert into public.crawl_runs (
 	stale_after
 )
 values (
-	'registryalertrace',
+	'issuelink',
 	'94000000-0000-4000-8000-000000000005',
 	'running',
 	'manual',
@@ -353,7 +343,7 @@ select is(
 		$$
 			update public.crawl_source_registry
 			set active = false, retired_at = now(), updated_at = now()
-			where source = 'registryalertrace'
+			where source = 'issuelink'
 			returning source
 		$$
 	),
@@ -376,16 +366,16 @@ select source
 from extensions.dblink_get_result('registry_retire') as response(source text);
 
 select ok(
-	(select active = false from public.crawl_source_registry where source = 'registryalertrace')
+	(select active = false from public.crawl_source_registry where source = 'issuelink')
 		and not exists (
 			select 1
 			from public.crawl_alert_incidents
-			where source = 'registryalertrace' and status = 'open'
+			where source = 'issuelink' and status = 'open'
 		)
 		and exists (
 			select 1
 			from public.crawl_alert_incidents
-			where source = 'registryalertrace' and status = 'recovered'
+			where source = 'issuelink' and status = 'recovered'
 		),
 	'alert evaluation cannot leave an open incident after concurrent retirement'
 );
@@ -553,8 +543,11 @@ select is(
 	'crawl lifecycle retirement connection closes'
 );
 
+update public.crawl_source_registry
+set active = true, retired_at = null, updated_at = now()
+where source = 'issuelink';
 delete from public.crawl_alert_incidents
-where source in ('registryrace', 'registryalertrace', 'registryfinishrace');
+where source in ('registryrace', 'issuelink', 'registryfinishrace');
 delete from public.web_push_deliveries
 where source in ('registryrace', 'registryalertrace', 'registryfinishrace');
 delete from public.web_push_subscriptions
@@ -564,7 +557,7 @@ delete from public.crawl_run_locks
 delete from public.crawl_schedule_dispatches
 	where source in ('registryrace', 'registryalertrace', 'registryfinishrace');
 delete from public.crawl_runs
-	where source in ('registryrace', 'registryalertrace', 'registryfinishrace');
+	where source in ('registryrace', 'issuelink', 'registryfinishrace');
 delete from public.crawl_source_policies
 	where source in ('registryrace', 'registryalertrace', 'registryfinishrace');
 delete from public.crawl_source_registry

@@ -1,7 +1,7 @@
 -- Crawl source lifecycle authority, historical compatibility, and least privilege.
 begin;
 
-select plan(41);
+select plan(43);
 
 select has_table(
 	'public',
@@ -345,6 +345,53 @@ select is(
 	'new registry source stays out of legacy dashboard active runs'
 );
 reset role;
+
+insert into public.crawl_runs (
+	id,
+	source,
+	lock_token,
+	status,
+	run_trigger,
+	started_at,
+	stale_after,
+	finished_at,
+	duration_ms,
+	attempted_count,
+	failure_count,
+	parser_failure_count,
+	parser_minimum_count
+)
+values (
+	9300000000000099,
+	'registryprobe',
+	'93000000-0000-4000-8000-000000000004',
+	'failed',
+	'manual',
+	now() - interval '1 hour',
+	now() - interval '55 minutes',
+	now() - interval '59 minutes',
+	60000,
+	1,
+	1,
+	1,
+	10
+);
+update public.crawl_alert_settings set parser_failure_streak = 1 where id = true;
+set local role service_role;
+select lives_ok(
+	$$select public.evaluate_crawl_alerts(now())$$,
+	'legacy alert evaluation accepts the expanded registry without changing its response domain'
+);
+reset role;
+select is(
+	(
+		select count(*)
+		from public.crawl_alert_incidents
+		where source = 'registryprobe'
+	),
+	0::bigint,
+	'new registry source cannot enter the fixed four-source alert response before 5B'
+);
 
 select ok(
 	(
