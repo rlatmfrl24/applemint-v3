@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AppSupabaseClient } from "@/types/supabase";
 import {
 	type AuthAccessMetrics,
 	checkAuthenticatedAccess,
@@ -16,7 +16,7 @@ export interface OwnerAccessMetrics extends AuthAccessMetrics {
 }
 
 export async function checkApplemintOwner(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	metrics?: OwnerAccessMetrics
 ): Promise<OwnerAccessResult> {
 	const authenticatedAccess = await checkAuthenticatedAccess(supabase, metrics);

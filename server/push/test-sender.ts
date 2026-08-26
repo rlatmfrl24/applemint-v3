@@ -1,4 +1,5 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import "server-only";
+
 import webPush from "web-push";
 import {
 	invalidatePushSubscriptionResultSchema,
@@ -10,6 +11,8 @@ import {
 } from "@/contracts/push.schema";
 import { DomainError, unexpectedFailure } from "@/server/errors/domain-error";
 import type { WebPushServerConfiguration } from "@/server/push/configuration";
+import type { Database } from "@/types/database.types";
+import type { AppSupabaseClient } from "@/types/supabase";
 import { createServiceRoleClient } from "@/utils/supabase/service-role";
 
 const PUSH_TEST_TIMEOUT_MS = 15_000;
@@ -18,19 +21,19 @@ type EnabledWebPushConfiguration = Extract<WebPushServerConfiguration, { enabled
 type SendNotification = typeof webPush.sendNotification;
 
 interface WebPushTestDependencies {
-	createClient?: () => SupabaseClient;
+	createClient?: () => AppSupabaseClient;
 	now?: () => Date;
 	sendNotification?: SendNotification;
 	setVapidDetails?: typeof webPush.setVapidDetails;
 }
 
 async function callRpc<T>(
-	supabase: SupabaseClient,
-	name: string,
+	supabase: AppSupabaseClient,
+	name: keyof Database["public"]["Functions"],
 	parameters: Record<string, unknown>,
 	parse: (value: unknown) => T
 ) {
-	const { data, error } = await supabase.rpc(name, parameters);
+	const { data, error } = await supabase.rpc(name, parameters as never);
 	if (error) {
 		throw unexpectedFailure("테스트 알림 상태를 처리하지 못했습니다.", error);
 	}
@@ -76,7 +79,7 @@ function isTemporaryPushFailure(statusCode: number | null) {
 }
 
 async function invalidateClaim(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	claim: Extract<PushTestClaimResult, { status: "claimed" }>,
 	statusCode: 404 | 410
 ) {

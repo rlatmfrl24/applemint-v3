@@ -1,12 +1,16 @@
 import type { PushSubscriptionInput } from "@/contracts/push.schema";
 import { DomainError } from "@/server/errors/domain-error";
+import type { PushStore } from "@/server/ports/push.store";
 import { getWebPushServerConfiguration } from "@/server/push/configuration";
-import { sendWebPushTest } from "@/server/push/test-sender";
-import type { PushRepository } from "@/server/repositories/push.repository";
+
+const sendWebPushTest = async (
+	endpoint: string,
+	configuration: Extract<ReturnType<typeof getWebPushServerConfiguration>, { enabled: true }>
+) => (await import("@/server/push/test-sender")).sendWebPushTest(endpoint, configuration);
 
 export class PushService {
 	constructor(
-		private readonly repository: PushRepository,
+		private readonly store: PushStore,
 		private readonly sendTestNotification = sendWebPushTest
 	) {}
 
@@ -21,19 +25,19 @@ export class PushService {
 				reasonCode: configuration.public.reason ?? "configuration-missing",
 			});
 		}
-		return this.repository.subscribe(input);
+		return this.store.subscribe(input);
 	}
 
 	status(endpoint: string) {
-		return this.repository.status(endpoint);
+		return this.store.status(endpoint);
 	}
 
 	unsubscribe(endpoint: string) {
-		return this.repository.unsubscribe(endpoint);
+		return this.store.unsubscribe(endpoint);
 	}
 
 	acknowledgeInbox(endpoint: string) {
-		return this.repository.acknowledgeInbox(endpoint);
+		return this.store.acknowledgeInbox(endpoint);
 	}
 
 	sendTest(endpoint: string) {

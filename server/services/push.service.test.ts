@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { PushRepository } from "@/server/repositories/push.repository";
+import type { PushStore } from "@/server/ports/push.store";
 import { PushService } from "./push.service";
 
 function configureEnabledWebPush() {
@@ -20,7 +20,7 @@ describe("PushService.sendTest", () => {
 	it("Web Push 설정이 중단되면 service-role sender를 호출하지 않는다", () => {
 		vi.stubEnv("WEB_PUSH_ENABLED", "false");
 		const sender = vi.fn();
-		const service = new PushService({} as PushRepository, sender);
+		const service = new PushService({} as PushStore, sender);
 
 		expect(() => service.sendTest("https://push.test/device")).toThrow(
 			"Web Push 서버 설정이 중단되어 있습니다."
@@ -34,7 +34,7 @@ describe("PushService.sendTest", () => {
 			sent: true,
 			sentAt: "2026-07-30T00:00:00.000Z",
 		});
-		const service = new PushService({} as PushRepository, sender);
+		const service = new PushService({} as PushStore, sender);
 
 		await expect(service.sendTest("https://push.test/device")).resolves.toMatchObject({
 			sent: true,

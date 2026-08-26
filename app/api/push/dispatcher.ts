@@ -1,4 +1,5 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import "server-only";
+
 import webPush from "web-push";
 import {
 	type ClaimedPushDelivery,
@@ -11,6 +12,8 @@ import {
 	webPushPayloadSchema,
 } from "@/contracts/push.schema";
 import type { WebPushServerConfiguration } from "@/server/push/configuration";
+import type { Database } from "@/types/database.types";
+import type { AppSupabaseClient } from "@/types/supabase";
 
 const MAX_CONCURRENCY = 5;
 const PUSH_REQUEST_TIMEOUT_MS = 15_000;
@@ -53,7 +56,7 @@ function isRetryablePushFailure(statusCode: number | null) {
 }
 
 async function handleDeliveryFailure(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	delivery: ClaimedPushDelivery,
 	failure: ReturnType<typeof safeErrorCode>
 ) {
@@ -106,12 +109,12 @@ async function handleDeliveryFailure(
 }
 
 async function callRpc<T>(
-	supabase: SupabaseClient,
-	name: string,
+	supabase: AppSupabaseClient,
+	name: keyof Database["public"]["Functions"],
 	parameters: Record<string, unknown>,
 	parse: (value: unknown) => T
 ) {
-	const { data, error } = await supabase.rpc(name, parameters);
+	const { data, error } = await supabase.rpc(name, parameters as never);
 	if (error) {
 		throw new PushDispatcherError(`Web Push ${name} RPC failed.`, error);
 	}
@@ -123,7 +126,7 @@ async function callRpc<T>(
 }
 
 async function deliverOne(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	delivery: ClaimedPushDelivery,
 	sendNotification: SendNotification
 ) {
@@ -193,7 +196,7 @@ function recordDeliveryOutcome(
 }
 
 async function consumeDeliveryQueue(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	queue: ClaimedPushDelivery[],
 	sendNotification: SendNotification,
 	result: PushDispatchResult,
@@ -208,7 +211,7 @@ async function consumeDeliveryQueue(
 }
 
 export async function runWebPushDispatcher(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	configuration: Extract<WebPushServerConfiguration, { enabled: true }>,
 	limit: number,
 	dependencies: DispatcherDependencies = {}

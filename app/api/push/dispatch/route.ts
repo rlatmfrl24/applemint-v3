@@ -5,6 +5,7 @@ import {
 } from "@/app/api/crawl/internal-auth";
 import { pushDispatchRequestSchema, pushDispatchResponseSchema } from "@/contracts/push.schema";
 import { parseJsonRequest } from "@/lib/http-json";
+import { getInternalSecret } from "@/server/env";
 import {
 	type ObservedRequestContext,
 	observeHttpHandler,
@@ -16,7 +17,7 @@ import { runWebPushDispatcher } from "../dispatcher";
 export const maxDuration = 60;
 
 async function handlePost(request: NextRequest, { requestId, metrics }: ObservedRequestContext) {
-	const expectedSecret = process.env.CRAWL_INTERNAL_SECRET;
+	const expectedSecret = getInternalSecret();
 	if (!hasMinimumInternalSecretLength(expectedSecret)) {
 		return NextResponse.json(
 			pushDispatchResponseSchema.parse({

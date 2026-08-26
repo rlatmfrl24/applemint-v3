@@ -1,5 +1,11 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import "server-only";
+
 import type { MediaWorkerResult } from "@/contracts/media-worker.schema";
+import {
+	type ClaimedYouTubeJob,
+	claimedYouTubeJobsRawResponseSchema,
+} from "@/contracts/media-worker-raw.schema";
+import type { AppSupabaseClient } from "@/types/supabase";
 import { type NormalizedYouTubeUrl, normalizeYouTubeUrl } from "./url";
 import {
 	listYouTubeVideos,
@@ -13,15 +19,6 @@ const YOUTUBE_MAX_ATTEMPTS = 5;
 const YOUTUBE_QUOTA_MAX_ATTEMPTS = 7;
 const YOUTUBE_QUOTA_RETRY_SECONDS = 25 * 60 * 60;
 const YOUTUBE_RETRY_BASE_SECONDS = 60;
-
-interface ClaimedYouTubeJob {
-	thread_id: string | number;
-	provider: "youtube";
-	url: string;
-	attempt_count: number;
-	lease_token: string;
-	lease_expires_at: string;
-}
 
 interface PreparedYouTubeJob {
 	job: ClaimedYouTubeJob;
@@ -66,7 +63,7 @@ function getMediaKind(target: NormalizedYouTubeUrl, video: YouTubeVideoResult) {
 }
 
 async function invokeLeaseRpc(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	name:
 		| "complete_media_enrichment_job"
 		| "retry_media_enrichment_job"
@@ -75,7 +72,7 @@ async function invokeLeaseRpc(
 	result: YouTubeWorkerResult,
 	counter: "readyCount" | "unavailableCount" | "unsupportedCount" | "retriedCount" | "failedCount"
 ) {
-	const { data, error } = await supabase.rpc(name, parameters);
+	const { data, error } = await supabase.rpc(name, parameters as never);
 	if (error) throw new YouTubeWorkerError("YOUTUBE_QUEUE_RPC_FAILED");
 	if (data !== true) {
 		result.leaseRejectedCount += 1;
@@ -86,7 +83,7 @@ async function invokeLeaseRpc(
 }
 
 function completeUnsupportedJob(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	job: ClaimedYouTubeJob,
 	result: YouTubeWorkerResult
 ) {
@@ -114,7 +111,7 @@ function completeUnsupportedJob(
 }
 
 function failJob(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	job: ClaimedYouTubeJob,
 	errorCode: string,
 	result: YouTubeWorkerResult
@@ -133,7 +130,7 @@ function failJob(
 }
 
 function completeUnavailableJob(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	prepared: PreparedYouTubeJob,
 	result: YouTubeWorkerResult
 ) {
@@ -161,7 +158,7 @@ function completeUnavailableJob(
 }
 
 function completeReadyJob(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	prepared: PreparedYouTubeJob,
 	video: YouTubeVideoResult,
 	result: YouTubeWorkerResult
@@ -193,7 +190,7 @@ function completeReadyJob(
 }
 
 function retryJob(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	job: ClaimedYouTubeJob,
 	errorCode: string,
 	now: () => Date,
@@ -228,25 +225,8 @@ function retryJob(
 	);
 }
 
-function validateClaimedJobs(value: unknown): ClaimedYouTubeJob[] {
-	if (!Array.isArray(value)) throw new YouTubeWorkerError("YOUTUBE_INVALID_CLAIM_RESPONSE");
-	return value.map((job) => {
-		if (
-			!job ||
-			typeof job !== "object" ||
-			(job as ClaimedYouTubeJob).provider !== "youtube" ||
-			typeof (job as ClaimedYouTubeJob).url !== "string" ||
-			typeof (job as ClaimedYouTubeJob).lease_token !== "string" ||
-			typeof (job as ClaimedYouTubeJob).attempt_count !== "number"
-		) {
-			throw new YouTubeWorkerError("YOUTUBE_INVALID_CLAIM_RESPONSE");
-		}
-		return job as ClaimedYouTubeJob;
-	});
-}
-
 async function prepareApiJobs(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	jobs: ClaimedYouTubeJob[],
 	result: YouTubeWorkerResult
 ) {
@@ -271,7 +251,7 @@ function normalizeApiError(error: unknown) {
 }
 
 async function applyApiError(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	apiJobs: PreparedYouTubeJob[],
 	apiError: YouTubeApiError,
 	now: () => Date,
@@ -287,7 +267,7 @@ async function applyApiError(
 }
 
 async function applyVideoResults(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	apiJobs: PreparedYouTubeJob[],
 	videos: Map<string, YouTubeVideoResult>,
 	result: YouTubeWorkerResult
@@ -303,7 +283,7 @@ async function applyVideoResults(
 }
 
 export async function runYouTubeEnrichmentWorker(
-	supabase: SupabaseClient,
+	supabase: AppSupabaseClient,
 	{
 		apiKey,
 		limit = YOUTUBE_MAX_BATCH_SIZE,
@@ -330,7 +310,11 @@ export async function runYouTubeEnrichmentWorker(
 	});
 	if (error) throw new YouTubeWorkerError("YOUTUBE_CLAIM_FAILED");
 
-	const jobs = validateClaimedJobs(data ?? []);
+	const parsedJobs = claimedYouTubeJobsRawResponseSchema.safeParse(data);
+	if (!parsedJobs.success) {
+		throw new YouTubeWorkerError("YOUTUBE_INVALID_CLAIM_RESPONSE");
+	}
+	const jobs = parsedJobs.data;
 	const result = createEmptyResult();
 	result.claimedCount = jobs.length;
 	if (jobs.length === 0) return result;

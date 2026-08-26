@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CrawlRunRepository } from "@/server/repositories/crawl-run.repository";
+import type { CrawlRunStore } from "@/server/ports/crawl-run.store";
 import { crawlAlertsDashboard, crawlRunsBaseDashboard, NOW } from "@/test/support/communication";
 import { CrawlRunService } from "./crawl-run.service";
 
@@ -9,7 +9,7 @@ describe("CrawlRunService", () => {
 			getRuns: vi.fn().mockResolvedValue(crawlRunsBaseDashboard),
 			getAlerts: vi.fn().mockResolvedValue(crawlAlertsDashboard),
 		};
-		const service = new CrawlRunService(repository as unknown as CrawlRunRepository);
+		const service = new CrawlRunService(repository as unknown as CrawlRunStore);
 		await expect(service.getDashboard({ limit: 20, trendLimit: 20 })).resolves.toEqual({
 			...crawlRunsBaseDashboard,
 			...crawlAlertsDashboard,
@@ -55,7 +55,7 @@ describe("CrawlRunService", () => {
 				],
 			}),
 		};
-		const service = new CrawlRunService(repository as unknown as CrawlRunRepository);
+		const service = new CrawlRunService(repository as unknown as CrawlRunStore);
 		const result = await service.getDashboard({ limit: 20, trendLimit: 20 });
 		expect(result.sources[0].activeAlertCount).toBe(1);
 	});

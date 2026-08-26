@@ -67,6 +67,8 @@ export interface CrawlExecutionResult {
 export interface CrawlAdapterOptions {
 	urls?: readonly string[];
 	signal?: AbortSignal;
+	requestId?: string;
+	runId?: string;
 }
 
 function withAttempt<T extends { url: string }>(value: T, attempt: number) {

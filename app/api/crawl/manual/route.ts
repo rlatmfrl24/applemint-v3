@@ -74,7 +74,9 @@ async function handlePost(
 	}
 
 	try {
-		const result = await executeCrawlPipeline(body.data.target, serviceRoleClient);
+		const result = await executeCrawlPipeline(body.data.target, serviceRoleClient, undefined, {
+			requestId,
+		});
 		metrics.recordResult(result);
 		return NextResponse.json(manualCrawlResponseSchema.parse(result));
 	} catch (error) {

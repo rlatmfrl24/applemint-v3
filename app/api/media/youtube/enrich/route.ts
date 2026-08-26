@@ -8,6 +8,7 @@ import {
 	mediaWorkerResponseSchema,
 } from "@/contracts/media-worker.schema";
 import { parseJsonRequest } from "@/lib/http-json";
+import { getInternalSecret, getYouTubeApiKey } from "@/server/env";
 import {
 	type ObservedRequestContext,
 	observeHttpHandler,
@@ -21,7 +22,7 @@ export const maxDuration = 60;
 const requestSchema = createMediaWorkerRequestSchema(YOUTUBE_MAX_BATCH_SIZE);
 
 async function handlePost(request: NextRequest, { requestId, metrics }: ObservedRequestContext) {
-	const expectedSecret = process.env.CRAWL_INTERNAL_SECRET;
+	const expectedSecret = getInternalSecret();
 	if (!hasMinimumInternalSecretLength(expectedSecret)) {
 		return NextResponse.json(
 			mediaWorkerResponseSchema.parse({
@@ -41,7 +42,7 @@ async function handlePost(request: NextRequest, { requestId, metrics }: Observed
 		);
 	}
 
-	const apiKey = process.env.YOUTUBE_API_KEY?.trim();
+	const apiKey = getYouTubeApiKey();
 	if (!apiKey) {
 		return NextResponse.json(
 			mediaWorkerResponseSchema.parse({

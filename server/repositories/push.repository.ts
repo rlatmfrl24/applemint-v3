@@ -1,4 +1,3 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import {
 	type PushSubscriptionInput,
 	pushAcknowledgeResultSchema,
@@ -9,10 +8,12 @@ import {
 import { unexpectedFailure } from "@/server/errors/domain-error";
 import { mapPostgrestError } from "@/server/errors/error-mapper";
 import type { RequestMetrics } from "@/server/observability/request-metrics";
+import type { PushStore } from "@/server/ports/push.store";
+import type { AppSupabaseClient } from "@/types/supabase";
 
-export class PushRepository {
+export class PushRepository implements PushStore {
 	constructor(
-		private readonly supabase: SupabaseClient,
+		private readonly supabase: AppSupabaseClient,
 		private readonly metrics?: RequestMetrics
 	) {}
 
@@ -28,7 +29,7 @@ export class PushRepository {
 				p_auth: input.keys.auth,
 				p_expiration_time:
 					input.expirationTime === null ? null : new Date(input.expirationTime).toISOString(),
-			});
+			} as never);
 			if (error) throw mapPostgrestError(error, "알림 구독을 저장하지 못했습니다.");
 
 			const parsed = pushSubscribeResultSchema.safeParse(data);

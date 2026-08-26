@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ThreadRepository } from "@/server/repositories/thread.repository";
+import type { ThreadStore } from "@/server/ports/thread.store";
 import { threadRow } from "@/test/support/communication";
 import { decodeThreadCursor, encodeThreadCursor, ThreadService } from "./thread.service";
 
@@ -10,7 +10,7 @@ describe("ThreadService", () => {
 		transition: vi.fn(),
 		bulkTrashInbox: vi.fn(),
 	};
-	const service = new ThreadService(repository as unknown as ThreadRepository);
+	const service = new ThreadService(repository as unknown as ThreadStore);
 
 	beforeEach(() => {
 		for (const mock of Object.values(repository)) mock.mockReset();

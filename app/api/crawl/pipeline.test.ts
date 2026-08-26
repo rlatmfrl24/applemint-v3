@@ -28,43 +28,95 @@ function createExecutionResult(
 	};
 }
 
+function createRejectedAdmission(reason: "disabled" | "cooldown" | "source-busy" | "capacity") {
+	switch (reason) {
+		case "cooldown":
+			return {
+				acquired: false,
+				reason,
+				nextEligibleAt: "2026-07-22T06:00:00+00:00",
+			};
+		case "capacity":
+			return { acquired: false, reason, activeCount: 2, retryAfterSeconds: 30 };
+		case "disabled":
+			return { acquired: false, reason };
+		case "source-busy":
+			return { acquired: false, activeRunId: "41", reason };
+	}
+}
+
 function createSupabaseMock({
 	lockAcquired = true,
 	finishError = false,
 	admissionReason = "source-busy",
 	heartbeatRenewed = true,
 	filterKeywords = [{ value: "example.com", method: "source" }],
+	invalidStartResponse = false,
+	invalidHistoryResponse = false,
+	invalidIngestResponse = false,
+	invalidFinishResponse = false,
+	recoveryError = false,
 }: {
 	lockAcquired?: boolean;
 	finishError?: boolean;
 	admissionReason?: "disabled" | "cooldown" | "source-busy" | "capacity";
 	heartbeatRenewed?: boolean;
 	filterKeywords?: { value: string; method: string }[];
+	invalidStartResponse?: boolean;
+	invalidHistoryResponse?: boolean;
+	invalidIngestResponse?: boolean;
+	invalidFinishResponse?: boolean;
+	recoveryError?: boolean;
 } = {}) {
+	// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: This test double models every pipeline RPC response in one auditable boundary.
 	const rpc = vi.fn(async (name: string, parameters: Record<string, unknown>) => {
 		switch (name) {
 			case "begin_crawl_run":
-			case "begin_scheduled_crawl_run":
+			case "begin_scheduled_crawl_run": {
+				const rejected = createRejectedAdmission(admissionReason);
 				return {
-					data: lockAcquired
-						? {
-								acquired: true,
-								runId: "42",
-								lockKey: "crawl:arcalive",
-								runBudgetSeconds: 45,
-								heartbeatIntervalSeconds: 15,
-							}
-						: { acquired: false, activeRunId: "41", reason: admissionReason },
+					data: invalidStartResponse
+						? { acquired: true, runId: "42" }
+						: lockAcquired
+							? {
+									acquired: true,
+									runId: "42",
+									lockKey: "crawl:arcalive",
+									runBudgetSeconds: 45,
+									lockTtlSeconds: 60,
+									heartbeatIntervalSeconds: 15,
+								}
+							: rejected,
 					error: null,
 				};
+			}
 			case "heartbeat_crawl_run":
-				return { data: { renewed: heartbeatRenewed }, error: null };
+				return {
+					data: heartbeatRenewed
+						? { renewed: true, staleAfter: "2026-07-22T06:00:00+00:00" }
+						: { renewed: false, reason: "lease-lost" },
+					error: null,
+				};
 			case "ingest_crawl_items":
-				return { data: { insertedCount: 1, skippedCount: 0 }, error: null };
-			case "finish_crawl_run":
+				return {
+					data: invalidIngestResponse ? { skippedCount: 0 } : { insertedCount: 1, skippedCount: 0 },
+					error: null,
+				};
+			case "finish_crawl_run": {
+				const result = parameters.p_result as { status: unknown };
 				return finishError
 					? { data: null, error: { message: "finish failed" } }
-					: { data: { durationMs: 123 }, error: null };
+					: {
+							data: invalidFinishResponse
+								? { runId: "42", status: result.status }
+								: { runId: "42", status: result.status, durationMs: 123 },
+							error: null,
+						};
+			}
+			case "record_crawl_run_contract_failure":
+				return recoveryError
+					? { data: null, error: { message: "recovery failed" } }
+					: { data: true, error: null };
 			case "release_crawl_lock":
 				return { data: true, error: null };
 			default:
@@ -84,7 +136,10 @@ function createSupabaseMock({
 			return {
 				select: vi.fn(() => ({
 					eq: vi.fn(() => ({
-						in: vi.fn().mockResolvedValue({ data: [], error: null }),
+						in: vi.fn().mockResolvedValue({
+							data: invalidHistoryResponse ? [{ url: null }] : [],
+							error: null,
+						}),
 					})),
 				})),
 			};
@@ -103,7 +158,9 @@ describe("executeCrawlPipeline", () => {
 		const { client, rpc } = createSupabaseMock();
 		const runCrawler = vi.fn().mockResolvedValue(createExecutionResult());
 
-		await expect(executeCrawlPipeline("arcalive", client, runCrawler)).resolves.toEqual({
+		await expect(
+			executeCrawlPipeline("arcalive", client, runCrawler, { requestId: "request-1" })
+		).resolves.toEqual({
 			runId: "42",
 			status: "succeeded",
 			target: "arcalive",
@@ -112,6 +169,10 @@ describe("executeCrawlPipeline", () => {
 			warningCount: 0,
 			durationMs: 123,
 		});
+		expect(runCrawler).toHaveBeenCalledWith(
+			"arcalive",
+			expect.objectContaining({ requestId: "request-1", runId: "42" })
+		);
 		expect(rpc).toHaveBeenCalledWith(
 			"ingest_crawl_items",
 			expect.objectContaining({
@@ -351,8 +412,70 @@ describe("executeCrawlPipeline", () => {
 		expect(rpc).not.toHaveBeenCalledWith("release_crawl_lock", expect.anything());
 	});
 
+	it("start RPC의 필수 필드가 누락되면 source를 호출하지 않고 계약 오류로 실패한다", async () => {
+		const { client } = createSupabaseMock({ invalidStartResponse: true });
+		const runCrawler = vi.fn();
+
+		await expect(executeCrawlPipeline("arcalive", client, runCrawler)).rejects.toMatchObject({
+			httpStatus: 500,
+			stage: "unknown",
+		});
+		expect(runCrawler).not.toHaveBeenCalled();
+	});
+
+	it("history 응답이 잘못되면 안전한 단계와 메시지를 실행 이력에 남긴다", async () => {
+		const { client, rpc } = createSupabaseMock({ invalidHistoryResponse: true });
+
+		await expect(
+			executeCrawlPipeline("arcalive", client, vi.fn().mockResolvedValue(createExecutionResult()))
+		).rejects.toMatchObject({ stage: "history", runId: "42" });
+		expect(rpc).toHaveBeenCalledWith(
+			"finish_crawl_run",
+			expect.objectContaining({
+				p_result: expect.objectContaining({
+					errorStage: "history",
+					errorMessage: "수집 이력 확인에 실패했습니다.",
+				}),
+			})
+		);
+	});
+
+	it("ingest count 누락을 0으로 대체하지 않고 안전한 실패로 종료한다", async () => {
+		const { client, rpc } = createSupabaseMock({ invalidIngestResponse: true });
+
+		await expect(
+			executeCrawlPipeline("arcalive", client, vi.fn().mockResolvedValue(createExecutionResult()))
+		).rejects.toMatchObject({ stage: "ingest", runId: "42" });
+		expect(rpc).toHaveBeenCalledWith(
+			"finish_crawl_run",
+			expect.objectContaining({
+				p_result: expect.objectContaining({
+					errorStage: "ingest",
+					errorMessage: "수집 항목 저장에 실패했습니다.",
+				}),
+			})
+		);
+	});
+
+	it("finish 응답 필드가 누락되면 recovery RPC로 권위 실행 이력을 실패 처리한다", async () => {
+		const { client, rpc } = createSupabaseMock({ invalidFinishResponse: true });
+
+		await expect(
+			executeCrawlPipeline("arcalive", client, vi.fn().mockResolvedValue(createExecutionResult()))
+		).rejects.toMatchObject({ stage: "unknown", runId: "42" });
+		expect(rpc).toHaveBeenCalledWith(
+			"record_crawl_run_contract_failure",
+			expect.objectContaining({
+				p_run_id: "42",
+				p_error_stage: "unknown",
+				p_error_message: "크롤링 실행 계약 처리에 실패했습니다.",
+			})
+		);
+		expect(rpc).not.toHaveBeenCalledWith("release_crawl_lock", expect.anything());
+	});
+
 	it("실행 이력 종료가 실패하면 lock fallback을 수행한다", async () => {
-		const { client, rpc } = createSupabaseMock({ finishError: true });
+		const { client, rpc } = createSupabaseMock({ finishError: true, recoveryError: true });
 
 		await expect(
 			executeCrawlPipeline("arcalive", client, vi.fn().mockResolvedValue(createExecutionResult()))
