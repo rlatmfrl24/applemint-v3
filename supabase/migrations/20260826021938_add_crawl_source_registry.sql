@@ -86,6 +86,13 @@ as $$
 declare
 	v_now timestamp with time zone := now();
 begin
+	perform pg_catalog.pg_advisory_xact_lock(
+		pg_catalog.hashtextextended(
+			'applemint:crawl-source-lifecycle:' || new.source,
+			0
+		)
+	);
+
 	update public.crawl_runs
 	set
 		status = 'interrupted',
@@ -128,6 +135,61 @@ after update of active on public.crawl_source_registry
 for each row
 when (old.active and not new.active)
 execute function private.reconcile_retired_crawl_source();
+
+create function private.assert_active_crawl_source()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+	v_source text := to_jsonb(new) ->> tg_argv[0];
+begin
+	if nullif(v_source, '') is null then
+		raise exception using errcode = '22023', message = 'A crawl source is required.';
+	end if;
+
+	perform pg_catalog.pg_advisory_xact_lock(
+		pg_catalog.hashtextextended(
+			'applemint:crawl-source-lifecycle:' || v_source,
+			0
+		)
+	);
+
+	if not exists (
+		select 1
+		from public.crawl_source_registry as registry
+		where registry.source = v_source and registry.active
+	) then
+		raise exception using errcode = '22023', message = 'Unsupported crawl source.';
+	end if;
+
+	return new;
+end;
+$$;
+
+alter function private.assert_active_crawl_source() owner to postgres;
+revoke all on function private.assert_active_crawl_source()
+	from public, anon, authenticated, service_role;
+
+create trigger crawl_source_policies_assert_active_source
+before insert on public.crawl_source_policies
+for each row execute function private.assert_active_crawl_source('source');
+create trigger crawl_runs_assert_active_source
+before insert on public.crawl_runs
+for each row execute function private.assert_active_crawl_source('source');
+create trigger crawl_schedule_dispatches_assert_active_source
+before insert on public.crawl_schedule_dispatches
+for each row execute function private.assert_active_crawl_source('source');
+create trigger crawl_alert_incidents_assert_active_source
+before insert on public.crawl_alert_incidents
+for each row execute function private.assert_active_crawl_source('source');
+create trigger crawl_history_assert_active_source
+before insert on public."crawl-history"
+for each row execute function private.assert_active_crawl_source('crawl_source');
+create trigger web_push_deliveries_assert_active_source
+before insert on public.web_push_deliveries
+for each row execute function private.assert_active_crawl_source('source');
 
 create or replace function public.get_active_crawl_source_registry()
 returns table (source text, label text)
@@ -419,6 +481,24 @@ begin
 	);
 	if v_updated = v_definition then
 		raise exception 'Expected web Push active-source claim contract was not found.';
+	end if;
+	execute v_updated;
+
+	v_definition := pg_get_functiondef(
+		'public.record_crawl_run_contract_failure(bigint,uuid,text,text)'::regprocedure
+	);
+	v_updated := replace(
+		v_definition,
+		'where run.id = p_run_id
+		and run.lock_token = p_lock_token
+	returning true, run.source into v_updated, v_source;',
+		'where run.id = p_run_id
+		and run.lock_token = p_lock_token
+		and run.status <> ''interrupted''
+	returning true, run.source into v_updated, v_source;'
+	);
+	if v_updated = v_definition then
+		raise exception 'Expected crawl contract failure finalization guard was not found.';
 	end if;
 	execute v_updated;
 end;

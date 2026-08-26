@@ -1,7 +1,7 @@
 -- Crawl source lifecycle authority, historical compatibility, and least privilege.
 begin;
 
-select plan(37);
+select plan(39);
 
 select has_table(
 	'public',
@@ -93,16 +93,18 @@ select throws_ok(
 		insert into public."crawl-history" (url, crawl_source)
 		values ('https://unknown-source.test/item', 'unknown-source')
 	$$,
-	'23503',
-	null,
+	'22023',
+	'Unsupported crawl source.',
 	'unregistered sources cannot enter permanent history'
 );
-select lives_ok(
+select throws_ok(
 	$$
 		insert into public."crawl-history" (url, crawl_source)
 		values ('https://www.dogdrip.net/dogdrip/registry-history', 'dogdrip')
 	$$,
-	'retired DogDrip history remains preservable'
+	'22023',
+	'Unsupported crawl source.',
+	'retired DogDrip history remains preserved but cannot receive new rows'
 );
 
 select is(
@@ -213,30 +215,20 @@ select is(
 	'internal registry returns only the four active adapters'
 );
 
-insert into public.crawl_source_policies (
-	source,
-	schedule_enabled,
-	cooldown_seconds,
-	recommended_cooldown_seconds,
-	run_budget_seconds
-)
-values ('dogdrip', true, 3600, 3600, 45);
-select is(
-	(
-		select count(*)
-		from public._select_due_crawl_sources(
-			now(),
-			date_bin(
-				interval '5 minutes',
-				now(),
-				'2000-01-01 00:00:00+00'::timestamp with time zone
-			),
-			10
+select throws_ok(
+	$$
+		insert into public.crawl_source_policies (
+			source,
+			schedule_enabled,
+			cooldown_seconds,
+			recommended_cooldown_seconds,
+			run_budget_seconds
 		)
-		where source = 'dogdrip'
-	),
-	0::bigint,
-	'retired policy rows cannot enter scheduled dispatch'
+		values ('dogdrip', true, 3600, 3600, 45)
+	$$,
+	'22023',
+	'Unsupported crawl source.',
+	'retired sources cannot receive new policies'
 );
 
 insert into auth.users (id)
@@ -252,7 +244,7 @@ select is(
 select is(
 	jsonb_array_length(public.get_crawl_source_policy_settings() -> 'sources'),
 	4,
-	'policy dashboard excludes a retired source even if a policy row exists'
+	'policy dashboard returns only active registered sources'
 );
 reset role;
 
@@ -351,8 +343,26 @@ select ok(
 			where tgrelid = 'public.crawl_source_registry'::regclass
 				and tgname = 'crawl_source_registry_reconcile_after_retire'
 				and not tgisinternal
+		)
+		and (
+			select pg_proc.prosecdef
+				and pg_get_userbyid(pg_proc.proowner) = 'postgres'
+				and pg_proc.proconfig = array['search_path=""']::text[]
+			from pg_proc
+			where pg_proc.oid = 'private.assert_active_crawl_source()'::regprocedure
+		)
+		and not has_function_privilege(
+			'service_role',
+			'private.assert_active_crawl_source()',
+			'EXECUTE'
+		)
+		and (
+			select count(*) = 6
+			from pg_trigger
+			where tgfoid = 'private.assert_active_crawl_source()'::regprocedure
+				and not tgisinternal
 		),
-	'retirement reconciliation is an owner-executed trigger boundary'
+	'active-source admission and retirement are owner-executed trigger boundaries'
 );
 insert into public.crawl_alert_incidents (
 	source,
@@ -410,6 +420,27 @@ select ok(
 		where source = 'registryprobe'
 	),
 	'retiring a source immediately reconciles its open alert incident'
+);
+set local role service_role;
+select is(
+	public.record_crawl_run_contract_failure(
+		9300000000000000,
+		'93000000-0000-4000-8000-000000000003',
+		'source',
+		'Late pipeline contract failure.'
+	),
+	false,
+	'contract failure fallback treats a retirement interruption as finalized'
+);
+reset role;
+select is(
+	(
+		select status || ':' || error_stage || ':' || error_message
+		from public.crawl_runs
+		where id = 9300000000000000
+	),
+	'interrupted:source:Crawl source was retired.',
+	'late contract failure cannot overwrite retirement status and evidence'
 );
 
 select is(
@@ -486,6 +517,7 @@ select ok(
 	'policy, alert, finish, and Push boundaries consult the registry authority'
 );
 
+alter table public.crawl_runs disable trigger crawl_runs_assert_active_source;
 insert into public.crawl_runs (
 	id,
 	source,
@@ -508,6 +540,7 @@ values (
 	now(),
 	60000
 );
+alter table public.crawl_runs enable trigger crawl_runs_assert_active_source;
 insert into public.web_push_subscriptions (
 	id,
 	user_id,
@@ -522,6 +555,7 @@ values (
 	repeat('p', 32),
 	'authkey1'
 );
+alter table public.web_push_deliveries disable trigger web_push_deliveries_assert_active_source;
 insert into public.web_push_deliveries (
 	id,
 	run_id,
@@ -536,6 +570,7 @@ values (
 	'dogdrip',
 	1
 );
+alter table public.web_push_deliveries enable trigger web_push_deliveries_assert_active_source;
 create temporary table retired_claim_count (value bigint not null);
 grant insert, select on retired_claim_count to service_role;
 set local role service_role;
