@@ -1,0 +1,20 @@
+insert into normal_site_catalog_fixture (site_key, label, sample_host)
+values
+	('82cook.com', '82쿡', 'https://www.82cook.com'),
+	('bobaedream.co.kr', '보배드림', 'https://www.bobaedream.co.kr'),
+	('clien.net', '클리앙', 'https://www.clien.net'),
+	('etoland.co.kr', '이토랜드', 'https://www.etoland.co.kr'),
+	('fmkorea.com', '에펨코리아', 'https://www.fmkorea.com'),
+	('humoruniv.com', '웃긴대학', 'https://www.humoruniv.com'),
+	('instiz.net', '인스티즈', 'https://www.instiz.net'),
+	('inven.co.kr', '인벤', 'https://www.inven.co.kr'),
+	('mlbpark.com', 'MLB파크', 'https://www.mlbpark.com'),
+	('ppomppu.co.kr', '뽐뿌', 'https://www.ppomppu.co.kr'),
+	('ruliweb.com', '루리웹', 'https://www.ruliweb.com'),
+	('slrclub.com', 'SLR클럽', 'https://www.slrclub.com'),
+	('theqoo.net', '더쿠', 'https://theqoo.net'),
+	('todayhumor.co.kr', '오늘의유머', 'https://www.todayhumor.co.kr'),
+	('ygosu.com', '와이고수', 'https://www.ygosu.com'),
+	('battlepage.com', '배틀페이지', 'https://www.battlepage.com'),
+	('arca.live', '아카라이브', 'https://arca.live'),
+	('issuelink.co.kr', 'IssueLink', 'https://www.issuelink.co.kr');

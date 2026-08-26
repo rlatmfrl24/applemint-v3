@@ -38,9 +38,17 @@ describe("Inbox 다음 수집 선택", () => {
 		expect(selectNextCrawlSchedule(createSettings())).toEqual({
 			scheduledAt: "2026-07-30T02:00:00.000Z",
 			scheduledAtMs: new Date("2026-07-30T02:00:00.000Z").getTime(),
-			sources: ["battlepage", "insagirl"],
+			sources: [
+				{ source: "battlepage", label: "Battlepage" },
+				{ source: "insagirl", label: "Insagirl" },
+			],
 		});
-		expect(formatSourceSummary(["battlepage", "insagirl"])).toBe("Battlepage 외 1개");
+		expect(
+			formatSourceSummary([
+				{ source: "battlepage", label: "Battlepage" },
+				{ source: "insagirl", label: "Insagirl" },
+			])
+		).toBe("Battlepage 외 1개");
 	});
 
 	it("전체 또는 개별 예약 중지와 null 시각을 후보에서 제외한다", () => {
@@ -52,7 +60,9 @@ describe("Inbox 다음 수집 선택", () => {
 		]);
 		settings.sources[0] = { ...settings.sources[0], scheduleEnabled: false };
 
-		expect(selectNextCrawlSchedule(settings)?.sources).toEqual(["battlepage"]);
+		expect(selectNextCrawlSchedule(settings)?.sources).toEqual([
+			{ source: "battlepage", label: "Battlepage" },
+		]);
 		expect(selectNextCrawlSchedule({ ...settings, schedulerEnabled: false })).toBeNull();
 	});
 });
@@ -113,7 +123,7 @@ describe("Inbox 빈 상태 표현", () => {
 
 		expect(getInboxSchedulePresentation(settings, Date.now())).toEqual({
 			kind: "active",
-			sources: ["arcalive"],
+			sources: [{ source: "arcalive", label: "Arcalive" }],
 		});
 	});
 
@@ -149,13 +159,21 @@ describe("Inbox 빈 상태 표현", () => {
 					schedule: {
 						scheduledAt: "2026-07-30T02:00:00.000Z",
 						scheduledAtMs: new Date("2026-07-30T02:00:00.000Z").getTime(),
-						sources: ["arcalive", "battlepage"],
+						sources: [
+							{ source: "arcalive", label: "Arcalive" },
+							{ source: "battlepage", label: "Battlepage" },
+						],
 					},
 				}}
 			/>
 		);
 		const active = renderToStaticMarkup(
-			<InboxEmptyStateView presentation={{ kind: "active", sources: ["insagirl"] }} />
+			<InboxEmptyStateView
+				presentation={{
+					kind: "active",
+					sources: [{ source: "insagirl", label: "Insagirl" }],
+				}}
+			/>
 		);
 		const stopped = renderToStaticMarkup(
 			<InboxEmptyStateView

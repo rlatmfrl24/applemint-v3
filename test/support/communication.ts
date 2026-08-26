@@ -1,6 +1,16 @@
-import type { CrawlPolicySettings } from "@/contracts/crawl-policy.schema";
+import {
+	type CrawlPolicySettings,
+	crawlPolicySettingsRawSchema,
+} from "@/contracts/crawl-policy.schema";
 
 export const NOW = "2026-07-22T12:00:00.000Z";
+
+const crawlSourceLabels = {
+	arcalive: "Arcalive",
+	battlepage: "Battlepage",
+	insagirl: "Insagirl",
+	issuelink: "IssueLink",
+} as const;
 
 export const threadRow = {
 	id: 3,
@@ -36,6 +46,7 @@ export const crawlPolicySettings: CrawlPolicySettings = {
 	dispatcherIntervalSeconds: 300,
 	sources: (["arcalive", "battlepage", "insagirl", "issuelink"] as const).map((source) => ({
 		source,
+		label: crawlSourceLabels[source],
 		scheduleEnabled: source !== "issuelink",
 		cooldownSeconds: 10800,
 		recommendedCooldownSeconds: 10800,
@@ -48,6 +59,32 @@ export const crawlPolicySettings: CrawlPolicySettings = {
 		latest: null,
 	})),
 };
+
+export const crawlPolicySettingsRaw = crawlPolicySettingsRawSchema.parse(crawlPolicySettings);
+
+export const crawlSourceRegistry = {
+	sources: [
+		...crawlPolicySettings.sources.map(({ source, label }) => ({
+			source,
+			label,
+			active: true,
+			retiredAt: null,
+			updatedAt: NOW,
+		})),
+		{
+			source: "dogdrip",
+			label: "DogDrip",
+			active: false,
+			retiredAt: NOW,
+			updatedAt: NOW,
+		},
+	],
+};
+
+export const installedCrawlSources = crawlPolicySettings.sources.map(({ source, label }) => ({
+	source,
+	label,
+}));
 
 export const crawlRunsBaseDashboard = {
 	activeRun: null,

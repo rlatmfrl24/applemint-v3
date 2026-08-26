@@ -1,7 +1,7 @@
 -- Crawl source lifecycle authority, historical compatibility, and least privilege.
 begin;
 
-select plan(43);
+select plan(45);
 
 select has_table(
 	'public',
@@ -242,20 +242,28 @@ select is(
 	'owner registry RPC includes active and retired audit entries'
 );
 select is(
-	jsonb_array_length(public.get_crawl_source_policy_settings() -> 'sources'),
-	4,
-	'policy dashboard preserves the deployed four-source response contract during registry rollout'
+	(
+		select jsonb_object_agg(source ->> 'source', source ->> 'label')
+		from jsonb_array_elements(public.get_crawl_source_policy_settings() -> 'sources') as source
+	),
+	'{
+		"arcalive":"Arcalive",
+		"battlepage":"Battlepage",
+		"insagirl":"Insagirl",
+		"issuelink":"IssueLink"
+	}'::jsonb,
+	'policy dashboard exposes active registry sources with registry labels'
 );
 reset role;
 
 select ok(
-	position('source in (''arcalive'', ''battlepage'', ''insagirl'', ''issuelink'')' in pg_get_functiondef(
+	position('crawl_source_registry' in pg_get_functiondef(
 		'public.get_crawl_runs_dashboard(integer,integer)'::regprocedure
 	)) > 0
-		and position('crawl_source_registry' in pg_get_functiondef(
+		and position('source in (''arcalive'', ''battlepage'', ''insagirl'', ''issuelink'')' in pg_get_functiondef(
 			'public.get_crawl_runs_dashboard(integer,integer)'::regprocedure
 		)) = 0,
-	'crawl run dashboard keeps its deployed source cardinality until the code transition'
+	'crawl run dashboard follows the active registry without a second source list'
 );
 
 select ok(
@@ -314,8 +322,17 @@ values (date_trunc('minute', now()), 'registryprobe');
 set local role authenticated;
 select is(
 	jsonb_array_length(public.get_crawl_source_policy_settings() -> 'sources'),
-	4,
-	'new registry source does not break the deployed fixed-cardinality policy response'
+	5,
+	'new active registry source enters the policy response'
+);
+select is(
+	(
+		select source ->> 'label'
+		from jsonb_array_elements(public.get_crawl_source_policy_settings() -> 'sources') as source
+		where source ->> 'source' = 'registryprobe'
+	),
+	'Registry Probe',
+	'policy response takes its source label from the registry'
 );
 select is(
 	(
@@ -323,8 +340,8 @@ select is(
 		from jsonb_array_elements(public.get_crawl_runs_dashboard(20, 20) -> 'sources') as source
 		where source ->> 'source' = 'registryprobe'
 	),
-	0::bigint,
-	'new registry source stays out of the legacy crawl dashboard summary'
+	1::bigint,
+	'new active registry source enters the crawl dashboard summary'
 );
 select is(
 	(
@@ -332,8 +349,8 @@ select is(
 		from jsonb_array_elements(public.get_crawl_runs_dashboard(20, 20) -> 'runs') as run
 		where run ->> 'source' = 'registryprobe'
 	),
-	0::bigint,
-	'new registry source stays out of legacy recent dashboard history'
+	1::bigint,
+	'new active registry source enters recent dashboard history'
 );
 select is(
 	(
@@ -341,8 +358,8 @@ select is(
 		from jsonb_array_elements(public.get_crawl_runs_dashboard(20, 20) -> 'activeRuns') as run
 		where run ->> 'source' = 'registryprobe'
 	),
-	0::bigint,
-	'new registry source stays out of legacy dashboard active runs'
+	1::bigint,
+	'new active registry source enters dashboard active runs'
 );
 reset role;
 
@@ -380,7 +397,7 @@ update public.crawl_alert_settings set parser_failure_streak = 1 where id = true
 set local role service_role;
 select lives_ok(
 	$$select public.evaluate_crawl_alerts(now())$$,
-	'legacy alert evaluation accepts the expanded registry without changing its response domain'
+	'alert evaluation accepts the expanded active registry'
 );
 reset role;
 select is(
@@ -389,9 +406,51 @@ select is(
 		from public.crawl_alert_incidents
 		where source = 'registryprobe'
 	),
-	0::bigint,
-	'new registry source cannot enter the fixed four-source alert response before 5B'
+	1::bigint,
+	'new active registry source enters alert evaluation'
 );
+
+insert into public.web_push_subscriptions (
+	id,
+	user_id,
+	endpoint,
+	p256dh,
+	auth
+)
+values (
+	9300000000000099,
+	'480f5282-7933-4800-a970-d6bc8f05e8cb',
+	'https://push.test/active-registry-source',
+	repeat('p', 32),
+	'authkey1'
+);
+insert into public.web_push_deliveries (
+	id,
+	run_id,
+	subscription_id,
+	source,
+	inserted_count
+)
+values (
+	9300000000000099,
+	9300000000000099,
+	9300000000000099,
+	'registryprobe',
+	1
+);
+create temporary table active_registry_claim_count (value bigint not null);
+grant insert, select on active_registry_claim_count to service_role;
+set local role service_role;
+insert into active_registry_claim_count
+select count(*) from public.claim_web_push_deliveries(20, 120) where source = 'registryprobe';
+reset role;
+select is(
+	(select value from active_registry_claim_count),
+	1::bigint,
+	'Push claim accepts a newly active registry source without a SQL source list change'
+);
+delete from public.web_push_deliveries where id = 9300000000000099;
+delete from public.web_push_subscriptions where id = 9300000000000099;
 
 select ok(
 	(
@@ -432,20 +491,6 @@ select ok(
 				and not tgisinternal
 		),
 	'active-source admission and retirement are owner-executed trigger boundaries'
-);
-insert into public.crawl_alert_incidents (
-	source,
-	active_signals,
-	opened_at,
-	last_observed_at,
-	snapshot
-)
-values (
-	'registryprobe',
-	array['parser-failure']::text[],
-	now() - interval '1 hour',
-	now() - interval '1 minute',
-	'{}'::jsonb
 );
 update public.crawl_source_registry
 set active = false, retired_at = now(), updated_at = now()
@@ -598,7 +643,7 @@ select ok(
 		)) > 0
 		and position('delivery.source in (''arcalive'', ''battlepage'', ''insagirl'', ''issuelink'')' in pg_get_functiondef(
 			'public.claim_web_push_deliveries(integer,integer)'::regprocedure
-		)) > 0
+		)) = 0
 		and position('applemint:crawl-source-lifecycle:' in pg_get_functiondef(
 			'public.dispatch_due_crawl_sources()'::regprocedure
 		)) < position('for v_source in' in pg_get_functiondef(
@@ -607,7 +652,7 @@ select ok(
 		and position('array_agg(due.source order by due.source)' in pg_get_functiondef(
 			'public.dispatch_due_crawl_sources()'::regprocedure
 		)) > 0,
-	'policy, alert, finish, Push, and dispatch boundaries consult the registry authority'
+	'policy, alert, finish, Push, and dispatch boundaries use the registry authority without duplicate source lists'
 );
 
 alter table public.crawl_runs disable trigger crawl_runs_assert_active_source;

@@ -3,13 +3,16 @@ import { crawlPolicySettings, NOW } from "@/test/support/communication";
 import { crawlPolicySettingsSchema, crawlPolicyUpdateInputSchema } from "./crawl-policy.schema";
 
 describe("crawl policy Zod contract", () => {
-	it("네 소스의 정책 응답을 검증한다", () => {
+	it("활성 registry 소스의 정책 응답을 검증한다", () => {
 		expect(crawlPolicySettingsSchema.parse(crawlPolicySettings)).toEqual(crawlPolicySettings);
 	});
 
-	it("소스 누락과 잘못된 timestamp를 거부한다", () => {
+	it("손상된 소스 행과 잘못된 timestamp를 거부한다", () => {
 		expect(
-			crawlPolicySettingsSchema.safeParse({ ...crawlPolicySettings, sources: [] }).success
+			crawlPolicySettingsSchema.safeParse({
+				...crawlPolicySettings,
+				sources: [{ ...crawlPolicySettings.sources[0], label: "" }],
+			}).success
 		).toBe(false);
 		expect(
 			crawlPolicySettingsSchema.safeParse({ ...crawlPolicySettings, serverNow: "yesterday" })

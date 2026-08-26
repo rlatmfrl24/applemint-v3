@@ -24,7 +24,8 @@
 - 표준 `fetch`와 요청별 timeout
 - `cheerio` HTML 파싱
 - `linkifyjs` URL 추출
-- 소스별 크롤러 모듈 분리 (`arcalive`, `battlepage`, `insagirl`)
+- 소스별 크롤러 모듈 분리 (`arcalive`, `battlepage`, `insagirl`, `issuelink`)
+- DB `crawl_source_registry`가 운영 활성 상태와 표시명을 관리하고, TypeScript `CRAWL_SOURCES`가 설치된 adapter 능력을 검증
 
 ### 품질 / 보안 유지보수
 - `Biome 2.5.5` 포맷·린트·정적 검사
@@ -121,6 +122,13 @@ erDiagram
       jsonb failures
     }
 
+    CRAWL_SOURCE_REGISTRY {
+      text source
+      text label
+      boolean active
+      timestamptz retired_at
+    }
+
     THREADS {
       int id
       text type
@@ -156,6 +164,8 @@ erDiagram
 
     FILTER_KEYWORD ||--o{ THREADS : applies_rules
     CRAWL_HISTORY ||--o{ THREADS : dedupe_gate
+    CRAWL_SOURCE_REGISTRY ||--o{ CRAWL_HISTORY : classifies
+    CRAWL_SOURCE_REGISTRY ||--o{ CRAWL_RUNS : governs
     CRAWL_RUNS ||--o{ CRAWL_HISTORY : records_ingest
     THREADS ||--o| THREAD_MEDIA_METADATA : has_summary
     THREAD_MEDIA_METADATA ||--o| MEDIA_ENRICHMENT_JOBS : has_job
@@ -165,6 +175,7 @@ erDiagram
 - `created_at`과 `captured_at`은 이동 시 불변이고 `state_changed_at`만 상태 변경 시 갱신됩니다.
 - `threads.tag`는 배열 성격의 태그 데이터를 저장합니다.
 - `crawl-history`는 `(crawl_source, url)` 유니크 인덱스로 중복 유입을 영구적으로 방지합니다. 사용자 목록에서 삭제된 URL도 재수집하지 않으며, 기간 만료 삭제·아카이브·월별 파티셔닝을 적용하지 않습니다.
+- `crawl_source_registry`는 active·retired lifecycle과 운영 표시명의 권위입니다. 실행·정책·장애·Push 경로는 active 행만 처리하고, 과거 retired source 감사 이력은 FK로 보존합니다.
 - `crawl_runs`는 재시도를 포함한 한 번의 실행을 한 행으로 보존하며 90일이 지난 이력은 매일 03:15 KST에 정리합니다.
 - `crawl_alert_incidents`는 소스 장애의 발생·복구 상태를 보존하고 설정 화면에 표시합니다.
 - `thread_media_metadata`는 외부 원시 응답 없이 YouTube 표시용 요약만 저장합니다.
@@ -180,6 +191,8 @@ erDiagram
 ## 유지보수 가이드
 
 ### 1) 크롤러 소스 추가/변경
+- 신규 source는 `registry lifecycle 행 등록 → dormant adapter·parser 구현 → active registry와 CRAWL_SOURCES parity 검증 → 정책 생성·예약 활성화` 순서로 승격
+- adapter 구현 전에는 registry 행을 retired 상태로 두고, 활성화 release에서 DB active 전환과 `CRAWL_SOURCES` 등록을 함께 검증해 불일치 시 fail closed
 - `app/api/crawl/<source>-parser.ts`에 네트워크와 분리된 순수 파서 구현
 - `app/api/crawl/<source>.ts`에서 요청 결과를 공통 파서 계약에 연결
 - `app/api/crawl/crawl-runner.ts`의 `CRAWLERS`에 타겟 등록

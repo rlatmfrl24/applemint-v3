@@ -10,6 +10,7 @@ import {
 
 const policy: CrawlSourcePolicy = {
 	source: "battlepage",
+	label: "Battlepage",
 	scheduleEnabled: true,
 	cooldownSeconds: 3600,
 	recommendedCooldownSeconds: 3600,

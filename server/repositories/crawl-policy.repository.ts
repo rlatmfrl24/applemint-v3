@@ -1,6 +1,6 @@
 import {
 	type CrawlPolicyUpdateInput,
-	crawlPolicySettingsSchema,
+	crawlPolicySettingsRawSchema,
 	crawlPolicyUpdateResultSchema,
 } from "@/contracts/crawl-policy.schema";
 import { unexpectedFailure } from "@/server/errors/domain-error";
@@ -24,7 +24,7 @@ export class CrawlPolicyRepository implements CrawlPolicyStore {
 			const { data, error } = await this.supabase.rpc("get_crawl_source_policy_settings");
 			if (error) throw mapPostgrestError(error, "수집 정책을 조회하지 못했습니다.");
 
-			const parsed = crawlPolicySettingsSchema.safeParse(data);
+			const parsed = crawlPolicySettingsRawSchema.safeParse(data);
 			if (!parsed.success) {
 				throw unexpectedFailure("수집 정책 응답이 올바르지 않습니다.", parsed.error);
 			}
