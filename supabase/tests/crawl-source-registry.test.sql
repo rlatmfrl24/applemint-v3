@@ -1,7 +1,7 @@
 -- Crawl source lifecycle authority, historical compatibility, and least privilege.
 begin;
 
-select plan(28);
+select plan(32);
 
 select has_table(
 	'public',
@@ -253,6 +253,74 @@ select is(
 	jsonb_array_length(public.get_crawl_source_policy_settings() -> 'sources'),
 	4,
 	'policy dashboard excludes a retired source even if a policy row exists'
+);
+reset role;
+
+select ok(
+	position('crawl_source_registry' in pg_get_functiondef(
+		'public.get_crawl_runs_dashboard(integer,integer)'::regprocedure
+	)) > 0
+		and position('registry.active' in pg_get_functiondef(
+			'public.get_crawl_runs_dashboard(integer,integer)'::regprocedure
+		)) > 0,
+	'crawl run dashboard derives active sources from the registry'
+);
+
+insert into public.crawl_source_registry (source, label, active)
+values ('registryprobe', 'Registry Probe', true);
+insert into public.crawl_source_policies (
+	source,
+	schedule_enabled,
+	cooldown_seconds,
+	recommended_cooldown_seconds,
+	run_budget_seconds
+)
+values ('registryprobe', false, 3600, 3600, 45);
+insert into public.crawl_runs (
+	id,
+	source,
+	lock_token,
+	status,
+	run_trigger,
+	started_at,
+	stale_after
+)
+values (
+	9300000000000000,
+	'registryprobe',
+	'93000000-0000-4000-8000-000000000003',
+	'running',
+	'manual',
+	now(),
+	now() + interval '5 minutes'
+);
+set local role authenticated;
+select is(
+	(
+		select count(*)
+		from jsonb_array_elements(public.get_crawl_runs_dashboard(20, 20) -> 'sources') as source
+		where source ->> 'source' = 'registryprobe'
+	),
+	1::bigint,
+	'new active source policy appears in the crawl dashboard summary'
+);
+select is(
+	(
+		select count(*)
+		from jsonb_array_elements(public.get_crawl_runs_dashboard(20, 20) -> 'runs') as run
+		where run ->> 'source' = 'registryprobe'
+	),
+	1::bigint,
+	'new active source run appears in recent dashboard history'
+);
+select is(
+	(
+		select count(*)
+		from jsonb_array_elements(public.get_crawl_runs_dashboard(20, 20) -> 'activeRuns') as run
+		where run ->> 'source' = 'registryprobe'
+	),
+	1::bigint,
+	'new active source run appears in dashboard active runs'
 );
 reset role;
 

@@ -233,6 +233,57 @@ begin
 	execute v_updated;
 
 	v_definition := pg_get_functiondef(
+		'public.get_crawl_runs_dashboard(integer,integer)'::regprocedure
+	);
+	v_updated := replace(
+		v_definition,
+		'select * from effective_runs
+		where source in (''arcalive'', ''battlepage'', ''insagirl'', ''issuelink'')',
+		'select run.* from effective_runs as run
+		where exists (
+			select 1
+			from public.crawl_source_registry as registry
+			where registry.source = run.source and registry.active
+		)'
+	);
+	if v_updated = v_definition then
+		raise exception 'Expected crawl dashboard recent-run source contract was not found.';
+	end if;
+
+	v_definition := v_updated;
+	v_updated := replace(
+		v_definition,
+		'select * from effective_runs
+		where effective_status = ''running''
+			and source in (''arcalive'', ''battlepage'', ''insagirl'', ''issuelink'')',
+		'select run.* from effective_runs as run
+		where run.effective_status = ''running''
+			and exists (
+				select 1
+				from public.crawl_source_registry as registry
+				where registry.source = run.source and registry.active
+			)'
+	);
+	if v_updated = v_definition then
+		raise exception 'Expected crawl dashboard active-run source contract was not found.';
+	end if;
+
+	v_definition := v_updated;
+	v_updated := replace(
+		v_definition,
+		'from public.crawl_source_policies as policy
+		), ''[]''::jsonb),',
+		'from public.crawl_source_policies as policy
+			inner join public.crawl_source_registry as registry
+				on registry.source = policy.source and registry.active
+		), ''[]''::jsonb),'
+	);
+	if v_updated = v_definition then
+		raise exception 'Expected crawl dashboard source-summary contract was not found.';
+	end if;
+	execute v_updated;
+
+	v_definition := pg_get_functiondef(
 		'public.evaluate_crawl_alerts(timestamp with time zone)'::regprocedure
 	);
 	v_updated := replace(
