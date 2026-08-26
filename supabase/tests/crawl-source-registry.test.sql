@@ -598,8 +598,16 @@ select ok(
 		)) > 0
 		and position('delivery.source in (''arcalive'', ''battlepage'', ''insagirl'', ''issuelink'')' in pg_get_functiondef(
 			'public.claim_web_push_deliveries(integer,integer)'::regprocedure
+		)) > 0
+		and position('applemint:crawl-source-lifecycle:' in pg_get_functiondef(
+			'public.dispatch_due_crawl_sources()'::regprocedure
+		)) < position('for v_source in' in pg_get_functiondef(
+			'public.dispatch_due_crawl_sources()'::regprocedure
+		))
+		and position('array_agg(due.source order by due.source)' in pg_get_functiondef(
+			'public.dispatch_due_crawl_sources()'::regprocedure
 		)) > 0,
-	'policy, alert, finish, and Push boundaries consult the registry authority'
+	'policy, alert, finish, Push, and dispatch boundaries consult the registry authority'
 );
 
 alter table public.crawl_runs disable trigger crawl_runs_assert_active_source;

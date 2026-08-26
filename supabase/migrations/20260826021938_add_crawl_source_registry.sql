@@ -355,6 +355,59 @@ begin
 	end if;
 	execute v_updated;
 
+	v_definition := pg_get_functiondef(
+		'public.dispatch_due_crawl_sources()'::regprocedure
+	);
+	v_updated := replace(
+		v_definition,
+		'v_source record;
+	v_dispatched_count integer := 0;',
+		'v_source record;
+	v_due_sources text[];
+	v_dispatched_count integer := 0;'
+	);
+	if v_updated = v_definition then
+		raise exception 'Expected crawl dispatch source declaration contract was not found.';
+	end if;
+
+	v_definition := v_updated;
+	v_updated := replace(
+		v_definition,
+		'v_scheduled_for := date_bin(interval ''5 minutes'', v_now, ''2000-01-01 00:00:00+00''::timestamp with time zone);
+	for v_source in
+		select * from public._select_due_crawl_sources(v_now, v_scheduled_for, v_available_slots)
+	loop',
+		'v_scheduled_for := date_bin(interval ''5 minutes'', v_now, ''2000-01-01 00:00:00+00''::timestamp with time zone);
+	select coalesce(array_agg(due.source order by due.source), array[]::text[])
+	into v_due_sources
+	from public._select_due_crawl_sources(
+		v_now,
+		v_scheduled_for,
+		v_available_slots
+	) as due;
+
+	perform pg_catalog.pg_advisory_xact_lock(
+		pg_catalog.hashtextextended(
+			''applemint:crawl-source-lifecycle:'' || due.source,
+			0
+		)
+	)
+	from unnest(v_due_sources) as due(source)
+	order by due.source;
+
+	for v_source in
+		select due.source
+		from unnest(v_due_sources) as due(source)
+		inner join public.crawl_source_registry as registry
+			on registry.source = due.source and registry.active
+		order by due.source
+	loop'
+	);
+	if v_updated = v_definition then
+		raise exception 'Expected crawl dispatch lifecycle lock insertion point was not found.';
+	end if;
+	execute v_updated;
+
 	-- Keep the deployed fixed-cardinality dashboard contracts until the 5B
 	-- application transition can accept registry-driven source counts.
 	v_definition := pg_get_functiondef(
