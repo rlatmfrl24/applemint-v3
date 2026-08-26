@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { crawlPolicySettings, NOW } from "@/test/support/communication";
+import { crawlPolicySettingsRaw, NOW } from "@/test/support/communication";
 import { CrawlPolicyRepository } from "./crawl-policy.repository";
 
 describe("CrawlPolicyRepository", () => {
@@ -10,14 +10,14 @@ describe("CrawlPolicyRepository", () => {
 	beforeEach(() => rpc.mockReset());
 
 	it("정책 조회 RPC 응답을 Zod로 검증한다", async () => {
-		rpc.mockResolvedValue({ data: crawlPolicySettings, error: null });
-		await expect(repository.get()).resolves.toEqual(crawlPolicySettings);
+		rpc.mockResolvedValue({ data: crawlPolicySettingsRaw, error: null });
+		await expect(repository.get()).resolves.toEqual(crawlPolicySettingsRaw);
 		expect(rpc).toHaveBeenCalledWith("get_crawl_source_policy_settings");
 	});
 
 	it("손상된 정책 조회 응답을 fail closed 한다", async () => {
 		rpc.mockResolvedValue({
-			data: { ...crawlPolicySettings, sources: [] },
+			data: { ...crawlPolicySettingsRaw, sources: null },
 			error: null,
 		});
 		await expect(repository.get()).rejects.toMatchObject({ code: "UnexpectedFailure" });
@@ -25,7 +25,7 @@ describe("CrawlPolicyRepository", () => {
 
 	it("검증된 정책을 compare-and-swap RPC에 전달한다", async () => {
 		rpc.mockResolvedValue({
-			data: { updated: true, reason: null, settings: crawlPolicySettings },
+			data: { updated: true, reason: null, settings: crawlPolicySettingsRaw },
 			error: null,
 		});
 		await expect(
@@ -35,7 +35,7 @@ describe("CrawlPolicyRepository", () => {
 				cooldownSeconds: 3600,
 				expectedUpdatedAt: NOW,
 			})
-		).resolves.toMatchObject({ updated: true, settings: crawlPolicySettings });
+		).resolves.toMatchObject({ updated: true, settings: crawlPolicySettingsRaw });
 		expect(rpc).toHaveBeenCalledWith("update_crawl_source_policy", {
 			p_source: "arcalive",
 			p_schedule_enabled: false,

@@ -1,7 +1,7 @@
 import {
 	type CrawlRunsInput,
 	crawlAlertsDashboardSchema,
-	crawlRunsBaseDashboardSchema,
+	crawlRunsBaseDashboardRawSchema,
 } from "@/contracts/crawl-run.schema";
 import { unexpectedFailure } from "@/server/errors/domain-error";
 import { mapPostgrestError } from "@/server/errors/error-mapper";
@@ -27,7 +27,7 @@ export class CrawlRunRepository implements CrawlRunStore {
 			});
 			if (error) throw mapPostgrestError(error, "크롤링 실행 이력을 조회하지 못했습니다.");
 
-			const parsed = crawlRunsBaseDashboardSchema.safeParse(data);
+			const parsed = crawlRunsBaseDashboardRawSchema.safeParse(data);
 			if (!parsed.success) {
 				throw unexpectedFailure("크롤링 실행 이력 응답이 올바르지 않습니다.", parsed.error);
 			}

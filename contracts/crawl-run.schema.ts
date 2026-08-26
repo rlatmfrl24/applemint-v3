@@ -84,7 +84,7 @@ const crawlRunTrendPointSchema = z.object({
 	failureCount: nonNegativeIntegerSchema,
 });
 
-const crawlSourceSummaryBaseSchema = z.object({
+const crawlSourceSummaryBaseRawSchema = z.object({
 	source: crawlSourceSchema,
 	scheduleEnabled: z.boolean(),
 	cooldownSeconds: z.number().int().positive(),
@@ -107,6 +107,10 @@ const crawlSourceSummaryBaseSchema = z.object({
 		})
 		.nullable(),
 	trend: z.array(crawlRunTrendPointSchema),
+});
+
+const crawlSourceSummaryBaseSchema = crawlSourceSummaryBaseRawSchema.extend({
+	label: z.string().trim().min(1).max(80),
 });
 
 const crawlSourceSummarySchema = crawlSourceSummaryBaseSchema.extend({
@@ -145,7 +149,7 @@ const crawlAlertSettingsSchema = z.object({
 	lastEvaluatedAt: isoTimestampSchema.nullable(),
 });
 
-export const crawlRunsBaseDashboardSchema = z.object({
+export const crawlRunsBaseDashboardRawSchema = z.object({
 	activeRun: activeCrawlRunSchema.nullable(),
 	activeRuns: z.array(activeCrawlRunSchema),
 	runtimeSettings: z.object({
@@ -153,8 +157,12 @@ export const crawlRunsBaseDashboardSchema = z.object({
 		lockTtlSeconds: z.number().int().positive(),
 		heartbeatIntervalSeconds: z.number().int().positive(),
 	}),
-	sources: z.array(crawlSourceSummaryBaseSchema),
+	sources: z.array(crawlSourceSummaryBaseRawSchema),
 	runs: z.array(crawlRunSchema),
+});
+
+const crawlRunsBaseDashboardSchema = crawlRunsBaseDashboardRawSchema.extend({
+	sources: z.array(crawlSourceSummaryBaseSchema),
 });
 
 export const crawlAlertsDashboardSchema = z.object({
