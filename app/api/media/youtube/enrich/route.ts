@@ -8,7 +8,7 @@ import {
 	mediaWorkerResponseSchema,
 } from "@/contracts/media-worker.schema";
 import { parseJsonRequest } from "@/lib/http-json";
-import { getInternalSecret, getYouTubeApiKey } from "@/server/env";
+import { getInternalSecret, getYouTubeApiKey } from "@/server/env/features";
 import {
 	type ObservedRequestContext,
 	observeHttpHandler,

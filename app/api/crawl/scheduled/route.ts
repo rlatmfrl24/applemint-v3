@@ -5,7 +5,7 @@ import {
 	scheduledCrawlResponseSchema,
 } from "@/contracts/crawl-command.schema";
 import { parseJsonRequest } from "@/lib/http-json";
-import { getInternalSecret } from "@/server/env";
+import { getInternalSecret } from "@/server/env/features";
 import {
 	type ObservedRequestContext,
 	observeHttpHandler,

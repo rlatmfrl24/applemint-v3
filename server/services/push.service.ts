@@ -1,17 +1,22 @@
-import type { PushSubscriptionInput } from "@/contracts/push.schema";
+import type { PushSendTestResult, PushSubscriptionInput } from "@/contracts/push.schema";
 import { DomainError } from "@/server/errors/domain-error";
 import type { PushStore } from "@/server/ports/push.store";
 import { getWebPushServerConfiguration } from "@/server/push/configuration";
 
-const sendWebPushTest = async (
-	endpoint: string,
-	configuration: Extract<ReturnType<typeof getWebPushServerConfiguration>, { enabled: true }>
-) => (await import("@/server/push/test-sender")).sendWebPushTest(endpoint, configuration);
+export type PushTestSender = (endpoint: string) => Promise<PushSendTestResult>;
+
+const unavailablePushTestSender: PushTestSender = async () => {
+	throw new DomainError(
+		"ConfigurationUnavailable",
+		"Web Push 테스트 처리 경로가 준비되지 않았습니다.",
+		{ reasonCode: "push-test-route-missing" }
+	);
+};
 
 export class PushService {
 	constructor(
 		private readonly store: PushStore,
-		private readonly sendTestNotification = sendWebPushTest
+		private readonly sendTestNotification: PushTestSender = unavailablePushTestSender
 	) {}
 
 	configuration() {
@@ -47,6 +52,6 @@ export class PushService {
 				reasonCode: configuration.public.reason ?? "configuration-missing",
 			});
 		}
-		return this.sendTestNotification(endpoint, configuration);
+		return this.sendTestNotification(endpoint);
 	}
 }

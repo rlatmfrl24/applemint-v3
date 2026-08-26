@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { isoTimestampSchema } from "./common.schema";
+import { decimalIdSchema, isoTimestampSchema } from "./common.schema";
 
 const claimedYouTubeJobSchema = z
 	.object({
-		thread_id: z.union([z.string().regex(/^[1-9]\d*$/), z.number().int().positive()]),
+		thread_id: decimalIdSchema,
 		provider: z.literal("youtube"),
 		url: z.string().url(),
 		attempt_count: z.number().int().positive(),

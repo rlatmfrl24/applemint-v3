@@ -1,4 +1,4 @@
-import { isCrawlDebugEnabled } from "@/server/env";
+import { isCrawlDebugEnabled } from "@/server/env/features";
 
 const DEBUG_CRAWL_ENABLED = isCrawlDebugEnabled();
 

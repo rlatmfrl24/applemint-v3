@@ -6,6 +6,13 @@ const FORBIDDEN_PATHS = [
 	`${sep}node_modules${sep}web-push${sep}`,
 	`${sep}utils${sep}supabase${sep}service-role`,
 ];
+const FORBIDDEN_BUNDLE_MARKERS = [
+	"SUPABASE_SECRET_KEY",
+	"createServiceRoleClient",
+	"sendWebPushTest",
+	"server_push_test-sender",
+	"utils_supabase_service-role",
+];
 
 function normalizePath(value) {
 	return value.replaceAll("/", sep).replaceAll("\\", sep);
@@ -20,6 +27,12 @@ const tracedFiles = trace.files.map((file) => resolve(dirname(TRACE_PATH), file)
 const violations = tracedFiles.filter((file) =>
 	FORBIDDEN_PATHS.some((forbidden) => normalizePath(file).includes(forbidden))
 );
+for (const file of tracedFiles.filter((value) => value.endsWith(".js"))) {
+	const source = readFileSync(file, "utf8");
+	for (const marker of FORBIDDEN_BUNDLE_MARKERS) {
+		if (source.includes(marker)) violations.push(`${file} (contains ${marker})`);
+	}
+}
 
 if (violations.length > 0) {
 	throw new Error(`General tRPC trace crossed a server-only boundary:\n${violations.join("\n")}`);

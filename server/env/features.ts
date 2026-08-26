@@ -2,13 +2,6 @@ import "server-only";
 
 import { z } from "zod";
 
-const serviceRoleEnvironmentSchema = z
-	.object({
-		SUPABASE_URL: z.string().url(),
-		SUPABASE_SECRET_KEY: z.string().trim().min(1),
-	})
-	.strict();
-
 const optionalServerEnvironmentSchema = z
 	.object({
 		CRAWL_INTERNAL_SECRET: z.string().optional(),
@@ -35,19 +28,6 @@ function readOptionalEnvironment(environment: Record<string, string | undefined>
 		LOG_LEVEL: environment.LOG_LEVEL,
 		DEBUG_CRAWL: environment.DEBUG_CRAWL,
 	});
-}
-
-export function getServiceRoleEnvironment(
-	environment: Record<string, string | undefined> = process.env
-) {
-	const parsed = serviceRoleEnvironmentSchema.safeParse({
-		SUPABASE_URL: environment.SUPABASE_URL ?? environment.NEXT_PUBLIC_SUPABASE_URL,
-		SUPABASE_SECRET_KEY: environment.SUPABASE_SECRET_KEY,
-	});
-	if (!parsed.success) {
-		throw new Error("Service-role Supabase environment configuration is invalid.");
-	}
-	return parsed.data;
 }
 
 export function getInternalSecret(environment: Record<string, string | undefined> = process.env) {

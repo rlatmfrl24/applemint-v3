@@ -80,7 +80,7 @@ describe("runYouTubeEnrichmentWorker", () => {
 		expect(rpc).toHaveBeenCalledWith(
 			"complete_media_enrichment_job",
 			expect.objectContaining({
-				p_thread_id: 2,
+				p_thread_id: "2",
 				p_lease_token: leaseToken(2),
 				p_metadata: expect.objectContaining({
 					status: "ready",
@@ -92,7 +92,7 @@ describe("runYouTubeEnrichmentWorker", () => {
 		expect(rpc).toHaveBeenCalledWith(
 			"complete_media_enrichment_job",
 			expect.objectContaining({
-				p_thread_id: 3,
+				p_thread_id: "3",
 				p_lease_token: leaseToken(3),
 				p_metadata: expect.objectContaining({
 					status: "ready",
@@ -104,7 +104,7 @@ describe("runYouTubeEnrichmentWorker", () => {
 		expect(rpc).toHaveBeenCalledWith(
 			"complete_media_enrichment_job",
 			expect.objectContaining({
-				p_thread_id: 4,
+				p_thread_id: "4",
 				p_lease_token: leaseToken(4),
 				p_metadata: expect.objectContaining({
 					status: "ready",
@@ -116,7 +116,7 @@ describe("runYouTubeEnrichmentWorker", () => {
 		expect(rpc).toHaveBeenCalledWith(
 			"complete_media_enrichment_job",
 			expect.objectContaining({
-				p_thread_id: 5,
+				p_thread_id: "5",
 				p_lease_token: leaseToken(5),
 				p_metadata: expect.objectContaining({
 					status: "unavailable",
@@ -128,7 +128,7 @@ describe("runYouTubeEnrichmentWorker", () => {
 		expect(rpc).toHaveBeenCalledWith(
 			"complete_media_enrichment_job",
 			expect.objectContaining({
-				p_thread_id: 6,
+				p_thread_id: "6",
 				p_lease_token: leaseToken(6),
 				p_metadata: expect.objectContaining({
 					status: "unsupported",
@@ -137,7 +137,7 @@ describe("runYouTubeEnrichmentWorker", () => {
 			})
 		);
 		expect(rpc).toHaveBeenCalledWith("fail_media_enrichment_job", {
-			p_thread_id: 7,
+			p_thread_id: "7",
 			p_lease_token: leaseToken(7),
 			p_error_code: "YOUTUBE_INVALID_VIDEO_ID",
 		});
@@ -177,7 +177,7 @@ describe("runYouTubeEnrichmentWorker", () => {
 
 		expect(result.retriedCount).toBe(1);
 		expect(rpc).toHaveBeenCalledWith("retry_media_enrichment_job", {
-			p_thread_id: 10,
+			p_thread_id: "10",
 			p_lease_token: leaseToken(10),
 			p_error_code: errorCode,
 			p_available_at: "2026-07-27T00:01:00.000Z",
@@ -203,7 +203,7 @@ describe("runYouTubeEnrichmentWorker", () => {
 
 		expect(result).toMatchObject({ retriedCount: 1, failedCount: 0 });
 		expect(rpc).toHaveBeenCalledWith("retry_media_enrichment_job", {
-			p_thread_id: 11,
+			p_thread_id: "11",
 			p_lease_token: leaseToken(11),
 			p_error_code: "YOUTUBE_QUOTA_EXCEEDED",
 			p_available_at: "2026-07-28T01:00:00.000Z",
@@ -228,7 +228,7 @@ describe("runYouTubeEnrichmentWorker", () => {
 
 		expect(result).toMatchObject({ retriedCount: 0, failedCount: 1 });
 		expect(rpc).toHaveBeenCalledWith("fail_media_enrichment_job", {
-			p_thread_id: 12,
+			p_thread_id: "12",
 			p_lease_token: leaseToken(12),
 			p_error_code: "YOUTUBE_QUOTA_MAX_ATTEMPTS",
 		});
@@ -248,7 +248,7 @@ describe("runYouTubeEnrichmentWorker", () => {
 
 		expect(result).toMatchObject({ retriedCount: 0, failedCount: 1 });
 		expect(rpc).toHaveBeenCalledWith("fail_media_enrichment_job", {
-			p_thread_id: 20,
+			p_thread_id: "20",
 			p_lease_token: leaseToken(20),
 			p_error_code: "YOUTUBE_MAX_ATTEMPTS",
 		});
@@ -269,7 +269,7 @@ describe("runYouTubeEnrichmentWorker", () => {
 		expect(result).toMatchObject({ readyCount: 0, leaseRejectedCount: 1 });
 		expect(rpc).toHaveBeenCalledWith(
 			"complete_media_enrichment_job",
-			expect.objectContaining({ p_thread_id: 30, p_lease_token: leaseToken(30) })
+			expect.objectContaining({ p_thread_id: "30", p_lease_token: leaseToken(30) })
 		);
 	});
 
@@ -288,7 +288,7 @@ describe("runYouTubeEnrichmentWorker", () => {
 		expect(result).toMatchObject({ retriedCount: 0, leaseRejectedCount: 1 });
 		expect(rpc).toHaveBeenCalledWith(
 			"retry_media_enrichment_job",
-			expect.objectContaining({ p_thread_id: 31, p_lease_token: leaseToken(31) })
+			expect.objectContaining({ p_thread_id: "31", p_lease_token: leaseToken(31) })
 		);
 	});
 

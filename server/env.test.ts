@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
 	getInternalSecret,
-	getServiceRoleEnvironment,
 	getWebPushEnvironment,
 	getYouTubeApiKey,
 	isCrawlDebugEnabled,
-} from "./env";
+} from "./env/features";
+import { getServiceRoleEnvironment } from "./env/service-role";
 
 describe("server environment", () => {
 	it("service-role 설정을 검증하고 public URL fallback을 허용한다", () => {

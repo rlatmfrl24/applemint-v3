@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import { type PushConfiguration, pushConfigurationSchema } from "@/contracts/push.schema";
-import { getWebPushEnvironment, type OptionalServerEnvironment } from "@/server/env";
+import { getWebPushEnvironment, type OptionalServerEnvironment } from "@/server/env/features";
 
 export type WebPushServerConfiguration =
 	| {

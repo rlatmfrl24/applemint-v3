@@ -39,9 +39,6 @@ describe("PushService.sendTest", () => {
 		await expect(service.sendTest("https://push.test/device")).resolves.toMatchObject({
 			sent: true,
 		});
-		expect(sender).toHaveBeenCalledWith(
-			"https://push.test/device",
-			expect.objectContaining({ enabled: true })
-		);
+		expect(sender).toHaveBeenCalledWith("https://push.test/device");
 	});
 });

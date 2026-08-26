@@ -5,7 +5,7 @@ import {
 } from "@/app/api/crawl/internal-auth";
 import { pushDispatchRequestSchema, pushDispatchResponseSchema } from "@/contracts/push.schema";
 import { parseJsonRequest } from "@/lib/http-json";
-import { getInternalSecret } from "@/server/env";
+import { getInternalSecret } from "@/server/env/features";
 import {
 	type ObservedRequestContext,
 	observeHttpHandler,
