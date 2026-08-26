@@ -1,7 +1,7 @@
 -- Crawl source lifecycle authority, historical compatibility, and least privilege.
 begin;
 
-select plan(32);
+select plan(34);
 
 select has_table(
 	'public',
@@ -323,6 +323,56 @@ select is(
 	'new active source run appears in dashboard active runs'
 );
 reset role;
+
+select ok(
+	(
+		select pg_proc.prosecdef
+			and pg_get_userbyid(pg_proc.proowner) = 'postgres'
+			and pg_proc.proconfig = array['search_path=""']::text[]
+		from pg_proc
+		where pg_proc.oid = 'private.reconcile_retired_crawl_source_alerts()'::regprocedure
+	)
+		and not has_function_privilege(
+			'service_role',
+			'private.reconcile_retired_crawl_source_alerts()',
+			'EXECUTE'
+		)
+		and exists (
+			select 1
+			from pg_trigger
+			where tgrelid = 'public.crawl_source_registry'::regclass
+				and tgname = 'crawl_source_registry_reconcile_alerts_after_retire'
+				and not tgisinternal
+		),
+	'retirement alert reconciliation is an owner-executed trigger boundary'
+);
+insert into public.crawl_alert_incidents (
+	source,
+	active_signals,
+	opened_at,
+	last_observed_at,
+	snapshot
+)
+values (
+	'registryprobe',
+	array['parser-failure']::text[],
+	now() - interval '1 hour',
+	now() - interval '1 minute',
+	'{}'::jsonb
+);
+update public.crawl_source_registry
+set active = false, retired_at = now(), updated_at = now()
+where source = 'registryprobe';
+select ok(
+	(
+		select status = 'recovered'
+			and recovered_at is not null
+			and last_observed_at = recovered_at
+		from public.crawl_alert_incidents
+		where source = 'registryprobe'
+	),
+	'retiring a source immediately reconciles its open alert incident'
+);
 
 select is(
 	(

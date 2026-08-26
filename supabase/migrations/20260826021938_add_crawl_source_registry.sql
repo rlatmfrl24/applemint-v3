@@ -77,6 +77,34 @@ alter table public.web_push_deliveries
 	foreign key (source) references public.crawl_source_registry (source)
 	on update restrict on delete restrict;
 
+create function private.reconcile_retired_crawl_source_alerts()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+	update public.crawl_alert_incidents
+	set
+		status = 'recovered',
+		last_observed_at = now(),
+		recovered_at = coalesce(recovered_at, now())
+	where source = new.source and status = 'open';
+
+	return new;
+end;
+$$;
+
+alter function private.reconcile_retired_crawl_source_alerts() owner to postgres;
+revoke all on function private.reconcile_retired_crawl_source_alerts()
+	from public, anon, authenticated, service_role;
+
+create trigger crawl_source_registry_reconcile_alerts_after_retire
+after update of active on public.crawl_source_registry
+for each row
+when (old.active and not new.active)
+execute function private.reconcile_retired_crawl_source_alerts();
+
 create or replace function public.get_active_crawl_source_registry()
 returns table (source text, label text)
 language sql
