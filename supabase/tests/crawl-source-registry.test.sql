@@ -1,7 +1,7 @@
 -- Crawl source lifecycle authority, historical compatibility, and least privilege.
 begin;
 
-select plan(40);
+select plan(41);
 
 select has_table(
 	'public',
@@ -244,18 +244,18 @@ select is(
 select is(
 	jsonb_array_length(public.get_crawl_source_policy_settings() -> 'sources'),
 	4,
-	'policy dashboard returns only active registered sources'
+	'policy dashboard preserves the deployed four-source response contract during registry rollout'
 );
 reset role;
 
 select ok(
-	position('crawl_source_registry' in pg_get_functiondef(
+	position('source in (''arcalive'', ''battlepage'', ''insagirl'', ''issuelink'')' in pg_get_functiondef(
 		'public.get_crawl_runs_dashboard(integer,integer)'::regprocedure
 	)) > 0
-		and position('registry.active' in pg_get_functiondef(
+		and position('crawl_source_registry' in pg_get_functiondef(
 			'public.get_crawl_runs_dashboard(integer,integer)'::regprocedure
-		)) > 0,
-	'crawl run dashboard derives active sources from the registry'
+		)) = 0,
+	'crawl run dashboard keeps its deployed source cardinality until the code transition'
 );
 
 select ok(
@@ -313,13 +313,18 @@ insert into public.crawl_schedule_dispatches (scheduled_for, source)
 values (date_trunc('minute', now()), 'registryprobe');
 set local role authenticated;
 select is(
+	jsonb_array_length(public.get_crawl_source_policy_settings() -> 'sources'),
+	4,
+	'new registry source does not break the deployed fixed-cardinality policy response'
+);
+select is(
 	(
 		select count(*)
 		from jsonb_array_elements(public.get_crawl_runs_dashboard(20, 20) -> 'sources') as source
 		where source ->> 'source' = 'registryprobe'
 	),
-	1::bigint,
-	'new active source policy appears in the crawl dashboard summary'
+	0::bigint,
+	'new registry source stays out of the legacy crawl dashboard summary'
 );
 select is(
 	(
@@ -327,8 +332,8 @@ select is(
 		from jsonb_array_elements(public.get_crawl_runs_dashboard(20, 20) -> 'runs') as run
 		where run ->> 'source' = 'registryprobe'
 	),
-	1::bigint,
-	'new active source run appears in recent dashboard history'
+	0::bigint,
+	'new registry source stays out of legacy recent dashboard history'
 );
 select is(
 	(
@@ -336,8 +341,8 @@ select is(
 		from jsonb_array_elements(public.get_crawl_runs_dashboard(20, 20) -> 'activeRuns') as run
 		where run ->> 'source' = 'registryprobe'
 	),
-	1::bigint,
-	'new active source run appears in dashboard active runs'
+	0::bigint,
+	'new registry source stays out of legacy dashboard active runs'
 );
 reset role;
 
@@ -519,6 +524,11 @@ select ok(
 		and position('registry.active' in pg_get_functiondef(
 			'public.evaluate_crawl_alerts(timestamp with time zone)'::regprocedure
 		)) > 0
+		and position('applemint:crawl-source-lifecycle:' in pg_get_functiondef(
+			'public.evaluate_crawl_alerts(timestamp with time zone)'::regprocedure
+		)) < position('update public.crawl_runs' in pg_get_functiondef(
+			'public.evaluate_crawl_alerts(timestamp with time zone)'::regprocedure
+		))
 		and position('crawl_source_registry' in pg_get_functiondef(
 			'public.finish_crawl_run(bigint,uuid,jsonb)'::regprocedure
 		)) > 0

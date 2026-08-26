@@ -98,6 +98,28 @@ create trigger zz_registry_lifecycle_alert_delay
 before insert on public.crawl_alert_incidents
 for each row execute function private.delay_registry_lifecycle_alert_insert();
 
+create function private.delay_registry_alert_stale_run_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+	if old.source = 'registryalertrace'
+		and old.status = 'running'
+		and new.status = 'interrupted'
+	then
+		perform pg_catalog.pg_sleep(0.75);
+	end if;
+	return new;
+end;
+$$;
+revoke all on function private.delay_registry_alert_stale_run_update()
+	from public, anon, authenticated, service_role;
+create trigger zz_registry_alert_stale_run_update_delay
+before update on public.crawl_runs
+for each row execute function private.delay_registry_alert_stale_run_update();
+
 create function private.delay_registry_lifecycle_run_finish()
 returns trigger
 language plpgsql
@@ -298,6 +320,22 @@ values (
 	1,
 	10
 );
+insert into public.crawl_runs (
+	source,
+	lock_token,
+	status,
+	run_trigger,
+	started_at,
+	stale_after
+)
+values (
+	'registryalertrace',
+	'94000000-0000-4000-8000-000000000005',
+	'running',
+	'manual',
+	now() - interval '2 hours',
+	now() - interval '90 minutes'
+);
 update public.crawl_alert_settings set parser_failure_streak = 1 where id = true;
 
 select is(
@@ -320,7 +358,7 @@ select is(
 		$$
 	),
 	1,
-	'alert source retirement starts while incident insertion is delayed'
+	'alert source retirement starts while a stale run update is delayed'
 );
 select pg_sleep(0.15);
 select is(
@@ -539,6 +577,8 @@ drop trigger zz_registry_expired_lease_delete_delay on public.crawl_run_locks;
 drop function private.delay_registry_expired_lease_delete();
 drop trigger zz_registry_lifecycle_alert_delay on public.crawl_alert_incidents;
 drop function private.delay_registry_lifecycle_alert_insert();
+drop trigger zz_registry_alert_stale_run_update_delay on public.crawl_runs;
+drop function private.delay_registry_alert_stale_run_update();
 drop trigger zz_registry_lifecycle_finish_delay on public.crawl_runs;
 drop function private.delay_registry_lifecycle_run_finish();
 

@@ -355,6 +355,8 @@ begin
 	end if;
 	execute v_updated;
 
+	-- Keep the deployed fixed-cardinality dashboard contracts until the 5B
+	-- application transition can accept registry-driven source counts.
 	v_definition := pg_get_functiondef(
 		'public.get_crawl_source_policy_settings()'::regprocedure
 	);
@@ -363,12 +365,11 @@ begin
 		'from public.crawl_source_policies as policy
 	)',
 		'from public.crawl_source_policies as policy
-		inner join public.crawl_source_registry as registry
-			on registry.source = policy.source and registry.active
+		where policy.source in (''arcalive'', ''battlepage'', ''insagirl'', ''issuelink'')
 	)'
 	);
 	if v_updated = v_definition then
-		raise exception 'Expected crawl policy dashboard source contract was not found.';
+		raise exception 'Expected fixed crawl policy dashboard source contract was not found.';
 	end if;
 	execute v_updated;
 
@@ -377,49 +378,14 @@ begin
 	);
 	v_updated := replace(
 		v_definition,
-		'select * from effective_runs
-		where source in (''arcalive'', ''battlepage'', ''insagirl'', ''issuelink'')',
-		'select run.* from effective_runs as run
-		where exists (
-			select 1
-			from public.crawl_source_registry as registry
-			where registry.source = run.source and registry.active
-		)'
-	);
-	if v_updated = v_definition then
-		raise exception 'Expected crawl dashboard recent-run source contract was not found.';
-	end if;
-
-	v_definition := v_updated;
-	v_updated := replace(
-		v_definition,
-		'select * from effective_runs
-		where effective_status = ''running''
-			and source in (''arcalive'', ''battlepage'', ''insagirl'', ''issuelink'')',
-		'select run.* from effective_runs as run
-		where run.effective_status = ''running''
-			and exists (
-				select 1
-				from public.crawl_source_registry as registry
-				where registry.source = run.source and registry.active
-			)'
-	);
-	if v_updated = v_definition then
-		raise exception 'Expected crawl dashboard active-run source contract was not found.';
-	end if;
-
-	v_definition := v_updated;
-	v_updated := replace(
-		v_definition,
 		'from public.crawl_source_policies as policy
 		), ''[]''::jsonb),',
 		'from public.crawl_source_policies as policy
-			inner join public.crawl_source_registry as registry
-				on registry.source = policy.source and registry.active
+			where policy.source in (''arcalive'', ''battlepage'', ''insagirl'', ''issuelink'')
 		), ''[]''::jsonb),'
 	);
 	if v_updated = v_definition then
-		raise exception 'Expected crawl dashboard source-summary contract was not found.';
+		raise exception 'Expected fixed crawl run dashboard summary contract was not found.';
 	end if;
 	execute v_updated;
 
@@ -438,6 +404,37 @@ begin
 	);
 	if v_updated = v_definition then
 		raise exception 'Expected crawl alert source selection contract was not found.';
+	end if;
+
+	v_definition := v_updated;
+	v_updated := replace(
+		v_definition,
+		'for update;
+
+	update public.crawl_runs',
+		'for update;
+
+	perform pg_catalog.pg_advisory_xact_lock(
+		pg_catalog.hashtextextended(
+			''applemint:crawl-source-lifecycle:'' || sources.source,
+			0
+		)
+	)
+	from (
+		select registry.source
+		from public.crawl_source_registry as registry
+		where registry.active
+		union
+		select run.source
+		from public.crawl_runs as run
+		where run.status = ''running'' and run.stale_after <= p_now
+	) as sources
+	order by sources.source;
+
+	update public.crawl_runs'
+	);
+	if v_updated = v_definition then
+		raise exception 'Expected crawl alert lifecycle lock insertion point was not found.';
 	end if;
 	execute v_updated;
 
