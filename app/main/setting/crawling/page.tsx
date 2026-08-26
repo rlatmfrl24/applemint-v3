@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
 	Activity,
 	AlertTriangle,
@@ -12,24 +12,12 @@ import {
 	RefreshCw,
 	RotateCcw,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import type { CrawlPolicySettings, CrawlSourcePolicy } from "@/lib/crawl-policy-contract";
-import { CRAWL_RUNS_QUERY_KEY } from "@/lib/crawl-run-query-options";
-import { invalidateThreadQueries } from "@/lib/thread-query-cache";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
 import {
@@ -37,9 +25,14 @@ import {
 	SettingsPageHeader,
 	SettingsStatusItem,
 	SettingsStatusStrip,
-	SettingsSurface,
 } from "../admin-ui";
-import { ManualCrawlError, requestManualCrawl } from "../crawl-client";
+import { PolicySettingsSection } from "./policy-settings-section";
+import { useCrawlingSettings } from "./use-crawling-settings";
+
+const ManualCrawlDialog = dynamic(
+	() => import("./manual-crawl-dialog").then((module) => module.ManualCrawlDialog),
+	{ ssr: false }
+);
 
 export const INTERVAL_PRESETS = [1, 2, 3, 4, 6, 12, 24].map((hours) => ({
 	label: `${hours}시간`,
@@ -210,6 +203,7 @@ function PolicyRow({
 	const [intervalMode, setIntervalMode] = useState<"preset" | "custom">(() =>
 		getIntervalMode(policy.cooldownSeconds)
 	);
+	const [confirmingManualCrawl, setConfirmingManualCrawl] = useState(false);
 	const updatePolicy = useMutation({
 		...trpc.crawlPolicy.update.mutationOptions(),
 		onSuccess: (settings) => {
@@ -363,30 +357,25 @@ function PolicyRow({
 					>
 						{saving ? "저장 중..." : "변경 저장"}
 					</Button>
-					<AlertDialog>
-						<AlertDialogTrigger asChild>
-							<Button type="button" size="sm" disabled={manualCrawlRunning}>
-								<PlayCircle aria-hidden="true" className="mr-1.5 size-4" />
-								{manualCrawlRunning ? "수집 중..." : "지금 수집"}
-							</Button>
-						</AlertDialogTrigger>
-						<AlertDialogContent>
-							<AlertDialogHeader>
-								<AlertDialogTitle>{policy.label} 지금 수집</AlertDialogTitle>
-								<AlertDialogDescription>
-									예약 설정과 관계없이 즉시 실행합니다. 소스 잠금과 최대 동시성 제한은 유지됩니다.
-								</AlertDialogDescription>
-							</AlertDialogHeader>
-							<AlertDialogFooter>
-								<AlertDialogCancel>취소</AlertDialogCancel>
-								<AlertDialogAction onClick={() => onManualCrawl(policy.source)}>
-									수집 시작
-								</AlertDialogAction>
-							</AlertDialogFooter>
-						</AlertDialogContent>
-					</AlertDialog>
+					<Button
+						type="button"
+						size="sm"
+						disabled={manualCrawlRunning}
+						onClick={() => setConfirmingManualCrawl(true)}
+					>
+						<PlayCircle aria-hidden="true" className="mr-1.5 size-4" />
+						{manualCrawlRunning ? "수집 중..." : "지금 수집"}
+					</Button>
 				</div>
 			</div>
+
+			{confirmingManualCrawl ? (
+				<ManualCrawlDialog
+					label={policy.label}
+					onClose={() => setConfirmingManualCrawl(false)}
+					onConfirm={() => onManualCrawl(policy.source)}
+				/>
+			) : null}
 
 			{willBecomeDue ? (
 				<Alert className="mt-4 border-amber-300 bg-amber-50/70 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
@@ -399,18 +388,6 @@ function PolicyRow({
 			) : null}
 		</li>
 	);
-}
-
-interface ManualResult {
-	source: CrawlSourcePolicy["source"];
-	success: boolean;
-	message: string;
-}
-
-function getManualErrorMessage(error: unknown) {
-	if (error instanceof ManualCrawlError) return `${error.message} (HTTP ${error.httpStatus})`;
-	if (error instanceof Error) return error.message;
-	return "수집 요청에 실패했습니다.";
 }
 
 function QueryFeedback({
@@ -473,111 +450,8 @@ function SchedulerStatus({ settings, nowMs }: { settings: CrawlPolicySettings; n
 	);
 }
 
-function PolicySettingsPanel({
-	settings,
-	nowMs,
-	manualResult,
-	manualSource,
-	onManualCrawl,
-}: {
-	settings: CrawlPolicySettings;
-	nowMs: number;
-	manualResult: ManualResult | null;
-	manualSource: CrawlSourcePolicy["source"] | null;
-	onManualCrawl: (source: CrawlSourcePolicy["source"]) => Promise<void>;
-}) {
-	return (
-		<>
-			<SchedulerStatus settings={settings} nowMs={nowMs} />
-			{manualResult ? (
-				<Alert className="mt-5" variant={manualResult.success ? "default" : "destructive"}>
-					<AlertTitle>
-						{settings.sources.find((policy) => policy.source === manualResult.source)?.label ??
-							manualResult.source}{" "}
-						{manualResult.success ? "완료" : "실패"}
-					</AlertTitle>
-					<AlertDescription>{manualResult.message}</AlertDescription>
-				</Alert>
-			) : null}
-
-			<SettingsSurface className="mt-6" contentClassName="divide-y">
-				<div className="hidden bg-muted/35 px-5 py-3 font-medium text-muted-foreground text-xs xl:grid xl:grid-cols-[1.15fr_0.8fr_1.05fr_1.25fr_1fr_8.5rem] xl:gap-4">
-					<span>수집 소스</span>
-					<span>예약 수집</span>
-					<span>최소 수집 간격</span>
-					<span>다음 예상 실행</span>
-					<span>마지막 결과</span>
-					<span className="text-center">작업</span>
-				</div>
-				<ul className="divide-y">
-					{settings.sources.map((policy) => (
-						<PolicyRow
-							key={policy.source}
-							policy={policy}
-							schedulerEnabled={settings.schedulerEnabled}
-							nowMs={nowMs}
-							onManualCrawl={onManualCrawl}
-							manualCrawlRunning={manualSource !== null}
-						/>
-					))}
-				</ul>
-			</SettingsSurface>
-
-			<SettingsSurface className="mt-5 shadow-none" title="운영 안내" contentClassName="px-5 py-4">
-				<ul className="space-y-2 text-muted-foreground text-sm leading-6">
-					<li>최소 수집 간격은 각 소스의 과부하와 중복 실행을 방지합니다.</li>
-					<li>수동 수집도 실행 중인 작업의 잠금과 최대 동시성 제한을 따릅니다.</li>
-					<li>정책 변경은 소스별로 저장되며 다른 행의 편집 상태에 영향을 주지 않습니다.</li>
-				</ul>
-			</SettingsSurface>
-		</>
-	);
-}
-
 export default function CrawlingSettingPage() {
-	const trpc = useTRPC();
-	const queryClient = useQueryClient();
-	const [localNow, setLocalNow] = useState(() => Date.now());
-	const [manualSource, setManualSource] = useState<CrawlSourcePolicy["source"] | null>(null);
-	const [manualResult, setManualResult] = useState<ManualResult | null>(null);
-	const query = useQuery({
-		...trpc.crawlPolicy.get.queryOptions(),
-		refetchInterval: 60_000,
-		refetchOnWindowFocus: true,
-	});
-
-	useEffect(() => {
-		const timer = window.setInterval(() => setLocalNow(Date.now()), 60_000);
-		return () => window.clearInterval(timer);
-	}, []);
-
-	const serverOffset = query.data
-		? new Date(query.data.serverNow).getTime() - query.dataUpdatedAt
-		: 0;
-	const nowMs = localNow + serverOffset;
-
-	const handleManualCrawl = async (source: CrawlSourcePolicy["source"]) => {
-		setManualSource(source);
-		setManualResult(null);
-		try {
-			const result = await requestManualCrawl(source);
-			const message = `${result.insertedCount}건 저장 · ${result.skippedCount}건 중복 · 경고 ${result.warningCount}건`;
-			setManualResult({ source, success: true, message });
-			const label = query.data?.sources.find((policy) => policy.source === source)?.label ?? source;
-			toast.success(`${label} 수집이 완료되었습니다.`);
-			await invalidateThreadQueries(queryClient, ["inbox"]);
-		} catch (error) {
-			const message = getManualErrorMessage(error);
-			setManualResult({ source, success: false, message });
-			toast.error(message);
-		} finally {
-			setManualSource(null);
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: trpc.crawlPolicy.get.queryKey() }),
-				queryClient.invalidateQueries({ queryKey: CRAWL_RUNS_QUERY_KEY }),
-			]);
-		}
-	};
+	const { query, nowMs, manualSource, manualResult, handleManualCrawl } = useCrawlingSettings();
 
 	return (
 		<section aria-labelledby="crawl-settings-heading">
@@ -600,12 +474,20 @@ export default function CrawlingSettingPage() {
 			</h2>
 			<QueryFeedback isPending={query.isPending} error={query.isError ? query.error : null} />
 			{query.data ? (
-				<PolicySettingsPanel
+				<PolicySettingsSection
 					settings={query.data}
-					nowMs={nowMs}
+					status={<SchedulerStatus settings={query.data} nowMs={nowMs} />}
 					manualResult={manualResult}
-					manualSource={manualSource}
-					onManualCrawl={handleManualCrawl}
+					renderPolicy={(policy) => (
+						<PolicyRow
+							key={policy.source}
+							policy={policy}
+							schedulerEnabled={query.data.schedulerEnabled}
+							nowMs={nowMs}
+							onManualCrawl={handleManualCrawl}
+							manualCrawlRunning={manualSource !== null}
+						/>
+					)}
 				/>
 			) : null}
 		</section>
