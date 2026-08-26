@@ -94,7 +94,8 @@ select ok(
 			'public.fail_web_push_delivery(bigint,uuid,text)',
 			'public.invalidate_web_push_subscription(bigint,uuid,text)',
 			'public.cleanup_web_push_notifications()',
-			'public.dispatch_due_web_push_notifications()'
+			'public.dispatch_due_web_push_notifications()',
+			'public.cleanup_cron_job_run_details()'
 		]) as business_function(function_name)
 		where has_function_privilege('anon', business_function.function_name, 'EXECUTE')
 	),
