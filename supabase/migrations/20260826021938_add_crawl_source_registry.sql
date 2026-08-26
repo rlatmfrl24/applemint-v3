@@ -512,7 +512,11 @@ begin
 		)
 	)
 	from (
-		select distinct delivery.source
+		select registry.source
+		from public.crawl_source_registry as registry
+		where registry.active
+		union
+		select delivery.source
 		from public.web_push_deliveries as delivery
 		where delivery.state in (''pending'', ''retry'', ''processing'')
 	) as sources

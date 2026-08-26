@@ -592,7 +592,10 @@ select ok(
 			'public.claim_web_push_deliveries(integer,integer)'::regprocedure
 		)) < position('update public.web_push_deliveries as delivery' in pg_get_functiondef(
 			'public.claim_web_push_deliveries(integer,integer)'::regprocedure
-		)),
+		))
+		and position('where registry.active' in pg_get_functiondef(
+			'public.claim_web_push_deliveries(integer,integer)'::regprocedure
+		)) > 0,
 	'policy, alert, finish, and Push boundaries consult the registry authority'
 );
 
