@@ -60,6 +60,25 @@ create trigger zz_registry_lifecycle_run_delay
 before insert on public.crawl_runs
 for each row execute function private.delay_registry_lifecycle_run_insert();
 
+create function private.delay_registry_expired_lease_delete()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+	if old.lock_key = 'crawl:registryrace' then
+		perform pg_catalog.pg_sleep(0.75);
+	end if;
+	return old;
+end;
+$$;
+revoke all on function private.delay_registry_expired_lease_delete()
+	from public, anon, authenticated, service_role;
+create trigger zz_registry_expired_lease_delete_delay
+after delete on public.crawl_run_locks
+for each row execute function private.delay_registry_expired_lease_delete();
+
 create function private.delay_registry_lifecycle_alert_insert()
 returns trigger
 language plpgsql
@@ -111,6 +130,12 @@ insert into public.crawl_source_policies (
 	run_budget_seconds
 )
 values ('registryrace', false, 3600, 3600, 45);
+insert into public.crawl_run_locks (lock_key, lock_token, locked_until)
+values (
+	'crawl:registryrace',
+	'94000000-0000-4000-8000-000000000004',
+	now() - interval '1 minute'
+);
 
 select plan(26);
 
@@ -163,7 +188,7 @@ select is(
 		$$
 	),
 	1,
-	'retirement starts while crawl admission is inserting its lease'
+	'retirement starts while crawl admission is cleaning an expired lease'
 );
 select pg_sleep(0.15);
 select is(
@@ -510,6 +535,8 @@ update public.crawl_alert_settings set parser_failure_streak = 2 where id = true
 
 drop trigger zz_registry_lifecycle_run_delay on public.crawl_runs;
 drop function private.delay_registry_lifecycle_run_insert();
+drop trigger zz_registry_expired_lease_delete_delay on public.crawl_run_locks;
+drop function private.delay_registry_expired_lease_delete();
 drop trigger zz_registry_lifecycle_alert_delay on public.crawl_alert_incidents;
 drop function private.delay_registry_lifecycle_alert_insert();
 drop trigger zz_registry_lifecycle_finish_delay on public.crawl_runs;

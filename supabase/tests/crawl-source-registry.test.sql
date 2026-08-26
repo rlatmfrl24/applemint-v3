@@ -1,7 +1,7 @@
 -- Crawl source lifecycle authority, historical compatibility, and least privilege.
 begin;
 
-select plan(39);
+select plan(40);
 
 select has_table(
 	'public',
@@ -256,6 +256,23 @@ select ok(
 			'public.get_crawl_runs_dashboard(integer,integer)'::regprocedure
 		)) > 0,
 	'crawl run dashboard derives active sources from the registry'
+);
+
+select ok(
+	position('applemint:crawl-source-lifecycle:' in pg_get_functiondef(
+		'public._begin_crawl_run(text,uuid,integer,text)'::regprocedure
+	)) > 0
+		and position('applemint:crawl-source-lifecycle:' in pg_get_functiondef(
+			'public._begin_crawl_run(text,uuid,integer,text)'::regprocedure
+		)) < position('update public.crawl_runs' in pg_get_functiondef(
+			'public._begin_crawl_run(text,uuid,integer,text)'::regprocedure
+		))
+		and position('applemint:crawl-source-lifecycle:' in pg_get_functiondef(
+			'public._begin_crawl_run(text,uuid,integer,text)'::regprocedure
+		)) < position('delete from public.crawl_run_locks' in pg_get_functiondef(
+			'public._begin_crawl_run(text,uuid,integer,text)'::regprocedure
+		)),
+	'crawl admission takes the source lifecycle lock before run or lease mutation'
 );
 
 insert into public.crawl_source_registry (source, label, active)

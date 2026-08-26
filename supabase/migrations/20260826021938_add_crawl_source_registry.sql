@@ -283,6 +283,25 @@ begin
 	if v_updated = v_definition then
 		raise exception 'Expected _begin_crawl_run source admission contract was not found.';
 	end if;
+
+	v_definition := v_updated;
+	v_updated := replace(
+		v_definition,
+		'begin
+	if not exists (',
+		'begin
+	perform pg_catalog.pg_advisory_xact_lock(
+		pg_catalog.hashtextextended(
+			''applemint:crawl-source-lifecycle:'' || p_source,
+			0
+		)
+	);
+
+	if not exists ('
+	);
+	if v_updated = v_definition then
+		raise exception 'Expected _begin_crawl_run lifecycle lock insertion point was not found.';
+	end if;
 	execute v_updated;
 
 	v_definition := pg_get_functiondef(
