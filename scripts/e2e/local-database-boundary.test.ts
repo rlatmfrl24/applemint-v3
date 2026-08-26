@@ -15,6 +15,7 @@ describe("local E2E database boundary", () => {
 		expect(source).not.toContain("secretKey");
 		expect(source).toContain('spawnSync(\n\t\t"docker"');
 		expect(source).toContain('"psql"');
+		expect(source).toContain('"-q"');
 		expect(source).toContain("databaseContainer");
 	});
 
