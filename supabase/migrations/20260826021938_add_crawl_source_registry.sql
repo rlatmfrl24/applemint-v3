@@ -77,33 +77,57 @@ alter table public.web_push_deliveries
 	foreign key (source) references public.crawl_source_registry (source)
 	on update restrict on delete restrict;
 
-create function private.reconcile_retired_crawl_source_alerts()
+create function private.reconcile_retired_crawl_source()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+	v_now timestamp with time zone := now();
 begin
+	update public.crawl_runs
+	set
+		status = 'interrupted',
+		finished_at = v_now,
+		duration_ms = greatest(
+			0,
+			floor(extract(epoch from (v_now - started_at)) * 1000)::bigint
+		),
+		error_stage = coalesce(error_stage, 'source'),
+		error_message = coalesce(error_message, 'Crawl source was retired.')
+	where source = new.source and status = 'running';
+
+	delete from public.crawl_run_locks
+	where lock_key = 'crawl:' || new.source;
+
+	update public.crawl_schedule_dispatches
+	set
+		state = 'expired',
+		admission_reason = coalesce(admission_reason, 'source-retired'),
+		resolved_at = coalesce(resolved_at, v_now)
+	where source = new.source and state = 'queued';
+
 	update public.crawl_alert_incidents
 	set
 		status = 'recovered',
-		last_observed_at = now(),
-		recovered_at = coalesce(recovered_at, now())
+		last_observed_at = v_now,
+		recovered_at = coalesce(recovered_at, v_now)
 	where source = new.source and status = 'open';
 
 	return new;
 end;
 $$;
 
-alter function private.reconcile_retired_crawl_source_alerts() owner to postgres;
-revoke all on function private.reconcile_retired_crawl_source_alerts()
+alter function private.reconcile_retired_crawl_source() owner to postgres;
+revoke all on function private.reconcile_retired_crawl_source()
 	from public, anon, authenticated, service_role;
 
-create trigger crawl_source_registry_reconcile_alerts_after_retire
+create trigger crawl_source_registry_reconcile_after_retire
 after update of active on public.crawl_source_registry
 for each row
 when (old.active and not new.active)
-execute function private.reconcile_retired_crawl_source_alerts();
+execute function private.reconcile_retired_crawl_source();
 
 create or replace function public.get_active_crawl_source_registry()
 returns table (source text, label text)

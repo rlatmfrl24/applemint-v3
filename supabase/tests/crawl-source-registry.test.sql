@@ -1,7 +1,7 @@
 -- Crawl source lifecycle authority, historical compatibility, and least privilege.
 begin;
 
-select plan(34);
+select plan(37);
 
 select has_table(
 	'public',
@@ -294,6 +294,14 @@ values (
 	now(),
 	now() + interval '5 minutes'
 );
+insert into public.crawl_run_locks (lock_key, lock_token, locked_until)
+values (
+	'crawl:registryprobe',
+	'93000000-0000-4000-8000-000000000003',
+	now() + interval '5 minutes'
+);
+insert into public.crawl_schedule_dispatches (scheduled_for, source)
+values (date_trunc('minute', now()), 'registryprobe');
 set local role authenticated;
 select is(
 	(
@@ -330,21 +338,21 @@ select ok(
 			and pg_get_userbyid(pg_proc.proowner) = 'postgres'
 			and pg_proc.proconfig = array['search_path=""']::text[]
 		from pg_proc
-		where pg_proc.oid = 'private.reconcile_retired_crawl_source_alerts()'::regprocedure
+		where pg_proc.oid = 'private.reconcile_retired_crawl_source()'::regprocedure
 	)
 		and not has_function_privilege(
 			'service_role',
-			'private.reconcile_retired_crawl_source_alerts()',
+			'private.reconcile_retired_crawl_source()',
 			'EXECUTE'
 		)
 		and exists (
 			select 1
 			from pg_trigger
 			where tgrelid = 'public.crawl_source_registry'::regclass
-				and tgname = 'crawl_source_registry_reconcile_alerts_after_retire'
+				and tgname = 'crawl_source_registry_reconcile_after_retire'
 				and not tgisinternal
 		),
-	'retirement alert reconciliation is an owner-executed trigger boundary'
+	'retirement reconciliation is an owner-executed trigger boundary'
 );
 insert into public.crawl_alert_incidents (
 	source,
@@ -363,6 +371,36 @@ values (
 update public.crawl_source_registry
 set active = false, retired_at = now(), updated_at = now()
 where source = 'registryprobe';
+select ok(
+	(
+		select status = 'interrupted'
+			and finished_at is not null
+			and duration_ms is not null
+			and error_stage = 'source'
+			and error_message = 'Crawl source was retired.'
+		from public.crawl_runs
+		where id = 9300000000000000
+	),
+	'retiring a source immediately interrupts its running crawl'
+);
+select ok(
+	(select count(*) = 0 from public.crawl_run_locks where lock_key = 'crawl:registryprobe')
+		and public.heartbeat_crawl_run(
+			9300000000000000,
+			'93000000-0000-4000-8000-000000000003'
+		) = '{"renewed":false,"reason":"run-not-running"}'::jsonb,
+	'retiring a source removes its lease and prevents further heartbeat renewal'
+);
+select ok(
+	(
+		select state = 'expired'
+			and admission_reason = 'source-retired'
+			and resolved_at is not null
+		from public.crawl_schedule_dispatches
+		where source = 'registryprobe'
+	),
+	'retiring a source expires its queued scheduler dispatches'
+);
 select ok(
 	(
 		select status = 'recovered'
