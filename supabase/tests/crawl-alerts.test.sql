@@ -20,9 +20,18 @@ select ok(
 	'client roles cannot read alert internals directly'
 );
 select ok(
-	has_table_privilege('service_role', 'public.crawl_alert_settings', 'SELECT,UPDATE')
-		and has_table_privilege('service_role', 'public.crawl_alert_incidents', 'INSERT,UPDATE,DELETE'),
-	'service role maintains in-app alert state'
+	not has_table_privilege('service_role', 'public.crawl_alert_settings', 'SELECT,UPDATE')
+		and not has_table_privilege(
+			'service_role',
+			'public.crawl_alert_incidents',
+			'SELECT,INSERT,UPDATE,DELETE'
+		)
+		and (
+			select prosecdef
+			from pg_proc
+			where oid = 'public.evaluate_crawl_alerts(timestamp with time zone)'::regprocedure
+		),
+	'service role maintains alert state only through an owner-executed RPC'
 );
 select ok(
 	has_function_privilege(

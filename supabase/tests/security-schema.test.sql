@@ -151,32 +151,15 @@ select ok(
 	'authenticated cannot access crawler-internal tables directly'
 );
 select ok(
-	has_table_privilege('service_role', 'public.threads', 'SELECT,INSERT,UPDATE,DELETE')
-		and has_table_privilege(
-			'service_role',
-			'public.thread_media_metadata',
-			'SELECT,INSERT,UPDATE,DELETE'
-		)
-		and has_table_privilege(
-			'service_role',
-			'public.media_enrichment_jobs',
-			'SELECT,INSERT,UPDATE,DELETE'
-		)
-		and has_table_privilege('service_role', 'public."filter-keyword"', 'SELECT')
-		and has_table_privilege('service_role', 'public.crawl_run_locks', 'INSERT,UPDATE,DELETE')
-		and has_table_privilege('service_role', 'public.crawl_runs', 'INSERT,UPDATE,DELETE')
-		and has_table_privilege('service_role', 'public.crawl_alert_incidents', 'INSERT,UPDATE,DELETE')
-		and has_table_privilege(
-			'service_role',
-			'public.web_push_subscriptions',
-			'SELECT,INSERT,UPDATE,DELETE'
-		)
-		and has_table_privilege(
-			'service_role',
-			'public.web_push_deliveries',
-			'SELECT,INSERT,UPDATE,DELETE'
-		),
-	'service role retains required crawler table access'
+	(
+		select array_agg(grant_state order by grant_state)
+		from (
+			select table_name || ':' || privilege_type as grant_state
+			from information_schema.role_table_grants
+			where table_schema = 'public' and grantee = 'service_role'
+		) as grants
+	) = array['crawl-history:SELECT', 'filter-keyword:SELECT']::text[],
+	'service role direct table access is limited to classifier and dedupe reads'
 );
 
 select ok(
@@ -382,10 +365,11 @@ select ok(
 		select 1
 		from pg_constraint
 		where conrelid = 'public."crawl-history"'::regclass
-			and conname = 'crawl_history_source_check'
-			and contype = 'c'
+			and conname = 'crawl_history_source_fkey'
+			and contype = 'f'
+			and confrelid = 'public.crawl_source_registry'::regclass
 	),
-	'crawl-history accepts only active sources and retained IssueLink history'
+	'crawl-history preserves every registered active or retired source'
 );
 
 select ok(

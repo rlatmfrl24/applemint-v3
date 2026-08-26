@@ -87,17 +87,17 @@ select ok(
 	'authenticated can only read owner-visible metadata and cannot access jobs'
 );
 select ok(
-	has_table_privilege(
+	not has_table_privilege(
 		'service_role',
 		'public.thread_media_metadata',
 		'SELECT,INSERT,UPDATE,DELETE'
 	)
-		and has_table_privilege(
+		and not has_table_privilege(
 			'service_role',
 			'public.media_enrichment_jobs',
 			'SELECT,INSERT,UPDATE,DELETE'
 		),
-	'service role keeps metadata and job privileges'
+	'service role has no direct metadata or job privileges'
 );
 select ok(
 	has_function_privilege(
@@ -117,6 +117,15 @@ select ok(
 		),
 	'queue lifecycle RPCs remain service-role-only'
 );
+
+-- The remainder of this legacy lifecycle test performs direct fixture
+-- readback. These transaction-local grants are rolled back and are not part of
+-- the production privilege contract asserted above.
+grant select, insert, update, delete on table
+	public.threads,
+	public.thread_media_metadata,
+	public.media_enrichment_jobs
+to service_role;
 
 set local role service_role;
 

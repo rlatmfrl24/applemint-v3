@@ -368,6 +368,7 @@ select is(
 	1,
 	'IssueLink can ingest a normal thread'
 );
+reset role;
 select is(
 	(
 		select row(type, host, tag)
@@ -376,6 +377,7 @@ select is(
 	row('normal'::text, 'https://www.fmkorea.com'::text, array['issuelink', 'fmkorea']::text[]),
 	'IssueLink preserves normal type, original host, and provenance tags'
 );
+set local role service_role;
 select is(
 	(public.ingest_crawl_items(
 		'issuelink',
@@ -430,19 +432,19 @@ select is(
 	(
 		select pg_get_constraintdef(oid)
 		from pg_constraint
-		where conrelid = 'public.crawl_runs'::regclass and conname = 'crawl_runs_source_check'
+		where conrelid = 'public.crawl_runs'::regclass and conname = 'crawl_runs_source_fkey'
 	),
-	'CHECK ((source = ANY (ARRAY[''arcalive''::text, ''battlepage''::text, ''insagirl''::text, ''issuelink''::text]))) NOT VALID',
-	'crawl runs accept only active sources'
+	'FOREIGN KEY (source) REFERENCES crawl_source_registry(source) ON UPDATE RESTRICT ON DELETE RESTRICT',
+	'crawl runs reference the lifecycle registry'
 );
 select is(
 	(
 		select convalidated
 		from pg_constraint
-		where conrelid = 'public.crawl_runs'::regclass and conname = 'crawl_runs_source_check'
+		where conrelid = 'public.crawl_runs'::regclass and conname = 'crawl_runs_source_fkey'
 	),
-	false,
-	'crawl run source constraint preserves retired historical rows'
+	true,
+	'crawl run source foreign key validates active and retired history'
 );
 
 select is(
@@ -450,23 +452,22 @@ select is(
 		select pg_get_constraintdef(oid)
 		from pg_constraint
 		where conrelid = 'public.crawl_alert_incidents'::regclass
-			and conname = 'crawl_alert_incidents_source_check'
+			and conname = 'crawl_alert_incidents_source_fkey'
 	),
-	'CHECK ((source = ANY (ARRAY[''arcalive''::text, ''battlepage''::text, ''insagirl''::text, ''issuelink''::text]))) NOT VALID',
-	'crawl alert incidents accept only active sources'
+	'FOREIGN KEY (source) REFERENCES crawl_source_registry(source) ON UPDATE RESTRICT ON DELETE RESTRICT',
+	'crawl alert incidents reference the lifecycle registry'
 );
 select is(
 	(
 		select convalidated
 		from pg_constraint
 		where conrelid = 'public.crawl_alert_incidents'::regclass
-			and conname = 'crawl_alert_incidents_source_check'
+			and conname = 'crawl_alert_incidents_source_fkey'
 	),
-	false,
-	'crawl alert source constraint preserves retired historical rows'
+	true,
+	'crawl alert source foreign key validates active and retired history'
 );
 
-set local role service_role;
 insert into public.crawl_runs (
 	source,
 	lock_token,
@@ -504,7 +505,6 @@ values (
 	now() - interval '1 minute',
 	'{"testFixture":"issuelink-history"}'::jsonb
 );
-reset role;
 
 select is(
 	(

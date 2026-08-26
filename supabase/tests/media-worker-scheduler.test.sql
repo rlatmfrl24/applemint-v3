@@ -54,12 +54,12 @@ select ok(
 	'scheduler tables keep RLS enabled'
 );
 select ok(
-	has_table_privilege(
+	not has_table_privilege(
 		'service_role',
 		'public.media_worker_runtime_settings',
 		'SELECT,UPDATE'
 	)
-		and has_table_privilege(
+		and not has_table_privilege(
 			'service_role',
 			'public.media_worker_dispatches',
 			'SELECT,INSERT,UPDATE,DELETE'
@@ -74,7 +74,7 @@ select ok(
 			'public.media_worker_dispatches',
 			'SELECT,INSERT,UPDATE,DELETE'
 		),
-	'scheduler tables remain service-role-only'
+	'scheduler tables are reachable only through internal RPCs'
 );
 select ok(
 	has_function_privilege(

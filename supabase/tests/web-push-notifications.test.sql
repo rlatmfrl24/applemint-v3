@@ -821,14 +821,16 @@ select
 from public.web_push_subscriptions as subscription
 where subscription.endpoint = 'https://push.test/device-b';
 
+create temporary table invalid_test_subscription as
+select id
+from public.web_push_subscriptions
+where endpoint = 'https://push.test/device-b';
+grant select on invalid_test_subscription to service_role;
+
 set local role service_role;
 select is(
 	public.invalidate_web_push_test_subscription(
-		(
-			select id
-			from public.web_push_subscriptions
-			where endpoint = 'https://push.test/device-b'
-		),
+		(select id from invalid_test_subscription),
 		'push-410'
 	) ->> 'invalidated',
 	'true',

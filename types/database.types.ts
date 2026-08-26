@@ -34,7 +34,15 @@ export type Database = {
 					source?: string;
 					status?: string;
 				};
-				Relationships: [];
+				Relationships: [
+					{
+						foreignKeyName: "crawl_alert_incidents_source_fkey";
+						columns: ["source"];
+						isOneToOne: false;
+						referencedRelation: "crawl_source_registry";
+						referencedColumns: ["source"];
+					},
+				];
 			};
 			crawl_alert_settings: {
 				Row: {
@@ -187,7 +195,15 @@ export type Database = {
 					warning_count?: number;
 					warnings?: Json;
 				};
-				Relationships: [];
+				Relationships: [
+					{
+						foreignKeyName: "crawl_runs_source_fkey";
+						columns: ["source"];
+						isOneToOne: false;
+						referencedRelation: "crawl_source_registry";
+						referencedColumns: ["source"];
+					},
+				];
 			};
 			crawl_runtime_settings: {
 				Row: {
@@ -264,6 +280,13 @@ export type Database = {
 						referencedRelation: "crawl_runs";
 						referencedColumns: ["id"];
 					},
+					{
+						foreignKeyName: "crawl_schedule_dispatches_source_fkey";
+						columns: ["source"];
+						isOneToOne: false;
+						referencedRelation: "crawl_source_registry";
+						referencedColumns: ["source"];
+					},
 				];
 			};
 			crawl_source_policies: {
@@ -291,6 +314,41 @@ export type Database = {
 					source?: string;
 					updated_at?: string;
 				};
+				Relationships: [
+					{
+						foreignKeyName: "crawl_source_policies_source_fkey";
+						columns: ["source"];
+						isOneToOne: true;
+						referencedRelation: "crawl_source_registry";
+						referencedColumns: ["source"];
+					},
+				];
+			};
+			crawl_source_registry: {
+				Row: {
+					active: boolean;
+					created_at: string;
+					label: string;
+					retired_at: string | null;
+					source: string;
+					updated_at: string;
+				};
+				Insert: {
+					active: boolean;
+					created_at?: string;
+					label: string;
+					retired_at?: string | null;
+					source: string;
+					updated_at?: string;
+				};
+				Update: {
+					active?: boolean;
+					created_at?: string;
+					label?: string;
+					retired_at?: string | null;
+					source?: string;
+					updated_at?: string;
+				};
 				Relationships: [];
 			};
 			"crawl-history": {
@@ -315,7 +373,15 @@ export type Database = {
 					id?: number;
 					url?: string;
 				};
-				Relationships: [];
+				Relationships: [
+					{
+						foreignKeyName: "crawl_history_source_fkey";
+						columns: ["crawl_source"];
+						isOneToOne: false;
+						referencedRelation: "crawl_source_registry";
+						referencedColumns: ["source"];
+					},
+				];
 			};
 			"filter-keyword": {
 				Row: {
@@ -625,6 +691,13 @@ export type Database = {
 						referencedColumns: ["id"];
 					},
 					{
+						foreignKeyName: "web_push_deliveries_source_fkey";
+						columns: ["source"];
+						isOneToOne: false;
+						referencedRelation: "crawl_source_registry";
+						referencedColumns: ["source"];
+					},
+					{
 						foreignKeyName: "web_push_deliveries_subscription_id_fkey";
 						columns: ["subscription_id"];
 						isOneToOne: false;
@@ -795,12 +868,20 @@ export type Database = {
 				Args: { p_lock_token: string; p_result: Json; p_run_id: number };
 				Returns: Json;
 			};
+			get_active_crawl_source_registry: {
+				Args: never;
+				Returns: {
+					label: string;
+					source: string;
+				}[];
+			};
 			get_crawl_alerts_dashboard: { Args: never; Returns: Json };
 			get_crawl_runs_dashboard: {
 				Args: { p_limit?: number; p_trend_limit?: number };
 				Returns: Json;
 			};
 			get_crawl_source_policy_settings: { Args: never; Returns: Json };
+			get_crawl_source_registry: { Args: never; Returns: Json };
 			get_normal_site_stats: {
 				Args: never;
 				Returns: {
