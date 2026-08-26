@@ -384,7 +384,7 @@ values (
 	'registryfinishrace',
 	'94000000-0000-4000-8000-000000000003',
 	'running',
-	'manual',
+	'scheduled',
 	now() - interval '1 minute',
 	now() + interval '5 minutes'
 );
@@ -394,6 +394,23 @@ values (
 	'94000000-0000-4000-8000-000000000003',
 	now() + interval '5 minutes'
 );
+insert into auth.users (id)
+values ('480f5282-7933-4800-a970-d6bc8f05e8cb'::uuid)
+on conflict (id) do nothing;
+insert into public.web_push_subscriptions (
+	id,
+	user_id,
+	endpoint,
+	p256dh,
+	auth
+)
+values (
+	9400000000000003,
+	'480f5282-7933-4800-a970-d6bc8f05e8cb',
+	'https://push.test/registry-finalization-race',
+	repeat('p', 32),
+	'authkey3'
+);
 
 select is(
 	extensions.dblink_send_query(
@@ -402,7 +419,7 @@ select is(
 			select public.finish_crawl_run(
 				9400000000000003,
 				'94000000-0000-4000-8000-000000000003',
-				'{"status":"succeeded"}'::jsonb
+				'{"status":"succeeded","insertedCount":1}'::jsonb
 			)
 		$$
 	),
@@ -452,8 +469,14 @@ select ok(
 			select 1
 			from public.crawl_run_locks
 			where lock_key = 'crawl:registryfinishrace'
+		)
+		and exists (
+			select 1
+			from public.web_push_deliveries
+			where source = 'registryfinishrace'
+				and state = 'pending'
 		),
-	'retirement wins a concurrent terminal run update and removes its lease'
+	'retirement wins scheduled Push finalization without a deadlock and removes its lease'
 );
 
 select is(
@@ -469,6 +492,10 @@ select is(
 
 delete from public.crawl_alert_incidents
 where source in ('registryrace', 'registryalertrace', 'registryfinishrace');
+delete from public.web_push_deliveries
+where source in ('registryrace', 'registryalertrace', 'registryfinishrace');
+delete from public.web_push_subscriptions
+where id = 9400000000000003;
 delete from public.crawl_run_locks
 	where lock_key in ('crawl:registryrace', 'crawl:registryalertrace', 'crawl:registryfinishrace');
 delete from public.crawl_schedule_dispatches

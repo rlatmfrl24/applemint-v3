@@ -440,6 +440,37 @@ begin
 	if v_updated = v_definition then
 		raise exception 'Expected crawl Push enqueue contract was not found.';
 	end if;
+
+	v_definition := v_updated;
+	v_updated := replace(
+		v_definition,
+		'end if;
+
+	update public.crawl_runs
+	set',
+		'end if;
+
+	select run.source into v_source
+	from public.crawl_runs as run
+	where run.id = p_run_id and run.lock_token = p_lock_token;
+
+	if v_source is null then
+		raise exception using errcode = ''P0002'', message = ''Crawl run was not found.'';
+	end if;
+
+	perform pg_catalog.pg_advisory_xact_lock(
+		pg_catalog.hashtextextended(
+			''applemint:crawl-source-lifecycle:'' || v_source,
+			0
+		)
+	);
+
+	update public.crawl_runs
+	set'
+	);
+	if v_updated = v_definition then
+		raise exception 'Expected crawl finalization lock-order contract was not found.';
+	end if;
 	execute v_updated;
 
 	v_definition := pg_get_functiondef(
