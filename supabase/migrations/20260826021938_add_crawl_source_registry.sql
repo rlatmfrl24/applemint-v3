@@ -553,6 +553,7 @@ begin
 			on subscription.id = delivery.subscription_id
 		inner join public.crawl_source_registry as registry
 			on registry.source = delivery.source and registry.active
+			and delivery.source in (''arcalive'', ''battlepage'', ''insagirl'', ''issuelink'')
 		where delivery.state in (''pending'', ''retry'')
 			and delivery.available_at <= v_now'
 	);

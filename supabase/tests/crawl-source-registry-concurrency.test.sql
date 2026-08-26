@@ -152,7 +152,7 @@ security definer
 set search_path = ''
 as $$
 begin
-	if old.source = 'registryclaimrace'
+	if old.source = 'battlepage'
 		and old.state in ('pending', 'retry')
 		and new.state = 'processing'
 	then
@@ -595,16 +595,6 @@ select is(
 	'Push claim race retirement connection opens'
 );
 
-insert into public.crawl_source_registry (source, label, active)
-values ('registryclaimrace', 'Registry Claim Race', true);
-insert into public.crawl_source_policies (
-	source,
-	schedule_enabled,
-	cooldown_seconds,
-	recommended_cooldown_seconds,
-	run_budget_seconds
-)
-values ('registryclaimrace', false, 3600, 3600, 45);
 insert into public.crawl_runs (
 	id,
 	source,
@@ -622,7 +612,7 @@ insert into public.crawl_runs (
 )
 values (
 	9400000000000004,
-	'registryclaimrace',
+	'battlepage',
 	'94000000-0000-4000-8000-000000000004',
 	'succeeded',
 	'scheduled',
@@ -646,7 +636,7 @@ values (
 	9400000000000004,
 	9400000000000004,
 	9400000000000003,
-	'registryclaimrace',
+	'battlepage',
 	1
 );
 
@@ -656,7 +646,7 @@ select is(
 		$$
 			select to_jsonb(claimed)
 			from public.claim_web_push_deliveries(20, 120) as claimed
-			where claimed.source = 'registryclaimrace'
+			where claimed.source = 'battlepage'
 		$$
 	),
 	1,
@@ -669,7 +659,7 @@ select is(
 		$$
 			update public.crawl_source_registry
 			set active = false, retired_at = now(), updated_at = now()
-			where source = 'registryclaimrace'
+			where source = 'battlepage'
 			returning source
 		$$
 	),
@@ -692,12 +682,12 @@ select source
 from extensions.dblink_get_result('registry_retire') as response(source text);
 
 select ok(
-	(select result ->> 'source' = 'registryclaimrace' from registry_claim_result)
-		and (select active = false from public.crawl_source_registry where source = 'registryclaimrace')
+	(select result ->> 'source' = 'battlepage' from registry_claim_result)
+		and (select active = false from public.crawl_source_registry where source = 'battlepage')
 		and exists (
 			select 1
 			from public.web_push_deliveries
-			where source = 'registryclaimrace'
+			where id = 9400000000000004
 				and state = 'processing'
 				and lease_token is not null
 		),
@@ -717,7 +707,11 @@ select is(
 
 update public.crawl_source_registry
 set active = true, retired_at = null, updated_at = now()
-where source = 'issuelink';
+where source in ('issuelink', 'battlepage');
+delete from public.web_push_deliveries
+where id = 9400000000000004;
+delete from public.crawl_runs
+where id = 9400000000000004;
 delete from public.crawl_alert_incidents
 where source in ('registryrace', 'issuelink', 'registryfinishrace');
 delete from public.web_push_deliveries

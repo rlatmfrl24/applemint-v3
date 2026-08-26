@@ -595,6 +595,9 @@ select ok(
 		))
 		and position('where registry.active' in pg_get_functiondef(
 			'public.claim_web_push_deliveries(integer,integer)'::regprocedure
+		)) > 0
+		and position('delivery.source in (''arcalive'', ''battlepage'', ''insagirl'', ''issuelink'')' in pg_get_functiondef(
+			'public.claim_web_push_deliveries(integer,integer)'::regprocedure
 		)) > 0,
 	'policy, alert, finish, and Push boundaries consult the registry authority'
 );
