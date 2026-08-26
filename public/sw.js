@@ -12,6 +12,7 @@ const SOURCE_LABELS = {
 	arcalive: "Arcalive",
 	battlepage: "Battlepage",
 	insagirl: "Insagirl",
+	issuelink: "IssueLink",
 };
 
 function isPositiveInteger(value) {

@@ -1,6 +1,14 @@
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
+import { CRAWL_SOURCES } from "@/contracts/crawl-source.schema";
+
+const EXPECTED_SOURCE_LABELS = {
+	arcalive: "Arcalive",
+	battlepage: "Battlepage",
+	insagirl: "Insagirl",
+	issuelink: "IssueLink",
+} satisfies Record<(typeof CRAWL_SOURCES)[number], string>;
 
 function loadServiceWorker() {
 	const listeners = new Map<string, (event: unknown) => void>();
@@ -70,29 +78,31 @@ describe("PWA service worker", () => {
 		expect(worker.setAppBadge).not.toHaveBeenCalled();
 	});
 
-	it("검증된 payload만 알림과 누적 badge에 적용한다", async () => {
-		const worker = loadServiceWorker();
-		const event = pushEvent({
-			v: 1,
-			type: "new-items",
-			runId: "42",
-			source: "battlepage",
-			insertedCount: 12,
-			badgeCount: 20,
-			url: "/main",
-		});
-		worker.listeners.get("push")?.(event);
-		await event.task;
+	it("공용 계약의 모든 수집 소스를 알림과 누적 badge에 적용한다", async () => {
+		for (const source of CRAWL_SOURCES) {
+			const worker = loadServiceWorker();
+			const event = pushEvent({
+				v: 1,
+				type: "new-items",
+				runId: "42",
+				source,
+				insertedCount: 12,
+				badgeCount: 20,
+				url: "/main",
+			});
+			worker.listeners.get("push")?.(event);
+			await event.task;
 
-		expect(worker.showNotification).toHaveBeenCalledWith(
-			"Applemint 새 아이템",
-			expect.objectContaining({
-				body: "Battlepage에서 새 아이템 12개를 수집했습니다.",
-				badge: "/icons/notification-badge-96.png",
-				data: { url: "/main" },
-			})
-		);
-		expect(worker.setAppBadge).toHaveBeenCalledWith(20);
+			expect(worker.showNotification).toHaveBeenCalledWith(
+				"Applemint 새 아이템",
+				expect.objectContaining({
+					body: `${EXPECTED_SOURCE_LABELS[source]}에서 새 아이템 12개를 수집했습니다.`,
+					badge: "/icons/notification-badge-96.png",
+					data: { url: "/main" },
+				})
+			);
+			expect(worker.setAppBadge).toHaveBeenCalledWith(20);
+		}
 	});
 
 	it("정확한 SKIP_WAITING 메시지만 처리한다", async () => {
@@ -119,6 +129,15 @@ describe("PWA service worker", () => {
 		const worker = loadServiceWorker();
 		for (const payload of [
 			{ v: 2, type: "new-items" },
+			{
+				v: 1,
+				type: "new-items",
+				runId: "42",
+				source: "unknown",
+				insertedCount: 1,
+				badgeCount: 1,
+				url: "/main",
+			},
 			{
 				v: 1,
 				type: "new-items",

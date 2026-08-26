@@ -25,7 +25,8 @@ export default defineConfig({
 				"utils/**/*.{ts,tsx}",
 				"scripts/security/**/*.mjs",
 			],
-			exclude: ["**/*.test.{ts,tsx}", "app/api/crawl/fixtures/**"],
+			// public/sw.js는 raw public asset이므로 public/sw.test.ts가 VM에서 실제 파일 계약을 검증한다.
+			exclude: ["**/*.test.{ts,tsx}", "app/api/crawl/fixtures/**", "public/sw.js"],
 			thresholds: {
 				statements: 50,
 				branches: 44,
