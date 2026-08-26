@@ -107,8 +107,8 @@ begin
 			0,
 			floor(extract(epoch from (v_now - started_at)) * 1000)::bigint
 		),
-		error_stage = coalesce(error_stage, 'source'),
-		error_message = coalesce(error_message, 'Crawl source was retired.')
+		error_stage = 'source',
+		error_message = 'Crawl source was retired.'
 	where source = new.source
 		and (status = 'running' or id = any(v_running_run_ids));
 

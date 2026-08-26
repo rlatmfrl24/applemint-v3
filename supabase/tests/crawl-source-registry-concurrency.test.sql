@@ -129,7 +129,7 @@ as $$
 begin
 	if old.source = 'registryfinishrace'
 		and old.status = 'running'
-		and new.status = 'succeeded'
+		and new.status = 'partial'
 	then
 		perform pg_catalog.pg_sleep(0.75);
 	end if;
@@ -472,7 +472,12 @@ select is(
 			select public.finish_crawl_run(
 				9400000000000003,
 				'94000000-0000-4000-8000-000000000003',
-				'{"status":"succeeded","insertedCount":1}'::jsonb
+				'{
+					"status":"partial",
+					"insertedCount":1,
+					"errorStage":"ingest",
+					"errorMessage":"Concurrent ingest failure."
+				}'::jsonb
 			)
 		$$
 	),
@@ -529,7 +534,7 @@ select ok(
 			where source = 'registryfinishrace'
 				and state = 'pending'
 		),
-	'retirement wins scheduled Push finalization without a deadlock and removes its lease'
+	'retirement wins partial Push finalization, replaces stale errors, and removes its lease'
 );
 
 select is(
