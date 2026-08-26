@@ -29,7 +29,6 @@ import {
 import { Button } from "@/components/ui/button";
 import type { CrawlPolicySettings, CrawlSourcePolicy } from "@/lib/crawl-policy-contract";
 import { CRAWL_RUNS_QUERY_KEY } from "@/lib/crawl-run-query-options";
-import { CRAWL_SOURCE_LABELS } from "@/lib/crawl-source";
 import { invalidateThreadQueries } from "@/lib/thread-query-cache";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
@@ -163,11 +162,11 @@ function LatestStatus({ policy }: { policy: CrawlSourcePolicy }) {
 }
 
 function ScheduleSwitch({
-	source,
+	label,
 	checked,
 	onCheckedChange,
 }: {
-	source: CrawlSourcePolicy["source"];
+	label: string;
 	checked: boolean;
 	onCheckedChange: (checked: boolean) => void;
 }) {
@@ -176,7 +175,7 @@ function ScheduleSwitch({
 			<span className="relative inline-flex h-6 w-11 shrink-0 items-center">
 				<input
 					aria-checked={checked}
-					aria-label={`${CRAWL_SOURCE_LABELS[source]} 예약 수집`}
+					aria-label={`${label} 예약 수집`}
 					checked={checked}
 					className="peer absolute inset-0 z-10 size-full cursor-pointer opacity-0"
 					onChange={(event) => onCheckedChange(event.target.checked)}
@@ -215,7 +214,7 @@ function PolicyRow({
 		...trpc.crawlPolicy.update.mutationOptions(),
 		onSuccess: (settings) => {
 			queryClient.setQueryData(trpc.crawlPolicy.get.queryKey(), settings);
-			toast.success(`${CRAWL_SOURCE_LABELS[policy.source]} 수집 정책을 저장했습니다.`);
+			toast.success(`${policy.label} 수집 정책을 저장했습니다.`);
 		},
 		onError: (error) => {
 			if (error.data?.latestSettings) {
@@ -259,9 +258,7 @@ function PolicyRow({
 							<Globe2 aria-hidden="true" className="size-5" />
 						</div>
 						<div className="min-w-0">
-							<h3 className="truncate font-semibold text-base">
-								{CRAWL_SOURCE_LABELS[policy.source]}
-							</h3>
+							<h3 className="truncate font-semibold text-base">{policy.label}</h3>
 							<div className="mt-1 text-muted-foreground text-xs leading-5">
 								권장 {formatInterval(policy.recommendedCooldownSeconds)}
 								<br />
@@ -274,7 +271,7 @@ function PolicyRow({
 				<div>
 					<div className="mb-2 font-medium text-muted-foreground text-xs xl:hidden">예약 수집</div>
 					<ScheduleSwitch
-						source={policy.source}
+						label={policy.label}
 						checked={scheduleEnabled}
 						onCheckedChange={setScheduleEnabled}
 					/>
@@ -288,7 +285,7 @@ function PolicyRow({
 						최소 수집 간격
 					</label>
 					<select
-						aria-label={`${CRAWL_SOURCE_LABELS[policy.source]} 최소 수집 간격`}
+						aria-label={`${policy.label} 최소 수집 간격`}
 						className="h-10 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						id={`${policy.source}-interval`}
 						value={intervalMode === "custom" ? "custom" : String(cooldownSeconds)}
@@ -375,7 +372,7 @@ function PolicyRow({
 						</AlertDialogTrigger>
 						<AlertDialogContent>
 							<AlertDialogHeader>
-								<AlertDialogTitle>{CRAWL_SOURCE_LABELS[policy.source]} 지금 수집</AlertDialogTitle>
+								<AlertDialogTitle>{policy.label} 지금 수집</AlertDialogTitle>
 								<AlertDialogDescription>
 									예약 설정과 관계없이 즉시 실행합니다. 소스 잠금과 최대 동시성 제한은 유지됩니다.
 								</AlertDialogDescription>
@@ -495,7 +492,8 @@ function PolicySettingsPanel({
 			{manualResult ? (
 				<Alert className="mt-5" variant={manualResult.success ? "default" : "destructive"}>
 					<AlertTitle>
-						{CRAWL_SOURCE_LABELS[manualResult.source]} 수동 수집{" "}
+						{settings.sources.find((policy) => policy.source === manualResult.source)?.label ??
+							manualResult.source}{" "}
 						{manualResult.success ? "완료" : "실패"}
 					</AlertTitle>
 					<AlertDescription>{manualResult.message}</AlertDescription>
@@ -565,7 +563,8 @@ export default function CrawlingSettingPage() {
 			const result = await requestManualCrawl(source);
 			const message = `${result.insertedCount}건 저장 · ${result.skippedCount}건 중복 · 경고 ${result.warningCount}건`;
 			setManualResult({ source, success: true, message });
-			toast.success(`${CRAWL_SOURCE_LABELS[source]} 수집이 완료되었습니다.`);
+			const label = query.data?.sources.find((policy) => policy.source === source)?.label ?? source;
+			toast.success(`${label} 수집이 완료되었습니다.`);
 			await invalidateThreadQueries(queryClient, ["inbox"]);
 		} catch (error) {
 			const message = getManualErrorMessage(error);

@@ -56,14 +56,20 @@ function normalizeHostname(host: string) {
 	}
 }
 
-const SITE_DISPLAY_LABELS = new Map<string, string>([
-	...Object.values(ISSUELINK_COMMUNITIES).map(
-		(community) => [community.siteKey, community.label] as const
-	),
-	["battlepage.com", "배틀페이지"],
-	["arca.live", "아카라이브"],
-	["issuelink.co.kr", "IssueLink"],
-]);
+export const NORMAL_SITE_CATALOG = [
+	...Object.values(ISSUELINK_COMMUNITIES).map(({ host, siteKey, label }) => ({
+		host,
+		siteKey,
+		label,
+	})),
+	{ host: "https://www.battlepage.com", siteKey: "battlepage.com", label: "배틀페이지" },
+	{ host: "https://arca.live", siteKey: "arca.live", label: "아카라이브" },
+	{ host: "https://www.issuelink.co.kr", siteKey: "issuelink.co.kr", label: "IssueLink" },
+] as const;
+
+const SITE_DISPLAY_LABELS = new Map<string, string>(
+	NORMAL_SITE_CATALOG.map(({ siteKey, label }) => [siteKey, label])
+);
 
 const KNOWN_SITE_KEYS = Array.from(SITE_DISPLAY_LABELS.keys());
 

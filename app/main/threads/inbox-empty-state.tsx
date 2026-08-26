@@ -7,7 +7,6 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { CrawlPolicySettings, CrawlSourcePolicy } from "@/lib/crawl-policy-contract";
-import { CRAWL_SOURCE_LABELS } from "@/lib/crawl-source";
 import { invalidateThreadQueries } from "@/lib/thread-query-cache";
 import { useTRPC } from "@/trpc/client";
 
@@ -18,7 +17,7 @@ const DEADLINE_HANDOFF_GRACE_MS = 30_000;
 export interface NextCrawlSchedule {
 	scheduledAt: string;
 	scheduledAtMs: number;
-	sources: CrawlSourcePolicy["source"][];
+	sources: Pick<CrawlSourcePolicy, "source" | "label">[];
 }
 
 interface DeadlineHandoff {
@@ -27,7 +26,7 @@ interface DeadlineHandoff {
 }
 
 export type InboxSchedulePresentation =
-	| { kind: "active"; sources: CrawlSourcePolicy["source"][] }
+	| { kind: "active"; sources: Pick<CrawlSourcePolicy, "source" | "label">[] }
 	| { kind: "countdown"; remainingMs: number; schedule: NextCrawlSchedule }
 	| { kind: "stopped"; message: string }
 	| { kind: "waiting"; message: string };
@@ -39,7 +38,14 @@ export function selectNextCrawlSchedule(settings: CrawlPolicySettings): NextCraw
 		if (!policy.scheduleEnabled || !policy.nextScheduledAt) return [];
 		const scheduledAtMs = new Date(policy.nextScheduledAt).getTime();
 		return Number.isFinite(scheduledAtMs)
-			? [{ source: policy.source, scheduledAt: policy.nextScheduledAt, scheduledAtMs }]
+			? [
+					{
+						source: policy.source,
+						label: policy.label,
+						scheduledAt: policy.nextScheduledAt,
+						scheduledAtMs,
+					},
+				]
 			: [];
 	});
 
@@ -53,7 +59,7 @@ export function selectNextCrawlSchedule(settings: CrawlPolicySettings): NextCraw
 	return {
 		scheduledAt: nearest[0].scheduledAt,
 		scheduledAtMs: nearestMs,
-		sources: nearest.map((candidate) => candidate.source),
+		sources: nearest.map(({ source, label }) => ({ source, label })),
 	};
 }
 
@@ -68,9 +74,9 @@ export function formatCountdown(remainingMs: number) {
 	return days > 0 ? `${days}일 ${time}` : time;
 }
 
-export function formatSourceSummary(sources: CrawlSourcePolicy["source"][]) {
+export function formatSourceSummary(sources: Pick<CrawlSourcePolicy, "source" | "label">[]) {
 	if (sources.length === 0) return "";
-	const first = CRAWL_SOURCE_LABELS[sources[0]];
+	const first = sources[0].label;
 	return sources.length === 1 ? first : `${first} 외 ${sources.length - 1}개`;
 }
 
@@ -101,7 +107,7 @@ export function getInboxSchedulePresentation(
 ): InboxSchedulePresentation {
 	const activeSources = settings.sources
 		.filter((policy) => policy.activeRunId !== null)
-		.map((policy) => policy.source);
+		.map(({ source, label }) => ({ source, label }));
 	if (activeSources.length > 0) return { kind: "active", sources: activeSources };
 
 	if (!settings.schedulerEnabled) {

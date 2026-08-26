@@ -21,6 +21,12 @@ vi.mock("@/trpc/client", () => ({
 }));
 
 const sources: CrawlSource[] = ["arcalive", "battlepage", "insagirl", "issuelink"];
+const sourceLabels: Record<CrawlSource, string> = {
+	arcalive: "Arcalive",
+	battlepage: "Battlepage",
+	insagirl: "Insagirl",
+	issuelink: "IssueLink",
+};
 
 const alertSettings = {
 	parserFailureStreak: 2,
@@ -114,6 +120,7 @@ function createSourceSummary(
 	if (!run) {
 		return {
 			source,
+			label: sourceLabels[source],
 			scheduleEnabled: true,
 			cooldownSeconds: 10800,
 			runBudgetSeconds: 45,
@@ -129,6 +136,7 @@ function createSourceSummary(
 	const trendStatus = run.status === "running" ? "interrupted" : run.status;
 	return {
 		source,
+		label: sourceLabels[source],
 		scheduleEnabled: true,
 		cooldownSeconds: 10800,
 		runBudgetSeconds: 45,
@@ -275,6 +283,7 @@ describe("CrawlRunsDashboard", () => {
 			},
 			sources: sources.map((source) => ({
 				source,
+				label: sourceLabels[source],
 				scheduleEnabled: true,
 				cooldownSeconds: 10800,
 				runBudgetSeconds: 45,
