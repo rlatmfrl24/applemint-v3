@@ -505,6 +505,19 @@ begin
 	update public.web_push_subscriptions as subscription',
 		'end if;
 
+	perform pg_catalog.pg_advisory_xact_lock(
+		pg_catalog.hashtextextended(
+			''applemint:crawl-source-lifecycle:'' || sources.source,
+			0
+		)
+	)
+	from (
+		select distinct delivery.source
+		from public.web_push_deliveries as delivery
+		where delivery.state in (''pending'', ''retry'', ''processing'')
+	) as sources
+	order by sources.source;
+
 	update public.web_push_deliveries as delivery
 	set
 		state = ''skipped'',

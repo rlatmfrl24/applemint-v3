@@ -587,7 +587,12 @@ select ok(
 		)) > 0
 		and position('source-retired' in pg_get_functiondef(
 			'public.claim_web_push_deliveries(integer,integer)'::regprocedure
-		)) > 0,
+		)) > 0
+		and position('applemint:crawl-source-lifecycle:' in pg_get_functiondef(
+			'public.claim_web_push_deliveries(integer,integer)'::regprocedure
+		)) < position('update public.web_push_deliveries as delivery' in pg_get_functiondef(
+			'public.claim_web_push_deliveries(integer,integer)'::regprocedure
+		)),
 	'policy, alert, finish, and Push boundaries consult the registry authority'
 );
 

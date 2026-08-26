@@ -11,6 +11,7 @@ begin
 		execute 'revoke execute on function public.begin_crawl_run(text,uuid,integer) from registry_lifecycle_worker';
 		execute 'revoke execute on function public.evaluate_crawl_alerts(timestamp with time zone) from registry_lifecycle_worker';
 		execute 'revoke execute on function public.finish_crawl_run(bigint,uuid,jsonb) from registry_lifecycle_worker';
+		execute 'revoke execute on function public.claim_web_push_deliveries(integer,integer) from registry_lifecycle_worker';
 		execute 'drop role registry_lifecycle_worker';
 	end if;
 	if exists (select 1 from pg_roles where rolname = 'registry_lifecycle_retire') then
@@ -37,6 +38,8 @@ grant execute on function public.begin_crawl_run(text, uuid, integer)
 grant execute on function public.evaluate_crawl_alerts(timestamp with time zone)
 	to registry_lifecycle_worker;
 grant execute on function public.finish_crawl_run(bigint, uuid, jsonb)
+	to registry_lifecycle_worker;
+grant execute on function public.claim_web_push_deliveries(integer, integer)
 	to registry_lifecycle_worker;
 grant select, update on public.crawl_source_registry
 	to registry_lifecycle_retire;
@@ -142,6 +145,28 @@ create trigger zz_registry_lifecycle_finish_delay
 before update on public.crawl_runs
 for each row execute function private.delay_registry_lifecycle_run_finish();
 
+create function private.delay_registry_push_claim()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+	if old.source = 'registryclaimrace'
+		and old.state in ('pending', 'retry')
+		and new.state = 'processing'
+	then
+		perform pg_catalog.pg_sleep(0.75);
+	end if;
+	return new;
+end;
+$$;
+revoke all on function private.delay_registry_push_claim()
+	from public, anon, authenticated, service_role;
+create trigger zz_registry_push_claim_delay
+before update on public.web_push_deliveries
+for each row execute function private.delay_registry_push_claim();
+
 insert into public.crawl_source_registry (source, label, active)
 values ('registryrace', 'Registry Race', true);
 insert into public.crawl_source_policies (
@@ -159,7 +184,7 @@ values (
 	now() - interval '1 minute'
 );
 
-select plan(26);
+select plan(34);
 
 select is(
 	extensions.dblink_connect(
@@ -540,6 +565,148 @@ select ok(
 select is(
 	extensions.dblink_disconnect('registry_worker'),
 	'OK',
+	'finalization-race worker connection closes before Push claim race'
+);
+select is(
+	extensions.dblink_disconnect('registry_retire'),
+	'OK',
+	'finalization-race retirement connection closes before Push claim race'
+);
+select is(
+	extensions.dblink_connect(
+		'registry_worker',
+		format(
+			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=registry_lifecycle_worker password=%s',
+			:'registry_worker_password'
+		)
+	),
+	'OK',
+	'Push claim race worker connection opens'
+);
+select is(
+	extensions.dblink_connect(
+		'registry_retire',
+		format(
+			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=registry_lifecycle_retire password=%s',
+			:'registry_retire_password'
+		)
+	),
+	'OK',
+	'Push claim race retirement connection opens'
+);
+
+insert into public.crawl_source_registry (source, label, active)
+values ('registryclaimrace', 'Registry Claim Race', true);
+insert into public.crawl_source_policies (
+	source,
+	schedule_enabled,
+	cooldown_seconds,
+	recommended_cooldown_seconds,
+	run_budget_seconds
+)
+values ('registryclaimrace', false, 3600, 3600, 45);
+insert into public.crawl_runs (
+	id,
+	source,
+	lock_token,
+	status,
+	run_trigger,
+	started_at,
+	stale_after,
+	finished_at,
+	duration_ms,
+	attempted_count,
+	succeeded_count,
+	extracted_count,
+	inserted_count
+)
+values (
+	9400000000000004,
+	'registryclaimrace',
+	'94000000-0000-4000-8000-000000000004',
+	'succeeded',
+	'scheduled',
+	now() - interval '2 minutes',
+	now() - interval '1 minute',
+	now() - interval '1 minute',
+	60000,
+	1,
+	1,
+	1,
+	1
+);
+insert into public.web_push_deliveries (
+	id,
+	run_id,
+	subscription_id,
+	source,
+	inserted_count
+)
+values (
+	9400000000000004,
+	9400000000000004,
+	9400000000000003,
+	'registryclaimrace',
+	1
+);
+
+select is(
+	extensions.dblink_send_query(
+		'registry_worker',
+		$$
+			select to_jsonb(claimed)
+			from public.claim_web_push_deliveries(20, 120) as claimed
+			where claimed.source = 'registryclaimrace'
+		$$
+	),
+	1,
+	'Push claim starts before source retirement'
+);
+select pg_sleep(0.15);
+select is(
+	extensions.dblink_send_query(
+		'registry_retire',
+		$$
+			update public.crawl_source_registry
+			set active = false, retired_at = now(), updated_at = now()
+			where source = 'registryclaimrace'
+			returning source
+		$$
+	),
+	1,
+	'Push source retirement starts while the claim update is delayed'
+);
+select pg_sleep(0.15);
+select is(
+	extensions.dblink_is_busy('registry_retire'),
+	1,
+	'Push source retirement waits for claim lifecycle serialization'
+);
+
+create temporary table registry_claim_result (result jsonb not null);
+insert into registry_claim_result (result)
+select result
+from extensions.dblink_get_result('registry_worker') as response(result jsonb);
+insert into registry_retirement_result (source)
+select source
+from extensions.dblink_get_result('registry_retire') as response(source text);
+
+select ok(
+	(select result ->> 'source' = 'registryclaimrace' from registry_claim_result)
+		and (select active = false from public.crawl_source_registry where source = 'registryclaimrace')
+		and exists (
+			select 1
+			from public.web_push_deliveries
+			where source = 'registryclaimrace'
+				and state = 'processing'
+				and lease_token is not null
+		),
+	'Push claim is linearized before the racing retirement instead of using a stale active snapshot'
+);
+
+select is(
+	extensions.dblink_disconnect('registry_worker'),
+	'OK',
 	'crawl lifecycle worker connection closes'
 );
 select is(
@@ -554,7 +721,7 @@ where source = 'issuelink';
 delete from public.crawl_alert_incidents
 where source in ('registryrace', 'issuelink', 'registryfinishrace');
 delete from public.web_push_deliveries
-where source in ('registryrace', 'registryalertrace', 'registryfinishrace');
+where source in ('registryrace', 'registryalertrace', 'registryfinishrace', 'registryclaimrace');
 delete from public.web_push_subscriptions
 where id = 9400000000000003;
 delete from public.crawl_run_locks
@@ -562,11 +729,11 @@ delete from public.crawl_run_locks
 delete from public.crawl_schedule_dispatches
 	where source in ('registryrace', 'registryalertrace', 'registryfinishrace');
 delete from public.crawl_runs
-	where source in ('registryrace', 'issuelink', 'registryfinishrace');
+	where source in ('registryrace', 'issuelink', 'registryfinishrace', 'registryclaimrace');
 delete from public.crawl_source_policies
-	where source in ('registryrace', 'registryalertrace', 'registryfinishrace');
+	where source in ('registryrace', 'registryalertrace', 'registryfinishrace', 'registryclaimrace');
 delete from public.crawl_source_registry
-	where source in ('registryrace', 'registryalertrace', 'registryfinishrace');
+	where source in ('registryrace', 'registryalertrace', 'registryfinishrace', 'registryclaimrace');
 update public.crawl_alert_settings set parser_failure_streak = 2 where id = true;
 
 drop trigger zz_registry_lifecycle_run_delay on public.crawl_runs;
@@ -579,6 +746,8 @@ drop trigger zz_registry_alert_stale_run_update_delay on public.crawl_runs;
 drop function private.delay_registry_alert_stale_run_update();
 drop trigger zz_registry_lifecycle_finish_delay on public.crawl_runs;
 drop function private.delay_registry_lifecycle_run_finish();
+drop trigger zz_registry_push_claim_delay on public.web_push_deliveries;
+drop function private.delay_registry_push_claim();
 
 select * from finish();
 
@@ -591,6 +760,8 @@ revoke execute on function public.begin_crawl_run(text, uuid, integer)
 revoke execute on function public.evaluate_crawl_alerts(timestamp with time zone)
 	from registry_lifecycle_worker;
 revoke execute on function public.finish_crawl_run(bigint, uuid, jsonb)
+	from registry_lifecycle_worker;
+revoke execute on function public.claim_web_push_deliveries(integer, integer)
 	from registry_lifecycle_worker;
 revoke select, update on public.crawl_source_registry
 	from registry_lifecycle_retire;
