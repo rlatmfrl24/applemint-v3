@@ -25,7 +25,7 @@ port = 54322
 shadow_port = 54320
 # The database major version to use. This has to be the same as your remote database's. Run `SHOW
 # server_version;` on the remote database to check.
-major_version = 15
+major_version = 17
 
 [db.pooler]
 enabled = false
@@ -40,7 +40,7 @@ default_pool_size = 20
 max_client_conn = 100
 
 [realtime]
-enabled = true
+enabled = false
 # Bind realtime via either IPv4 or IPv6. (default: IPv4)
 # ip_version = "IPv6"
 # The maximum length in bytes of HTTP request headers. (default: 4096)
@@ -66,12 +66,12 @@ port = 54324
 # pop3_port = 54326
 
 [storage]
-enabled = true
+enabled = false
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
 [storage.image_transformation]
-enabled = true
+enabled = false
 
 # Uncomment to configure local storage buckets
 # [storage.buckets.images]
@@ -177,14 +177,14 @@ url = ""
 skip_nonce_check = false
 
 [edge_runtime]
-enabled = true
+enabled = false
 # Configure one of the supported request policies: `oneshot`, `per_worker`.
 # Use `oneshot` for hot reload, or `per_worker` for load testing.
 policy = "oneshot"
 inspector_port = 8083
 
 [analytics]
-enabled = true
+enabled = false
 port = 54327
 # Configure one of the supported backends: `postgres`, `bigquery`.
 backend = "postgres"
