@@ -1,7 +1,7 @@
 -- Crawl response contract failures are durably recorded through a service-only recovery RPC.
 begin;
 
-select plan(12);
+select plan(14);
 
 select has_function(
 	'public',
@@ -72,6 +72,39 @@ values (
 	0
 );
 
+insert into auth.users (id)
+values ('480f5282-7933-4800-a970-d6bc8f05e8cf'::uuid);
+
+insert into public.web_push_subscriptions (
+	id,
+	user_id,
+	endpoint,
+	p256dh,
+	auth
+)
+values (
+	9000000000000901,
+	'480f5282-7933-4800-a970-d6bc8f05e8cf',
+	'https://push.test/contract-failure',
+	repeat('a', 32),
+	'authkey1'
+);
+
+insert into public.web_push_deliveries (
+	id,
+	run_id,
+	subscription_id,
+	source,
+	inserted_count
+)
+values (
+	9000000000000901,
+	9000000000000901,
+	9000000000000901,
+	'battlepage',
+	1
+);
+
 set local role service_role;
 
 select is(
@@ -117,6 +150,27 @@ select isnt(
 	null::timestamp with time zone,
 	'recovery ensures the failed run is terminal'
 );
+select is(
+	(
+		select jsonb_build_object('state', state, 'error', last_error_code)
+		from public.web_push_deliveries
+		where run_id = 9000000000000901
+	),
+	'{"state":"skipped","error":"crawl-contract-failure"}'::jsonb,
+	'recovery skips every unsent push delivery for the failed run'
+);
+
+set local role service_role;
+select is(
+	(
+		select count(*)
+		from public.claim_web_push_deliveries(20, 120)
+		where run_id = '9000000000000901'
+	),
+	0::bigint,
+	'a recovered contract failure cannot be claimed for delivery'
+);
+reset role;
 
 select * from finish();
 rollback;

@@ -43,6 +43,16 @@ begin
 	returning true, run.source into v_updated, v_source;
 
 	if coalesce(v_updated, false) then
+		update public.web_push_deliveries as delivery
+		set
+			state = 'skipped',
+			lease_token = null,
+			lease_expires_at = null,
+			last_error_code = 'crawl-contract-failure',
+			updated_at = now()
+		where delivery.run_id = p_run_id
+			and delivery.state in ('pending', 'retry', 'processing');
+
 		delete from public.crawl_run_locks
 		where lock_token = p_lock_token
 			and lock_key in ('global-crawl', 'crawl:' || v_source);
