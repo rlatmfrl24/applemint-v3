@@ -12,6 +12,7 @@ begin
 		execute 'revoke execute on function public.evaluate_crawl_alerts(timestamp with time zone) from registry_lifecycle_worker';
 		execute 'revoke execute on function public.finish_crawl_run(bigint,uuid,jsonb) from registry_lifecycle_worker';
 		execute 'revoke execute on function public.claim_web_push_deliveries(integer,integer) from registry_lifecycle_worker';
+		execute 'revoke execute on function public.update_crawl_source_policy(text,boolean,integer,timestamp with time zone) from registry_lifecycle_worker';
 		execute 'drop role registry_lifecycle_worker';
 	end if;
 	if exists (select 1 from pg_roles where rolname = 'registry_lifecycle_retire') then
@@ -40,6 +41,8 @@ grant execute on function public.evaluate_crawl_alerts(timestamp with time zone)
 grant execute on function public.finish_crawl_run(bigint, uuid, jsonb)
 	to registry_lifecycle_worker;
 grant execute on function public.claim_web_push_deliveries(integer, integer)
+	to registry_lifecycle_worker;
+grant execute on function public.update_crawl_source_policy(text, boolean, integer, timestamp with time zone)
 	to registry_lifecycle_worker;
 grant select, update on public.crawl_source_registry
 	to registry_lifecycle_retire;
@@ -167,6 +170,25 @@ create trigger zz_registry_push_claim_delay
 before update on public.web_push_deliveries
 for each row execute function private.delay_registry_push_claim();
 
+create function private.delay_registry_policy_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+	if old.source = 'registrypolicyrace' then
+		perform pg_catalog.pg_sleep(0.75);
+	end if;
+	return new;
+end;
+$$;
+revoke all on function private.delay_registry_policy_update()
+	from public, anon, authenticated, service_role;
+create trigger zz_registry_policy_update_delay
+before update on public.crawl_source_policies
+for each row execute function private.delay_registry_policy_update();
+
 insert into public.crawl_source_registry (source, label, active)
 values ('registryrace', 'Registry Race', true);
 insert into public.crawl_source_policies (
@@ -177,6 +199,16 @@ insert into public.crawl_source_policies (
 	run_budget_seconds
 )
 values ('registryrace', false, 3600, 3600, 45);
+insert into public.crawl_source_registry (source, label, active)
+values ('registrypolicyrace', 'Registry Policy Race', true);
+insert into public.crawl_source_policies (
+	source,
+	schedule_enabled,
+	cooldown_seconds,
+	recommended_cooldown_seconds,
+	run_budget_seconds
+)
+values ('registrypolicyrace', false, 3600, 3600, 45);
 insert into public.crawl_run_locks (lock_key, lock_token, locked_until)
 values (
 	'crawl:registryrace',
@@ -184,7 +216,7 @@ values (
 	now() - interval '1 minute'
 );
 
-select plan(34);
+select plan(42);
 
 select is(
 	extensions.dblink_connect(
@@ -705,6 +737,112 @@ select is(
 	'crawl lifecycle retirement connection closes'
 );
 
+select updated_at::text as registry_policy_updated_at
+from public.crawl_source_policies
+where source = 'registrypolicyrace' \gset
+
+select is(
+	extensions.dblink_connect(
+		'registry_worker',
+		format(
+			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=registry_lifecycle_worker password=%s',
+			:'registry_worker_password'
+		)
+	),
+	'OK',
+	'policy-race worker connection opens'
+);
+select is(
+	extensions.dblink_connect(
+		'registry_retire',
+		format(
+			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=registry_lifecycle_retire password=%s',
+			:'registry_retire_password'
+		)
+	),
+	'OK',
+	'policy-race retirement connection opens'
+);
+select is(
+	extensions.dblink_send_query(
+		'registry_worker',
+		format(
+			$query$
+				with auth_context as materialized (
+					select set_config(
+						'request.jwt.claim.sub',
+						'480f5282-7933-4800-a970-d6bc8f05e8cb',
+						false
+					)
+				)
+				select public.update_crawl_source_policy(
+					'registrypolicyrace',
+					true,
+					7200,
+					%L::timestamp with time zone
+				)
+				from auth_context
+			$query$,
+			:'registry_policy_updated_at'
+		)
+	),
+	1,
+	'policy update starts before source retirement'
+);
+select pg_sleep(0.15);
+select is(
+	extensions.dblink_send_query(
+		'registry_retire',
+		$$
+			update public.crawl_source_registry
+			set active = false, retired_at = now(), updated_at = now()
+			where source = 'registrypolicyrace'
+			returning source
+		$$
+	),
+	1,
+	'policy source retirement starts while the policy update is delayed'
+);
+select pg_sleep(0.15);
+select is(
+	extensions.dblink_is_busy('registry_retire'),
+	1,
+	'policy source retirement waits for the policy lifecycle lock'
+);
+
+create temporary table registry_policy_result (result jsonb not null);
+insert into registry_policy_result (result)
+select result
+from extensions.dblink_get_result('registry_worker') as response(result jsonb);
+insert into registry_retirement_result (source)
+select source
+from extensions.dblink_get_result('registry_retire') as response(source text);
+
+select ok(
+	(select result ->> 'updated' = 'true' from registry_policy_result)
+		and (
+			select schedule_enabled and cooldown_seconds = 7200
+			from public.crawl_source_policies
+			where source = 'registrypolicyrace'
+		)
+		and (
+			select active = false and retired_at is not null
+			from public.crawl_source_registry
+			where source = 'registrypolicyrace'
+		),
+	'policy update is linearized before racing retirement and retirement remains final'
+);
+select is(
+	extensions.dblink_disconnect('registry_worker'),
+	'OK',
+	'policy-race worker connection closes'
+);
+select is(
+	extensions.dblink_disconnect('registry_retire'),
+	'OK',
+	'policy-race retirement connection closes'
+);
+
 update public.crawl_source_registry
 set active = true, retired_at = null, updated_at = now()
 where source in ('issuelink', 'battlepage');
@@ -725,9 +863,9 @@ delete from public.crawl_schedule_dispatches
 delete from public.crawl_runs
 	where source in ('registryrace', 'issuelink', 'registryfinishrace', 'registryclaimrace');
 delete from public.crawl_source_policies
-	where source in ('registryrace', 'registryalertrace', 'registryfinishrace', 'registryclaimrace');
+	where source in ('registryrace', 'registryalertrace', 'registryfinishrace', 'registryclaimrace', 'registrypolicyrace');
 delete from public.crawl_source_registry
-	where source in ('registryrace', 'registryalertrace', 'registryfinishrace', 'registryclaimrace');
+	where source in ('registryrace', 'registryalertrace', 'registryfinishrace', 'registryclaimrace', 'registrypolicyrace');
 update public.crawl_alert_settings set parser_failure_streak = 2 where id = true;
 
 drop trigger zz_registry_lifecycle_run_delay on public.crawl_runs;
@@ -742,6 +880,8 @@ drop trigger zz_registry_lifecycle_finish_delay on public.crawl_runs;
 drop function private.delay_registry_lifecycle_run_finish();
 drop trigger zz_registry_push_claim_delay on public.web_push_deliveries;
 drop function private.delay_registry_push_claim();
+drop trigger zz_registry_policy_update_delay on public.crawl_source_policies;
+drop function private.delay_registry_policy_update();
 
 select * from finish();
 
@@ -756,6 +896,8 @@ revoke execute on function public.evaluate_crawl_alerts(timestamp with time zone
 revoke execute on function public.finish_crawl_run(bigint, uuid, jsonb)
 	from registry_lifecycle_worker;
 revoke execute on function public.claim_web_push_deliveries(integer, integer)
+	from registry_lifecycle_worker;
+revoke execute on function public.update_crawl_source_policy(text, boolean, integer, timestamp with time zone)
 	from registry_lifecycle_worker;
 revoke select, update on public.crawl_source_registry
 	from registry_lifecycle_retire;
