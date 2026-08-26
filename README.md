@@ -28,7 +28,7 @@
 - DB `crawl_source_registry`가 운영 활성 상태와 표시명을 관리하고, TypeScript `CRAWL_SOURCES`가 설치된 adapter 능력을 검증
 
 ### 품질 / 보안 유지보수
-- `Biome 2.5.5` 포맷·린트·정적 검사
+- `Biome 2.5.9` 포맷·린트·정적 검사
 - GitHub PR 필수 검증 (`verify`: Biome, Knip, Vitest, pgTAP, production build)
 - 주간 GitHub `CodeQL`과 일간 `Security Gate` 워크플로우
 - `Dependabot` 주간 보안 업데이트
@@ -227,7 +227,7 @@ erDiagram
 - TS strict + 경로 별칭 `@/*`
 - 포맷/린트 규칙은 `biome.json` 기준
 - `pnpm deadcode`로 미사용 파일·의존성·export를 검사
-- Vitest 커버리지는 선택 실행하는 `pnpm test:coverage`에서 statements/lines 50%, branches/functions 44% 이상을 유지
+- Vitest 커버리지는 선택 실행하는 `pnpm test:coverage`에서 statements/lines 65%, branches 55%, functions 60% 이상을 유지
 - `master`만 장기 운영하며 항상 배포 가능한 상태를 유지
 - 작업 시작 전 `git fetch --prune origin` 후 최신 `origin/master`에서 `codex/<task>` 브랜치를 생성
 - 하나의 작업과 PR은 하나의 브랜치에만 담고, 관련 없는 변경을 함께 커밋하지 않음
@@ -266,8 +266,8 @@ Applemint는 migration에 고정한 단일 Supabase Auth 계정만 사용할 수
 - `pnpm verify`: Biome → Knip → Vitest → pgTAP → production build 순서의 필수 검증
 - `pnpm test`: Next API, 인증, UI loading, optimistic cache 단위 테스트
 - `pnpm test:coverage`: 선택 실행하는 단위 테스트와 V8 커버리지 하한선 검사
-- `pnpm test:db`: 10개 계약 suite로 구성된 이동·적재 rollback, 권한, lock·queue·scheduler pgTAP 테스트
+- `pnpm test:db`: 15개 계약 suite로 구성된 이동·적재 rollback, 권한, lock·queue·scheduler pgTAP 테스트
 - `pnpm typecheck`: TypeScript strict 검사
-- `pnpm build`: Next.js 프로덕션 빌드
+- `pnpm build`: Next.js production build 뒤 일반 tRPC의 service-role·`web-push` 격리와 주요 route gzip 번들 예산을 검사
 - `pnpm test:e2e`: 사용자 주도로 로컬 Supabase 초기화 후 Chromium 핵심 흐름 2개 검증
 - `pnpm test:e2e:ui`: 사용자 주도로 로컬 Supabase 초기화 후 Playwright UI 모드 실행

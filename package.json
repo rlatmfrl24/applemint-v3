@@ -10,7 +10,7 @@
 		"dev": "pnpm runtime:check && cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-webstorage\" next dev",
 		"dev:local": "pnpm runtime:check && node scripts/dev/start-local.mjs",
 		"dev:local:prepare": "pnpm runtime:check && node scripts/dev/prepare-local-auth.mjs",
-		"build": "pnpm runtime:check && cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-webstorage\" next build && node scripts/build/check-trpc-boundary.mjs",
+		"build": "pnpm runtime:check && cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-webstorage\" next build && node scripts/build/check-trpc-boundary.mjs && node scripts/build/check-client-bundle-size.mjs",
 		"start": "pnpm runtime:check && cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-webstorage\" next start",
 		"format": "biome format --write .",
 		"format:check": "biome format .",
