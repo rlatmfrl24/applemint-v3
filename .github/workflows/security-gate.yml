@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: "0 0 * * *"
   workflow_dispatch:
+  workflow_run:
+    workflows: [CodeQL]
+    types: [completed]
 
 permissions:
   contents: read
@@ -16,6 +19,11 @@ concurrency:
 jobs:
   security-gate:
     name: security-gate
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event != 'pull_request' &&
+      github.event.workflow_run.head_branch == github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
