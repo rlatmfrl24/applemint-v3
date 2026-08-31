@@ -82,7 +82,7 @@ describe("crawler parser adapters", () => {
 	it("Arcalive Cloudflare Challenge를 upstream-challenge로 기록하고 재시도하지 않는다", async () => {
 		const fetchMock = vi.fn(() =>
 			Promise.resolve(
-				new Response('<script src="/cdn-cgi/challenge-platform/h/b/orchestrate"></script>', {
+				new Response("Cloudflare challenge", {
 					status: 403,
 					statusText: "Forbidden",
 					headers: { server: "cloudflare", "cf-mitigated": "challenge" },
@@ -100,6 +100,57 @@ describe("crawler parser adapters", () => {
 				attempt: 1,
 				kind: "upstream-challenge",
 				message: "HTTP 403 Cloudflare Challenge",
+			}),
+		]);
+	});
+
+	it("Arcalive Cloudflare 고정 challenge 경로를 헤더 fallback으로 판별한다", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(() =>
+				Promise.resolve(
+					new Response('<script src="/cdn-cgi/challenge-platform/h/b/orchestrate"></script>', {
+						status: 403,
+						statusText: "Forbidden",
+						headers: { server: "cloudflare" },
+					})
+				)
+			)
+		);
+
+		const result = await crawlArcalive();
+
+		expect(result.failures).toEqual([
+			expect.objectContaining({
+				kind: "upstream-challenge",
+				message: "HTTP 403 Cloudflare Challenge",
+			}),
+		]);
+	});
+
+	it("Arcalive 403 본문의 Cloudflare 도메인 문자열만으로 challenge를 판정하지 않는다", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(() =>
+				Promise.resolve(
+					new Response(
+						'<a href="https://evil.example/?next=challenges.cloudflare.com">Forbidden</a>',
+						{
+							status: 403,
+							statusText: "Forbidden",
+							headers: { server: "cloudflare" },
+						}
+					)
+				)
+			)
+		);
+
+		const result = await crawlArcalive();
+
+		expect(result.failures).toEqual([
+			expect.objectContaining({
+				kind: "network",
+				message: "HTTP 403 Forbidden",
 			}),
 		]);
 	});

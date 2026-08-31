@@ -17,6 +17,7 @@ const ARCALIVE_API_BASE_URL = "https://arca.live/api/app/list/channel/iloveanima
 const ARCALIVE_API_PAGE_COUNT = 3;
 const ARCALIVE_API_PAGE_LIMIT = 45;
 const ARCALIVE_APP_USER_AGENT = "net.umanle.arca.android/0.9.85";
+const CLOUDFLARE_CHALLENGE_PATH = "/cdn-cgi/challenge-platform/";
 
 interface ArcalivePageResult {
 	items: CrawlItemType[];
@@ -47,8 +48,8 @@ function isCloudflareChallenge(response: Response, body: string) {
 	if (response.status !== 403) return false;
 	if (response.headers.get("cf-mitigated")?.toLowerCase() === "challenge") return true;
 	return (
-		response.headers.get("server")?.toLowerCase().includes("cloudflare") === true &&
-		(body.includes("/cdn-cgi/challenge-platform/") || body.includes("challenges.cloudflare.com"))
+		response.headers.get("server")?.trim().toLowerCase() === "cloudflare" &&
+		body.includes(CLOUDFLARE_CHALLENGE_PATH)
 	);
 }
 
