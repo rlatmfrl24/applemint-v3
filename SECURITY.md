@@ -32,7 +32,7 @@
 pnpm audit --audit-level high
 pnpm security:overrides
 pnpm security:gate
-pnpm run ci
+pnpm verify
 ```
 
 세부 운영 절차와 GitGuardian 판정 원칙은 `docs/SECURITY_OPERATIONS.md`를 따릅니다.

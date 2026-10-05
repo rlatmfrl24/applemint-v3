@@ -36,6 +36,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Audit high and critical dependencies
+        run: pnpm audit --audit-level high
+
+      - name: Validate package overrides
+        run: pnpm security:overrides
+
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v3
         with:
