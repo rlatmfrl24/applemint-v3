@@ -214,12 +214,19 @@ describe("crawler parser adapters", () => {
 	});
 
 	it("IssueLink는 단일 고정 URL을 수집하고 parser 관측치를 남긴다", async () => {
-		const fetchMock = vi.fn(() => Promise.resolve(htmlResponse(issuelinkFixture)));
+		const fetchMock = vi.fn(async (url: string) =>
+			url === ISSUELINK_TARGET
+				? htmlResponse(issuelinkFixture)
+				: new Response(null, {
+						status: 307,
+						headers: { Location: `https://community.example/${url.split("/").at(-1)}` },
+					})
+		);
 		vi.stubGlobal("fetch", fetchMock);
 
 		const result = await crawlIssueLink();
 
-		expect(result).toMatchObject({ attempted: 1, succeeded: 1 });
+		expect(result).toMatchObject({ attempted: 3, succeeded: 3 });
 		expect(result.items).toHaveLength(3);
 		expect(result.parserObservations).toEqual([
 			expect.objectContaining({ url: ISSUELINK_TARGET, status: "ok", validCount: 3 }),
@@ -261,17 +268,25 @@ describe("crawler parser adapters", () => {
 	});
 
 	it("IssueLink 단일 실패 URL만 선택 재시도해 결과를 복구한다", async () => {
-		const fetchMock = vi
-			.fn()
-			.mockResolvedValueOnce(new Response("bad", { status: 503 }))
-			.mockResolvedValueOnce(htmlResponse(issuelinkFixture));
+		let listAttempts = 0;
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === ISSUELINK_TARGET) {
+				return listAttempts++ === 0
+					? new Response("bad", { status: 503 })
+					: htmlResponse(issuelinkFixture);
+			}
+			return new Response(null, {
+				status: 307,
+				headers: { Location: `https://community.example/${url.split("/").at(-1)}` },
+			});
+		});
 		vi.stubGlobal("fetch", fetchMock);
 
 		const result = await runCrawlerWithRetry("issuelink", crawlIssueLink, async () => {});
 
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(fetchMock).toHaveBeenCalledTimes(5);
 		expect(result).toMatchObject({
-			retryCount: 1,
+			retryCount: 3,
 			recoveredCount: 1,
 			failures: [],
 			parserValidCount: 3,

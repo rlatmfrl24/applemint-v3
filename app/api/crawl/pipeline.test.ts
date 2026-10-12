@@ -56,6 +56,7 @@ function createSupabaseMock({
 	invalidIngestResponse = false,
 	invalidFinishResponse = false,
 	recoveryError = false,
+	existingHistoryUrls = [],
 }: {
 	lockAcquired?: boolean;
 	finishError?: boolean;
@@ -67,6 +68,7 @@ function createSupabaseMock({
 	invalidIngestResponse?: boolean;
 	invalidFinishResponse?: boolean;
 	recoveryError?: boolean;
+	existingHistoryUrls?: string[];
 } = {}) {
 	// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: This test double models every pipeline RPC response in one auditable boundary.
 	const rpc = vi.fn(async (name: string, parameters: Record<string, unknown>) => {
@@ -136,10 +138,12 @@ function createSupabaseMock({
 			return {
 				select: vi.fn(() => ({
 					eq: vi.fn(() => ({
-						in: vi.fn().mockResolvedValue({
-							data: invalidHistoryResponse ? [{ url: null }] : [],
+						in: vi.fn(async (_column: string, urls: string[]) => ({
+							data: invalidHistoryResponse
+								? [{ url: null }]
+								: existingHistoryUrls.filter((url) => urls.includes(url)).map((url) => ({ url })),
 							error: null,
-						}),
+						})),
 					})),
 				})),
 			};
@@ -154,6 +158,129 @@ function createSupabaseMock({
 }
 
 describe("executeCrawlPipeline", () => {
+	it("원문 URL은 적재하고 기존 IssueLink 이력은 재수집하지 않는다", async () => {
+		const historyUrl = "https://www.issuelink.co.kr/community/go/fmkorea/1";
+		const originalUrl = "https://www.fmkorea.com/1?from=popular";
+		const { client, rpc } = createSupabaseMock({ existingHistoryUrls: [historyUrl] });
+		const runCrawler = vi.fn().mockResolvedValue(
+			createExecutionResult({
+				items: [
+					{
+						url: originalUrl,
+						historyUrl,
+						title: "기존 글",
+						description: null,
+						host: "https://www.fmkorea.com",
+					},
+				],
+			})
+		);
+
+		const result = await executeCrawlPipeline("issuelink", client, runCrawler);
+
+		expect(result.skippedCount).toBe(1);
+		expect(rpc).toHaveBeenCalledWith("ingest_crawl_items", {
+			p_crawl_source: "issuelink",
+			p_items: [],
+		});
+	});
+
+	it("원문 URL과 이력 URL이 모두 존재해도 중복 항목은 한 건으로 집계한다", async () => {
+		const historyUrl = "https://www.issuelink.co.kr/community/go/fmkorea/1";
+		const originalUrl = "https://www.fmkorea.com/1";
+		const { client, rpc } = createSupabaseMock({ existingHistoryUrls: [historyUrl, originalUrl] });
+		const runCrawler = vi.fn().mockResolvedValue(
+			createExecutionResult({
+				items: [
+					{
+						url: originalUrl,
+						historyUrl,
+						title: "기존 글",
+						description: null,
+						host: "https://www.fmkorea.com",
+					},
+				],
+			})
+		);
+
+		expect((await executeCrawlPipeline("issuelink", client, runCrawler)).skippedCount).toBe(1);
+		expect(rpc).toHaveBeenCalledWith("ingest_crawl_items", {
+			p_crawl_source: "issuelink",
+			p_items: [],
+		});
+	});
+
+	it("원문 주소로 필터를 적용하고 수집 식별 주소와 함께 적재한다", async () => {
+		const { client, rpc } = createSupabaseMock({
+			filterKeywords: [{ value: "fmkorea.com/ignored", method: "ignore" }],
+		});
+		const items = [
+			{
+				url: "https://www.fmkorea.com/1",
+				historyUrl: "https://www.issuelink.co.kr/community/go/fmkorea/1",
+				title: "새 글",
+				description: null,
+				host: "https://www.fmkorea.com",
+			},
+			{
+				url: "https://www.fmkorea.com/ignored",
+				historyUrl: "https://www.issuelink.co.kr/community/go/fmkorea/2",
+				title: "제외 글",
+				description: null,
+				host: "https://www.fmkorea.com",
+			},
+		];
+		await executeCrawlPipeline(
+			"issuelink",
+			client,
+			vi.fn().mockResolvedValue(createExecutionResult({ items }))
+		);
+		expect(rpc).toHaveBeenCalledWith("ingest_crawl_items", {
+			p_crawl_source: "issuelink",
+			p_items: [{ ...items[0], type: "normal" }],
+		});
+	});
+
+	it("알려진 원문의 새 수집 식별 주소도 RPC에 전달해 영구적으로 기록한다", async () => {
+		const item = {
+			url: "https://www.fmkorea.com/shared",
+			historyUrl: "https://www.issuelink.co.kr/community/go/fmkorea/2",
+			title: "다른 링크",
+			description: null,
+			host: "https://www.fmkorea.com",
+		};
+		const { client, rpc } = createSupabaseMock({ existingHistoryUrls: [item.url] });
+		await executeCrawlPipeline(
+			"issuelink",
+			client,
+			vi.fn().mockResolvedValue(createExecutionResult({ items: [item] }))
+		);
+		expect(rpc).toHaveBeenCalledWith("ingest_crawl_items", {
+			p_crawl_source: "issuelink",
+			p_items: [{ ...item, type: "normal" }],
+		});
+	});
+
+	it("같은 원문으로 연결되는 여러 식별 주소를 적재까지 보존한다", async () => {
+		const items = [1, 2].map((id) => ({
+			url: "https://www.fmkorea.com/shared",
+			historyUrl: `https://www.issuelink.co.kr/community/go/fmkorea/${id}`,
+			title: "다른 링크",
+			description: null,
+			host: "https://www.fmkorea.com",
+		}));
+		const { client, rpc } = createSupabaseMock();
+		await executeCrawlPipeline(
+			"issuelink",
+			client,
+			vi.fn().mockResolvedValue(createExecutionResult({ items }))
+		);
+		expect(rpc).toHaveBeenCalledWith("ingest_crawl_items", {
+			p_crawl_source: "issuelink",
+			p_items: items.map((item) => ({ ...item, type: "normal" })),
+		});
+	});
+
 	it("크롤링부터 원자적 적재와 실행 이력 종료까지 한 경로에서 처리한다", async () => {
 		const { client, rpc } = createSupabaseMock();
 		const runCrawler = vi.fn().mockResolvedValue(createExecutionResult());

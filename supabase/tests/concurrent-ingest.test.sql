@@ -45,7 +45,7 @@ grant usage, select on sequence
 	public.threads_id_seq
 	to p0_concurrent_ingest_login;
 
-select plan(11);
+select plan(20);
 
 select is(
 	extensions.dblink_connect(
@@ -139,6 +139,95 @@ select is(
 	(select count(*) from public.threads where state = 'inbox' and url = 'https://p0.test/concurrent-ingest'),
 	1::bigint,
 	'concurrent ingest creates one new thread'
+);
+
+select * from extensions.dblink_get_result('p0_ingest_1') as response(result jsonb);
+select * from extensions.dblink_get_result('p0_ingest_2') as response(result jsonb);
+truncate p0_concurrent_results;
+select extensions.dblink_send_query('p0_ingest_1', $query$
+	with delay as materialized (select pg_sleep(0.25))
+	select public.ingest_crawl_items('issuelink', '[{"url":"https://p0.test/issuelink-concurrent?writer=1","historyUrl":"https://www.issuelink.co.kr/community/go/fmkorea/p0-concurrent"}]') from delay
+$query$);
+select extensions.dblink_send_query('p0_ingest_2', $query$
+	with delay as materialized (select pg_sleep(0.25))
+	select public.ingest_crawl_items('issuelink', '[{"url":"https://p0.test/issuelink-concurrent?writer=2","historyUrl":"https://www.issuelink.co.kr/community/go/fmkorea/p0-concurrent"}]') from delay
+$query$);
+insert into p0_concurrent_results select result from extensions.dblink_get_result('p0_ingest_1') as response(result jsonb);
+insert into p0_concurrent_results select result from extensions.dblink_get_result('p0_ingest_2') as response(result jsonb);
+select is(
+	(select sum((result ->> 'insertedCount')::bigint) from p0_concurrent_results),
+	1::numeric, 'concurrent query variants claim one collection identity'
+);
+select is(
+	(select count(*) from public.threads where url like 'https://p0.test/issuelink-concurrent%'),
+	1::bigint, 'concurrent query variants create one original thread'
+);
+select is(
+	(select count(*) from public."crawl-history" where crawl_source = 'issuelink' and url = 'https://www.issuelink.co.kr/community/go/fmkorea/p0-concurrent'),
+	1::bigint, 'concurrent query variants retain one stable history row'
+);
+
+select * from extensions.dblink_get_result('p0_ingest_1') as response(result jsonb);
+select * from extensions.dblink_get_result('p0_ingest_2') as response(result jsonb);
+truncate p0_concurrent_results;
+select extensions.dblink_send_query('p0_ingest_1', $query$
+	with delay as materialized (select pg_sleep(0.25))
+	select public.ingest_crawl_items('issuelink', '[{"url":"https://p0.test/issuelink-mixed"}]') from delay
+$query$);
+select extensions.dblink_send_query('p0_ingest_2', $query$
+	with delay as materialized (select pg_sleep(0.25))
+	select public.ingest_crawl_items('issuelink', '[{"url":"https://p0.test/issuelink-mixed","historyUrl":"https://www.issuelink.co.kr/community/go/fmkorea/p0-mixed"}]') from delay
+$query$);
+insert into p0_concurrent_results select result from extensions.dblink_get_result('p0_ingest_1') as response(result jsonb);
+insert into p0_concurrent_results select result from extensions.dblink_get_result('p0_ingest_2') as response(result jsonb);
+select is(
+	(select sum((result ->> 'insertedCount')::bigint) from p0_concurrent_results),
+	1::numeric, 'old and new concurrent payloads claim one original'
+);
+select is(
+	(select count(*) from public.threads where url = 'https://p0.test/issuelink-mixed'),
+	1::bigint, 'old and new concurrent payloads create one thread'
+);
+select is(
+	(select count(*) from public."crawl-history" where crawl_source = 'issuelink' and url = 'https://p0.test/issuelink-mixed'),
+	1::bigint, 'old and new concurrent payloads retain one original claim'
+);
+
+-- The existing BEFORE INSERT source lifecycle lock must protect mixed batch lock order too.
+create function public.p0_delay_history_claim()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+	if new.url = 'https://p0.test/issuelink-order-first' then perform pg_catalog.pg_sleep(0.3); end if;
+	return new;
+end;
+$$;
+create trigger p0_delay_history_claim after insert on public."crawl-history"
+for each row execute function public.p0_delay_history_claim();
+select * from extensions.dblink_get_result('p0_ingest_1') as response(result jsonb);
+select * from extensions.dblink_get_result('p0_ingest_2') as response(result jsonb);
+truncate p0_concurrent_results;
+select extensions.dblink_send_query('p0_ingest_1', $query$
+	select public.ingest_crawl_items('issuelink', '[{"url":"https://p0.test/issuelink-order-first"},{"url":"https://p0.test/issuelink-order-second","historyUrl":"https://www.issuelink.co.kr/community/go/fmkorea/p0-mixed-order"}]')
+$query$);
+select extensions.dblink_send_query('p0_ingest_2', $query$
+	with delay as materialized (select pg_sleep(0.05))
+	select public.ingest_crawl_items('issuelink', '[{"url":"https://p0.test/issuelink-order-first","historyUrl":"https://www.issuelink.co.kr/community/go/fmkorea/p0-mixed-order"}]') from delay
+$query$);
+insert into p0_concurrent_results select result from extensions.dblink_get_result('p0_ingest_1') as response(result jsonb);
+insert into p0_concurrent_results select result from extensions.dblink_get_result('p0_ingest_2') as response(result jsonb);
+select is((select count(*) from p0_concurrent_results), 2::bigint,
+	'mixed legacy and alias batches finish without a lock-order deadlock');
+select is((select count(*) from public.threads where url = 'https://p0.test/issuelink-order-first'), 1::bigint,
+	'mixed legacy and alias batches preserve original uniqueness');
+select is((select count(*) from public."crawl-history" where crawl_source = 'issuelink' and url = 'https://www.issuelink.co.kr/community/go/fmkorea/p0-mixed-order'), 1::bigint,
+	'mixed legacy and alias batches preserve collection identity uniqueness');
+drop trigger p0_delay_history_claim on public."crawl-history";
+drop function public.p0_delay_history_claim();
+
+delete from public.threads where url like 'https://p0.test/issuelink-%';
+delete from public."crawl-history" where crawl_source = 'issuelink' and (
+	url like 'https://p0.test/issuelink-%'
+	or url in ('https://www.issuelink.co.kr/community/go/fmkorea/p0-concurrent', 'https://www.issuelink.co.kr/community/go/fmkorea/p0-mixed', 'https://www.issuelink.co.kr/community/go/fmkorea/p0-mixed-order')
 );
 
 delete from public.threads where url = 'https://p0.test/concurrent-ingest';

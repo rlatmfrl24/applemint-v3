@@ -6,6 +6,7 @@ import type {
 
 export interface CrawlItemType {
 	url: string;
+	historyUrl?: string;
 	title: string | null;
 	description: string | null;
 	host: string | null;

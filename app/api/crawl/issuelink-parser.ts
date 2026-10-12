@@ -13,7 +13,7 @@ interface IssueLinkUrl {
 	sourceKey: string;
 }
 
-function parseIssueLinkUrl(href: string): IssueLinkUrl | null {
+export function parseIssueLinkUrl(href: string): IssueLinkUrl | null {
 	try {
 		const url = new URL(href, ISSUELINK_BASE_URL);
 		const match = /^\/community\/go\/([^/]+)\/([^/]+)$/.exec(url.pathname);

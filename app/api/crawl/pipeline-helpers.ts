@@ -28,11 +28,12 @@ export function defineType(value: string, filterList: FilterKeyword[]) {
 	return matchFilteredUrl(value, filterList).type;
 }
 
-export function dedupeByUrl<T extends { url: string }>(items: T[]) {
+export function dedupeCrawlItems<T extends { url: string; historyUrl?: string }>(items: T[]) {
 	const deduped = new Map<string, T>();
 	for (const item of items) {
-		if (item.url && !deduped.has(item.url)) {
-			deduped.set(item.url, item);
+		const identity = item.historyUrl ?? item.url;
+		if (item.url && !deduped.has(identity)) {
+			deduped.set(identity, item);
 		}
 	}
 	return Array.from(deduped.values());
