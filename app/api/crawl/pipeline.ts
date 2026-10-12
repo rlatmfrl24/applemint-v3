@@ -24,7 +24,7 @@ import {
 	chunkUrlsForHistoryQuery,
 	countCrawlWarnings,
 	createRunResult,
-	dedupeByUrl,
+	dedupeCrawlItems,
 	type FilterKeyword,
 	getCompletedRunStatus,
 	matchFilteredUrl,
@@ -255,17 +255,17 @@ async function prepareItems(
 	filterList: FilterKeyword[]
 ) {
 	const filteredItems: PreparedCrawlItem[] = [];
-	for (const item of dedupeByUrl(crawlData.items)) {
+	for (const item of dedupeCrawlItems(crawlData.items)) {
 		const match = matchFilteredUrl(item.url, filterList);
 		if (!match.ignored) filteredItems.push({ ...item, type: match.type });
 	}
 	const existingUrls = await getExistingUrls(
 		supabase,
 		target,
-		filteredItems.map((item) => item.url)
+		filteredItems.map((item) => item.historyUrl ?? item.url)
 	);
-	const items = filteredItems.filter((item) => !existingUrls.has(item.url));
-	return { items, existingCount: existingUrls.size };
+	const items = filteredItems.filter((item) => !existingUrls.has(item.historyUrl ?? item.url));
+	return { items, existingCount: filteredItems.length - items.length };
 }
 
 async function ingestItems(

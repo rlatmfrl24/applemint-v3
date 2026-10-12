@@ -112,6 +112,7 @@ export async function runCrawlerWithRetry(
 	const retryAttempt = await crawler({
 		...options,
 		urls: FULL_RETRY_TARGETS.has(target) ? undefined : retryUrls,
+		...(firstAttempt.retryItems ? { retryItems: firstAttempt.retryItems } : {}),
 	});
 	return aggregateCrawlAttempts([firstAttempt, retryAttempt]);
 }

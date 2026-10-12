@@ -4,7 +4,7 @@ import {
 	chunkUrlsForHistoryQuery,
 	countActionableCrawlWarnings,
 	createRunResult,
-	dedupeByUrl,
+	dedupeCrawlItems,
 	defineType,
 	getCompletedRunStatus,
 	matchFilteredUrl,
@@ -31,7 +31,7 @@ function createExecutionResult(
 describe("crawl pipeline helpers", () => {
 	it("URL 중복 제거는 첫 번째 항목을 유지한다", () => {
 		expect(
-			dedupeByUrl([
+			dedupeCrawlItems([
 				{ url: "https://example.com/1", title: "first" },
 				{ url: "https://example.com/1", title: "duplicate" },
 			])

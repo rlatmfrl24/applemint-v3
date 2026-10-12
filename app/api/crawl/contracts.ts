@@ -31,6 +31,7 @@ interface ParserObservation {
 
 export interface CrawlSourceResult {
 	items: CrawlItemType[];
+	retryItems?: CrawlItemType[];
 	attemptedUrls?: string[];
 	attempted: number;
 	succeeded: number;
@@ -66,6 +67,7 @@ export interface CrawlExecutionResult {
 
 export interface CrawlAdapterOptions {
 	urls?: readonly string[];
+	retryItems?: readonly CrawlItemType[];
 	signal?: AbortSignal;
 	requestId?: string;
 	runId?: string;
@@ -76,14 +78,12 @@ function withAttempt<T extends { url: string }>(value: T, attempt: number) {
 }
 
 function getAttemptedUrls(result: CrawlSourceResult) {
-	return (
-		result.attemptedUrls ??
-		Array.from(
-			new Set([
-				...result.failures.map((failure) => failure.url),
-				...result.parserObservations.map((observation) => observation.url),
-			])
-		)
+	return Array.from(
+		new Set([
+			...(result.attemptedUrls ?? []),
+			...result.failures.map((failure) => failure.url),
+			...result.parserObservations.map((observation) => observation.url),
+		])
 	);
 }
 
@@ -131,8 +131,9 @@ export function aggregateCrawlAttempts(attempts: CrawlSourceResult[]): CrawlExec
 	).length;
 	const dedupedItems = new Map<string, CrawlItemType>();
 	for (const item of attempts.flatMap((attempt) => attempt.items)) {
-		if (item.url && !dedupedItems.has(item.url)) {
-			dedupedItems.set(item.url, item);
+		const identity = item.historyUrl ?? item.url;
+		if (item.url && !dedupedItems.has(identity)) {
+			dedupedItems.set(identity, item);
 		}
 	}
 
