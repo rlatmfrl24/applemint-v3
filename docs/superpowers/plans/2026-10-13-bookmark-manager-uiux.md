@@ -45,44 +45,44 @@
 
 **Interfaces:** Produces archived collection guards, previous_collection_path, remove result and reviewType for subsequent UI tasks.
 
-- [ ] Back up local DB; write pgTAP tests for deletion/preservation/stale versions/owner checks/filter counts and cross-session race; write Zod/service tests; observe RED.
-- [ ] Add migration, owner RPC/service/tRPC/schema and generated DB types. Original import context retains archived source records; user/AI collections exclude them. Apply locally without reset.
-- [ ] Run `pnpm exec vitest run bookmark` and `pnpm test:db`. Expected: all selected tests pass.
-- [ ] Commit scoped files and record the successful task command in the ledger.
+- [x] Back up local DB; write pgTAP tests for deletion/preservation/stale versions/owner checks/filter counts and cross-session race; write Zod/service tests; observe RED.
+- [x] Add migration, owner RPC/service/tRPC/schema and generated DB types. Original import context retains archived source records; user/AI collections exclude them. Apply locally without reset.
+- [x] Run `pnpm exec vitest run bookmark` and `pnpm test:db`. Expected: all selected tests pass.
+- [x] Commit scoped files and record the successful task command in the ledger.
 
 ### Task 2: Compact manager, tree and popups
 
 **Interfaces:** Consumes Task 1 remove and active collection list; produces common view shell, collection tree/dialog and compact row/detail dialog.
 
-- [ ] Add tree tests and real-server E2E assertions for missing hierarchy/popup controls; observe RED.
-- [ ] Split the large library screen by responsibility; implement session expansion, separate select/expand, popup CRUD, compact rows/details and selected-default job actions. Remove manager save/settings controls.
-- [ ] Verify create/rename/delete through UI and DB readback, plus tree/row tests. Expected: working hierarchy/popups and compact persisted manager.
-- [ ] Commit and record evidence.
+- [x] Add tree tests and real-server E2E assertions for missing hierarchy/popup controls; observe RED.
+- [x] Split the large library screen by responsibility; implement session expansion, separate select/expand, popup CRUD, compact rows/details and selected-default job actions. Remove manager save/settings controls.
+- [x] Verify create/rename/delete through UI and DB readback, plus tree/row tests. Expected: working hierarchy/popups and compact persisted manager.
+- [x] Commit and record evidence.
 
 ### Task 3: Review, trash and activity screens
 
 **Interfaces:** Consumes Task 1 server reviewType and Task 2 shell/rows/dialogs; produces standalone routes and result approval UI.
 
-- [ ] Add failing route/filter/approval/bulk behavior checks; observe RED.
-- [ ] Implement routes, query/back navigation and legacy `?state=trash` redirect preserving search. Show evidence and popup proposal edit/approve/exclude in review, restore in trash and jobs in activity.
-- [ ] Move generic settings jobs to an activity link; retain import/interest/budget UI. Run bookmark tests and route/UI readback. Expected: no tree in review/trash, no logs in manager, old proposals rejected.
-- [ ] Commit and record evidence.
+- [x] Add failing route/filter/approval/bulk behavior checks; observe RED.
+- [x] Implement routes, query/back navigation and legacy `?state=trash` redirect preserving search. Show evidence and popup proposal edit/approve/exclude in review, restore in trash and jobs in activity.
+- [x] Move generic settings jobs to an activity link; retain import/interest/budget UI. Run bookmark tests and route/UI readback. Expected: no tree in review/trash, no logs in manager, old proposals rejected.
+- [x] Commit and record evidence.
 
 ### Task 4: Real flow verification and QA collection cleanup
 
 **Interfaces:** Consumes the actual user routes and APIs from Tasks 1-3. Tests use source-save rather than resurrecting removed URL input.
 
-- [ ] Adapt E2E; add `playwright.bookmarks.config.ts` for existing localhost server/auth and no DB reset.
-- [ ] Verify source save, duplicate/state preservation, collection CRUD/reparent/path, review keep/trash/approve and restore with authoritative readback.
-- [ ] Run a small real OpenAI classification and popup edit/approval in review; confirm persistence and settlement.
-- [ ] Delete only verified QA collections `AI 검증 정리 1791868938290`, `AI 검증 정리 1791869523870` through the new popup; clean temporary QA collections similarly. Preserve members and source data.
-- [ ] Commit tests/evidence and ledger the actual commands/results.
+- [x] Adapt E2E; add `playwright.bookmarks.config.ts` for existing localhost server/auth and no DB reset.
+- [x] Verify source save, duplicate/state preservation, collection CRUD/reparent/path, review keep/trash/approve and restore with authoritative readback.
+- [x] Run a small real OpenAI classification and popup edit/approval in review; confirm persistence and settlement.
+- [x] Delete only verified QA collections `AI 검증 정리 1791868938290`, `AI 검증 정리 1791869523870` through the new popup; clean temporary QA collections similarly. Preserve members and source data.
+- [x] Commit tests/evidence and ledger the actual commands/results.
 
 ### Task 5: Final verification and independent review
 
 **Interfaces:** Consumes all tasks and checks the accepted product contract on the complete branch.
 
-- [ ] Check 1440x900 density, mobile, light/dark, keyboard/focus return, long/deep/empty cases with actual browser screenshots.
-- [ ] Run `pnpm typecheck` and `pnpm verify`. Expected: all checks pass.
-- [ ] Package complete diff and ledger; dispatch one fresh-context whole-branch reviewer using requesting-code-review. Fix Important/Critical findings with regression tests and rerun affected checks; record minor deferrals.
-- [ ] Update operating documentation and commit only scoped files. Leave local flow reachable; report outcome/readback/evidence and precise unverified limits.
+- [x] Check 1440x900 density, mobile, light/dark, keyboard/focus return, long/deep/empty cases with actual browser screenshots.
+- [x] Run `pnpm typecheck` and `pnpm verify`. Expected: all checks pass.
+- [x] Package complete diff and ledger; dispatch one fresh-context whole-branch reviewer using requesting-code-review. Fix Important/Critical findings with regression tests and rerun affected checks; record minor deferrals.
+- [x] Update operating documentation and commit only scoped files. Leave local flow reachable; report outcome/readback/evidence and precise unverified limits.
