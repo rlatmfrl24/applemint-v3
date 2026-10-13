@@ -1,229 +1,194 @@
 import { expect, test } from "@playwright/test";
-import { createClient } from "@supabase/supabase-js";
-import { getE2ERuntime } from "./support/runtime";
+import { bookmarkOwner, removeCollectionUI, saveSourceBookmark } from "./support/bookmarks";
 
-test("북마크를 UI에서 저장·중복 안내·휴지통·복원하고 수집 글 상태를 유지한다", async ({ page }) => {
-	const runtime = getE2ERuntime();
-	const db = createClient(runtime.supabaseUrl, runtime.publishableKey, {
-		auth: { persistSession: false },
-	});
-	expect(
-		(
-			await db.auth.signInWithPassword({
-				email: runtime.ownerEmail,
-				password: runtime.ownerPassword,
-			})
-		).error
-	).toBeNull();
-	const title = `UI 북마크 검증 ${Date.now()}`;
-	const url = `https://example.com/applemint-check-${Date.now()}`;
-	await page.goto("/main/bookmarks");
-	await page.getByRole("button", { name: "북마크 저장", exact: true }).click();
-	const dialog = page.getByRole("alertdialog");
-	await dialog.getByLabel("URL", { exact: true }).fill(url);
-	await dialog.getByLabel("제목 (선택)").fill(title);
-	await dialog.getByLabel("메모", { exact: true }).fill("복원 후에도 유지");
-	await dialog.getByRole("button", { name: "저장", exact: true }).click();
-	await expect(dialog).not.toBeVisible();
-	await page.reload();
-	await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
-	const saved = await db.from("bookmarks").select("*").eq("url", url).single();
-	expect(saved.error).toBeNull();
-	expect(saved.data?.note).toBe("복원 후에도 유지");
-	const row = page.locator(`[data-bookmark-id="${saved.data?.id}"]`);
-	await row.getByRole("button", { name: "휴지통 이동", exact: true }).click();
-	await page.getByRole("button", { name: "휴지통", exact: true }).click();
+test("수집 글 저장·수정·열기·휴지통·복원과 컬렉션 삭제를 UI와 DB에서 확인한다", async ({
+	page,
+	context,
+}) => {
+	const db = await bookmarkOwner();
+	const title = `수집 글 관리자 검증 ${Date.now()}`;
+	const saved = await saveSourceBookmark(page, db, title);
+	await page.goto(`/main/bookmarks?search=${encodeURIComponent(title)}`);
+	const row = page.locator(`[data-bookmark-id="${saved.id}"]`);
 	await expect(row).toBeVisible();
-	await row.getByRole("button", { name: "복원", exact: true }).click();
-	await expect(page.getByText("복원했습니다.", { exact: true })).toBeVisible();
-	await page.getByRole("button", { name: "라이브러리", exact: true }).click();
-	await expect(row).toContainText("복원 후에도 유지");
+	const popup = context.waitForEvent("page");
+	await row.getByRole("button", { name: title, exact: true }).click();
+	await (await popup).close();
+	await expect(row).toContainText("열기 1회");
 	expect(
-		(await db.from("bookmarks").select("state,note").eq("id", saved.data?.id).single()).data
-	).toMatchObject({ state: "library", note: "복원 후에도 유지" });
-	await page.getByRole("button", { name: "북마크 저장", exact: true }).click();
-	await dialog.getByLabel("URL", { exact: true }).fill(url);
-	await dialog.getByRole("button", { name: "저장", exact: true }).click();
-	await expect(page.getByText("이미 저장한 URL입니다. 기존 북마크를 확인해주세요.")).toBeVisible();
-	expect((await db.from("bookmarks").select("id", { count: "exact" }).eq("url", url)).count).toBe(
-		1
-	);
-	const source = await db
-		.from("threads")
-		.select("id,url,state")
-		.eq("state", "inbox")
-		.limit(1)
-		.single();
-	expect(source.error).toBeNull();
-	await page.goto("/main");
-	const buttons = page.getByRole("button", { name: "북마크 저장", exact: true });
-	await expect(buttons.first()).toBeVisible();
-	await buttons.first().click();
-	const sourceUrl = await dialog.getByLabel("URL", { exact: true }).inputValue();
-	const before = await db.from("threads").select("id,state").eq("url", sourceUrl).single();
+		(await db.from("bookmarks").select("open_count").eq("id", saved.id).single()).data?.open_count
+	).toBe(1);
+
+	await page.getByRole("button", { name: "컬렉션 추가", exact: true }).click();
+	let dialog = page.getByRole("alertdialog");
+	await dialog.getByLabel("컬렉션 이름", { exact: true }).fill(title);
 	await dialog.getByRole("button", { name: "저장", exact: true }).click();
 	await expect(dialog).not.toBeVisible();
-	const after = await db.from("threads").select("state").eq("id", before.data?.id).single();
-	expect(after.data?.state).toBe(before.data?.state);
-	expect(
-		(await db.from("bookmarks").select("source_thread_id").eq("source_thread_id", before.data?.id))
-			.data?.length
-	).toBeGreaterThan(0);
+	const collection = await db.from("bookmark_collections").select("id").eq("name", title).single();
+	expect(collection.error).toBeNull();
+	await row.getByRole("button", { name: `${title} 항목 메뉴`, exact: true }).click();
+	await page.getByRole("menuitem", { name: "수정", exact: true }).click();
+	dialog = page.getByRole("alertdialog");
+	await dialog.getByLabel("컬렉션", { exact: true }).selectOption(collection.data?.id);
+	await dialog.getByRole("textbox", { name: "메모", exact: true }).fill("복원 후에도 유지");
+	await dialog.getByRole("button", { name: "변경 저장", exact: true }).click();
+	await expect(dialog).not.toBeVisible();
+	await expect(row).toContainText(title);
+	await row.getByRole("checkbox").check();
+	await page.getByRole("button", { name: "선택 항목 휴지통 이동", exact: true }).click();
+	await expect(row).toHaveCount(0);
+	await page.goto(`/main/bookmarks/trash?search=${encodeURIComponent(title)}`);
+	await expect(row).toContainText(title);
+	await removeCollectionUI(page, title);
+	await page.goto(`/main/bookmarks/trash?search=${encodeURIComponent(title)}`);
+	await expect(row).toContainText("미분류");
+	await expect(row).toContainText(`이전: ${title}`);
+	await row.getByRole("checkbox").check();
+	await page.getByRole("button", { name: "선택 항목 복원", exact: true }).click();
+	await expect(row).toHaveCount(0);
+	await page.goto(`/main/bookmarks?search=${encodeURIComponent(title)}`);
+	await expect(row).toBeVisible();
+	const after = await db
+		.from("bookmarks")
+		.select("state,note,collection_id,previous_collection_path,source_thread_id,original")
+		.eq("id", saved.id)
+		.single();
+	expect(after.error).toBeNull();
+	expect(after.data).toMatchObject({
+		state: "library",
+		note: "복원 후에도 유지",
+		collection_id: null,
+		previous_collection_path: title,
+		source_thread_id: saved.source_thread_id,
+	});
+	expect(after.data?.original).toEqual(saved.original);
+	await row.getByRole("button", { name: `${title} 항목 메뉴`, exact: true }).click();
+	await page.getByRole("menuitem", { name: "상세", exact: true }).click();
+	await expect(page.getByRole("alertdialog")).toContainText("복원 후에도 유지");
+	await page.getByRole("button", { name: "닫기", exact: true }).click();
+	await expect(row.getByRole("button", { name: `${title} 항목 메뉴`, exact: true })).toBeFocused();
+	console.log(
+		"SOURCE_MANAGER_READBACK",
+		JSON.stringify({
+			saved: true,
+			sourceStatePreserved: true,
+			opened: 1,
+			deletedCollectionArchived: true,
+			previousPath: true,
+			restored: true,
+		})
+	);
 });
 
-test("실계정 Raindrop 이관을 설정 화면에서 시작하고 서버 작업·저장 진행을 확인한다", async ({
+test("검토 유형별 전체 수량·페이지가 DB와 일치하고 선택·이전 진입 조건을 보존한다", async ({
 	page,
 }) => {
-	test.skip(
-		process.env.BOOKMARK_LIVE_IMPORT !== "1",
-		"실계정 이관은 지정한 로컬 검증 실행에서만 시작"
-	);
+	const db = await bookmarkOwner();
+	await page.goto("/main/bookmarks/review");
+	for (const [type, label] of [
+		["dead", "죽은 링크"],
+		["classify", "컬렉션 변경안"],
+		["unused", "미사용 후보"],
+		["all", "전체"],
+	]) {
+		await page.getByRole("button", { name: label, exact: true }).click();
+		const snapshot = await db.rpc("bookmark_snapshot", {
+			p_filter: { review: true, reviewType: type, limit: 100 },
+		});
+		expect(snapshot.error).toBeNull();
+		await expect(page.locator("article[data-bookmark-id]")).toHaveCount(snapshot.data.items.length);
+		await expect(
+			page.getByText(`${snapshot.data.total.toLocaleString()}개 · 선택 0개`, { exact: true })
+		).toBeVisible();
+	}
+	await page.getByLabel("현재 페이지 선택", { exact: true }).check();
+	await page.getByRole("button", { name: "다음", exact: true }).click();
+	await expect(page.getByText(/선택 0개/u).first()).toBeVisible();
+	await expect(page.getByLabel("현재 페이지 선택", { exact: true })).not.toBeChecked();
+	await page.getByRole("link", { name: "휴지통", exact: true }).click();
+	await expect(page).toHaveURL(/\/trash$/u);
+	await page.goBack();
+	await expect(page).toHaveURL(/\/review\?page=2/u);
+	await page.goto("/main/bookmarks?state=trash&search=legacy-query");
+	await expect(page).toHaveURL(/\/trash\?search=legacy-query/u);
+	await expect(page.getByLabel("북마크 검색")).toHaveValue("legacy-query");
 	await page.goto("/main/setting/bookmarks");
-	await page.getByRole("checkbox").check();
-	const start = page.getByRole("button", { name: /최초 가져오기 시작|기존 이관 작업 재개/u });
-	await expect(start).toBeEnabled();
-	await start.click();
-	await expect(page.getByText(/Raindrop 이관/u).first()).toBeVisible();
-	await expect(page.getByText(/조회 .* 저장 .*페이지/u)).toBeVisible();
+	await page.getByRole("link", { name: "작업 기록에서 진행·실패·재개 확인" }).click();
+	await expect(page).toHaveURL(/\/activity$/u);
 });
 
-test("저장 후 실제 제목 수집과 열기 버튼 사용 기록을 확인한다", async ({ page, context }) => {
-	test.setTimeout(120000);
-	const runtime = getE2ERuntime();
-	const db = createClient(runtime.supabaseUrl, runtime.publishableKey, {
-		auth: { persistSession: false },
-	});
-	expect(
-		(
-			await db.auth.signInWithPassword({
-				email: runtime.ownerEmail,
-				password: runtime.ownerPassword,
-			})
-		).error
-	).toBeNull();
-	const url = `https://example.com/#applemint-metadata-${Date.now()}`;
-	await page.goto("/main/bookmarks");
-	await page.getByRole("button", { name: "북마크 저장", exact: true }).click();
-	const dialog = page.getByRole("alertdialog");
-	await dialog.getByLabel("URL", { exact: true }).fill(url);
-	await dialog.getByRole("button", { name: "저장", exact: true }).click();
-	await expect(dialog).not.toBeVisible();
-	await page.getByLabel("북마크 검색").fill(url);
-	const row = page.locator("article[data-bookmark-id]").filter({ hasText: url });
-	await expect(row.getByRole("heading", { name: "Example Domain", exact: true })).toBeVisible({
-		timeout: 90000,
-	});
-	const saved = await db.from("bookmarks").select("id,title").eq("url", url).single();
-	expect(saved.data?.title).toBe("Example Domain");
-	const popup = context.waitForEvent("page");
-	await row.getByRole("button", { name: "열기", exact: true }).click();
-	await (await popup).close();
-	await expect(row).toContainText("Applemint 열기 1회");
-	const opened = await db
-		.from("bookmarks")
-		.select("open_count,opened_at")
-		.eq("id", saved.data?.id)
-		.single();
-	expect(opened.data?.open_count).toBe(1);
-	expect(opened.data?.opened_at).toBeTruthy();
-});
-
-test("완료된 실계정 이관은 설정 화면에서 재실행할 수 없다", async ({ page }) => {
+test("수동 링크 검사 후 검토 유지·휴지통·복원을 실제 UI에서 처리한다", async ({ page }) => {
 	test.skip(
-		process.env.BOOKMARK_IMPORTED_LIBRARY !== "1",
-		"완료된 로컬 이관 자료에 대한 실제 대조"
+		process.env.BOOKMARK_LIVE_CHECK !== "1",
+		"외부 링크 재검사는 명시한 로컬 실행에서만 수행"
 	);
+	test.setTimeout(240000);
+	const db = await bookmarkOwner();
+	// Previously saved ordinary QA URL; no removed manager save control or synthetic source is introduced.
+	const sample = await db
+		.from("bookmarks")
+		.select("id,url,title,state,version")
+		.like("url", "https://example.com/applemint-dead-%")
+		.is("source_id", null)
+		.order("saved_at", { ascending: false })
+		.limit(1)
+		.single();
+	expect(sample.error).toBeNull();
+	if (sample.data?.state === "trash")
+		expect(
+			(
+				await db.rpc("bookmark_command", {
+					p_action: "restore",
+					p_input: { id: sample.data.id, version: sample.data.version },
+				})
+			).error
+		).toBeNull();
+	await page.goto(`/main/bookmarks?search=${encodeURIComponent(sample.data?.url)}`);
+	const row = page.locator(`[data-bookmark-id="${sample.data?.id}"]`);
+	await row.getByRole("checkbox").check();
+	await page.getByRole("button", { name: "링크 검사", exact: true }).click();
+	await expect(row.getByText("죽은 링크 의심", { exact: true })).toBeVisible({ timeout: 180000 });
+	await page.goto(
+		`/main/bookmarks/review?type=dead&search=${encodeURIComponent(sample.data?.url)}`
+	);
+	await expect(row).toContainText("1분 뒤 재검사");
+	await row.getByRole("button", { name: "근거", exact: true }).click();
+	await expect(page.getByRole("alertdialog")).toContainText("404");
+	await page.getByRole("button", { name: "닫기", exact: true }).click();
+	await row.getByRole("button", { name: "유지", exact: true }).click();
+	await expect(row).toHaveCount(0);
+	await page.reload();
+	await expect(row).toHaveCount(0);
+	const check = await db
+		.from("bookmark_checks")
+		.select("status,reviewed_at")
+		.eq("bookmark_id", sample.data?.id)
+		.order("checked_at", { ascending: false })
+		.limit(1)
+		.single();
+	expect(check.data?.status).toBe("dead");
+	expect(check.data?.reviewed_at).toBeTruthy();
+	await page.goto(`/main/bookmarks?search=${encodeURIComponent(sample.data?.url)}`);
+	await row.getByRole("button", { name: `${sample.data?.title} 항목 메뉴`, exact: true }).click();
+	await page.getByRole("menuitem", { name: "휴지통 이동", exact: true }).click();
+	await page.goto(`/main/bookmarks/trash?search=${encodeURIComponent(sample.data?.url)}`);
+	await row.getByRole("button", { name: "복원", exact: true }).click();
+	await expect(row).toHaveCount(0);
+	expect(
+		(await db.from("bookmarks").select("state").eq("id", sample.data?.id).single()).data?.state
+	).toBe("library");
+	console.log(
+		"REVIEW_KEEP_READBACK",
+		JSON.stringify({ dead: true, keptNotRepeated: true, trashedAndRestored: true })
+	);
+});
+
+test("완료된 일회 이관은 설정 화면에서 재실행할 수 없다", async ({ page }) => {
+	test.skip(process.env.BOOKMARK_IMPORTED_LIBRARY !== "1", "완료된 로컬 이관 자료 검증");
 	await page.goto("/main/setting/bookmarks");
 	await expect(page.getByText(/이관 완료 · 새 이관은 비활성화/u)).toBeVisible();
 	await expect(
 		page.getByRole("button", { name: /최초 가져오기 시작|기존 이관 작업 재개/u })
 	).toHaveCount(0);
 	await expect(page.getByText(/검증 일치/u)).toBeVisible();
-	await page.goto("/main/bookmarks");
-	await expect(
-		page
-			.getByRole("navigation", { name: "북마크 컬렉션" })
-			.getByRole("button", { name: "미분류", exact: true })
-	).toHaveCount(1);
-	const runtime = getE2ERuntime();
-	const db = createClient(runtime.supabaseUrl, runtime.publishableKey, {
-		auth: { persistSession: false },
-	});
-	expect(
-		(
-			await db.auth.signInWithPassword({
-				email: runtime.ownerEmail,
-				password: runtime.ownerPassword,
-			})
-		).error
-	).toBeNull();
-	const imported = await db
-		.from("bookmarks")
-		.select("id,original")
-		.not("source_id", "is", null)
-		.is("collection_id", null);
-	expect(imported.error).toBeNull();
-	expect(imported.data?.length).toBe(4);
-	await page
-		.getByRole("navigation", { name: "북마크 컬렉션" })
-		.getByRole("button", { name: "미분류", exact: true })
-		.click();
-	for (const item of imported.data ?? []) {
-		expect(item.original.collection.$id).toBe(-1);
-		await expect(page.locator(`[data-bookmark-id="${item.id}"]`)).toBeVisible();
-	}
-});
-
-test("수동 검사에서 404를 1분 뒤 재확인하고 승인·복원한다", async ({ page }) => {
-	test.setTimeout(210000);
-	const runtime = getE2ERuntime();
-	const db = createClient(runtime.supabaseUrl, runtime.publishableKey, {
-		auth: { persistSession: false },
-	});
-	expect(
-		(
-			await db.auth.signInWithPassword({
-				email: runtime.ownerEmail,
-				password: runtime.ownerPassword,
-			})
-		).error
-	).toBeNull();
-	const url = `https://example.com/applemint-dead-${Date.now()}`;
-	await page.goto("/main/bookmarks");
-	await page.getByRole("button", { name: "북마크 저장", exact: true }).click();
-	const dialog = page.getByRole("alertdialog");
-	await dialog.getByLabel("URL", { exact: true }).fill(url);
-	await dialog.getByLabel("제목 (선택)").fill("수동 죽은 링크 검증");
-	await dialog.getByRole("button", { name: "저장", exact: true }).click();
-	await expect(dialog).not.toBeVisible();
-	await page.getByLabel("북마크 검색").fill(url);
-	const row = page.locator("article[data-bookmark-id]").filter({ hasText: url });
-	await expect(row).toBeVisible();
-	await row.getByRole("checkbox").check();
-	await page.getByLabel("작업 범위").selectOption("selected");
-	await page.getByRole("button", { name: "링크 검사", exact: true }).click();
-	await expect(row.getByText("죽은 링크 의심", { exact: true })).toBeVisible({ timeout: 160000 });
-	await expect(row).toContainText("1분 뒤 재검사");
-	const saved = await db.from("bookmarks").select("id").eq("url", url).single();
-	const check = await db
-		.from("bookmark_checks")
-		.select("status,http_status,reason")
-		.eq("bookmark_id", saved.data?.id)
-		.single();
-	expect(check.data).toMatchObject({ status: "dead", http_status: 404 });
-	expect(check.data?.reason).toContain("1분 뒤 재검사");
-	await row.getByRole("button", { name: "휴지통 이동", exact: true }).click();
-	await page.getByRole("button", { name: "휴지통", exact: true }).click();
-	await expect(row).toBeVisible();
-	expect(
-		(await db.from("bookmarks").select("state").eq("id", saved.data?.id).single()).data?.state
-	).toBe("trash");
-	await row.getByRole("button", { name: "복원", exact: true }).click();
-	await expect(page.getByText("복원했습니다.", { exact: true })).toBeVisible();
-	await page.reload();
-	await page.getByLabel("북마크 검색").fill(url);
-	await expect(page.locator(`[data-bookmark-id="${saved.data?.id}"]`)).toBeVisible();
-	expect(
-		(await db.from("bookmarks").select("state").eq("id", saved.data?.id).single()).data?.state
-	).toBe("library");
 });

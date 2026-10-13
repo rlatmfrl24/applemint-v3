@@ -1,7 +1,6 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, ChevronDown, Search } from "lucide-react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -438,7 +437,7 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 			</header>
 			<nav aria-label="북마크 보기" className="flex items-center gap-1 border-b pb-2">
 				{(Object.keys(viewInfo) as BookmarkView[]).map((key) => (
-					<Link
+					<a
 						key={key}
 						href={viewInfo[key].path}
 						aria-current={view === key ? "page" : undefined}
@@ -451,7 +450,7 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 						].join(" ")}
 					>
 						{viewInfo[key].label}
-					</Link>
+					</a>
 				))}
 			</nav>
 			{view === "activity" ? (

@@ -17,6 +17,20 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("getAllowedRequestHeaders", () => {
+	it("Next.js 탐색 해시의 next-url을 보존하되 임의 권한 헤더는 전달하지 않는다", () => {
+		const headers = getAllowedRequestHeaders(
+			new NextRequest("http://localhost/main/bookmarks/trash", {
+				headers: {
+					"next-url": "/main/bookmarks/review",
+					"x-owner-id": "forged",
+					"x-middleware-subrequest": "forged",
+				},
+			})
+		);
+		expect(headers.get("next-url")).toBe("/main/bookmarks/review");
+		expect(headers.get("x-owner-id")).toBeNull();
+		expect(headers.get("x-middleware-subrequest")).toBeNull();
+	});
 	it("JSON POST body 처리에 필요한 헤더를 세션 갱신 이후에도 보존한다", () => {
 		const request = new NextRequest("http://localhost/api/crawl/manual", {
 			method: "POST",

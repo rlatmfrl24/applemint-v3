@@ -45,7 +45,9 @@ export function BookmarkSaveDialog({
 					action: {
 						label: "북마크 보기",
 						onClick: () => {
-							window.location.href = `/main/bookmarks?state=${result.item.state}&search=${encodeURIComponent(result.item.url)}`;
+							const path =
+								result.item.state === "trash" ? "/main/bookmarks/trash" : "/main/bookmarks";
+							window.location.href = `${path}?search=${encodeURIComponent(result.item.url)}`;
 						},
 					},
 				}

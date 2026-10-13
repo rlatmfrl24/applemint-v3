@@ -56,7 +56,7 @@ export default function BookmarkSettingsPage() {
 				description="최초 이관, 관심 주제, AI 예산과 작업 상태를 관리합니다."
 			/>
 			<a className="text-sm underline" href="/main/bookmarks">
-				북마크 라이브러리 열기
+				북마크 관리자 열기
 			</a>
 			{data.error && (
 				<p role="alert" className="text-destructive">
@@ -188,7 +188,9 @@ export default function BookmarkSettingsPage() {
 				description="등록한 작업만 서버에서 진행합니다. 실패·예산 중단은 직접 재개하세요."
 			>
 				<div className="p-4">
-					<BookmarkJobs jobs={data.data?.jobs.filter((j) => j.kind !== "import") ?? []} />
+					<a className="text-sm underline underline-offset-4" href="/main/bookmarks/activity">
+						작업 기록에서 진행·실패·재개 확인
+					</a>
 				</div>
 			</SettingsSurface>
 		</div>
