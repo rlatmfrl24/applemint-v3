@@ -87,12 +87,12 @@ export function BookmarkRow({
 				</div>
 				<BookmarkMetadata item={item} path={path} />
 				{view === "review" ? (
-					<p className="truncate text-muted-foreground text-xs leading-5" title={reason}>
+					<p className="m-0 truncate text-muted-foreground text-xs leading-4" title={reason}>
 						{reason}
 					</p>
 				) : (
 					item.tags.length > 0 && (
-						<p className="hidden truncate text-muted-foreground text-xs xl:block">
+						<p className="m-0 hidden truncate text-muted-foreground text-xs leading-4 xl:block">
 							{item.tags.join(" · ")}
 						</p>
 					)

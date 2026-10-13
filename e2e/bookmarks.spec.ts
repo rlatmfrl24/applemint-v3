@@ -8,6 +8,18 @@ test("수집 글 저장·수정·열기·휴지통·복원과 컬렉션 삭제�
 	const db = await bookmarkOwner();
 	const title = `수집 글 관리자 검증 ${Date.now()}`;
 	const saved = await saveSourceBookmark(page, db, title);
+	await page.goto("/main");
+	await page
+		.locator(`[data-thread-url=${JSON.stringify(saved.url)}]`)
+		.getByRole("button", { name: "북마크 저장", exact: true })
+		.click();
+	await page.getByRole("alertdialog").getByRole("button", { name: "저장", exact: true }).click();
+	await expect(
+		page.getByText("이미 저장한 URL입니다. 기존 북마크를 확인해주세요.", { exact: true })
+	).toBeVisible();
+	expect(
+		(await db.from("bookmarks").select("id", { count: "exact" }).eq("url", saved.url)).count
+	).toBe(1);
 	await page.goto(`/main/bookmarks?search=${encodeURIComponent(title)}`);
 	const row = page.locator(`[data-bookmark-id="${saved.id}"]`);
 	await expect(row).toBeVisible();

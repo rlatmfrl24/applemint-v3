@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
+import { collectionAncestors } from "../lib/bookmark-collection";
+import { bookmarkOwner, removeCollectionUI } from "./support/bookmarks";
 import { getE2ERuntime } from "./support/runtime";
 
 test("관리자는 계층과 팝업을 제공하고 저장·설정 바로가기를 표시하지 않는다", async ({ page }) => {
@@ -12,6 +14,169 @@ test("관리자는 계층과 팝업을 제공하고 저장·설정 바로가기�
 	await expect(page.getByLabel("상위 컬렉션", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "취소", exact: true }).click();
 	await expect(page.getByRole("button", { name: "컬렉션 추가", exact: true })).toBeFocused();
+});
+
+test("실제 깊은 계층을 선택하면 조상이 펼쳐지고 접기 상태가 세션에 남는다", async ({ page }) => {
+	const db = await bookmarkOwner();
+	const snapshot = await db.rpc("bookmark_snapshot", { p_filter: { limit: 1 } });
+	expect(snapshot.error).toBeNull();
+	const collections = snapshot.data.collections;
+	const deep = [...collections].sort(
+		(a, b) =>
+			collectionAncestors(b.id, collections).length - collectionAncestors(a.id, collections).length
+	)[0];
+	const ancestors = collectionAncestors(deep.id, collections);
+	expect(ancestors.length).toBeGreaterThanOrEqual(2);
+	await page.goto(`/main/bookmarks?collection=${deep.id}`);
+	await expect(page.getByRole("button", { name: deep.name, exact: true })).toHaveAttribute(
+		"aria-current",
+		"page"
+	);
+	const root = collections.find((collection: { id: string }) => collection.id === ancestors.at(-1));
+	await page.getByRole("button", { name: `${root.name} 하위 컬렉션 접기`, exact: true }).click();
+	await expect(page.getByRole("button", { name: deep.name, exact: true })).toHaveCount(0);
+	await page.getByRole("button", { name: "전체 북마크", exact: true }).click();
+	await page.reload();
+	await expect(
+		page.getByRole("button", { name: `${root.name} 하위 컬렉션 펼치기`, exact: true })
+	).toHaveAttribute("aria-expanded", "false");
+	await page.setViewportSize({ width: 375, height: 812 });
+	await expect(page.getByRole("navigation", { name: "북마크 컬렉션" })).not.toBeVisible();
+	await page.getByRole("button", { name: "컬렉션 탐색", exact: true }).click();
+	await expect(page.getByRole("navigation", { name: "북마크 컬렉션" })).toBeVisible();
+});
+
+test("작업 기록에서 실제 실패한 메타데이터 작업을 같은 작업으로 재개한다", async ({ page }) => {
+	test.skip(process.env.BOOKMARK_RESUME !== "1", "이 로컬 검증에서 생성한 실패 작업만 재개");
+	const db = await bookmarkOwner();
+	const snapshot = await db.rpc("bookmark_snapshot", { p_filter: { limit: 1 } });
+	expect(snapshot.error).toBeNull();
+	const job = snapshot.data.jobs.find(
+		(item: { kind: string; state: string }) => item.kind === "metadata" && item.state === "partial"
+	);
+	expect(job).toBeTruthy();
+	const items = await db.from("bookmark_job_items").select("bookmark_id").eq("job_id", job.id);
+	const source = await db
+		.from("bookmarks")
+		.select("source_id,title")
+		.eq("id", items.data?.[0].bookmark_id)
+		.single();
+	expect(source.data?.source_id).toBeNull();
+	expect(source.data?.title).toMatch(/관리자 검증/u);
+	await page.goto("/main/bookmarks/activity");
+	const row = page.locator(`[data-bookmark-job-id="${job.id}"]`);
+	await row.getByText("실패·재검사·미처리 항목 확인", { exact: true }).click();
+	await expect(row).toContainText("실패");
+	await row.getByRole("button", { name: "같은 작업 재개", exact: true }).click();
+	await expect(page.getByText("같은 작업을 재개했습니다.", { exact: true })).toBeVisible();
+	const after = await db.from("bookmark_jobs").select("id,state").eq("id", job.id).single();
+	expect(after.data).toMatchObject({ id: job.id, state: "queued" });
+	expect(
+		(await db.from("bookmark_job_items").select("state,error").eq("job_id", job.id)).data
+	).toEqual([{ state: "pending", error: null }]);
+	console.log("ACTIVITY_RESUME_READBACK", JSON.stringify({ sameJob: true, pendingAgain: true }));
+});
+
+test("확인된 테스트 컬렉션을 삭제 팝업으로 정리하되 모든 북마크를 보존한다", async ({ page }) => {
+	test.skip(process.env.BOOKMARK_CLEANUP !== "1", "확인된 로컬 QA 컬렉션 정리 실행에서만 수행");
+	const db = await bookmarkOwner();
+	const names = [
+		"AI 검증 정리 1791868938290",
+		"AI 검증 정리 1791869523870",
+		"수집 글 관리자 검증 1791879338631",
+	];
+	let cleaned = 0;
+	for (const name of names) {
+		const collection = await db
+			.from("bookmark_collections")
+			.select("id,source_id,archived_at")
+			.eq("name", name)
+			.single();
+		expect(collection.error).toBeNull();
+		expect(collection.data?.source_id).toBeNull();
+		if (collection.data?.archived_at) continue;
+		const members = await db
+			.from("bookmarks")
+			.select("id,state,note,tags,saved_at,source_id,original")
+			.eq("collection_id", collection.data?.id);
+		expect(members.error).toBeNull();
+		await removeCollectionUI(page, name);
+		const archived = await db
+			.from("bookmark_collections")
+			.select("archived_at")
+			.eq("id", collection.data?.id)
+			.single();
+		expect(archived.data?.archived_at).toBeTruthy();
+		for (const member of members.data ?? []) {
+			const after = await db
+				.from("bookmarks")
+				.select(
+					"id,state,note,tags,saved_at,source_id,original,collection_id,previous_collection_path"
+				)
+				.eq("id", member.id)
+				.single();
+			expect(after.error).toBeNull();
+			expect(after.data).toMatchObject({
+				...member,
+				collection_id: null,
+				previous_collection_path: name,
+			});
+		}
+		cleaned++;
+	}
+	console.log(
+		"QA_COLLECTION_CLEANUP_READBACK",
+		JSON.stringify({ archived: cleaned, originalsAndMembersPreserved: true })
+	);
+});
+
+test("데스크톱 밀도·테마·키보드 초점과 모바일 첫 목록·가로 넘침을 확인한다", async ({ page }) => {
+	await page.goto("/main/bookmarks");
+	await expect(page.locator("article[data-bookmark-id]")).toHaveCount(100);
+	const count = await page.locator("article[data-bookmark-id]").evaluateAll(
+		(rows) =>
+			rows.filter((row) => {
+				const rect = row.getBoundingClientRect();
+				return rect.top >= 0 && rect.bottom <= window.innerHeight;
+			}).length
+	);
+	expect(count).toBeGreaterThanOrEqual(8);
+	await page.screenshot({ path: "reports/bookmark-manager-light.png" });
+	await page.getByRole("button", { name: "Toggle theme", exact: true }).click();
+	await page.getByRole("menuitem", { name: "Dark", exact: true }).click();
+	await expect(page.locator("html")).toHaveClass(/dark/u);
+	await expect(page.getByRole("menu")).not.toBeVisible();
+	await page.screenshot({ path: "reports/bookmark-manager-dark.png" });
+	await page.getByRole("button", { name: "컬렉션 추가", exact: true }).press("Enter");
+	const dialog = page.getByRole("alertdialog");
+	await expect(dialog).toBeVisible();
+	await page.keyboard.press("Tab");
+	expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+	await dialog.getByRole("button", { name: "취소", exact: true }).press("Enter");
+	await expect(page.getByRole("button", { name: "컬렉션 추가", exact: true })).toBeFocused();
+	await page.setViewportSize({ width: 375, height: 812 });
+	await page.reload();
+	await expect(page.locator("article[data-bookmark-id]")).toHaveCount(100);
+	const first = await page.locator("article[data-bookmark-id]").first().boundingBox();
+	expect(first?.y).toBeLessThan(650);
+	for (const route of ["", "/review", "/trash", "/activity"]) {
+		await page.goto(`/main/bookmarks${route}`);
+		await expect(page.getByRole("navigation", { name: "북마크 보기" })).toBeVisible();
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+		).toBe(true);
+	}
+	await page.goto("/main/bookmarks");
+	await page.screenshot({ path: "reports/bookmark-manager-mobile.png" });
+	console.log(
+		"MANAGER_VISUAL_READBACK",
+		JSON.stringify({
+			visibleRows1440x900: count,
+			mobileWidth: 375,
+			overflow: false,
+			keyboardFocusRestored: true,
+		})
+	);
 });
 test("컬렉션 팝업으로 계층 생성·이름 수정·삭제하고 DB에서 재조회한다", async ({ page }) => {
 	const runtime = getE2ERuntime();
@@ -97,18 +262,10 @@ test("컬렉션 팝업으로 계층 생성·이름 수정·삭제하고 DB에서
 		for (const id of created.reverse()) {
 			const row = await db
 				.from("bookmark_collections")
-				.select("id,version,archived_at")
+				.select("id,name,version,archived_at")
 				.eq("id", id)
 				.single();
-			if (row.data && !row.data.archived_at)
-				expect(
-					(
-						await db.rpc("bookmark_command", {
-							p_action: "collectionRemove",
-							p_input: { id, version: row.data.version },
-						})
-					).error
-				).toBeNull();
+			if (row.data && !row.data.archived_at) await removeCollectionUI(page, row.data.name, id);
 		}
 	}
 });

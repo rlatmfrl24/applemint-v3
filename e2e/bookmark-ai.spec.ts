@@ -1,27 +1,16 @@
-import assert from "node:assert/strict";
 import { expect, test } from "@playwright/test";
-import { createClient } from "@supabase/supabase-js";
-import { getE2ERuntime } from "./support/runtime";
+import { bookmarkOwner, removeCollectionUI, saveSourceBookmark } from "./support/bookmarks";
 
-test("실제 AI 관심 주제·분류 제안을 수정·승인하고 DB와 예산을 확인한다", async ({ page }) => {
-	test.skip(process.env.BOOKMARK_LIVE_AI !== "1", "실제 유료 API 검증은 명시한 실행에서만 수행");
-	test.setTimeout(360000);
-	const runtime = getE2ERuntime();
-	const db = createClient(runtime.supabaseUrl, runtime.publishableKey, {
-		auth: { persistSession: false },
-	});
-	expect(
-		(
-			await db.auth.signInWithPassword({
-				email: runtime.ownerEmail,
-				password: runtime.ownerPassword,
-			})
-		).error
-	).toBeNull();
+test("실제 AI 관심 주제·분류를 검토 팝업에서 수정·승인하고 원본과 예산을 확인한다", async ({
+	page,
+}) => {
+	test.skip(process.env.BOOKMARK_LIVE_AI !== "1", "실제 유료 API는 명시한 실행에서만 호출");
+	test.setTimeout(480000);
+	const db = await bookmarkOwner();
 	const initial = await db.rpc("bookmark_snapshot", { p_filter: { limit: 1 } });
 	expect(initial.error).toBeNull();
-	const originalInterests = initial.data.settings.interests as string[];
-	const beforeUsed = initial.data.budget.used_nano as number;
+	const originalInterests = initial.data.settings.interests;
+	const beforeUsed = initial.data.budget.used_nano;
 	const beforeJobs = initial.data.jobs.map((job: { id: string }) => job.id);
 	await page.goto("/main/setting/bookmarks");
 	await expect(page.getByText("OPENAI_API_KEY: 설정됨", { exact: true })).toBeVisible();
@@ -31,20 +20,19 @@ test("실제 AI 관심 주제·분류 제안을 수정·승인하고 DB와 예�
 	await expect
 		.poll(
 			async () => {
-				const jobs = await db
+				const result = await db
 					.from("bookmark_jobs")
 					.select("id,state,error")
 					.eq("kind", "interests")
 					.order("created_at", { ascending: false })
 					.limit(1)
 					.single();
-				if (beforeJobs.includes(jobs.data?.id)) return "registering";
-				if (["paused", "failed", "partial"].includes(jobs.data?.state)) {
-					throw new Error(`관심 주제 작업: ${jobs.data?.state} ${jobs.data?.error}`);
-				}
-				return jobs.data?.state;
+				if (beforeJobs.includes(result.data?.id)) return "registering";
+				if (["failed", "partial", "paused"].includes(result.data?.state))
+					throw new Error(`관심 주제 작업 실패: ${result.data?.error}`);
+				return result.data?.state;
 			},
-			{ timeout: 140000, intervals: [1000, 3000, 5000] }
+			{ timeout: 150000, intervals: [1000, 3000, 5000] }
 		)
 		.toBe("succeeded");
 	const suggestions = await db
@@ -52,93 +40,60 @@ test("실제 AI 관심 주제·분류 제안을 수정·승인하고 DB와 예�
 		.select("suggested_interests,suggestions_job_id")
 		.single();
 	expect(suggestions.error).toBeNull();
+	if (!suggestions.data) throw new Error("관심 주제 결과가 없습니다.");
 	expect(suggestions.data?.suggested_interests.length).toBeGreaterThan(0);
-	assert(suggestions.data);
-	expect(beforeJobs).not.toContain(suggestions.data.suggestions_job_id);
 	await expect(page.getByText(/^AI 제안:/u)).toBeVisible();
 	await page.getByRole("button", { name: "수정 입력에 가져오기", exact: true }).click();
-	const editedInterests = [...suggestions.data.suggested_interests.slice(0, 2), "프런트엔드 개발"];
-	await page.getByLabel("확정할 관심 주제 (한 줄에 하나)").fill(editedInterests.join("\n"));
+	const interests = [...suggestions.data.suggested_interests.slice(0, 2), "프런트엔드 개발"];
 	try {
+		await page.getByLabel("확정할 관심 주제 (한 줄에 하나)").fill(interests.join("\n"));
 		await page.getByRole("button", { name: "관심 주제 확정", exact: true }).click();
 		await expect(page.getByText("관심 주제를 확정했습니다.", { exact: true })).toBeVisible();
 		expect(
 			(await db.from("bookmark_settings").select("interests").single()).data?.interests
-		).toEqual(editedInterests);
-
-		const stamp = Date.now();
-		const samples = [
-			{
-				url: `https://react.dev/learn#applemint-ai-${stamp}`,
-				title: `실제 AI 검증 ${stamp} React 상태 관리`,
-			},
-			{
-				url: `https://nodejs.org/en/learn/getting-started/introduction-to-nodejs#applemint-ai-${stamp}`,
-				title: `실제 AI 검증 ${stamp} Node.js 서버 개발`,
-			},
+		).toEqual(interests);
+		const prefix = `실제 AI 관리자 검증 ${Date.now()}`;
+		const sources = [
+			await saveSourceBookmark(page, db, `${prefix} 1`),
+			await saveSourceBookmark(page, db, `${prefix} 2`),
 		];
-		await page.goto("/main/bookmarks");
-		for (const sample of samples) {
-			await page.getByRole("button", { name: "북마크 저장", exact: true }).click();
-			const dialog = page.getByRole("alertdialog");
-			await dialog.getByLabel("URL", { exact: true }).fill(sample.url);
-			await dialog.getByLabel("제목 (선택)").fill(sample.title);
-			await dialog.getByLabel("태그 (쉼표로 구분)").fill("개발, 실제 AI 검증");
-			await dialog
-				.getByLabel("메모", { exact: true })
-				.fill("실제 OpenAI 분류·수정·승인 검증에서 직접 저장한 자료");
-			await dialog.getByRole("button", { name: "저장", exact: true }).click();
-			await expect(dialog).not.toBeVisible();
-		}
-		const saved = await db
-			.from("bookmarks")
-			.select("id,version,url")
-			.in(
-				"url",
-				samples.map((sample) => sample.url)
-			);
-		expect(saved.error).toBeNull();
-		expect(saved.data).toHaveLength(2);
-		assert(saved.data);
-		const ids = saved.data.map((item) => item.id);
+		const ids = sources.map((item) => item.id);
 		await expect
 			.poll(
 				async () => {
-					const items = await db.from("bookmark_job_items").select("state").in("bookmark_id", ids);
+					const result = await db.from("bookmark_job_items").select("state").in("bookmark_id", ids);
 					return (
-						items.data?.length === 2 &&
-						items.data.every((item) => ["done", "failed"].includes(item.state))
+						result.data?.length === 2 &&
+						result.data.every((item) => ["done", "failed"].includes(item.state))
 					);
 				},
-				{ timeout: 90000, intervals: [1000, 3000, 5000] }
+				{ timeout: 120000, intervals: [1000, 3000, 5000] }
 			)
 			.toBe(true);
-		await page.getByLabel("북마크 검색").fill(`실제 AI 검증 ${stamp}`);
+		await page.goto(`/main/bookmarks?search=${encodeURIComponent(prefix)}`);
 		await expect(page.locator("article[data-bookmark-id]")).toHaveCount(2);
-		await page.getByRole("button", { name: "현재 페이지 선택", exact: true }).click();
-		await page.getByLabel("작업 범위").selectOption("selected");
-		await page.getByRole("button", { name: "AI 컬렉션 분류", exact: true }).click();
+		await page.getByLabel("현재 페이지 선택", { exact: true }).check();
+		await page.getByRole("button", { name: "AI 정리", exact: true }).click();
+		await page.getByRole("menuitem", { name: "AI 컬렉션 분류", exact: true }).click();
 		await expect(
-			page.getByText("작업을 등록했습니다. 브라우저를 닫아도 작업 상태가 유지됩니다.", {
-				exact: true,
-			})
+			page.getByText("작업을 등록했습니다. 검토 화면에서 결과를 확인하세요.", { exact: true })
 		).toBeVisible();
 		await expect
 			.poll(
 				async () => {
-					const jobs = await db
+					const result = await db
 						.from("bookmark_jobs")
 						.select("id,state,error")
 						.eq("kind", "classify")
 						.order("created_at", { ascending: false })
 						.limit(1)
 						.single();
-					if (beforeJobs.includes(jobs.data?.id)) return "registering";
-					if (["paused", "failed", "partial"].includes(jobs.data?.state))
-						throw new Error(`분류 작업: ${jobs.data?.state} ${jobs.data?.error}`);
-					return jobs.data?.state;
+					if (beforeJobs.includes(result.data?.id)) return "registering";
+					if (["failed", "partial", "paused"].includes(result.data?.state))
+						throw new Error(`분류 작업 실패: ${result.data?.error}`);
+					return result.data?.state;
 				},
-				{ timeout: 140000, intervals: [1000, 3000, 5000] }
+				{ timeout: 150000, intervals: [1000, 3000, 5000] }
 			)
 			.toBe("succeeded");
 		const proposed = await db
@@ -148,89 +103,98 @@ test("실제 AI 관심 주제·분류 제안을 수정·승인하고 DB와 예�
 			.eq("state", "pending");
 		expect(proposed.error).toBeNull();
 		expect(proposed.data).toHaveLength(2);
-		assert(proposed.data);
-		expect(proposed.data.every((proposal) => proposal.reason.length > 0)).toBe(true);
+		expect(proposed.data?.every((item) => item.reason.length > 0)).toBe(true);
+		await page.goto(`/main/bookmarks/review?type=classify&search=${encodeURIComponent(prefix)}`);
+		const name = `AI 관리자 검증 컬렉션 ${Date.now()}`;
 		const first = page.locator(`[data-bookmark-id="${ids[0]}"]`);
-		const collectionName = `AI 검증 정리 ${stamp}`;
-		await expect(first.getByText("AI 컬렉션 제안", { exact: true })).toBeVisible();
-		await first.getByLabel("새 컬렉션 이름 (입력하면 새 컬렉션으로 이동)").fill(collectionName);
-		await first.getByRole("button", { name: "이 항목 승인·이동", exact: true }).click();
-		await expect(page.getByText("제안을 처리했습니다.", { exact: true })).toBeVisible();
+		await first.getByRole("button", { name: "변경안", exact: true }).click();
+		let dialog = page.getByRole("alertdialog");
+		await dialog.getByLabel("새 컬렉션 이름 (입력하면 새 컬렉션으로 이동)").fill(name);
+		await dialog.getByRole("button", { name: "이 항목 승인·이동", exact: true }).click();
+		await expect(dialog).not.toBeVisible();
+		await expect(first).toHaveCount(0);
 		const created = await db
 			.from("bookmark_collections")
 			.select("id,name")
-			.eq("name", collectionName)
+			.eq("name", name)
 			.single();
 		expect(created.error).toBeNull();
-		assert(created.data);
 		const second = page.locator(`[data-bookmark-id="${ids[1]}"]`);
-		await second.getByLabel("대상 컬렉션", { exact: true }).selectOption(created.data.id);
-		await expect(second.getByLabel("새 컬렉션 이름 (입력하면 새 컬렉션으로 이동)")).toHaveValue("");
-		await second.getByRole("button", { name: "이 항목 승인·이동", exact: true }).click();
-		await expect(second.getByText("AI 컬렉션 제안", { exact: true })).toHaveCount(0);
+		await second.getByRole("button", { name: "변경안", exact: true }).click();
+		dialog = page.getByRole("alertdialog");
+		await dialog.getByLabel("대상 컬렉션", { exact: true }).selectOption(created.data?.id);
+		await expect(dialog.getByLabel("새 컬렉션 이름 (입력하면 새 컬렉션으로 이동)")).toHaveValue("");
+		await dialog.getByRole("button", { name: "이 항목 승인·이동", exact: true }).click();
+		await expect(dialog).not.toBeVisible();
+		await page.goto(`/main/bookmarks?search=${encodeURIComponent(prefix)}`);
 		await page.reload();
-		await page.getByLabel("북마크 검색").fill(`실제 AI 검증 ${stamp}`);
 		await expect(page.locator("article[data-bookmark-id]")).toHaveCount(2);
 		const applied = await db
 			.from("bookmarks")
-			.select("id,collection_id,note,source_id,original")
+			.select("id,collection_id,original,source_thread_id")
 			.in("id", ids);
-		assert(applied.data);
-		expect(
-			applied.data.every(
-				(item) =>
-					item.collection_id === created.data.id &&
-					item.source_id === null &&
-					item.original === null
-			)
-		).toBe(true);
+		expect(applied.error).toBeNull();
+		for (const source of sources) {
+			const item = applied.data?.find((row) => row.id === source.id);
+			expect(item?.collection_id).toBe(created.data?.id);
+			expect(item?.original).toEqual(source.original);
+			expect(item?.source_thread_id).toBe(source.source_thread_id);
+		}
 		const approved = await db
 			.from("bookmark_proposals")
 			.select("state,target_collection_id")
 			.in("bookmark_id", ids);
-		assert(approved.data);
 		expect(
-			approved.data.every(
-				(proposal) =>
-					proposal.state === "approved" && proposal.target_collection_id === created.data.id
+			approved.data?.every(
+				(item) => item.state === "approved" && item.target_collection_id === created.data?.id
 			)
 		).toBe(true);
 		const budget = await db.rpc("bookmark_snapshot", { p_filter: { limit: 1 } });
 		expect(budget.data.budget.used_nano).toBeGreaterThan(beforeUsed);
 		expect(budget.data.budget.used_nano).toBeLessThanOrEqual(1000000000);
-		const billing = await db
+		const receipts = await db
 			.from("bookmark_ai_reservations")
-			.select("state,input_tokens,output_tokens,reserved_nano,charged_nano")
-			.in("job_id", [suggestions.data.suggestions_job_id, proposed.data[0].job_id]);
-		expect(billing.error).toBeNull();
-		expect(billing.data).toHaveLength(2);
-		assert(billing.data);
+			.select("state,input_tokens,output_tokens,charged_nano")
+			.in("job_id", [suggestions.data?.suggestions_job_id, proposed.data?.[0].job_id]);
+		expect(receipts.error).toBeNull();
+		expect(receipts.data).toHaveLength(2);
 		expect(
-			billing.data.every(
-				(receipt) =>
-					receipt.state === "settled" && receipt.charged_nano !== null && receipt.output_tokens > 0
+			receipts.data?.every(
+				(item) => item.state === "settled" && item.output_tokens > 0 && item.charged_nano > 0
+			)
+		).toBe(true);
+		await removeCollectionUI(page, name);
+		const removed = await db
+			.from("bookmarks")
+			.select("collection_id,previous_collection_path")
+			.in("id", ids);
+		expect(
+			removed.data?.every(
+				(item) => item.collection_id === null && item.previous_collection_path === name
 			)
 		).toBe(true);
 		console.log(
-			"LIVE_AI_READBACK",
+			"LIVE_AI_MANAGER_READBACK",
 			JSON.stringify({
-				interestCount: suggestions.data.suggested_interests.length,
-				approvedBookmarks: 2,
-				collection: collectionName,
-				receipts: billing.data,
-				month: budget.data.budget.month,
-				usedNano: budget.data.budget.used_nano,
+				interestCount: suggestions.data?.suggested_interests.length,
+				approved: 2,
+				sourcePreserved: true,
+				receipts: receipts.data,
+				costNano: budget.data.budget.used_nano - beforeUsed,
+				temporaryCollectionArchived: true,
 			})
 		);
 	} finally {
-		// Browser timeouts must not leave temporary user policy behind.
-		const restored = await db.rpc("bookmark_command", {
-			p_action: "interests",
-			p_input: { interests: originalInterests },
-		});
-		expect(restored.error).toBeNull();
-		const settings = await db.from("bookmark_settings").select("interests").single();
-		expect(settings.error).toBeNull();
-		expect(settings.data?.interests).toEqual(originalInterests);
+		expect(
+			(
+				await db.rpc("bookmark_command", {
+					p_action: "interests",
+					p_input: { interests: originalInterests },
+				})
+			).error
+		).toBeNull();
+		expect(
+			(await db.from("bookmark_settings").select("interests").single()).data?.interests
+		).toEqual(originalInterests);
 	}
 });

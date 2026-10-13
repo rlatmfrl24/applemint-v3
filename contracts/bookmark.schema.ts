@@ -164,6 +164,5 @@ export const bookmarkProposalApplyInputSchema = z.object({
 export type BookmarkItem = z.infer<typeof bookmarkItemSchema>;
 export type BookmarkCollection = z.infer<typeof bookmarkCollectionSchema>;
 export type BookmarkJob = z.infer<typeof bookmarkJobSchema>;
-export type BookmarkSnapshot = z.infer<typeof bookmarkSnapshotSchema>;
 export type BookmarkSaveInput = z.input<typeof bookmarkSaveInputSchema>;
 export type BookmarkScope = z.infer<typeof bookmarkScopeInputSchema>;

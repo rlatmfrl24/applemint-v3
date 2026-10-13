@@ -135,6 +135,7 @@ function CollectionNode({
 export function BookmarkCollectionTree(props: Props) {
 	const [expanded, setExpanded] = useState<string[]>([]);
 	const [loaded, setLoaded] = useState(false);
+	const [mobileOpen, setMobileOpen] = useState(false);
 	const ancestors = collectionAncestors(props.selected, props.collections).join(",");
 	useEffect(() => {
 		try {
@@ -156,9 +157,19 @@ export function BookmarkCollectionTree(props: Props) {
 			} catch {}
 	}, [expanded, loaded]);
 	return (
-		<aside className="min-w-0 space-y-3 lg:sticky lg:top-4 lg:self-start">
+		<aside className="min-w-0 space-y-3 md:sticky md:top-4 md:self-start">
 			<div className="flex items-center justify-between px-2">
-				<span className="font-medium text-sm">컬렉션</span>
+				<span className="hidden font-medium text-sm md:inline">컬렉션</span>
+				<button
+					type="button"
+					className="flex items-center gap-2 font-medium text-sm md:hidden"
+					aria-expanded={mobileOpen}
+					aria-controls="bookmark-collection-navigation"
+					onClick={() => setMobileOpen(!mobileOpen)}
+				>
+					<ChevronRight className={`size-4 ${mobileOpen ? "rotate-90" : ""}`} />
+					컬렉션 탐색
+				</button>
 				<Button
 					id="bookmark-collection-add"
 					variant="ghost"
@@ -176,7 +187,11 @@ export function BookmarkCollectionTree(props: Props) {
 					<Plus className="size-4" />
 				</Button>
 			</div>
-			<nav aria-label="북마크 컬렉션" className="max-h-[65dvh] overflow-y-auto pr-1 text-sm">
+			<nav
+				id="bookmark-collection-navigation"
+				aria-label="북마크 컬렉션"
+				className={`${mobileOpen ? "block" : "hidden"} max-h-[65dvh] overflow-y-auto pr-1 text-sm md:block`}
+			>
 				{[
 					{ id: "all", label: "전체 북마크" },
 					{ id: "", label: "미분류" },

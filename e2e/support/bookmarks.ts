@@ -59,8 +59,8 @@ export async function saveSourceBookmark(
 	throw new Error("현재 수집 글 목록에 아직 저장하지 않은 항목이 없습니다.");
 }
 
-export async function removeCollectionUI(page: Page, name: string) {
-	await page.goto("/main/bookmarks");
+export async function removeCollectionUI(page: Page, name: string, id?: string) {
+	await page.goto(`/main/bookmarks${id ? `?collection=${id}` : ""}`);
 	await page.getByRole("button", { name: `${name} 메뉴`, exact: true }).click();
 	await page.getByRole("menuitem", { name: "컬렉션 삭제", exact: true }).click();
 	const dialog = page.getByRole("alertdialog");

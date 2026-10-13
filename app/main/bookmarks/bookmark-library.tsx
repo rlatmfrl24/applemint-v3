@@ -465,7 +465,7 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 				<div
 					className={[
 						"grid min-w-0 gap-5",
-						view === "library" ? "lg:grid-cols-[230px_minmax(0,1fr)]" : "grid-cols-1",
+						view === "library" ? "md:grid-cols-[230px_minmax(0,1fr)]" : "grid-cols-1",
 					].join(" ")}
 				>
 					{view === "library" && (

@@ -90,7 +90,11 @@ export function BookmarkJobs({ jobs }: { jobs: BookmarkJob[] }) {
 				<p className="text-muted-foreground text-sm">등록한 작업이 없습니다.</p>
 			) : (
 				jobs.map((job) => (
-					<article key={job.id} className="rounded-md border p-3 text-sm">
+					<article
+						key={job.id}
+						data-bookmark-job-id={job.id}
+						className="rounded-md border p-3 text-sm"
+					>
 						{job.kind !== "import" && <JobItems id={job.id} />}
 						{job.progress.usageUncertain === true && (
 							<p>사용량 확인 불가 · 예약액 유지 · 생성된 제안은 보존됩니다.</p>
