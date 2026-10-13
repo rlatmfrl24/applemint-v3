@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import type { BookmarkCollection } from "@/contracts/bookmark.schema";
-import { collectionAncestors, collectionChildren } from "./bookmark-collection";
+import { collectionAncestors, collectionChildren } from "./bookmark-tree";
 
 const collections = [
 	{ id: "root", parent_id: null, name: "Root" },

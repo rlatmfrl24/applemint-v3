@@ -109,14 +109,14 @@ export function BookmarkCollectionDialog({
 				</AlertDialogHeader>
 				<form
 					key={`${selection?.mode}-${selection?.collection?.id}`}
-					className="space-y-4"
+					className="min-w-0 space-y-4"
 					onSubmit={(event) => {
 						event.preventDefault();
 						mutate.mutate(new FormData(event.currentTarget));
 					}}
 				>
 					{selection?.mode === "remove" ? (
-						<p className="break-words text-sm">
+						<p className="break-all text-sm">
 							삭제할 컬렉션:{" "}
 							<strong>{collectionPath(selection.collection?.id ?? null, collections)}</strong>
 						</p>

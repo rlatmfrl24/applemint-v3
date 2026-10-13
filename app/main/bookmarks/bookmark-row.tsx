@@ -33,6 +33,11 @@ export function BookmarkRow({
 	const trpc = useTRPCClient();
 	const cache = useQueryClient();
 	const menuTrigger = useRef<HTMLButtonElement>(null);
+	const openingDialog = useRef(false);
+	function showDialog(mode: "details" | "edit") {
+		openingDialog.current = true;
+		detail({ item, mode, trigger: menuTrigger.current });
+	}
 	const action = useMutation({
 		mutationFn: (kind: "keep" | "trash" | "restore") =>
 			trpc.bookmark[kind].mutate({ id: item.id, version: item.version }),
@@ -154,19 +159,17 @@ export function BookmarkRow({
 							<MoreHorizontal className="size-4" />
 						</Button>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" onCloseAutoFocus={(event) => event.preventDefault()}>
-						<DropdownMenuItem
-							onSelect={() => detail({ item, mode: "details", trigger: menuTrigger.current })}
-						>
-							상세
-						</DropdownMenuItem>
+					<DropdownMenuContent
+						align="end"
+						onCloseAutoFocus={(event) => {
+							if (openingDialog.current) event.preventDefault();
+							openingDialog.current = false;
+						}}
+					>
+						<DropdownMenuItem onSelect={() => showDialog("details")}>상세</DropdownMenuItem>
 						{view !== "trash" && (
 							<>
-								<DropdownMenuItem
-									onSelect={() => detail({ item, mode: "edit", trigger: menuTrigger.current })}
-								>
-									수정
-								</DropdownMenuItem>
+								<DropdownMenuItem onSelect={() => showDialog("edit")}>수정</DropdownMenuItem>
 								<DropdownMenuItem
 									className="text-destructive"
 									disabled={action.isPending}

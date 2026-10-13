@@ -9,7 +9,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { BookmarkCollection } from "@/contracts/bookmark.schema";
-import { collectionAncestors, collectionChildren } from "@/lib/bookmark-collection";
+import { collectionAncestors, collectionChildren } from "@/lib/bookmark-tree";
 import type { CollectionDialogSelection } from "./bookmark-collection-dialog";
 
 type Props = {
@@ -32,6 +32,11 @@ function CollectionNode({
 	seen: Set<string>;
 }) {
 	const trigger = useRef<HTMLButtonElement>(null);
+	const openingDialog = useRef(false);
+	function manage(selection: CollectionDialogSelection) {
+		openingDialog.current = true;
+		props.manage(selection);
+	}
 	const children = collectionChildren(collection.id, props.collections).filter(
 		(c) => !seen.has(c.id)
 	);
@@ -79,17 +84,23 @@ function CollectionNode({
 							<MoreHorizontal className="size-3.5" />
 						</Button>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" onCloseAutoFocus={(event) => event.preventDefault()}>
+					<DropdownMenuContent
+						align="end"
+						onCloseAutoFocus={(event) => {
+							if (openingDialog.current) event.preventDefault();
+							openingDialog.current = false;
+						}}
+					>
 						<DropdownMenuItem
 							onSelect={() =>
-								props.manage({ mode: "create", parentId: collection.id, trigger: trigger.current })
+								manage({ mode: "create", parentId: collection.id, trigger: trigger.current })
 							}
 						>
 							하위 컬렉션 추가
 						</DropdownMenuItem>
 						<DropdownMenuItem
 							onSelect={() =>
-								props.manage({
+								manage({
 									mode: "rename",
 									collection,
 									parentId: collection.parent_id,
@@ -102,7 +113,7 @@ function CollectionNode({
 						<DropdownMenuItem
 							className="text-destructive"
 							onSelect={() =>
-								props.manage({
+								manage({
 									mode: "remove",
 									collection,
 									parentId: collection.parent_id,

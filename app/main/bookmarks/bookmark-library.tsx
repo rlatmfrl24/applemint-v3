@@ -83,6 +83,16 @@ function useBookmarkManager(view: BookmarkView) {
 		refetchInterval: 10000,
 	});
 	const collections = query.data?.collections ?? collectionQuery.data ?? [];
+	const items = query.data?.items ?? [];
+	const selectedItems = items.filter((item) => selected.includes(item.id));
+	const selectedIds = selectedItems.map((item) => item.id);
+	useEffect(() => {
+		if (!query.data) return;
+		const pageIds = new Set(query.data.items.map((item) => item.id));
+		setSelected((previous) =>
+			previous.every((id) => pageIds.has(id)) ? previous : previous.filter((id) => pageIds.has(id))
+		);
+	}, [query.data]);
 	function updateURL(values: Record<string, string | null>) {
 		const next = new URLSearchParams(params.toString());
 		for (const [key, value] of Object.entries(values)) {
@@ -111,7 +121,7 @@ function useBookmarkManager(view: BookmarkView) {
 	}, [selectionKey]);
 	const job = useMutation({
 		mutationFn: (kind: "check" | "classify" | "review") => {
-			const input = selectedScope(scope, collection, selected);
+			const input = selectedScope(scope, collection, selectedIds);
 			return kind === "check"
 				? trpc.bookmarkCheck.start.mutate(input)
 				: trpc.bookmarkAI[kind].mutate(input);
@@ -122,8 +132,6 @@ function useBookmarkManager(view: BookmarkView) {
 		},
 		onError: (error) => toast.error(error.message),
 	});
-	const items = query.data?.items ?? [];
-	const selectedItems = items.filter((item) => selected.includes(item.id));
 	const classifications = latestClassificationProposals(selectedItems);
 	const bulk = useMutation({
 		mutationFn: (action: "keep" | "trash" | "restore") =>
@@ -152,7 +160,7 @@ function useBookmarkManager(view: BookmarkView) {
 		},
 		onError: (error) => toast.error(error.message),
 	});
-	const disabled = job.isPending || (scope === "selected" && selected.length === 0);
+	const disabled = job.isPending || (scope === "selected" && selectedIds.length === 0);
 	return {
 		view,
 		collection,
@@ -161,7 +169,7 @@ function useBookmarkManager(view: BookmarkView) {
 		page,
 		offset,
 		reviewType,
-		selected,
+		selected: selectedIds,
 		setSelected,
 		scope,
 		setScope,
@@ -480,7 +488,9 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 					)}
 					<main className="min-w-0 space-y-3">
 						{view === "library" && (
-							<h2 className="m-0 border-0 p-0 font-medium text-base">{collectionTitle}</h2>
+							<h2 className="m-0 break-words border-0 p-0 font-medium text-base">
+								{collectionTitle}
+							</h2>
 						)}
 						<Toolbar m={m} />
 						<Results m={m} />

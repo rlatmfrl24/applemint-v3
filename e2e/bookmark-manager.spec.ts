@@ -1,8 +1,103 @@
 import { expect, test } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { collectionAncestors } from "../lib/bookmark-collection";
+import { collectionAncestors } from "../lib/bookmark-tree";
 import { bookmarkOwner, removeCollectionUI } from "./support/bookmarks";
 import { getE2ERuntime } from "./support/runtime";
+
+test("현재 컬렉션을 떠난 선택 항목으로 AI 작업을 실행할 수 없다", async ({ page }) => {
+	const db = await bookmarkOwner();
+	const sample = await db
+		.from("bookmarks")
+		.select("id,title,collection_id")
+		.like("title", "수집 글 관리자 검증 %")
+		.eq("state", "library")
+		.order("saved_at", { ascending: false })
+		.limit(1)
+		.single();
+	expect(sample.error).toBeNull();
+	expect(sample.data?.collection_id).toBeNull();
+	const name = `선택 경계 검증 ${Date.now()}`;
+	await page.goto("/main/bookmarks");
+	await page.getByRole("button", { name: "컬렉션 추가", exact: true }).click();
+	let dialog = page.getByRole("alertdialog");
+	await dialog.getByLabel("컬렉션 이름", { exact: true }).fill(name);
+	await dialog.getByRole("button", { name: "저장", exact: true }).click();
+	await expect(dialog).not.toBeVisible();
+	const collection = await db.from("bookmark_collections").select("id").eq("name", name).single();
+	try {
+		await page.goto(
+			`/main/bookmarks?collection=unfiled&search=${encodeURIComponent(sample.data?.title)}`
+		);
+		const row = page.locator(`[data-bookmark-id="${sample.data?.id}"]`);
+		await row.getByRole("checkbox").check();
+		await row.getByRole("button", { name: `${sample.data?.title} 항목 메뉴`, exact: true }).click();
+		await page.getByRole("menuitem", { name: "수정", exact: true }).click();
+		dialog = page.getByRole("alertdialog");
+		await dialog.getByLabel("컬렉션", { exact: true }).selectOption(collection.data?.id);
+		await dialog.getByRole("button", { name: "변경 저장", exact: true }).click();
+		await expect(dialog).not.toBeVisible();
+		await expect(row).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "AI 정리", exact: true })).toBeDisabled();
+		await expect(page.getByText("0개 · 선택 0개", { exact: true })).toBeVisible();
+		expect(
+			(await db.from("bookmarks").select("collection_id").eq("id", sample.data?.id).single()).data
+				?.collection_id
+		).toBe(collection.data?.id);
+	} finally {
+		await removeCollectionUI(page, name, collection.data?.id);
+	}
+});
+
+test("허용된 160자 컬렉션 이름은 모바일 제목에서 가로 넘침을 만들지 않는다", async ({ page }) => {
+	const db = await bookmarkOwner();
+	const name = String(Date.now()).padEnd(160, "L");
+	await page.goto("/main/bookmarks");
+	await page.getByRole("button", { name: "컬렉션 추가", exact: true }).click();
+	const dialog = page.getByRole("alertdialog");
+	await dialog.getByLabel("컬렉션 이름", { exact: true }).fill(name);
+	await dialog.getByRole("button", { name: "저장", exact: true }).click();
+	await expect(dialog).not.toBeVisible();
+	const collection = await db
+		.from("bookmark_collections")
+		.select("id")
+		.eq("name", name)
+		.is("archived_at", null)
+		.single();
+	expect(collection.error).toBeNull();
+	try {
+		await page.setViewportSize({ width: 375, height: 812 });
+		await page.goto(`/main/bookmarks?collection=${collection.data?.id}`);
+		await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+		).toBe(true);
+	} finally {
+		await page.setViewportSize({ width: 1440, height: 900 });
+		await removeCollectionUI(page, name, collection.data?.id);
+	}
+});
+
+test("컬렉션과 항목 메뉴를 Escape로 닫으면 트리거에 키보드 초점이 돌아온다", async ({ page }) => {
+	const db = await bookmarkOwner();
+	const snapshot = await db.rpc("bookmark_snapshot", { p_filter: { limit: 1 } });
+	const root = snapshot.data.collections.find(
+		(collection: { parent_id: string | null }) => collection.parent_id === null
+	);
+	await page.goto("/main/bookmarks");
+	const treeTrigger = page.getByRole("button", { name: `${root.name} 메뉴`, exact: true });
+	await treeTrigger.click();
+	await page.keyboard.press("Escape");
+	await expect(page.getByRole("menu")).not.toBeVisible();
+	await expect.soft(treeTrigger).toBeFocused();
+	const rowTrigger = page
+		.locator("article[data-bookmark-id]")
+		.first()
+		.getByRole("button", { name: /항목 메뉴$/u });
+	await rowTrigger.click();
+	await page.keyboard.press("Escape");
+	await expect(page.getByRole("menu")).not.toBeVisible();
+	await expect.soft(rowTrigger).toBeFocused();
+});
 
 test("관리자는 계층과 팝업을 제공하고 저장·설정 바로가기를 표시하지 않는다", async ({ page }) => {
 	await page.goto("/main/bookmarks");
@@ -84,6 +179,7 @@ test("확인된 테스트 컬렉션을 삭제 팝업으로 정리하되 모든 �
 		"AI 검증 정리 1791868938290",
 		"AI 검증 정리 1791869523870",
 		"수집 글 관리자 검증 1791879338631",
+		"L".repeat(160),
 	];
 	let cleaned = 0;
 	for (const name of names) {

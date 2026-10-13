@@ -1,6 +1,5 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookmarkPlus } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -18,7 +17,7 @@ export const bookmarkFieldClass = "w-full rounded-md border bg-background px-3 p
 export function BookmarkSaveDialog({
 	source,
 }: {
-	source?: { id: string; url: string; title: string };
+	source: { id: string; url: string; title: string };
 }) {
 	const trpc = useTRPCClient();
 	const cache = useQueryClient();
@@ -58,7 +57,6 @@ export function BookmarkSaveDialog({
 	return (
 		<>
 			<Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-				<BookmarkPlus className="mr-1 size-3.5" />
 				북마크 저장
 			</Button>
 			<AlertDialog open={open} onOpenChange={setOpen}>
@@ -66,7 +64,7 @@ export function BookmarkSaveDialog({
 					<AlertDialogHeader>
 						<AlertDialogTitle>북마크 저장</AlertDialogTitle>
 						<AlertDialogDescription>
-							Applemint에 저장합니다. 제목 수집은 저장 후 진행하며 수집 글 상태는 유지됩니다.
+							수집 글 상태를 유지합니다. 제목 수집은 저장 후 진행됩니다.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<form
@@ -75,7 +73,7 @@ export function BookmarkSaveDialog({
 							event.preventDefault();
 							const data = new FormData(event.currentTarget);
 							save.mutate({
-								url: String(data.get("url")),
+								url: source.url,
 								title: String(data.get("title")),
 								collectionId: String(data.get("collection")) || null,
 								tags: String(data.get("tags"))
@@ -83,7 +81,7 @@ export function BookmarkSaveDialog({
 									.map((s) => s.trim())
 									.filter(Boolean),
 								note: String(data.get("note")),
-								threadId: source?.id,
+								threadId: source.id,
 							});
 						}}
 					>
@@ -92,12 +90,9 @@ export function BookmarkSaveDialog({
 							<input
 								className={bookmarkFieldClass}
 								id={`${fieldId}url`}
-								name="url"
 								type="url"
-								required
-								maxLength={8192}
-								defaultValue={source?.url}
-								readOnly={Boolean(source)}
+								defaultValue={source.url}
+								readOnly
 							/>
 						</label>
 						<label className="block space-y-1" htmlFor={`${fieldId}title`}>
@@ -107,7 +102,7 @@ export function BookmarkSaveDialog({
 								id={`${fieldId}title`}
 								name="title"
 								maxLength={1000}
-								defaultValue={source?.title}
+								defaultValue={source.title}
 							/>
 						</label>
 						<div className="space-y-1">
