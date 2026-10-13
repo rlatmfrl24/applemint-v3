@@ -8,6 +8,11 @@ import { Drawer, DrawerClose, DrawerContent, DrawerTrigger } from "@/components/
 
 const MenuList = [
 	{
+		name: "북마크",
+		href: "/main/bookmarks",
+		type: "internal",
+	},
+	{
 		name: "Main",
 		href: "/main",
 		type: "internal",

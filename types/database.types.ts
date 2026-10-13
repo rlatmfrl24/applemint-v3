@@ -3,6 +3,488 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
 	public: {
 		Tables: {
+			bookmark_ai_reservations: {
+				Row: {
+					charged_nano: number | null;
+					created_at: string;
+					id: string;
+					input_tokens: number;
+					job_id: string;
+					month: string;
+					output_tokens: number | null;
+					reserved_nano: number;
+					state: string;
+				};
+				Insert: {
+					charged_nano?: number | null;
+					created_at?: string;
+					id: string;
+					input_tokens: number;
+					job_id: string;
+					month: string;
+					output_tokens?: number | null;
+					reserved_nano: number;
+					state?: string;
+				};
+				Update: {
+					charged_nano?: number | null;
+					created_at?: string;
+					id?: string;
+					input_tokens?: number;
+					job_id?: string;
+					month?: string;
+					output_tokens?: number | null;
+					reserved_nano?: number;
+					state?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "bookmark_ai_reservations_job_id_fkey";
+						columns: ["job_id"];
+						isOneToOne: false;
+						referencedRelation: "bookmark_jobs";
+						referencedColumns: ["id"];
+					},
+				];
+			};
+			bookmark_checks: {
+				Row: {
+					bookmark_id: string;
+					bookmark_version: number;
+					checked_at: string;
+					final_url: string | null;
+					http_status: number | null;
+					id: string;
+					job_id: string;
+					reason: string;
+					reviewed_at: string | null;
+					status: string;
+				};
+				Insert: {
+					bookmark_id: string;
+					bookmark_version: number;
+					checked_at?: string;
+					final_url?: string | null;
+					http_status?: number | null;
+					id?: string;
+					job_id: string;
+					reason: string;
+					reviewed_at?: string | null;
+					status: string;
+				};
+				Update: {
+					bookmark_id?: string;
+					bookmark_version?: number;
+					checked_at?: string;
+					final_url?: string | null;
+					http_status?: number | null;
+					id?: string;
+					job_id?: string;
+					reason?: string;
+					reviewed_at?: string | null;
+					status?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "bookmark_checks_bookmark_id_fkey";
+						columns: ["bookmark_id"];
+						isOneToOne: false;
+						referencedRelation: "bookmarks";
+						referencedColumns: ["id"];
+					},
+					{
+						foreignKeyName: "bookmark_checks_job_id_fkey";
+						columns: ["job_id"];
+						isOneToOne: false;
+						referencedRelation: "bookmark_jobs";
+						referencedColumns: ["id"];
+					},
+				];
+			};
+			bookmark_collections: {
+				Row: {
+					created_at: string;
+					id: string;
+					name: string;
+					original: Json | null;
+					parent_id: string | null;
+					source_id: string | null;
+					version: number;
+				};
+				Insert: {
+					created_at?: string;
+					id?: string;
+					name: string;
+					original?: Json | null;
+					parent_id?: string | null;
+					source_id?: string | null;
+					version?: number;
+				};
+				Update: {
+					created_at?: string;
+					id?: string;
+					name?: string;
+					original?: Json | null;
+					parent_id?: string | null;
+					source_id?: string | null;
+					version?: number;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "bookmark_collections_parent_id_fkey";
+						columns: ["parent_id"];
+						isOneToOne: false;
+						referencedRelation: "bookmark_collections";
+						referencedColumns: ["id"];
+					},
+				];
+			};
+			bookmark_events: {
+				Row: {
+					bookmark_id: string;
+					created_at: string;
+					evidence_id: string | null;
+					id: number;
+					kind: string;
+				};
+				Insert: {
+					bookmark_id: string;
+					created_at?: string;
+					evidence_id?: string | null;
+					id?: never;
+					kind: string;
+				};
+				Update: {
+					bookmark_id?: string;
+					created_at?: string;
+					evidence_id?: string | null;
+					id?: never;
+					kind?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "bookmark_events_bookmark_id_fkey";
+						columns: ["bookmark_id"];
+						isOneToOne: false;
+						referencedRelation: "bookmarks";
+						referencedColumns: ["id"];
+					},
+				];
+			};
+			bookmark_import_verifications: {
+				Row: {
+					collection_source_id: string;
+					job_id: string;
+					source_id: string;
+				};
+				Insert: {
+					collection_source_id: string;
+					job_id: string;
+					source_id: string;
+				};
+				Update: {
+					collection_source_id?: string;
+					job_id?: string;
+					source_id?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "bookmark_import_verifications_job_id_fkey";
+						columns: ["job_id"];
+						isOneToOne: false;
+						referencedRelation: "bookmark_jobs";
+						referencedColumns: ["id"];
+					},
+				];
+			};
+			bookmark_job_items: {
+				Row: {
+					available_at: string;
+					bookmark_id: string;
+					error: string | null;
+					expected_version: number;
+					job_id: string;
+					result: Json | null;
+					state: string;
+				};
+				Insert: {
+					available_at?: string;
+					bookmark_id: string;
+					error?: string | null;
+					expected_version: number;
+					job_id: string;
+					result?: Json | null;
+					state?: string;
+				};
+				Update: {
+					available_at?: string;
+					bookmark_id?: string;
+					error?: string | null;
+					expected_version?: number;
+					job_id?: string;
+					result?: Json | null;
+					state?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "bookmark_job_items_bookmark_id_fkey";
+						columns: ["bookmark_id"];
+						isOneToOne: false;
+						referencedRelation: "bookmarks";
+						referencedColumns: ["id"];
+					},
+					{
+						foreignKeyName: "bookmark_job_items_job_id_fkey";
+						columns: ["job_id"];
+						isOneToOne: false;
+						referencedRelation: "bookmark_jobs";
+						referencedColumns: ["id"];
+					},
+				];
+			};
+			bookmark_jobs: {
+				Row: {
+					attempts: number;
+					available_at: string;
+					completed: number;
+					created_at: string;
+					error: string | null;
+					failed: number;
+					id: string;
+					kind: string;
+					lease_expires_at: string | null;
+					lease_token: string | null;
+					progress: Json;
+					scope: Json;
+					state: string;
+					total: number;
+					updated_at: string;
+				};
+				Insert: {
+					attempts?: number;
+					available_at?: string;
+					completed?: number;
+					created_at?: string;
+					error?: string | null;
+					failed?: number;
+					id?: string;
+					kind: string;
+					lease_expires_at?: string | null;
+					lease_token?: string | null;
+					progress?: Json;
+					scope?: Json;
+					state?: string;
+					total?: number;
+					updated_at?: string;
+				};
+				Update: {
+					attempts?: number;
+					available_at?: string;
+					completed?: number;
+					created_at?: string;
+					error?: string | null;
+					failed?: number;
+					id?: string;
+					kind?: string;
+					lease_expires_at?: string | null;
+					lease_token?: string | null;
+					progress?: Json;
+					scope?: Json;
+					state?: string;
+					total?: number;
+					updated_at?: string;
+				};
+				Relationships: [];
+			};
+			bookmark_proposals: {
+				Row: {
+					bookmark_id: string;
+					created_at: string;
+					expected_interest_version: number;
+					expected_review_revision: number;
+					expected_version: number;
+					id: string;
+					job_id: string;
+					kind: string;
+					new_collection_name: string | null;
+					reason: string;
+					relevance: string | null;
+					state: string;
+					target_collection_id: string | null;
+				};
+				Insert: {
+					bookmark_id: string;
+					created_at?: string;
+					expected_interest_version?: number;
+					expected_review_revision?: number;
+					expected_version: number;
+					id?: string;
+					job_id: string;
+					kind: string;
+					new_collection_name?: string | null;
+					reason: string;
+					relevance?: string | null;
+					state?: string;
+					target_collection_id?: string | null;
+				};
+				Update: {
+					bookmark_id?: string;
+					created_at?: string;
+					expected_interest_version?: number;
+					expected_review_revision?: number;
+					expected_version?: number;
+					id?: string;
+					job_id?: string;
+					kind?: string;
+					new_collection_name?: string | null;
+					reason?: string;
+					relevance?: string | null;
+					state?: string;
+					target_collection_id?: string | null;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "bookmark_proposals_bookmark_id_fkey";
+						columns: ["bookmark_id"];
+						isOneToOne: false;
+						referencedRelation: "bookmarks";
+						referencedColumns: ["id"];
+					},
+					{
+						foreignKeyName: "bookmark_proposals_job_id_fkey";
+						columns: ["job_id"];
+						isOneToOne: false;
+						referencedRelation: "bookmark_jobs";
+						referencedColumns: ["id"];
+					},
+					{
+						foreignKeyName: "bookmark_proposals_target_collection_id_fkey";
+						columns: ["target_collection_id"];
+						isOneToOne: false;
+						referencedRelation: "bookmark_collections";
+						referencedColumns: ["id"];
+					},
+				];
+			};
+			bookmark_settings: {
+				Row: {
+					id: boolean;
+					interest_version: number;
+					interests: string[];
+					interests_confirmed_at: string | null;
+					suggested_at: string | null;
+					suggested_interests: string[];
+					suggestions_job_id: string | null;
+				};
+				Insert: {
+					id?: boolean;
+					interest_version?: number;
+					interests?: string[];
+					interests_confirmed_at?: string | null;
+					suggested_at?: string | null;
+					suggested_interests?: string[];
+					suggestions_job_id?: string | null;
+				};
+				Update: {
+					id?: boolean;
+					interest_version?: number;
+					interests?: string[];
+					interests_confirmed_at?: string | null;
+					suggested_at?: string | null;
+					suggested_interests?: string[];
+					suggestions_job_id?: string | null;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "bookmark_settings_suggestions_job_id_fkey";
+						columns: ["suggestions_job_id"];
+						isOneToOne: false;
+						referencedRelation: "bookmark_jobs";
+						referencedColumns: ["id"];
+					},
+				];
+			};
+			bookmarks: {
+				Row: {
+					collection_id: string | null;
+					created_at: string;
+					description: string;
+					id: string;
+					note: string;
+					open_count: number;
+					opened_at: string | null;
+					original: Json | null;
+					review_revision: number;
+					saved_at: string;
+					source_id: string | null;
+					source_thread_id: number | null;
+					state: string;
+					tags: string[];
+					title: string;
+					updated_at: string;
+					url: string;
+					url_key: string;
+					version: number;
+				};
+				Insert: {
+					collection_id?: string | null;
+					created_at?: string;
+					description?: string;
+					id?: string;
+					note?: string;
+					open_count?: number;
+					opened_at?: string | null;
+					original?: Json | null;
+					review_revision?: number;
+					saved_at?: string;
+					source_id?: string | null;
+					source_thread_id?: number | null;
+					state?: string;
+					tags?: string[];
+					title?: string;
+					updated_at?: string;
+					url: string;
+					url_key: string;
+					version?: number;
+				};
+				Update: {
+					collection_id?: string | null;
+					created_at?: string;
+					description?: string;
+					id?: string;
+					note?: string;
+					open_count?: number;
+					opened_at?: string | null;
+					original?: Json | null;
+					review_revision?: number;
+					saved_at?: string;
+					source_id?: string | null;
+					source_thread_id?: number | null;
+					state?: string;
+					tags?: string[];
+					title?: string;
+					updated_at?: string;
+					url?: string;
+					url_key?: string;
+					version?: number;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "bookmarks_collection_id_fkey";
+						columns: ["collection_id"];
+						isOneToOne: false;
+						referencedRelation: "bookmark_collections";
+						referencedColumns: ["id"];
+					},
+					{
+						foreignKeyName: "bookmarks_source_thread_id_fkey";
+						columns: ["source_thread_id"];
+						isOneToOne: false;
+						referencedRelation: "threads";
+						referencedColumns: ["id"];
+					},
+				];
+			};
 			crawl_alert_incidents: {
 				Row: {
 					active_signals: string[];
@@ -793,6 +1275,35 @@ export type Database = {
 				Args: { p_lock_token: string; p_source: string; p_ttl_seconds?: number };
 				Returns: Json;
 			};
+			bookmark_ai_reserve: {
+				Args: {
+					p_amount: number;
+					p_id: string;
+					p_job: string;
+					p_lease: string;
+					p_tokens: number;
+				};
+				Returns: boolean;
+			};
+			bookmark_command: {
+				Args: { p_action: string; p_input?: Json };
+				Returns: Json;
+			};
+			bookmark_review_due: {
+				Args: { p_bookmark: Database["public"]["Tables"]["bookmarks"]["Row"] };
+				Returns: boolean;
+			};
+			bookmark_row: {
+				Args: { p_bookmark: Database["public"]["Tables"]["bookmarks"]["Row"] };
+				Returns: Json;
+			};
+			bookmark_snapshot: { Args: { p_filter?: Json }; Returns: Json };
+			bookmark_worker_claim: { Args: never; Returns: Json };
+			bookmark_worker_commit: {
+				Args: { p_job: string; p_lease: string; p_result: Json };
+				Returns: boolean;
+			};
+			bookmark_worker_context: { Args: never; Returns: Json };
 			bulk_move_inbox_to_trash: { Args: never; Returns: number };
 			claim_media_enrichment_jobs: {
 				Args: { p_lease_seconds: number; p_limit: number; p_provider: string };
@@ -844,6 +1355,7 @@ export type Database = {
 				Args: { p_endpoint: string };
 				Returns: Json;
 			};
+			dispatch_bookmark_worker: { Args: never; Returns: undefined };
 			dispatch_due_crawl_sources: { Args: never; Returns: Json };
 			dispatch_due_media_enrichment_workers: { Args: never; Returns: Json };
 			dispatch_due_web_push_notifications: { Args: never; Returns: Json };

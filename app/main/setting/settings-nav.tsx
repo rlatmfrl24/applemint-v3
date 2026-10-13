@@ -6,6 +6,12 @@ import { cn } from "@/lib/utils";
 
 const SETTING_LINKS = [
 	{
+		href: "/main/setting/bookmarks",
+		label: "북마크",
+		description: "이관과 관심 주제",
+		icon: Database,
+	},
+	{
 		href: "/main/setting/crawling",
 		label: "수집 설정",
 		description: "주기와 수동 실행",

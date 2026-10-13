@@ -52,7 +52,7 @@ describe("proxy", () => {
 		expect(await bodyClone.json()).toEqual({ limit: 7 });
 	});
 
-	it.each(["/api/push/dispatch", "/manifest.webmanifest", "/sw.js"])(
+	it.each(["/api/bookmarks/worker", "/api/push/dispatch", "/manifest.webmanifest", "/sw.js"])(
 		"%s는 세션 갱신을 거치지 않는다",
 		async (pathname) => {
 			const request = new NextRequest(`http://localhost${pathname}`);

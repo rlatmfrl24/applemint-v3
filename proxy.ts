@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/utils/supabase/middleware";
 
 const INTERNAL_API_PATHS = new Set([
+	"/api/bookmarks/worker",
 	"/api/crawl/scheduled",
 	"/api/media/youtube/enrich",
 	"/api/push/dispatch",

@@ -41,6 +41,7 @@
 - `threads` inbox 무한 스크롤 목록 + 타입별 통계/필터
 - YouTube·Imgur 정확 URL 분류와 타입 필터, YouTube 전용 카드와 Imgur 공식 embed 미리보기
 - `Quick Save` 이동, `Trash` 이동/복원 워크플로우
+- Applemint 북마크 라이브러리: 직접 저장, Raindrop 일회 이관, 수동 링크 검사·검토·복원, 승인 후 AI 컬렉션 분류
 - 설정의 기능별 화면에서 소스별 예약 주기·수동 수집, 최근 90일 실행 이력, 신규 글 일괄 정리
 
 ## 아키텍처 개요
@@ -60,6 +61,8 @@ heartbeat, 비정상 종료 복구, 비활성 media scheduler의 승인·smoke·
 `docs/CRAWL_SCHEDULING.md`를 참고합니다.
 브라우저 tRPC, 내부 REST, Supabase RPC와 Zod 계약의 목표 경계 및 전환 원칙은
 [`docs/COMMUNICATION_ARCHITECTURE.md`](docs/COMMUNICATION_ARCHITECTURE.md)를 참고합니다.
+북마크의 데이터 원본, 작업 실행, 서버 환경과 검증 기록은
+[`docs/BOOKMARK_IMPLEMENTATION.md`](docs/BOOKMARK_IMPLEMENTATION.md)를 참고합니다.
 
 ## 프로젝트 구조
 

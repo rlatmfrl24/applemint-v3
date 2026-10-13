@@ -5,6 +5,12 @@ import { pushRouter } from "./routers/push.router";
 import { threadRouter } from "./routers/thread.router";
 
 export const appRouter = createTRPCRouter({
+	bookmark: bookmarkRouter,
+	bookmarkCollection: bookmarkCollectionRouter,
+	bookmarkImport: bookmarkImportRouter,
+	bookmarkCheck: bookmarkCheckRouter,
+	bookmarkAI: bookmarkAIRouter,
+	bookmarkProposal: bookmarkProposalRouter,
 	thread: threadRouter,
 	crawl: crawlRunRouter,
 	crawlPolicy: crawlPolicyRouter,
@@ -13,3 +19,12 @@ export const appRouter = createTRPCRouter({
 
 export type AppRouter = typeof appRouter;
 export const createCaller = createCallerFactory(appRouter);
+
+import {
+	bookmarkAIRouter,
+	bookmarkCheckRouter,
+	bookmarkCollectionRouter,
+	bookmarkImportRouter,
+	bookmarkProposalRouter,
+	bookmarkRouter,
+} from "./routers/bookmark.router";
