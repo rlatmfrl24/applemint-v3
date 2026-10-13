@@ -103,6 +103,7 @@ export type Database = {
 			};
 			bookmark_collections: {
 				Row: {
+					archived_at: string | null;
 					created_at: string;
 					id: string;
 					name: string;
@@ -112,6 +113,7 @@ export type Database = {
 					version: number;
 				};
 				Insert: {
+					archived_at?: string | null;
 					created_at?: string;
 					id?: string;
 					name: string;
@@ -121,6 +123,7 @@ export type Database = {
 					version?: number;
 				};
 				Update: {
+					archived_at?: string | null;
 					created_at?: string;
 					id?: string;
 					name?: string;
@@ -414,6 +417,7 @@ export type Database = {
 					open_count: number;
 					opened_at: string | null;
 					original: Json | null;
+					previous_collection_path: string | null;
 					review_revision: number;
 					saved_at: string;
 					source_id: string | null;
@@ -435,6 +439,7 @@ export type Database = {
 					open_count?: number;
 					opened_at?: string | null;
 					original?: Json | null;
+					previous_collection_path?: string | null;
 					review_revision?: number;
 					saved_at?: string;
 					source_id?: string | null;
@@ -456,6 +461,7 @@ export type Database = {
 					open_count?: number;
 					opened_at?: string | null;
 					original?: Json | null;
+					previous_collection_path?: string | null;
 					review_revision?: number;
 					saved_at?: string;
 					source_id?: string | null;
@@ -1285,6 +1291,8 @@ export type Database = {
 				};
 				Returns: boolean;
 			};
+			bookmark_assert_collection: { Args: { p_id: string }; Returns: undefined };
+			bookmark_collection_path: { Args: { p_id: string }; Returns: string };
 			bookmark_command: {
 				Args: { p_action: string; p_input?: Json };
 				Returns: Json;
@@ -1292,6 +1300,17 @@ export type Database = {
 			bookmark_review_due: {
 				Args: { p_bookmark: Database["public"]["Tables"]["bookmarks"]["Row"] };
 				Returns: boolean;
+			};
+			bookmark_review_matches: {
+				Args: {
+					b: Database["public"]["Tables"]["bookmarks"]["Row"];
+					p_type: string;
+				};
+				Returns: boolean;
+			};
+			bookmark_review_priority: {
+				Args: { b: Database["public"]["Tables"]["bookmarks"]["Row"] };
+				Returns: number;
 			};
 			bookmark_row: {
 				Args: { p_bookmark: Database["public"]["Tables"]["bookmarks"]["Row"] };

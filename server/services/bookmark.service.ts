@@ -36,6 +36,17 @@ export class BookmarkService {
 	collection(action: "collectionCreate" | "collectionRename", input: object) {
 		return this.store.command(action, input, bookmarkCollectionSchema);
 	}
+	removeCollection(input: { id: string; version: number }) {
+		return this.store.command(
+			"collectionRemove",
+			input,
+			z.object({
+				deletedId: z.uuid(),
+				movedBookmarks: z.number().int().nonnegative(),
+				reparentedCollections: z.number().int().nonnegative(),
+			})
+		);
+	}
 	start(
 		kind: "import" | "check" | "classify" | "interests" | "review",
 		scope: BookmarkScope,

@@ -46,6 +46,9 @@ export const bookmarkRouter = createTRPCRouter({
 		.mutation(({ ctx, input }) => ctx.services.bookmark.mutate("restore", input)),
 });
 export const bookmarkCollectionRouter = createTRPCRouter({
+	remove: ownerProcedure
+		.input(bookmarkVersionInputSchema)
+		.mutation(({ ctx, input }) => ctx.services.bookmark.removeCollection(input)),
 	list: ownerProcedure.query(({ ctx }) =>
 		ctx.services.bookmark.snapshot({}).then((s) => s.collections)
 	),

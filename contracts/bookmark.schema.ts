@@ -54,6 +54,7 @@ export const bookmarkSchema = z.object({
 	tags: z.array(z.string()),
 	note: z.string(),
 	collection_id: id.nullable(),
+	previous_collection_path: z.string().nullable().default(null),
 	state: z.enum(["library", "trash"]),
 	version: z.number().int(),
 	source_id: z.string().nullable(),
@@ -116,6 +117,7 @@ export const bookmarkListInputSchema = z.object({
 	search: z.string().max(200).optional(),
 	offset: z.number().int().nonnegative().default(0),
 	review: z.boolean().default(false),
+	reviewType: z.enum(["all", "dead", "unused", "classify"]).default("all"),
 	limit: z.number().int().min(1).max(100).default(50),
 });
 export const bookmarkSaveInputSchema = z.object({
