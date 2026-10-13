@@ -103,7 +103,12 @@ async function openai(path: string, body: object, timeout: number) {
 	return response.json() as Promise<unknown>;
 }
 export async function countAIInput(request: ReturnType<typeof buildAIRequest>) {
-	const result = await openai("responses/input_tokens", request, 10000);
+	const { model, input, instructions, reasoning, text } = request;
+	const result = await openai(
+		"responses/input_tokens",
+		{ model, input, instructions, reasoning, text },
+		10000
+	);
 	return z.object({ input_tokens: z.number().int().nonnegative() }).parse(result).input_tokens;
 }
 export async function callBookmarkAI(request: ReturnType<typeof buildAIRequest>) {
@@ -133,13 +138,25 @@ export async function callBookmarkAI(request: ReturnType<typeof buildAIRequest>)
 		.map((c) => c.text ?? "")
 		.join("");
 	let output: z.infer<typeof outputSchema> | null = null;
+	let outputError: string | null = result.status === "completed" ? null : "RESPONSE_INCOMPLETE";
 	try {
 		if (result.status === "completed") output = outputSchema.parse(JSON.parse(text));
-	} catch {
+	} catch (error) {
+		outputError =
+			error instanceof z.ZodError
+				? error.issues
+						.map(
+							(issue) =>
+								`${issue.path.filter((part) => typeof part === "number" || ["items", "interests", "id", "collectionId", "newCollectionName", "reason", "relevance", "reviewCandidate"].includes(String(part))).join(".")}:${issue.code}`
+						)
+						.join(",")
+						.slice(0, 300)
+				: "INVALID_JSON";
 		/* Usage still settles even when model output cannot be applied. */
 	}
 	return {
 		output,
+		outputError,
 		chargedNano,
 		outputTokens,
 		inputTokens,

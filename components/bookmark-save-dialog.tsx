@@ -108,8 +108,10 @@ export function BookmarkSaveDialog({
 								defaultValue={source?.title}
 							/>
 						</label>
-						<label className="block space-y-1" htmlFor={`${fieldId}collection`}>
-							<span>컬렉션</span>
+						<div className="space-y-1">
+							<label className="block" htmlFor={`${fieldId}collection`}>
+								컬렉션
+							</label>
 							<select className={bookmarkFieldClass} id={`${fieldId}collection`} name="collection">
 								<option value="">미분류</option>
 								{collections.data?.map((c) => (
@@ -118,7 +120,7 @@ export function BookmarkSaveDialog({
 									</option>
 								))}
 							</select>
-						</label>
+						</div>
 						<label className="block space-y-1" htmlFor={`${fieldId}tags`}>
 							<span>태그 (쉼표로 구분)</span>
 							<input className={bookmarkFieldClass} id={`${fieldId}tags`} name="tags" />

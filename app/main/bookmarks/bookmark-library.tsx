@@ -221,8 +221,8 @@ function BookmarkRow({
 							maxLength={4000}
 						/>
 					</label>
-					<label htmlFor={`${fieldId}collection`}>
-						컬렉션
+					<div>
+						<label htmlFor={`${fieldId}collection`}>컬렉션</label>
 						<select
 							id={`${fieldId}collection`}
 							className={bookmarkFieldClass}
@@ -236,7 +236,7 @@ function BookmarkRow({
 								</option>
 							))}
 						</select>
-					</label>
+					</div>
 					<label htmlFor={`${fieldId}tags`}>
 						태그
 						<input
@@ -292,8 +292,10 @@ function BookmarkRow({
 								{proposal.new_collection_name ||
 									collectionPath(proposal.target_collection_id, collections)}
 							</p>
-							<label className="block text-sm" htmlFor={`${proposal.id}target`}>
-								대상 컬렉션
+							<div className="text-sm">
+								<label className="block" htmlFor={`${proposal.id}target`}>
+									대상 컬렉션
+								</label>
 								<select
 									id={`${proposal.id}target`}
 									className={bookmarkFieldClass}
@@ -314,7 +316,7 @@ function BookmarkRow({
 										</option>
 									))}
 								</select>
-							</label>
+							</div>
 							<label className="block text-sm" htmlFor={`${proposal.id}name`}>
 								새 컬렉션 이름 (입력하면 새 컬렉션으로 이동)
 								<input

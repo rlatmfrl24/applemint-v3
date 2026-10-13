@@ -364,7 +364,7 @@ async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
 			return {
 				...settlement,
 				state: "failed",
-				error: "AI가 완료된 구조화 결과를 반환하지 않았습니다. 재개할 수 있습니다.",
+				error: `AI 구조화 결과 검증 실패 (${response.outputError ?? "INVALID_OUTPUT"}). 같은 작업을 재개할 수 있습니다.`,
 			};
 		try {
 			return { ...settlement, ...validatedAIResult(kind, response.output, claim, items) };

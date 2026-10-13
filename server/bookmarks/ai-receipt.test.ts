@@ -25,3 +25,45 @@ it("keeps a valid model result without guessing missing cache-write billing", as
 	expect(receipt.output?.interests).toEqual(["기술"]);
 	expect(receipt.chargedNano).toBeNull();
 });
+
+it("settles known usage for invalid model output and exposes only the failed schema field", async () => {
+	vi.stubEnv("OPENAI_API_KEY", "fixture-only");
+	vi.spyOn(globalThis, "fetch").mockResolvedValue(
+		Response.json({
+			status: "completed",
+			output: [
+				{
+					type: "message",
+					content: [
+						{
+							type: "output_text",
+							text: JSON.stringify({
+								items: [
+									{
+										id: "book",
+										collectionId: null,
+										newCollectionName: "",
+										reason: "private-provider-text",
+										relevance: null,
+										reviewCandidate: false,
+									},
+								],
+								interests: [],
+							}),
+						},
+					],
+				},
+			],
+			usage: {
+				input_tokens: 100,
+				output_tokens: 20,
+				input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+			},
+		})
+	);
+	const response = await callBookmarkAI(buildAIRequest("classify", {}));
+	expect(response.output).toBeNull();
+	expect(response.chargedNano).toBe(20000);
+	expect(response.outputError).toBe("items.0.newCollectionName:too_small");
+	expect(response.outputError).not.toContain("private-provider-text");
+});

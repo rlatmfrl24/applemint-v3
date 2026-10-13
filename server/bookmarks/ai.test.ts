@@ -1,5 +1,25 @@
-import { describe, expect, it } from "vitest";
-import { priceNano, reserveNano, validateAIItems } from "./ai";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { buildAIRequest, countAIInput, priceNano, reserveNano, validateAIItems } from "./ai";
+
+afterEach(() => {
+	vi.restoreAllMocks();
+	vi.unstubAllEnvs();
+});
+it("counts the identical input and output schema without generation-only options", async () => {
+	vi.stubEnv("OPENAI_API_KEY", "fixture-only");
+	const fetch = vi
+		.spyOn(globalThis, "fetch")
+		.mockResolvedValue(Response.json({ input_tokens: 42 }));
+	const request = buildAIRequest("interests", { collections: [] });
+	expect(await countAIInput(request)).toBe(42);
+	expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toEqual({
+		model: request.model,
+		input: request.input,
+		instructions: request.instructions,
+		reasoning: request.reasoning,
+		text: request.text,
+	});
+});
 
 describe("AI cost and complete outputs", () => {
 	it("reserves the maximum output and input category cost without float rounding", () => {
