@@ -50,7 +50,7 @@ export const bookmarkCollectionRouter = createTRPCRouter({
 		.input(bookmarkVersionInputSchema)
 		.mutation(({ ctx, input }) => ctx.services.bookmark.removeCollection(input)),
 	list: ownerProcedure.query(({ ctx }) =>
-		ctx.services.bookmark.snapshot({}).then((s) => s.collections)
+		ctx.services.bookmark.snapshot({ limit: 1 }).then((s) => s.collections)
 	),
 	create: ownerProcedure
 		.input(z.object({ name, parentId: z.uuid().nullable().optional() }))
