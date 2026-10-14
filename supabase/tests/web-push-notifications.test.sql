@@ -301,6 +301,11 @@ select is(
 update public.web_push_subscriptions
 set last_seen_at = now() - interval '1 minute';
 
+-- Later assertions complete device A first; UUID/heap order does not guarantee enqueue order.
+update public.web_push_deliveries delivery set available_at=now()-interval '1 second'
+from public.web_push_subscriptions subscription
+where delivery.subscription_id=subscription.id and subscription.endpoint='https://push.test/device-a' and delivery.run_id=910001;
+
 create temporary table claimed_first as
 select *
 from public.claim_web_push_deliveries(1, 120);

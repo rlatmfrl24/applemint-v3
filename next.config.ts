@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+	// The development indicator covers the bottom controls of viewport-height panes.
+	devIndicators: false,
 	experimental: {
 		useTypeScriptCli: true,
 	},

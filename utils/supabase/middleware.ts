@@ -10,6 +10,8 @@ const FORWARDED_HEADER_ALLOWLIST = [
 	"content-type",
 	"cookie",
 	"host",
+	// Next.js includes this in its RSC navigation hash; dropping it causes redirect loops.
+	"next-url",
 	"user-agent",
 	"x-forwarded-for",
 	"x-forwarded-host",

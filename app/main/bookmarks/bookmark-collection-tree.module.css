@@ -1,0 +1,97 @@
+.sidebar {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+.navigation {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	height: 40dvh;
+}
+.navigation[data-open="false"] {
+	display: none;
+}
+.collections {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+}
+.treeScroll {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-gutter: stable;
+	scrollbar-width: thin;
+	scrollbar-color: hsl(var(--muted-foreground) / 0.7) transparent;
+	padding: 3px;
+}
+.treeScroll:focus-visible {
+	outline: 1px solid hsl(var(--ring));
+	outline-offset: -1px;
+}
+.dragStatus {
+	display: none;
+	margin: 0;
+	height: 48px;
+	flex-shrink: 0;
+	padding-top: 8px;
+	overflow: auto;
+}
+@media (min-width: 768px) {
+	.dragStatus {
+		display: block;
+	}
+	.sidebar {
+		height: 100%;
+	}
+	.navigation[data-open] {
+		display: flex;
+		height: 100%;
+	}
+}
+.rootTarget {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+}
+.branch {
+	position: relative;
+}
+.branch[data-insertion]::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	height: 2px;
+	border-radius: 1px;
+	background: hsl(var(--ring));
+	pointer-events: none;
+	z-index: 2;
+}
+.branch[data-insertion="before"]::after {
+	top: -1px;
+}
+.branch[data-insertion="after"]::after {
+	bottom: -1px;
+}
+.branch[data-insertion]::before {
+	content: "";
+	position: absolute;
+	left: 0;
+	width: 6px;
+	height: 6px;
+	border: 2px solid hsl(var(--ring));
+	border-radius: 50%;
+	background: hsl(var(--background));
+	pointer-events: none;
+	z-index: 3;
+}
+.branch[data-insertion="before"]::before {
+	top: -3px;
+}
+.branch[data-insertion="after"]::before {
+	bottom: -3px;
+}

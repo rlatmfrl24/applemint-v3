@@ -21,6 +21,7 @@ export function mapPostgrestError(error: PostgrestError, fallbackMessage: string
 		case "P0002":
 			return new DomainError("NotFound", "요청한 데이터를 찾을 수 없습니다.", {}, error);
 		case "40001":
+		case "PT409":
 			return new DomainError(
 				"StateConflict",
 				"다른 화면에서 상태가 변경되었습니다. 최신 값을 확인해주세요.",

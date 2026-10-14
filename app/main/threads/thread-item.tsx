@@ -3,6 +3,7 @@ import { Copy, Loader2, Trash2 } from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
 import { ThreadCard } from "@/app/main/thread-card";
+import { BookmarkSaveDialog } from "@/components/bookmark-save-dialog";
 import { ThreadShareButton } from "@/components/thread-share-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -93,6 +94,13 @@ export const DefaultThreadItem = ({
 						</Button>
 					)}
 					{extraButtons}
+					<BookmarkSaveDialog
+						source={{
+							id: normalizeThreadId(thread.id),
+							url: thread.url,
+							title: thread.title ?? "",
+						}}
+					/>
 					<ThreadShareButton thread={thread} />
 					<Button
 						variant="outline"

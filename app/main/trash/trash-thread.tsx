@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { Copy, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { ThreadCard } from "@/app/main/thread-card";
+import { BookmarkSaveDialog } from "@/components/bookmark-save-dialog";
 import { ThreadShareButton } from "@/components/thread-share-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -97,6 +98,9 @@ export function TrashThread() {
 					actions={
 						<>
 							<RestoreButton thread={thread} />
+							<BookmarkSaveDialog
+								source={{ id: String(thread.id), url: thread.url, title: thread.title ?? "" }}
+							/>
 							<ThreadShareButton thread={thread} />
 							<Button
 								variant="outline"

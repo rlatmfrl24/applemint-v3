@@ -121,7 +121,7 @@ select is(
 	(
 		select row(retry_count, attempted_count, succeeded_count, inserted_count, skipped_count)
 		from public.crawl_runs
-		where status = 'partial'
+		where id = (select (value ->> 'runId')::bigint from p2_run_state where key = 'first')
 	),
 	row(1, 6, 3, 4, 8),
 	'finish RPC stores execution counters'
@@ -136,7 +136,7 @@ select is(
 			jsonb_array_length(failures)
 		)
 		from public.crawl_runs
-		where status = 'partial'
+		where id = (select (value ->> 'runId')::bigint from p2_run_state where key = 'first')
 	),
 	row(1, 1, 1, 1, 3),
 	'failure causes and JSON details are preserved'

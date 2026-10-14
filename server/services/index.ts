@@ -1,10 +1,12 @@
 import type { RequestMetrics } from "@/server/observability/request-metrics";
+import { BookmarkRepository } from "@/server/repositories/bookmark.repository";
 import { CrawlPolicyRepository } from "@/server/repositories/crawl-policy.repository";
 import { CrawlRunRepository } from "@/server/repositories/crawl-run.repository";
 import { CrawlSourceRegistryRepository } from "@/server/repositories/crawl-source-registry.repository";
 import { PushRepository } from "@/server/repositories/push.repository";
 import { ThreadRepository } from "@/server/repositories/thread.repository";
 import type { AppSupabaseClient } from "@/types/supabase";
+import { BookmarkService } from "./bookmark.service";
 import { CrawlPolicyService } from "./crawl-policy.service";
 import { CrawlRunService } from "./crawl-run.service";
 import { CrawlSourceRegistryService } from "./crawl-source-registry.service";
@@ -20,6 +22,7 @@ export function createServices(
 		new CrawlSourceRegistryRepository(supabase, metrics)
 	);
 	return {
+		bookmark: new BookmarkService(new BookmarkRepository(supabase, metrics)),
 		thread: new ThreadService(new ThreadRepository(supabase, metrics)),
 		crawlPolicy: new CrawlPolicyService(
 			new CrawlPolicyRepository(supabase, metrics),
