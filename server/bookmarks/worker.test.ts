@@ -163,6 +163,71 @@ it("records the GPT request identity before a lost response can pause the job", 
 	).toMatchObject({ reservationState: "uncertain", state: "paused" });
 });
 
+it.each(["interests", "classify"])(
+	"invalid %s task output settles usage and fails without another paid automatic retry",
+	async (kind) => {
+		vi.stubEnv("OPENROUTER_API_KEY", "fixture-only");
+		const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			Response.json({
+				status: "completed",
+				output: [
+					{
+						type: "message",
+						content: [
+							{
+								type: "output_text",
+								text: JSON.stringify({
+									items: [
+										{
+											id: "unexpected",
+											collectionId: null,
+											newCollectionName: null,
+											reason: "invalid task target",
+											relevance: null,
+											reviewCandidate: false,
+										},
+									],
+									interests: [],
+								}),
+							},
+						],
+					},
+				],
+				usage: { input_tokens: 100, output_tokens: 20, cost: 0.00002 },
+			})
+		);
+		const rpc = vi.fn().mockImplementation(async (command) => ({
+			data:
+				command === "bookmark_worker_claim"
+					? {
+							job: { ...job, kind, progress: {} },
+							items: [],
+							collections: [],
+							settings: { interests: [], interest_version: 1 },
+						}
+					: command === "bookmark_worker_context"
+						? {
+								importedCount: 0,
+								importCollections: [],
+								verifiedCount: 0,
+								missingSourceCount: 0,
+								extraSourceCount: 0,
+								changedMembershipCount: 0,
+								collectionCount: 0,
+								missingMembershipCount: 0,
+								tagCounts: [],
+							}
+						: true,
+			error: null,
+		}));
+		await runBookmarkWorker({ rpc } as unknown as AppSupabaseClient);
+		expect(fetch).toHaveBeenCalledTimes(1);
+		expect(
+			rpc.mock.calls.find(([command]) => command === "bookmark_worker_commit")?.[1]?.p_result
+		).toMatchObject({ state: "failed", reservationState: "settled", chargedNano: 20000 });
+	}
+);
+
 it.each(["budget-denied", "excessive-cost"])(
 	"GPT %s respects the full input/output reservation and retains a known overrun",
 	async (scenario) => {

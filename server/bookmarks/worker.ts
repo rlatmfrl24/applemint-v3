@@ -385,6 +385,7 @@ async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
 		} catch {
 			return {
 				...settlement,
+				state: "failed",
 				items: items.map((i) => ({
 					id: i.id,
 					state: "failed",
