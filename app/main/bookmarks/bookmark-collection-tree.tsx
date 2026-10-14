@@ -1,6 +1,6 @@
 "use client";
-import { ChevronRight, Folder, MoreHorizontal, Plus } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ChevronRight, Folder, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { type DragEvent, type HTMLAttributes, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -8,28 +8,99 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { BookmarkCollection } from "@/contracts/bookmark.schema";
-import { collectionAncestors, collectionChildren } from "@/lib/bookmark-tree";
+import type { BookmarkCollection, BookmarkItem } from "@/contracts/bookmark.schema";
+import { collectionPath } from "@/lib/bookmark-collection";
+import {
+	canReparentCollection,
+	collectionAncestors,
+	collectionChildren,
+	collectionDropPosition,
+} from "@/lib/bookmark-tree";
 import type { CollectionDialogSelection } from "./bookmark-collection-dialog";
+import styles from "./bookmark-collection-tree.module.css";
 
+export type BookmarkDrag =
+	| { kind: "bookmarks"; items: Pick<BookmarkItem, "id" | "version" | "collection_id">[] }
+	| { kind: "collection"; collection: BookmarkCollection };
 type Props = {
 	collections: BookmarkCollection[];
 	selected: string;
 	select: (id: string) => void;
 	manage: (selection: CollectionDialogSelection) => void;
+	dragged: BookmarkDrag | null;
+	moving: boolean;
+	move: (id: string | null) => void;
+	startDrag: (event: DragEvent<HTMLElement>, collection: BookmarkCollection) => void;
+	endDrag: () => void;
+	reparent: (collection: BookmarkCollection, parent: string | null) => void;
+	reorder: (
+		collection: BookmarkCollection,
+		target: BookmarkCollection,
+		position: "before" | "after"
+	) => void;
 };
+type DropTarget = { id: string | null; position: "before" | "inside" | "after" };
+type DropHandlers = Pick<
+	HTMLAttributes<HTMLElement>,
+	"onDragOver" | "onDragLeave" | "onDrop" | "style"
+> & {
+	"data-drop-state": "idle" | "valid" | "invalid";
+	"data-drop-position": DropTarget["position"] | undefined;
+};
+function dropStyle(
+	active: boolean,
+	valid: boolean,
+	position: DropTarget["position"]
+): DropHandlers["style"] {
+	if (!active) return undefined;
+	return {
+		outline:
+			!valid || position === "inside"
+				? `2px ${valid ? "solid hsl(var(--ring))" : "dashed hsl(var(--destructive))"}`
+				: undefined,
+		cursor: valid ? "move" : "not-allowed",
+	};
+}
+function CollectionOrderActions({
+	collection,
+	props,
+}: {
+	collection: BookmarkCollection;
+	props: Props;
+}) {
+	const siblings = collectionChildren(collection.parent_id, props.collections);
+	const index = siblings.findIndex((c) => c.id === collection.id);
+	return (
+		<>
+			<DropdownMenuItem
+				disabled={props.moving || index === 0}
+				onSelect={() => props.reorder(collection, siblings[index - 1], "before")}
+			>
+				순서 위로
+			</DropdownMenuItem>
+			<DropdownMenuItem
+				disabled={props.moving || index === siblings.length - 1}
+				onSelect={() => props.reorder(collection, siblings[index + 1], "after")}
+			>
+				순서 아래로
+			</DropdownMenuItem>
+		</>
+	);
+}
 function CollectionNode({
 	collection,
 	props,
 	expanded,
 	toggle,
 	seen,
+	dropHandlers,
 }: {
 	collection: BookmarkCollection;
 	props: Props;
 	expanded: string[];
 	toggle: (id: string) => void;
 	seen: Set<string>;
+	dropHandlers: (id: string | null) => DropHandlers;
 }) {
 	const trigger = useRef<HTMLButtonElement>(null);
 	const openingDialog = useRef(false);
@@ -41,10 +112,30 @@ function CollectionNode({
 		(c) => !seen.has(c.id)
 	);
 	const open = expanded.includes(collection.id);
+	const drop = dropHandlers(collection.id);
+	const source =
+		props.dragged?.kind === "collection" && props.dragged.collection.id === collection.id;
 	return (
-		<li>
-			<div
-				className={`group flex min-h-9 items-center rounded-md ${props.selected === collection.id ? "bg-accent text-accent-foreground" : "hover:bg-muted/70"}`}
+		<li
+			className={styles.branch}
+			data-insertion={
+				drop["data-drop-state"] === "valid" && drop["data-drop-position"] !== "inside"
+					? drop["data-drop-position"]
+					: undefined
+			}
+		>
+			<fieldset
+				aria-label={`${collection.name} 컬렉션`}
+				{...drop}
+				data-collection-id={collection.id}
+				draggable={!props.moving}
+				onDragStart={(event) => {
+					event.stopPropagation();
+					props.startDrag(event, collection);
+				}}
+				onDragEnd={props.endDrag}
+				style={{ ...drop.style, opacity: source ? 0.45 : undefined }}
+				className={`group flex min-h-9 min-w-0 items-center rounded-md ${drop["data-drop-state"] === "valid" && drop["data-drop-position"] === "inside" ? "bg-accent" : ""} ${props.selected === collection.id ? "bg-accent text-accent-foreground" : "hover:bg-muted/70"}`}
 			>
 				{children.length > 0 ? (
 					<button
@@ -76,6 +167,7 @@ function CollectionNode({
 					<DropdownMenuTrigger asChild>
 						<Button
 							ref={trigger}
+							disabled={props.moving}
 							variant="ghost"
 							size="icon"
 							className="size-7 shrink-0"
@@ -111,6 +203,31 @@ function CollectionNode({
 							이름 수정
 						</DropdownMenuItem>
 						<DropdownMenuItem
+							disabled={props.moving}
+							onSelect={() =>
+								manage({
+									mode: "move",
+									collection,
+									parentId: collection.parent_id,
+									trigger: trigger.current,
+								})
+							}
+						>
+							컬렉션 이동
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							disabled={props.moving || !collection.parent_id}
+							onSelect={() =>
+								props.reparent(
+									collection,
+									props.collections.find((c) => c.id === collection.parent_id)?.parent_id ?? null
+								)
+							}
+						>
+							한 단계 위로
+						</DropdownMenuItem>
+						<CollectionOrderActions collection={collection} props={props} />
+						<DropdownMenuItem
 							className="text-destructive"
 							onSelect={() =>
 								manage({
@@ -125,7 +242,7 @@ function CollectionNode({
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
-			</div>
+			</fieldset>
 			{open && children.length > 0 && (
 				<ul className="ml-4 border-border border-l pl-1">
 					{children.map((child) => (
@@ -136,6 +253,7 @@ function CollectionNode({
 							expanded={expanded}
 							toggle={toggle}
 							seen={new Set([...seen, child.id])}
+							dropHandlers={dropHandlers}
 						/>
 					))}
 				</ul>
@@ -147,6 +265,77 @@ export function BookmarkCollectionTree(props: Props) {
 	const [expanded, setExpanded] = useState<string[]>([]);
 	const [loaded, setLoaded] = useState(false);
 	const [mobileOpen, setMobileOpen] = useState(false);
+	function select(id: string) {
+		props.select(id);
+		setMobileOpen(false);
+	}
+	const [dropTarget, setDropTarget] = useState<DropTarget>();
+	useEffect(() => {
+		if (!props.dragged) setDropTarget(undefined);
+	}, [props.dragged]);
+	function canDrop(target: DropTarget) {
+		if (props.dragged?.kind !== "collection") return true;
+		const source = props.dragged.collection;
+		if (target.position === "inside")
+			return canReparentCollection(source.id, target.id, props.collections);
+		const sibling = props.collections.find((c) => c.id === target.id);
+		return source.id !== sibling?.id && source.parent_id === sibling?.parent_id;
+	}
+	function pointerTarget(event: DragEvent<HTMLElement>, id: string | null): DropTarget {
+		const rect = event.currentTarget.getBoundingClientRect();
+		return {
+			id,
+			position:
+				id && props.dragged?.kind === "collection"
+					? collectionDropPosition(event.clientY - rect.top, rect.height)
+					: "inside",
+		};
+	}
+	function dropHandlers(id: string | null): DropHandlers {
+		const active = Boolean(props.dragged) && dropTarget?.id === id;
+		const target = active && dropTarget ? dropTarget : { id, position: "inside" as const };
+		const valid = canDrop(target);
+		return {
+			"data-drop-state": active ? (valid ? "valid" : "invalid") : "idle",
+			"data-drop-position": active ? target.position : undefined,
+			style: dropStyle(active, valid, target.position),
+			onDragOver: (event) => hoverTarget(event, id),
+			onDragLeave: (event) => {
+				if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+					setDropTarget(undefined);
+			},
+			onDrop: (event) => dropAt(event, id),
+		};
+	}
+	function hoverTarget(event: DragEvent<HTMLElement>, id: string | null) {
+		if (!props.dragged || props.moving) return;
+		const next = pointerTarget(event, id);
+		const allowed = canDrop(next);
+		if (allowed) event.preventDefault();
+		event.stopPropagation();
+		event.dataTransfer.dropEffect = allowed ? "move" : "none";
+		setDropTarget((previous) =>
+			previous?.id === next.id && previous.position === next.position ? previous : next
+		);
+	}
+	function dropAt(event: DragEvent<HTMLElement>, id: string | null) {
+		const next = pointerTarget(event, id);
+		if (!props.dragged || props.moving || !canDrop(next)) return;
+		event.preventDefault();
+		event.stopPropagation();
+		setDropTarget(undefined);
+		applyDrop(next);
+	}
+	function applyDrop(target: DropTarget) {
+		if (props.dragged?.kind === "collection" && target.position !== "inside") {
+			const anchor = props.collections.find((c) => c.id === target.id);
+			if (anchor) props.reorder(props.dragged.collection, anchor, target.position);
+			return;
+		}
+		const { id } = target;
+		if (id) setExpanded((previous) => [...new Set([...previous, id])]);
+		props.move(id);
+	}
 	const ancestors = collectionAncestors(props.selected, props.collections).join(",");
 	useEffect(() => {
 		try {
@@ -168,9 +357,8 @@ export function BookmarkCollectionTree(props: Props) {
 			} catch {}
 	}, [expanded, loaded]);
 	return (
-		<aside className="min-w-0 space-y-3 md:sticky md:top-4 md:self-start">
-			<div className="flex items-center justify-between px-2">
-				<span className="hidden font-medium text-sm md:inline">컬렉션</span>
+		<aside className={`${styles.sidebar} min-w-0`}>
+			<div className="px-2 md:hidden">
 				<button
 					type="button"
 					className="flex items-center gap-2 font-medium text-sm md:hidden"
@@ -179,63 +367,136 @@ export function BookmarkCollectionTree(props: Props) {
 					onClick={() => setMobileOpen(!mobileOpen)}
 				>
 					<ChevronRight className={`size-4 ${mobileOpen ? "rotate-90" : ""}`} />
-					컬렉션 탐색
+					북마크 탐색
 				</button>
-				<Button
-					id="bookmark-collection-add"
-					variant="ghost"
-					size="icon"
-					className="size-8"
-					aria-label="컬렉션 추가"
-					onClick={(event) =>
-						props.manage({
-							mode: "create",
-							parentId: props.selected === "all" || props.selected === "" ? null : props.selected,
-							trigger: event.currentTarget,
-						})
-					}
-				>
-					<Plus className="size-4" />
-				</Button>
 			</div>
 			<nav
 				id="bookmark-collection-navigation"
-				aria-label="북마크 컬렉션"
-				className={`${mobileOpen ? "block" : "hidden"} max-h-[65dvh] overflow-y-auto pr-1 text-sm md:block`}
+				aria-label="북마크 탐색"
+				data-open={mobileOpen}
+				className={`${styles.navigation} text-sm`}
 			>
 				{[
 					{ id: "all", label: "전체 북마크" },
 					{ id: "", label: "미분류" },
+					{ id: "trash", label: "휴지통" },
 				].map((entry) => (
 					<button
-						type="button"
 						key={entry.id}
+						{...(entry.id === "" && props.dragged?.kind === "bookmarks" ? dropHandlers(null) : {})}
+						type="button"
 						aria-current={props.selected === entry.id ? "page" : undefined}
-						className={`mb-1 block w-full rounded-md px-3 py-2 text-left ${props.selected === entry.id ? "bg-accent font-medium" : "hover:bg-muted/70"}`}
-						onClick={() => props.select(entry.id)}
+						className={`mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left focus-visible:outline focus-visible:outline-ring ${props.dragged?.kind === "bookmarks" && dropTarget?.id === null && entry.id === "" ? "bg-accent" : ""} ${props.selected === entry.id ? "bg-accent font-medium" : "hover:bg-muted/70"}`}
+						onClick={() => select(entry.id)}
 					>
+						{entry.id === "trash" && <Trash2 className="size-3.5" aria-hidden="true" />}
 						{entry.label}
 					</button>
 				))}
-				<ul className="mt-3">
-					{collectionChildren(null, props.collections).map((collection) => (
-						<CollectionNode
-							key={collection.id}
-							collection={collection}
-							props={props}
-							expanded={expanded}
-							toggle={(id) =>
-								setExpanded((previous) =>
-									previous.includes(id)
-										? previous.filter((value) => value !== id)
-										: [...previous, id]
-								)
+				<section
+					aria-labelledby="bookmark-collections-heading"
+					className={`${styles.collections} mt-3 border-t pt-3`}
+				>
+					<section
+						aria-label="최상위 컬렉션 이동 영역"
+						{...(props.dragged?.kind === "collection" ? dropHandlers(null) : {})}
+						className={`${styles.rootTarget} flex items-center justify-between rounded-md bg-background pl-3`}
+						title="컬렉션을 여기에 놓으면 최상위로 이동합니다."
+					>
+						<h2
+							id="bookmark-collections-heading"
+							className="m-0 border-0 p-0 font-medium text-muted-foreground text-xs"
+						>
+							{props.dragged?.kind === "collection" ? "최상위로 이동" : "컬렉션"}
+						</h2>
+						<Button
+							id="bookmark-collection-add"
+							disabled={props.moving}
+							variant="ghost"
+							size="icon"
+							className="size-8"
+							aria-label="컬렉션 추가"
+							onClick={(event) =>
+								props.manage({
+									mode: "create",
+									parentId: props.collections.some((collection) => collection.id === props.selected)
+										? props.selected
+										: null,
+									trigger: event.currentTarget,
+								})
 							}
-							seen={new Set([collection.id])}
-						/>
-					))}
-				</ul>
+						>
+							<Plus className="size-4" />
+						</Button>
+					</section>
+					<section className={styles.treeScroll} aria-label="컬렉션 트리">
+						<ul className="mt-1">
+							{collectionChildren(null, props.collections).map((collection) => (
+								<CollectionNode
+									key={collection.id}
+									collection={collection}
+									props={{ ...props, select }}
+									expanded={expanded}
+									toggle={(id) =>
+										setExpanded((previous) =>
+											previous.includes(id)
+												? previous.filter((value) => value !== id)
+												: [...previous, id]
+										)
+									}
+									seen={new Set([collection.id])}
+									dropHandlers={dropHandlers}
+								/>
+							))}
+						</ul>
+					</section>
+				</section>
 			</nav>
+			<DragStatus dragged={props.dragged} target={dropTarget} collections={props.collections} />
 		</aside>
 	);
+}
+
+function DragStatus({
+	dragged,
+	target,
+	collections,
+}: {
+	dragged: BookmarkDrag | null;
+	target: DropTarget | undefined;
+	collections: BookmarkCollection[];
+}) {
+	const message = !dragged
+		? "사이: 순서 변경 · 가운데: 하위 이동"
+		: dragged.kind === "bookmarks"
+			? `북마크 ${dragged.items.length}개 · ${target === undefined ? "컬렉션 또는 미분류에 놓아 이동" : `${collectionPath(target.id, collections)}로 이동`}`
+			: collectionDragMessage(dragged.collection, target, collections);
+	return (
+		<p
+			role="status"
+			title={message}
+			className={`${styles.dragStatus} break-words px-3 text-muted-foreground text-xs`}
+		>
+			{message}
+		</p>
+	);
+}
+function collectionDragMessage(
+	collection: BookmarkCollection,
+	target: DropTarget | undefined,
+	collections: BookmarkCollection[]
+) {
+	if (!target)
+		return `컬렉션 “${collection.name}” · 항목 사이에 놓아 순서 변경 · 가운데에 놓아 하위 이동 · 컬렉션 제목에 놓아 최상위 이동`;
+	if (target.position !== "inside") {
+		const sibling = collections.find((c) => c.id === target.id);
+		return sibling && sibling.id !== collection.id && sibling.parent_id === collection.parent_id
+			? `“${sibling.name}” ${target.position === "before" ? "앞" : "뒤"}으로 순서 변경`
+			: "순서 변경은 같은 계층의 다른 컬렉션 사이에 놓으세요.";
+	}
+	if (!canReparentCollection(collection.id, target.id, collections))
+		return "자기 자신이나 하위 컬렉션으로 이동할 수 없습니다.";
+	return target.id === null
+		? "최상위로 이동"
+		: `${collectionPath(target.id, collections)}의 하위로 이동`;
 }

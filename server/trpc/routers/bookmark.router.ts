@@ -3,6 +3,8 @@ import {
 	bookmarkEditInputSchema,
 	bookmarkListInputSchema,
 	bookmarkProposalApplyInputSchema,
+	bookmarkRecommendationInputSchema,
+	bookmarkRecommendationStatusSchema,
 	bookmarkSaveInputSchema,
 	bookmarkScopeInputSchema,
 	bookmarkVersionInputSchema,
@@ -46,6 +48,26 @@ export const bookmarkRouter = createTRPCRouter({
 		.mutation(({ ctx, input }) => ctx.services.bookmark.mutate("restore", input)),
 });
 export const bookmarkCollectionRouter = createTRPCRouter({
+	reorder: ownerProcedure
+		.input(
+			bookmarkVersionInputSchema.extend({
+				targetId: z.uuid(),
+				targetVersion: z.number().int().positive(),
+				position: z.enum(["before", "after"]),
+			})
+		)
+		.mutation(({ ctx, input }) => ctx.services.bookmark.collection("collectionReorder", input)),
+	moveMany: ownerProcedure
+		.input(
+			z.object({
+				items: z.array(bookmarkVersionInputSchema).min(1).max(2000),
+				collectionId: z.uuid().nullable(),
+			})
+		)
+		.mutation(({ ctx, input }) => ctx.services.bookmark.moveMany(input)),
+	reparent: ownerProcedure
+		.input(bookmarkVersionInputSchema.extend({ parentId: z.uuid().nullable() }))
+		.mutation(({ ctx, input }) => ctx.services.bookmark.collection("collectionMove", input)),
 	remove: ownerProcedure
 		.input(bookmarkVersionInputSchema)
 		.mutation(({ ctx, input }) => ctx.services.bookmark.removeCollection(input)),
@@ -67,7 +89,7 @@ export const bookmarkImportRouter = createTRPCRouter({
 		.input(z.object({ id: z.uuid(), offset: z.number().int().nonnegative().default(0) }))
 		.query(({ ctx, input }) => ctx.services.bookmark.jobDetails(input)),
 	configuration: ownerProcedure.query(({ ctx }) => ctx.services.bookmark.configuration()),
-	status: ownerProcedure.query(({ ctx }) => ctx.services.bookmark.snapshot({}).then((s) => s.jobs)),
+	status: ownerProcedure.query(({ ctx }) => ctx.services.bookmark.jobs()),
 	start: ownerProcedure
 		.input(z.object({ confirmed: z.literal(true) }))
 		.mutation(({ ctx, input }) =>
@@ -83,11 +105,24 @@ export const bookmarkCheckRouter = createTRPCRouter({
 		.mutation(({ ctx, input }) => ctx.services.bookmark.start("check", input)),
 });
 export const bookmarkAIRouter = createTRPCRouter({
+	usage: ownerProcedure.query(({ ctx }) => ctx.services.bookmark.aiUsage()),
+	recommend: ownerProcedure
+		.input(bookmarkRecommendationInputSchema)
+		.mutation(({ ctx, input }) => ctx.services.bookmark.recommend(input)),
+	recommendation: ownerProcedure
+		.input(idInput)
+		.output(bookmarkRecommendationStatusSchema)
+		.query(({ ctx, input }) => ctx.services.bookmark.recommendation(input)),
 	suggestInterests: ownerProcedure.mutation(({ ctx }) =>
 		ctx.services.bookmark.start("interests", { scope: "all" })
 	),
 	confirmInterests: ownerProcedure
-		.input(z.object({ interests: z.array(z.string().trim().min(1).max(160)).max(50) }))
+		.input(
+			z.object({
+				interests: z.array(z.string().trim().min(1).max(160)).max(50),
+				version: z.number().int().positive().optional(),
+			})
+		)
 		.mutation(({ ctx, input }) => ctx.services.bookmark.interests(input)),
 	classify: ownerProcedure
 		.input(bookmarkScopeInputSchema)
@@ -97,6 +132,9 @@ export const bookmarkAIRouter = createTRPCRouter({
 		.mutation(({ ctx, input }) => ctx.services.bookmark.start("review", input)),
 });
 export const bookmarkProposalRouter = createTRPCRouter({
+	excludeBookmarks: ownerProcedure
+		.input(z.object({ items: z.array(bookmarkVersionInputSchema).min(1).max(2000) }))
+		.mutation(({ ctx, input }) => ctx.services.bookmark.excludeProposals(input)),
 	approve: ownerProcedure
 		.input(bookmarkProposalApplyInputSchema)
 		.mutation(({ ctx, input }) => ctx.services.bookmark.apply(input)),

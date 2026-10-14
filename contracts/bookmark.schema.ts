@@ -7,6 +7,7 @@ export const bookmarkCollectionSchema = z.object({
 	parent_id: id.nullable(),
 	name: z.string(),
 	version: z.number().int(),
+	sort_order: z.number().int(),
 	source_id: z.string().nullable(),
 	original: json.nullable(),
 	created_at: z.string(),
@@ -75,7 +76,7 @@ const bookmarkItemSchema = bookmarkSchema.extend({
 });
 export const bookmarkJobSchema = z.object({
 	id,
-	kind: z.enum(["metadata", "import", "check", "classify", "interests", "review"]),
+	kind: z.enum(["metadata", "import", "check", "classify", "interests", "review", "recommend"]),
 	state: z.enum(["queued", "processing", "retry", "paused", "failed", "partial", "succeeded"]),
 	scope: json,
 	progress: json,
@@ -124,12 +125,30 @@ export const bookmarkSaveInputSchema = z.object({
 	url: z.string().trim().min(1).max(8192),
 	title: z.string().trim().max(1000).default(""),
 	collectionId: id.nullable().optional(),
+	collectionVersion: z.number().int().positive().optional(),
+	recommendationId: id.optional(),
 	tags: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
 	note: z.string().max(20000).default(""),
 	threadId: z
 		.string()
 		.regex(/^[1-9][0-9]*$/u)
 		.optional(),
+});
+export const bookmarkRecommendationInputSchema = z.object({
+	threadId: z.string().regex(/^[1-9][0-9]*$/u),
+	title: z.string().trim().max(1000),
+	requestId: id,
+});
+export const bookmarkRecommendationSchema = z.object({
+	collectionId: id.nullable(),
+	collectionVersion: z.number().int().positive().nullable(),
+	basis: z.enum(["topic", "url", "uncertain"]),
+	confidence: z.number().min(0).max(1),
+	model: z.enum(["jev-1.13.0", "typesafe/jev-1.13-20260917"]).optional(),
+});
+export const bookmarkRecommendationStatusSchema = z.object({
+	job: bookmarkJobSchema,
+	recommendation: bookmarkRecommendationSchema.nullable(),
 });
 export const bookmarkVersionInputSchema = z.object({
 	id,
@@ -166,3 +185,4 @@ export type BookmarkCollection = z.infer<typeof bookmarkCollectionSchema>;
 export type BookmarkJob = z.infer<typeof bookmarkJobSchema>;
 export type BookmarkSaveInput = z.input<typeof bookmarkSaveInputSchema>;
 export type BookmarkScope = z.infer<typeof bookmarkScopeInputSchema>;
+export type BookmarkRecommendationStatus = z.infer<typeof bookmarkRecommendationStatusSchema>;

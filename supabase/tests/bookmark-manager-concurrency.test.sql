@@ -31,7 +31,7 @@ select extensions.dblink_send_query('manager_a',$$select public.bookmark_command
 select pg_sleep(0.2);
 select extensions.dblink_send_query('manager_b',$$select private.manager_try('save','{"url":"https://example.com/manager-concurrent-save","collectionId":"dddddddd-2000-4000-8000-000000000001"}')$$);
 select is(result->>'deletedId','dddddddd-2000-4000-8000-000000000001','delete racing save completes') from extensions.dblink_get_result('manager_a') as r(result jsonb);
-select is(result->>'error','40001','racing save observes deletion instead of archived membership') from extensions.dblink_get_result('manager_b') as r(result jsonb);
+select is(result->>'error','PT409','racing save observes deletion instead of archived membership') from extensions.dblink_get_result('manager_b') as r(result jsonb);
 select is((select count(*) from public.bookmarks where url='https://example.com/manager-concurrent-save'),0::bigint,'rejected save leaves no record');
 select * from extensions.dblink_get_result('manager_a') as r(result jsonb);
 select * from extensions.dblink_get_result('manager_b') as r(result jsonb);
@@ -39,7 +39,7 @@ select extensions.dblink_send_query('manager_a',$$select public.bookmark_command
 select pg_sleep(0.2);
 select extensions.dblink_send_query('manager_b',$$select private.manager_try('proposalApply','{"items":[{"id":"eeeeeeee-2000-4000-8000-000000000001"}]}')$$);
 select is(result->>'deletedId','dddddddd-2000-4000-8000-000000000002','delete racing approval completes') from extensions.dblink_get_result('manager_a') as r(result jsonb);
-select is(result->>'error','40001','racing approval rejects invalidated proposal without deadlock') from extensions.dblink_get_result('manager_b') as r(result jsonb);
+select is(result->>'error','PT409','racing approval rejects invalidated proposal without deadlock') from extensions.dblink_get_result('manager_b') as r(result jsonb);
 select is((select collection_id from public.bookmarks where id='bbbbbbbb-2000-4000-8000-000000000001'),null::uuid,'no move to archived collection');
 select extensions.dblink_disconnect('manager_a');
 select extensions.dblink_disconnect('manager_b');

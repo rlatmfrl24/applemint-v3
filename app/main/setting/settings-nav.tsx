@@ -8,7 +8,7 @@ const SETTING_LINKS = [
 	{
 		href: "/main/setting/bookmarks",
 		label: "북마크",
-		description: "이관과 관심 주제",
+		description: "관심 주제와 AI 사용량",
 		icon: Database,
 	},
 	{

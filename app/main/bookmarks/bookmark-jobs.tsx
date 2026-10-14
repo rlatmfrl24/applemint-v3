@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
+import { BookmarkSaveDialog } from "@/components/bookmark-save-dialog";
 import { Button } from "@/components/ui/button";
 import type { BookmarkJob } from "@/contracts/bookmark.schema";
 import { useTRPCClient } from "@/trpc/client";
@@ -13,6 +14,7 @@ const kindLabels: Record<BookmarkJob["kind"], string> = {
 	classify: "AI 컬렉션 분류",
 	interests: "AI 관심 주제",
 	review: "AI 미사용 검토",
+	recommend: "저장 컬렉션 추천",
 };
 const stateLabels: Record<BookmarkJob["state"], string> = {
 	queued: "대기",
@@ -95,7 +97,7 @@ export function BookmarkJobs({ jobs }: { jobs: BookmarkJob[] }) {
 						data-bookmark-job-id={job.id}
 						className="rounded-md border p-3 text-sm"
 					>
-						{job.kind !== "import" && <JobItems id={job.id} />}
+						{job.kind !== "import" && job.kind !== "recommend" && <JobItems id={job.id} />}
 						{job.progress.usageUncertain === true && (
 							<p>사용량 확인 불가 · 예약액 유지 · 생성된 제안은 보존됩니다.</p>
 						)}
@@ -119,6 +121,20 @@ export function BookmarkJobs({ jobs }: { jobs: BookmarkJob[] }) {
 								{job.error}
 							</p>
 						)}
+						{job.kind === "recommend" &&
+							typeof job.scope.threadId === "string" &&
+							typeof job.scope.url === "string" &&
+							typeof job.scope.title === "string" && (
+								<div className="mt-2">
+									<p className="mb-2 break-words text-muted-foreground">
+										{job.scope.title || job.scope.url}
+									</p>
+									<BookmarkSaveDialog
+										source={{ id: job.scope.threadId, url: job.scope.url, title: job.scope.title }}
+										recommendationId={job.id}
+									/>
+								</div>
+							)}
 						{Array.isArray(job.progress.failedIds) && job.progress.failedIds.length > 0 && (
 							<p>실패 원본 ID: {job.progress.failedIds.join(", ")}</p>
 						)}

@@ -24,7 +24,7 @@ insert into public.bookmark_ai_reservations(id,job_id,month,reserved_nano,input_
  ('eeeeeeee-1000-4000-8000-000000000001','aaaaaaaa-1000-4000-8000-000000000001',date_trunc('month',now() at time zone 'Asia/Seoul')::date,1000,1);
 set local role authenticated;
 select set_config('request.jwt.claim.sub','480f5282-7933-4800-a970-d6bc8f05e8cb',true);
-select throws_ok($$select public.bookmark_command('collectionRemove','{"id":"dddddddd-1000-4000-8000-000000000002","version":2}')$$,'40001','collection changed','stale collection deletion rejected');
+select throws_ok($$select public.bookmark_command('collectionRemove','{"id":"dddddddd-1000-4000-8000-000000000002","version":2}')$$,'PT409','collection changed','stale collection deletion rejected');
 select lives_ok($$select public.bookmark_command('collectionRemove','{"id":"dddddddd-1000-4000-8000-000000000002","version":1}')$$,'owner removes collection atomically');
 reset role;
 select ok((select to_jsonb(c)->>'archived_at' is not null from public.bookmark_collections c where id='dddddddd-1000-4000-8000-000000000002'),'deleted record is archived');
@@ -38,8 +38,8 @@ select is((select source_id from public.bookmark_collections where id='dddddddd-
 select is((select state from public.bookmark_proposals where bookmark_id='bbbbbbbb-1000-4000-8000-000000000001'),'excluded','pending destination proposal invalidated');
 set local role authenticated;
 select is((select count(*) from jsonb_array_elements(public.bookmark_snapshot('{}')->'collections') c where c->>'id'='dddddddd-1000-4000-8000-000000000002'),0::bigint,'archived collection absent from owner snapshot');
-select throws_ok($$select public.bookmark_command('save','{"url":"https://example.com/manager-archived-save","collectionId":"dddddddd-1000-4000-8000-000000000002"}')$$,'40001','collection changed','cannot save into archived target');
-select throws_ok($$select public.bookmark_command('collectionCreate','{"name":"bad child","parentId":"dddddddd-1000-4000-8000-000000000002"}')$$,'40001','collection changed','cannot create child of archived target');
+select throws_ok($$select public.bookmark_command('save','{"url":"https://example.com/manager-archived-save","collectionId":"dddddddd-1000-4000-8000-000000000002"}')$$,'PT409','collection changed','cannot save into archived target');
+select throws_ok($$select public.bookmark_command('collectionCreate','{"name":"bad child","parentId":"dddddddd-1000-4000-8000-000000000002"}')$$,'PT409','collection changed','cannot create child of archived target');
 select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
 select throws_ok($$select public.bookmark_command('collectionRemove','{"id":"dddddddd-1000-4000-8000-000000000001","version":1}')$$,'42501','owner required','nonowner cannot remove');
 reset role;

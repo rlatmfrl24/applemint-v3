@@ -1,8 +1,11 @@
 "use client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
-import { bookmarkFieldClass } from "@/components/bookmark-save-dialog";
+import {
+	BookmarkCollectionPicker,
+	bookmarkFieldClass,
+} from "@/components/bookmark-collection-picker";
 import {
 	AlertDialog,
 	AlertDialogCancel,
@@ -46,6 +49,69 @@ function BookmarkUsage({ item }: { item: BookmarkItem }) {
 				</p>
 			)}
 		</>
+	);
+}
+
+function BookmarkMoveForm({
+	item,
+	items = [item],
+	collections,
+	onDone,
+}: {
+	item: BookmarkItem;
+	items?: BookmarkItem[];
+	collections: BookmarkCollection[];
+	onDone: () => void;
+}) {
+	const trpc = useTRPCClient();
+	const cache = useQueryClient();
+	const fieldId = useId();
+	const [chosen, setChosen] = useState(items.length === 1);
+	const move = useMutation({
+		mutationFn: (collectionId: string | null) =>
+			trpc.bookmarkCollection.moveMany.mutate({
+				items: items.map(({ id, version }) => ({ id, version })),
+				collectionId,
+			}),
+		onSuccess: async (result) => {
+			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
+			onDone();
+			toast.success(`북마크 ${result.applied}개를 이동했습니다.`);
+		},
+		onError: async (error) => {
+			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
+			toast.error(error.message);
+		},
+	});
+	function submit(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		const collectionId = String(new FormData(event.currentTarget).get("collection") ?? "") || null;
+		if (items.every((item) => collectionId === item.collection_id)) {
+			onDone();
+			return;
+		}
+		move.mutate(collectionId);
+	}
+	return (
+		<form className="space-y-3" onSubmit={submit}>
+			<p className="break-words text-sm">
+				{items.length === 1
+					? item.title || item.url
+					: `선택한 북마크 ${items.length}개를 함께 이동합니다.`}
+			</p>
+			<label htmlFor={`${fieldId}collection`}>컬렉션</label>
+			<BookmarkCollectionPicker
+				id={`${fieldId}collection`}
+				name="collection"
+				collections={collections}
+				defaultValue={item.collection_id}
+				disabled={move.isPending}
+				onChange={() => setChosen(true)}
+			/>
+			<Button type="submit" disabled={move.isPending || !chosen}>
+				{move.isPending ? "이동 중…" : "이동"}
+			</Button>
+		</form>
 	);
 }
 
@@ -226,19 +292,13 @@ function BookmarkItemDetail({
 					</label>
 					<div>
 						<label htmlFor={`${fieldId}collection`}>컬렉션</label>
-						<select
+						<BookmarkCollectionPicker
 							id={`${fieldId}collection`}
-							className={bookmarkFieldClass}
 							name="collection"
-							defaultValue={item.collection_id ?? ""}
-						>
-							<option value="">미분류</option>
-							{collections.map((c) => (
-								<option key={c.id} value={c.id}>
-									{collectionPath(c.id, collections)}
-								</option>
-							))}
-						</select>
+							collections={collections}
+							defaultValue={item.collection_id}
+							disabled={pending}
+						/>
 					</div>
 					<label htmlFor={`${fieldId}tags`}>
 						태그
@@ -370,7 +430,8 @@ function BookmarkItemDetail({
 
 export type BookmarkDetailSelection = {
 	item: BookmarkItem;
-	mode: "details" | "edit" | "proposal";
+	items?: BookmarkItem[];
+	mode: "details" | "edit" | "proposal" | "move";
 	trigger: HTMLElement | null;
 };
 export function BookmarkItemDialog({
@@ -395,6 +456,9 @@ export function BookmarkItemDialog({
 		>
 			<AlertDialogContent
 				className="max-h-[85dvh] max-w-2xl overflow-y-auto"
+				onEscapeKeyDown={(event) => {
+					if ((event.target as HTMLElement).closest('[role="tree"]')) event.preventDefault();
+				}}
 				onCloseAutoFocus={(event) => {
 					event.preventDefault();
 					if (trigger.current?.isConnected) trigger.current.focus();
@@ -403,24 +467,36 @@ export function BookmarkItemDialog({
 			>
 				<AlertDialogHeader>
 					<AlertDialogTitle className="border-0 p-0 text-lg">
-						{selection?.mode === "proposal"
-							? "검토 결과"
-							: selection?.mode === "edit"
-								? "북마크 수정"
-								: "북마크 상세"}
+						{selection?.mode === "move"
+							? "컬렉션 이동"
+							: selection?.mode === "proposal"
+								? "검토 결과"
+								: selection?.mode === "edit"
+									? "북마크 수정"
+									: "북마크 상세"}
 					</AlertDialogTitle>
 					<AlertDialogDescription>
 						저장 정보와 검토 근거를 확인합니다. 변경은 확인 후 적용됩니다.
 					</AlertDialogDescription>
 				</AlertDialogHeader>
-				{selection && (
-					<BookmarkItemDetail
-						key={selection.item.id + selection.mode}
+				{selection?.mode === "move" ? (
+					<BookmarkMoveForm
+						key={selection.item.id}
 						item={selection.item}
+						items={selection.items}
 						collections={collections}
-						mode={selection.mode}
 						onDone={close}
 					/>
+				) : (
+					selection && (
+						<BookmarkItemDetail
+							key={selection.item.id + selection.mode}
+							item={selection.item}
+							collections={collections}
+							mode={selection.mode}
+							onDone={close}
+						/>
+					)
 				)}
 				<div className="flex justify-end">
 					<AlertDialogCancel>닫기</AlertDialogCancel>

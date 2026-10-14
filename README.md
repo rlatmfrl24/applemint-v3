@@ -5,6 +5,29 @@
 
 > 이 문서는 개인 프로젝트 운영 관점에 맞춰 작성되었으며, 설치/배포 가이드는 의도적으로 제외했습니다.
 
+## Windows 로컬 실행
+
+Windows 로그인 시작 항목에 등록한 `Applemint Docker 자동 실행` 대기 프로세스가 Docker와 Supabase 준비 상태를 10초마다 확인합니다.
+Docker Desktop만 실행하면 기존 로컬 Supabase 컨테이너가 재시작되고, DB·인증 서비스 준비 후 개발 웹 서버가 자동 실행됩니다.
+별도 실행 파일이나 터미널 명령을 입력할 필요가 없습니다. Node.js 24를 사용하며 DB 초기화·인증 계정 변경은 수행하지 않습니다.
+
+준비가 끝나면 [북마크 관리자](http://localhost:3000/main/bookmarks)에 접속합니다.
+이미 3000번 포트가 사용 중이면 기존 서버를 유지하고 중복 실행하지 않습니다.
+진행·오류 로그는 `reports/docker-auto-start.log`에 기록됩니다. 도커를 끈 상태에서는 대기만 하며 도커를 강제로 다시 켜지 않습니다.
+자동 시작 항목은 최소화 상태로 실행됩니다. Supabase를 명시적으로 중지했거나 컨테이너가 비정상이면 준비를 기다리며 로그에 표시합니다.
+최소화된 대기 프로세스 창을 닫으면 자동 실행 감지가 중단됩니다.
+자동 시작을 해제하려면 Windows 시작프로그램 폴더의 `Applemint Docker 자동 실행.lnk`를 제거하고 실행 중인 대기 프로세스를 종료합니다.
+자동 시작 등록은 이 PC의 사용자 환경 설정이며 Git checkout만으로 다른 PC에 등록되지는 않습니다.
+
+Docker Desktop, Supabase CLI, pnpm, Node.js 24와 기존 `playwright/.auth/local-dev.json`이 필요합니다.
+수동 실행·문제 진단 시에는 프로젝트의 `local.cmd`를 사용할 수 있습니다. 로컬 인증 파일이 없으면 기존
+`pnpm dev:local:prepare` 절차를 이용하고, 실자료 DB에서는 `test:e2e` 준비·초기화 명령을 실행하지 않습니다.
+
+2026-10-14 검증: Docker와 웹 서버를 모두 종료한 뒤 대기 프로세스가 실행을 보류하는 것을 확인했습니다.
+Docker만 다시 실행해 Supabase 준비 대기 → Next.js 자동 기동 → 로그인 HTTP 200을 확인했고,
+북마크 33,443개·컬렉션 72개의 전체 데이터 체크섬과 기존 실행 컨테이너가 모두 보존됐습니다.
+시작 항목 등록은 확인했으나 Windows 로그아웃·재로그인은 수행하지 않았습니다.
+
 ## 주요 기술 스택
 
 ### Frontend
@@ -255,6 +278,7 @@ erDiagram
 - `SUPABASE_URL` (서버 전용, 미설정 시 `NEXT_PUBLIC_SUPABASE_URL` 사용)
 - `CRAWL_INTERNAL_SECRET` (Next 예약 API와 Supabase Vault가 공유하는 32바이트 이상 secret)
 - `YOUTUBE_API_KEY` (YouTube metadata worker 전용 서버 환경 변수)
+- `OPENROUTER_API_KEY` (서버 전용; 북마크 저장 추천·관심 주제·분류·검토 공통 AI 공급자)
 - `WEB_PUSH_ENABLED` (기본 `false`, Web Push 신규 구독·발송 switch)
 - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (서버 전용 Web Push 설정)
 - `DEBUG_CRAWL`, `LOG_LEVEL`
@@ -262,6 +286,8 @@ erDiagram
 - Supabase Vault `crawl_app_base_url`, `crawl_internal_secret` (크롤러와 YouTube worker 정기 예약 호출)
 
 Applemint는 migration에 고정한 단일 Supabase Auth 계정만 사용할 수 있습니다. 신규 가입은 비활성화하며 목록 조회는 소유자에게만 허용되고, 스레드 변경은 소유자 확인이 포함된 RPC를 통해서만 수행합니다.
+
+AI 사용 시 실제 웹 서버 checkout의 `.env.local`에 `OPENROUTER_API_KEY`를 입력합니다. 로컬 개발 서버는 env 변경을 반영하며 설정 화면에서 ‘설정됨’을 확인할 수 있습니다. 배포 환경은 환경 변수 변경 후 다시 실행해야 합니다. 기존 OpenAI·TypeSafe 직접 연결 키는 Applemint에서 사용하지 않습니다. KST 달력 월 $1 예약·정산은 네 AI 기능이 공유하며, 비용이 불명확하면 예약액을 유지합니다. Supabase Studio의 선택 OpenAI assistant는 비활성화했습니다. 상세 운영 계약은 [북마크 구현 기록](docs/BOOKMARK_IMPLEMENTATION.md)을 확인하세요.
 
 ## 검증 명령
 

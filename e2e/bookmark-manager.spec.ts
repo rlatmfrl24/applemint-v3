@@ -4,6 +4,29 @@ import { collectionAncestors } from "../lib/bookmark-tree";
 import { bookmarkOwner, removeCollectionUI } from "./support/bookmarks";
 import { getE2ERuntime } from "./support/runtime";
 
+test("목록 갱신이 실패해도 새 컬렉션을 트리에서 관리할 수 있다", async ({ page }) => {
+	const db = await bookmarkOwner();
+	const name = `컬렉션 갱신 검증 ${Date.now()}`;
+	await page.goto("/main/bookmarks");
+	await expect(page.locator("article[data-bookmark-id]")).toHaveCount(100);
+	await page.route("**/api/trpc/bookmark.list**", (route) => route.abort());
+	let createdId: string | undefined;
+	try {
+		await page.getByRole("button", { name: "컬렉션 추가", exact: true }).click();
+		const dialog = page.getByRole("alertdialog");
+		await dialog.getByLabel("컬렉션 이름", { exact: true }).fill(name);
+		await dialog.getByRole("button", { name: "저장", exact: true }).click();
+		await expect(dialog).not.toBeVisible();
+		const created = await db.from("bookmark_collections").select("id").eq("name", name).single();
+		expect(created.error).toBeNull();
+		createdId = created.data?.id;
+		await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
+	} finally {
+		await page.unroute("**/api/trpc/bookmark.list**");
+		if (createdId) await removeCollectionUI(page, name, createdId);
+	}
+});
+
 test("현재 컬렉션을 떠난 선택 항목으로 AI 작업을 실행할 수 없다", async ({ page }) => {
 	const db = await bookmarkOwner();
 	const sample = await db
@@ -33,7 +56,11 @@ test("현재 컬렉션을 떠난 선택 항목으로 AI 작업을 실행할 수 
 		await row.getByRole("button", { name: `${sample.data?.title} 항목 메뉴`, exact: true }).click();
 		await page.getByRole("menuitem", { name: "수정", exact: true }).click();
 		dialog = page.getByRole("alertdialog");
-		await dialog.getByLabel("컬렉션", { exact: true }).selectOption(collection.data?.id);
+		await dialog.getByLabel("컬렉션", { exact: true }).click();
+		await dialog
+			.getByRole("tree", { name: "컬렉션 선택" })
+			.getByRole("treeitem", { name, exact: true })
+			.click();
 		await dialog.getByRole("button", { name: "변경 저장", exact: true }).click();
 		await expect(dialog).not.toBeVisible();
 		await expect(row).toHaveCount(0);
@@ -103,12 +130,46 @@ test("관리자는 계층과 팝업을 제공하고 저장·설정 바로가기�
 	await page.goto("/main/bookmarks");
 	await expect(page.getByRole("button", { name: "북마크 저장", exact: true })).toHaveCount(0);
 	await expect(page.getByRole("link", { name: "북마크 설정", exact: true })).toHaveCount(0);
+	await expect(
+		page
+			.getByRole("navigation", { name: "북마크 보기" })
+			.getByRole("link", { name: "휴지통", exact: true })
+	).toHaveCount(0);
+	const sidebar = page.getByRole("navigation", { name: "북마크 탐색", exact: true });
+	const collections = sidebar.getByRole("region", { name: "컬렉션", exact: true });
+	await expect(collections.getByRole("button", { name: "컬렉션 추가", exact: true })).toBeVisible();
+	const order = await sidebar.evaluate((nav) => {
+		const unfiled = [...nav.querySelectorAll("button")].find(
+			(button) => button.textContent === "미분류"
+		);
+		const trash = [...nav.querySelectorAll("button")].find(
+			(button) => button.textContent === "휴지통"
+		);
+		const heading = nav.querySelector("h2");
+		return {
+			unfiled: unfiled?.getBoundingClientRect().top,
+			trash: trash?.getBoundingClientRect().top,
+			heading: heading?.getBoundingClientRect().top,
+		};
+	});
+	expect(order.trash).toBeGreaterThan(order.unfiled ?? Number.POSITIVE_INFINITY);
+	expect(order.heading).toBeGreaterThan(order.trash ?? Number.POSITIVE_INFINITY);
 	await expect(page.getByRole("button", { name: "컬렉션 추가", exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "컬렉션 추가", exact: true }).click();
 	await expect(page.getByRole("alertdialog")).toBeVisible();
 	await expect(page.getByLabel("상위 컬렉션", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "취소", exact: true }).click();
 	await expect(page.getByRole("button", { name: "컬렉션 추가", exact: true })).toBeFocused();
+	await sidebar.getByRole("button", { name: "휴지통", exact: true }).click();
+	await expect(page).toHaveURL(/\/main\/bookmarks\?state=trash$/u);
+	await expect(
+		page.locator("main").getByRole("heading", { name: "휴지통", exact: true })
+	).toBeVisible();
+	await page
+		.getByRole("navigation", { name: "북마크 보기" })
+		.getByRole("link", { name: "북마크", exact: true })
+		.click();
+	await expect(page).toHaveURL(/\/main\/bookmarks$/u);
 });
 
 test("실제 깊은 계층을 선택하면 조상이 펼쳐지고 접기 상태가 세션에 남는다", async ({ page }) => {
@@ -136,9 +197,9 @@ test("실제 깊은 계층을 선택하면 조상이 펼쳐지고 접기 상태�
 		page.getByRole("button", { name: `${root.name} 하위 컬렉션 펼치기`, exact: true })
 	).toHaveAttribute("aria-expanded", "false");
 	await page.setViewportSize({ width: 375, height: 812 });
-	await expect(page.getByRole("navigation", { name: "북마크 컬렉션" })).not.toBeVisible();
-	await page.getByRole("button", { name: "컬렉션 탐색", exact: true }).click();
-	await expect(page.getByRole("navigation", { name: "북마크 컬렉션" })).toBeVisible();
+	await expect(page.getByRole("navigation", { name: "북마크 탐색" })).not.toBeVisible();
+	await page.getByRole("button", { name: "북마크 탐색", exact: true }).click();
+	await expect(page.getByRole("navigation", { name: "북마크 탐색" })).toBeVisible();
 });
 
 test("작업 기록에서 실제 실패한 메타데이터 작업을 같은 작업으로 재개한다", async ({ page }) => {
@@ -365,11 +426,11 @@ test("컬렉션 팝업으로 계층 생성·이름 수정·삭제하고 DB에서
 		}
 	}
 });
-test("검토·휴지통·작업 기록은 독립 화면이며 컬렉션 탐색을 표시하지 않는다", async ({ page }) => {
-	for (const route of ["review", "trash", "activity"]) {
+test("검토·작업 기록은 독립 화면이며 컬렉션 탐색을 표시하지 않는다", async ({ page }) => {
+	for (const route of ["review", "activity"]) {
 		await page.goto(`/main/bookmarks/${route}`);
 		await expect(page.getByRole("navigation", { name: "북마크 보기" })).toBeVisible();
-		await expect(page.getByRole("navigation", { name: "북마크 컬렉션" })).toHaveCount(0);
+		await expect(page.getByRole("navigation", { name: "북마크 탐색" })).toHaveCount(0);
 		await expect(page.getByRole("button", { name: "컬렉션 추가", exact: true })).toHaveCount(0);
 		if (route !== "activity") {
 			await expect(

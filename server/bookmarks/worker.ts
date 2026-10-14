@@ -10,6 +10,7 @@ import {
 import type { Json } from "@/types/database.types";
 import type { AppSupabaseClient } from "@/types/supabase";
 import {
+	AI_INPUT_LIMIT,
 	AI_OUTPUT_LIMIT,
 	buildAIRequest,
 	callBookmarkAI,
@@ -20,6 +21,11 @@ import {
 import { checkBookmarkLink, type LinkResult } from "./health";
 import { collectionDigest, importVerified } from "./import-verification";
 import { parseRaindropPage, raindropManifest, readRaindrop } from "./raindrop";
+import {
+	buildRecommendationRequest,
+	callRecommendation,
+	recommendationReservation,
+} from "./recommendation";
 import { safeFetch } from "./safe-fetch";
 
 const claimSchema = z.object({
@@ -273,8 +279,8 @@ function usageExceeded(
 }
 async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
 	const kind = claim.job.kind as "classify" | "review" | "interests";
-	if (!process.env.OPENAI_API_KEY?.trim())
-		return { state: "paused", error: "서버 OPENAI_API_KEY 설정 후 작업을 재개해주세요." };
+	if (!process.env.OPENROUTER_API_KEY?.trim())
+		return { state: "paused", error: "서버 OPENROUTER_API_KEY 설정 후 작업을 재개해주세요." };
 	let items = claim.items;
 	const collections = claim.collections.map((c) => ({
 		id: c.id,
@@ -301,7 +307,7 @@ async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
 		})),
 	});
 	let tokens = await countAIInput(request);
-	while (tokens > 128000 && items.length > 1) {
+	while (tokens > AI_INPUT_LIMIT && items.length > 1) {
 		items = items.slice(0, Math.ceil(items.length / 2));
 		request = buildAIRequest(kind, {
 			collections,
@@ -322,19 +328,21 @@ async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
 		});
 		tokens = await countAIInput(request);
 	}
-	if (tokens > 128000)
+	if (tokens > AI_INPUT_LIMIT)
 		return {
 			state: "paused",
 			error: "컬렉션·메타데이터 입력이 너무 큽니다. 컬렉션 또는 선택 항목 범위를 줄여주세요.",
 		};
 	const reservationId = randomUUID();
-	const reservedNano = reserveNano(tokens, AI_OUTPUT_LIMIT);
+	const reservedNano = reserveNano(AI_INPUT_LIMIT, AI_OUTPUT_LIMIT);
 	const { data: reserved, error } = await db.rpc("bookmark_ai_reserve", {
 		p_id: reservationId,
 		p_job: claim.job.id,
 		p_lease: claim.job.lease_token ?? "",
-		p_tokens: tokens,
+		p_tokens: AI_INPUT_LIMIT,
 		p_amount: reservedNano,
+		p_provider: "openrouter",
+		p_model: request.model,
 	});
 	if (error) throw new Error("BUDGET_RESERVATION_FAILED");
 	if (!reserved)
@@ -345,17 +353,23 @@ async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
 		};
 	try {
 		const response = await callBookmarkAI(request);
-		const settlement: Commit = {
+		const settlement = {
 			reservationId,
 			reservationState: response.chargedNano === null ? "uncertain" : "settled",
-			progress: { usageUncertain: response.chargedNano === null },
+			progress: {
+				provider: "openrouter",
+				model: request.model,
+				inputTokens: response.inputTokens,
+				usageUncertain: response.chargedNano === null,
+			},
 			chargedNano: response.chargedNano,
 			outputTokens: response.outputTokens,
-		};
-		if (usageExceeded(response, reservedNano, tokens)) {
+		} satisfies Commit;
+		if (usageExceeded(response, reservedNano, AI_INPUT_LIMIT)) {
 			return {
-				reservationId,
+				...settlement,
 				reservationState: "uncertain",
+				progress: { ...settlement.progress, usageUncertain: true },
 				state: "paused",
 				error: "응답 사용량이 예약 산정을 벗어났습니다. 가격·사용량 확인이 필요합니다.",
 			};
@@ -391,6 +405,88 @@ async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
 	}
 }
 
+async function recommendCollection(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
+	if (!process.env.OPENROUTER_API_KEY?.trim())
+		return {
+			state: "paused",
+			error: "저장 추천 설정이 필요합니다. 수동으로 컬렉션을 선택해 저장할 수 있습니다.",
+		};
+	if (claim.collections.length >= 255)
+		return {
+			state: "paused",
+			error: "Jev의 선택지 한도를 초과했습니다. 수동으로 컬렉션을 선택해주세요.",
+		};
+	const request = buildRecommendationRequest(
+		claim.job.scope,
+		claim.collections,
+		claim.settings.interests
+	);
+	const reservation = recommendationReservation();
+	const reservationId = randomUUID();
+	const { data: reserved, error } = await db.rpc("bookmark_ai_reserve", {
+		p_id: reservationId,
+		p_job: claim.job.id,
+		p_lease: claim.job.lease_token ?? "",
+		p_tokens: reservation.tokens,
+		p_amount: reservation.nano,
+		p_provider: "openrouter",
+		p_model: request.model,
+	});
+	if (error) throw new Error("BUDGET_RESERVATION_FAILED");
+	if (!reserved)
+		return {
+			state: "paused",
+			error: "KST 이번 달 $1 AI 예산이 부족합니다. 수동으로 컬렉션을 선택해 저장할 수 있습니다.",
+		};
+	try {
+		const result = await callRecommendation(request, claim.collections);
+		if ((result.chargedNano ?? 0) > reservation.nano)
+			return {
+				reservationId,
+				reservationState: "uncertain",
+				chargedNano: result.chargedNano,
+				outputTokens: result.outputTokens,
+				progress: { provider: "openrouter", usageUncertain: true },
+				state: "paused",
+				error:
+					"OpenRouter 청구액이 예약 범위를 벗어나 중단했습니다. 가격·사용량 확인이 필요합니다.",
+			};
+		return {
+			reservationId,
+			reservationState: result.chargedNano === null ? "uncertain" : "settled",
+			chargedNano: result.chargedNano,
+			outputTokens: result.outputTokens,
+			progress: {
+				provider: "openrouter",
+				model: "typesafe/jev-1.13",
+				usageUncertain: result.chargedNano === null,
+				inputTokens: result.inputTokens,
+			},
+			...(result.recommendation
+				? { state: "succeeded", completed: 1, failed: 0, recommendation: result.recommendation }
+				: {
+						state: result.chargedNano === null ? "paused" : "failed",
+						completed: 0,
+						failed: 1,
+						error:
+							result.chargedNano === null
+								? "추천 응답을 검증하지 못해 예약액을 유지합니다. 수동 저장은 가능합니다."
+								: `추천 응답 검증 실패 (${result.outputError}). 알려진 사용량은 정산했습니다. 수동 저장은 가능합니다.`,
+					}),
+		};
+	} catch {
+		return {
+			reservationId,
+			reservationState: "uncertain",
+			progress: { provider: "openrouter", model: "typesafe/jev-1.13", usageUncertain: true },
+			state: "paused",
+			completed: 0,
+			error:
+				"추천 응답을 확인하지 못해 예약액을 유지합니다. 작업 기록에서 재개하거나 수동으로 저장할 수 있습니다.",
+		};
+	}
+}
+
 async function processClaim(
 	db: AppSupabaseClient,
 	claim: Claim,
@@ -400,6 +496,9 @@ async function processClaim(
 	let result: Commit;
 	try {
 		switch (claim.job.kind) {
+			case "recommend":
+				result = await recommendCollection(db, claim);
+				break;
 			case "import":
 				result = await importPage(db, claim, await getAccount(), token);
 				break;
@@ -453,7 +552,7 @@ export async function runBookmarkWorker(db: AppSupabaseClient) {
 		claimed++;
 		if (claim.job.kind === "import") await new Promise((resolve) => setTimeout(resolve, 1200));
 		// A single AI call can consume the route deadline; durable pending items remain for the next dispatch.
-		if (["classify", "review", "interests"].includes(claim.job.kind)) break;
+		if (["classify", "review", "interests", "recommend"].includes(claim.job.kind)) break;
 	}
 	return { claimedCount: claimed, leaseRejectedCount: leaseRejected };
 }

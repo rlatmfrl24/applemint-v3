@@ -13,10 +13,8 @@ test("실제 AI 관심 주제·분류를 검토 팝업에서 수정·승인하�
 	const beforeUsed = initial.data.budget.used_nano;
 	const beforeJobs = initial.data.jobs.map((job: { id: string }) => job.id);
 	await page.goto("/main/setting/bookmarks");
-	await expect(page.getByText("OPENAI_API_KEY: 설정됨", { exact: true })).toBeVisible();
-	await page
-		.getByRole("button", { name: "기존 컬렉션·태그로 AI 관심 주제 제안", exact: true })
-		.click();
+	await expect(page.getByText("OpenRouter 연결됨", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "AI 추천 받기", exact: true }).click();
 	await expect
 		.poll(
 			async () => {
@@ -42,21 +40,30 @@ test("실제 AI 관심 주제·분류를 검토 팝업에서 수정·승인하�
 	expect(suggestions.error).toBeNull();
 	if (!suggestions.data) throw new Error("관심 주제 결과가 없습니다.");
 	expect(suggestions.data?.suggested_interests.length).toBeGreaterThan(0);
-	await expect(page.getByText(/^AI 제안:/u)).toBeVisible();
-	await page.getByRole("button", { name: "수정 입력에 가져오기", exact: true }).click();
-	const interests = [...suggestions.data.suggested_interests.slice(0, 2), "프런트엔드 개발"];
+	await expect(page.getByRole("region", { name: "AI 추천 주제", exact: true })).toBeVisible();
+	const suggested = suggestions.data.suggested_interests
+		.filter((topic: string) => !originalInterests.includes(topic))
+		.slice(0, 2);
+	const interests = [...new Set([...originalInterests, ...suggested, "프런트엔드 개발"])];
 	try {
-		await page.getByLabel("확정할 관심 주제 (한 줄에 하나)").fill(interests.join("\n"));
-		await page.getByRole("button", { name: "관심 주제 확정", exact: true }).click();
-		await expect(page.getByText("관심 주제를 확정했습니다.", { exact: true })).toBeVisible();
+		for (const topic of suggested) {
+			await page
+				.getByRole("region", { name: "AI 추천 주제", exact: true })
+				.getByRole("button", { name: `${topic} 추가`, exact: true })
+				.click();
+			await expect(page.getByRole("button", { name: `${topic} 수정`, exact: true })).toBeVisible();
+		}
+		if (!originalInterests.includes("프런트엔드 개발") && !suggested.includes("프런트엔드 개발")) {
+			await page.getByLabel("관심 주제 이름", { exact: true }).fill("프런트엔드 개발");
+			await page.getByRole("button", { name: "주제 추가", exact: true }).click();
+			await expect(
+				page.getByRole("button", { name: "프런트엔드 개발 수정", exact: true })
+			).toBeVisible();
+		}
 		expect(
 			(await db.from("bookmark_settings").select("interests").single()).data?.interests
 		).toEqual(interests);
-		const prefix = `실제 AI 관리자 검증 ${Date.now()}`;
-		const sources = [
-			await saveSourceBookmark(page, db, `${prefix} 1`),
-			await saveSourceBookmark(page, db, `${prefix} 2`),
-		];
+		const sources = [await saveSourceBookmark(page, db), await saveSourceBookmark(page, db)];
 		const ids = sources.map((item) => item.id);
 		await expect
 			.poll(
@@ -70,9 +77,9 @@ test("실제 AI 관심 주제·분류를 검토 팝업에서 수정·승인하�
 				{ timeout: 120000, intervals: [1000, 3000, 5000] }
 			)
 			.toBe(true);
-		await page.goto(`/main/bookmarks?search=${encodeURIComponent(prefix)}`);
-		await expect(page.locator("article[data-bookmark-id]")).toHaveCount(2);
-		await page.getByLabel("현재 페이지 선택", { exact: true }).check();
+		await page.goto("/main/bookmarks");
+		for (const id of ids)
+			await page.locator(`[data-bookmark-id="${id}"]`).getByRole("checkbox").check();
 		await page.getByRole("button", { name: "AI 정리", exact: true }).click();
 		await page.getByRole("menuitem", { name: "AI 컬렉션 분류", exact: true }).click();
 		await expect(
@@ -104,7 +111,9 @@ test("실제 AI 관심 주제·분류를 검토 팝업에서 수정·승인하�
 		expect(proposed.error).toBeNull();
 		expect(proposed.data).toHaveLength(2);
 		expect(proposed.data?.every((item) => item.reason.length > 0)).toBe(true);
-		await page.goto(`/main/bookmarks/review?type=classify&search=${encodeURIComponent(prefix)}`);
+		await page.goto(
+			`/main/bookmarks/review?type=classify&search=${encodeURIComponent(sources[0].url)}`
+		);
 		const name = `AI 관리자 검증 컬렉션 ${Date.now()}`;
 		const first = page.locator(`[data-bookmark-id="${ids[0]}"]`);
 		await first.getByRole("button", { name: "변경안", exact: true }).click();
@@ -119,6 +128,9 @@ test("실제 AI 관심 주제·분류를 검토 팝업에서 수정·승인하�
 			.eq("name", name)
 			.single();
 		expect(created.error).toBeNull();
+		await page.goto(
+			`/main/bookmarks/review?type=classify&search=${encodeURIComponent(sources[1].url)}`
+		);
 		const second = page.locator(`[data-bookmark-id="${ids[1]}"]`);
 		await second.getByRole("button", { name: "변경안", exact: true }).click();
 		dialog = page.getByRole("alertdialog");
@@ -126,9 +138,9 @@ test("실제 AI 관심 주제·분류를 검토 팝업에서 수정·승인하�
 		await expect(dialog.getByLabel("새 컬렉션 이름 (입력하면 새 컬렉션으로 이동)")).toHaveValue("");
 		await dialog.getByRole("button", { name: "이 항목 승인·이동", exact: true }).click();
 		await expect(dialog).not.toBeVisible();
-		await page.goto(`/main/bookmarks?search=${encodeURIComponent(prefix)}`);
+		await page.goto("/main/bookmarks");
 		await page.reload();
-		await expect(page.locator("article[data-bookmark-id]")).toHaveCount(2);
+		for (const id of ids) await expect(page.locator(`[data-bookmark-id="${id}"]`)).toBeVisible();
 		const applied = await db
 			.from("bookmarks")
 			.select("id,collection_id,original,source_thread_id")

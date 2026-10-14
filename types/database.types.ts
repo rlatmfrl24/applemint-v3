@@ -10,8 +10,10 @@ export type Database = {
 					id: string;
 					input_tokens: number;
 					job_id: string;
+					model: string | null;
 					month: string;
 					output_tokens: number | null;
+					provider: string | null;
 					reserved_nano: number;
 					state: string;
 				};
@@ -21,8 +23,10 @@ export type Database = {
 					id: string;
 					input_tokens: number;
 					job_id: string;
+					model?: string | null;
 					month: string;
 					output_tokens?: number | null;
+					provider?: string | null;
 					reserved_nano: number;
 					state?: string;
 				};
@@ -32,8 +36,10 @@ export type Database = {
 					id?: string;
 					input_tokens?: number;
 					job_id?: string;
+					model?: string | null;
 					month?: string;
 					output_tokens?: number | null;
+					provider?: string | null;
 					reserved_nano?: number;
 					state?: string;
 				};
@@ -109,6 +115,7 @@ export type Database = {
 					name: string;
 					original: Json | null;
 					parent_id: string | null;
+					sort_order: number;
 					source_id: string | null;
 					version: number;
 				};
@@ -119,6 +126,7 @@ export type Database = {
 					name: string;
 					original?: Json | null;
 					parent_id?: string | null;
+					sort_order?: number;
 					source_id?: string | null;
 					version?: number;
 				};
@@ -129,6 +137,7 @@ export type Database = {
 					name?: string;
 					original?: Json | null;
 					parent_id?: string | null;
+					sort_order?: number;
 					source_id?: string | null;
 					version?: number;
 				};
@@ -1287,10 +1296,13 @@ export type Database = {
 					p_id: string;
 					p_job: string;
 					p_lease: string;
+					p_model: string;
+					p_provider: string;
 					p_tokens: number;
 				};
 				Returns: boolean;
 			};
+			bookmark_ai_usage: { Args: never; Returns: Json };
 			bookmark_assert_collection: { Args: { p_id: string }; Returns: undefined };
 			bookmark_collection_path: { Args: { p_id: string }; Returns: string };
 			bookmark_command: {

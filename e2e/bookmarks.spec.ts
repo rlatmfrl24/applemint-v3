@@ -41,7 +41,11 @@ test("수집 글 저장·수정·열기·휴지통·복원과 컬렉션 삭제�
 	await row.getByRole("button", { name: `${title} 항목 메뉴`, exact: true }).click();
 	await page.getByRole("menuitem", { name: "수정", exact: true }).click();
 	dialog = page.getByRole("alertdialog");
-	await dialog.getByLabel("컬렉션", { exact: true }).selectOption(collection.data?.id);
+	await dialog.getByLabel("컬렉션", { exact: true }).click();
+	await dialog
+		.getByRole("tree", { name: "컬렉션 선택" })
+		.getByRole("treeitem", { name: title, exact: true })
+		.click();
 	await dialog.getByRole("textbox", { name: "메모", exact: true }).fill("복원 후에도 유지");
 	await dialog.getByRole("button", { name: "변경 저장", exact: true }).click();
 	await expect(dialog).not.toBeVisible();
@@ -92,7 +96,7 @@ test("수집 글 저장·수정·열기·휴지통·복원과 컬렉션 삭제�
 	);
 });
 
-test("검토 유형별 전체 수량·페이지가 DB와 일치하고 선택·이전 진입 조건을 보존한다", async ({
+test("검토 유형별 수량·추가 로드가 DB와 일치하고 선택·기존 진입 조건을 보존한다", async ({
 	page,
 }) => {
 	const db = await bookmarkOwner();
@@ -113,19 +117,17 @@ test("검토 유형별 전체 수량·페이지가 DB와 일치하고 선택·�
 			page.getByText(`${snapshot.data.total.toLocaleString()}개 · 선택 0개`, { exact: true })
 		).toBeVisible();
 	}
-	await page.getByLabel("현재 페이지 선택", { exact: true }).check();
-	await page.getByRole("button", { name: "다음", exact: true }).click();
-	await expect(page.getByText(/선택 0개/u).first()).toBeVisible();
-	await expect(page.getByLabel("현재 페이지 선택", { exact: true })).not.toBeChecked();
-	await page.getByRole("link", { name: "휴지통", exact: true }).click();
-	await expect(page).toHaveURL(/\/trash$/u);
-	await page.goBack();
-	await expect(page).toHaveURL(/\/review\?page=2/u);
+	await page.getByLabel("불러온 항목 선택", { exact: true }).check();
+	await page.getByTestId("bookmark-load-more-sentinel").scrollIntoViewIfNeeded();
+	await expect(page.locator("article[data-bookmark-id]")).toHaveCount(200);
+	await expect(page.getByText(/개 · 선택 100개$/u)).toBeVisible();
+	await page.getByRole("button", { name: "죽은 링크", exact: true }).click();
+	await expect(page.getByLabel("불러온 항목 선택", { exact: true })).not.toBeChecked();
 	await page.goto("/main/bookmarks?state=trash&search=legacy-query");
-	await expect(page).toHaveURL(/\/trash\?search=legacy-query/u);
+	await expect(page).toHaveURL(/\/bookmarks\?state=trash&search=legacy-query/u);
 	await expect(page.getByLabel("북마크 검색")).toHaveValue("legacy-query");
 	await page.goto("/main/setting/bookmarks");
-	await page.getByRole("link", { name: "작업 기록에서 진행·실패·재개 확인" }).click();
+	await page.getByRole("link", { name: "작업 기록 보기", exact: true }).click();
 	await expect(page).toHaveURL(/\/activity$/u);
 });
 
@@ -198,6 +200,10 @@ test("수동 링크 검사 후 검토 유지·휴지통·복원을 실제 UI에�
 test("완료된 일회 이관은 설정 화면에서 재실행할 수 없다", async ({ page }) => {
 	test.skip(process.env.BOOKMARK_IMPORTED_LIBRARY !== "1", "완료된 로컬 이관 자료 검증");
 	await page.goto("/main/setting/bookmarks");
+	const summary = page.locator("summary").filter({ hasText: "Raindrop 가져오기" });
+	await expect(summary).toContainText("완료");
+	await expect(summary.locator("..")).not.toHaveAttribute("open");
+	await summary.click();
 	await expect(page.getByText(/이관 완료 · 새 이관은 비활성화/u)).toBeVisible();
 	await expect(
 		page.getByRole("button", { name: /최초 가져오기 시작|기존 이관 작업 재개/u })

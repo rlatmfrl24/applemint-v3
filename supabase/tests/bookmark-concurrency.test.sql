@@ -4,7 +4,7 @@ create extension if not exists dblink with schema extensions;
 select replace(gen_random_uuid()::text,'-','') as bookmark_test_password \gset
 create role bookmark_concurrent_login login password :'bookmark_test_password';
 grant authenticated to bookmark_concurrent_login;
-grant execute on function public.bookmark_ai_reserve(uuid,uuid,uuid,int,bigint),public.bookmark_worker_commit(uuid,uuid,jsonb) to bookmark_concurrent_login;
+grant execute on function public.bookmark_ai_reserve(uuid,uuid,uuid,int,bigint,text,text),public.bookmark_worker_commit(uuid,uuid,jsonb) to bookmark_concurrent_login;
 insert into public.bookmark_jobs(id,kind,state,lease_token,lease_expires_at,total) values
  ('aaaaaaaa-0000-4000-8000-000000000011','classify','processing','cccccccc-0000-4000-8000-000000000011',now()+interval '90 seconds',1),
  ('aaaaaaaa-0000-4000-8000-000000000012','review','processing','cccccccc-0000-4000-8000-000000000012',now()+interval '90 seconds',2);
@@ -27,8 +27,8 @@ select extensions.dblink_exec('bookmark_b',$$set request.jwt.claim.sub='480f5282
 select greatest(0,1000000000-coalesce(sum(case when state='released' then 0 when state='settled' then charged_nano else reserved_nano end),0))::bigint as bookmark_remaining,
  greatest(0,1000000000-coalesce(sum(case when state='released' then 0 when state='settled' then charged_nano else reserved_nano end),0))>=2 as bookmark_can_test_budget from public.bookmark_ai_reservations where month=date_trunc('month',now() at time zone 'Asia/Seoul')::date \gset
 \if :bookmark_can_test_budget
- select extensions.dblink_send_query('bookmark_a',format($q$with delay as materialized(select pg_sleep(0.2)) select public.bookmark_ai_reserve('eeeeeeee-0000-4000-8000-000000000011','aaaaaaaa-0000-4000-8000-000000000011','cccccccc-0000-4000-8000-000000000011',1,%s) from delay$q$,(:bookmark_remaining::bigint/2)+1));
- select extensions.dblink_send_query('bookmark_b',format($q$with delay as materialized(select pg_sleep(0.2)) select public.bookmark_ai_reserve('eeeeeeee-0000-4000-8000-000000000012','aaaaaaaa-0000-4000-8000-000000000012','cccccccc-0000-4000-8000-000000000012',1,%s) from delay$q$,(:bookmark_remaining::bigint/2)+1));
+ select extensions.dblink_send_query('bookmark_a',format($q$with delay as materialized(select pg_sleep(0.2)) select public.bookmark_ai_reserve('eeeeeeee-0000-4000-8000-000000000011','aaaaaaaa-0000-4000-8000-000000000011','cccccccc-0000-4000-8000-000000000011',1,%s,'openrouter','openai/gpt-6-luna') from delay$q$,(:bookmark_remaining::bigint/2)+1));
+ select extensions.dblink_send_query('bookmark_b',format($q$with delay as materialized(select pg_sleep(0.2)) select public.bookmark_ai_reserve('eeeeeeee-0000-4000-8000-000000000012','aaaaaaaa-0000-4000-8000-000000000012','cccccccc-0000-4000-8000-000000000012',1,%s,'openrouter','openai/gpt-6-luna') from delay$q$,(:bookmark_remaining::bigint/2)+1));
  create temporary table bookmark_budget_results(result boolean);
  insert into bookmark_budget_results select * from extensions.dblink_get_result('bookmark_a') as r(result boolean);
  insert into bookmark_budget_results select * from extensions.dblink_get_result('bookmark_b') as r(result boolean);
@@ -56,7 +56,7 @@ delete from public.bookmark_job_items where job_id='aaaaaaaa-0000-4000-8000-0000
 delete from public.bookmarks where id in ('bbbbbbbb-0000-4000-8000-000000000011','bbbbbbbb-0000-4000-8000-000000000012');
 delete from public.bookmark_ai_reservations where job_id in ('aaaaaaaa-0000-4000-8000-000000000011','aaaaaaaa-0000-4000-8000-000000000012');
 delete from public.bookmark_jobs where id in ('aaaaaaaa-0000-4000-8000-000000000011','aaaaaaaa-0000-4000-8000-000000000012');
-revoke execute on function public.bookmark_ai_reserve(uuid,uuid,uuid,int,bigint),public.bookmark_worker_commit(uuid,uuid,jsonb) from bookmark_concurrent_login;
+revoke execute on function public.bookmark_ai_reserve(uuid,uuid,uuid,int,bigint,text,text),public.bookmark_worker_commit(uuid,uuid,jsonb) from bookmark_concurrent_login;
 revoke authenticated from bookmark_concurrent_login;
 drop role bookmark_concurrent_login;
 select * from finish();

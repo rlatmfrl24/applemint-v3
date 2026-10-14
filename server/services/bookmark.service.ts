@@ -4,10 +4,12 @@ import {
 	type BookmarkScope,
 	bookmarkCollectionSchema,
 	bookmarkJobSchema,
+	type bookmarkRecommendationInputSchema,
 	bookmarkSchema,
 } from "@/contracts/bookmark.schema";
 import { normalizeBookmarkUrl } from "@/server/bookmarks/url";
 import { getBookmarkConfiguration } from "@/server/env/bookmarks";
+import { DomainError } from "@/server/errors/domain-error";
 import type { BookmarkRepository } from "@/server/repositories/bookmark.repository";
 
 export class BookmarkService {
@@ -18,8 +20,16 @@ export class BookmarkService {
 	configuration() {
 		return getBookmarkConfiguration();
 	}
+	aiUsage() {
+		return this.store.aiUsage();
+	}
 	async save(input: BookmarkSaveInput) {
 		const source = input.threadId ? await this.store.sourceThread(input.threadId) : null;
+		if (source && normalizeBookmarkUrl(source.url) !== normalizeBookmarkUrl(input.url))
+			throw new DomainError(
+				"StateConflict",
+				"원본 URL이 변경되었습니다. 수집 글 화면에서 저장 팝업을 다시 열어주세요."
+			);
 		return this.store.command(
 			"save",
 			{
@@ -33,7 +43,10 @@ export class BookmarkService {
 	mutate(action: "edit" | "trash" | "restore" | "open" | "keep" | "move", input: object) {
 		return this.store.command(action, input, bookmarkSchema);
 	}
-	collection(action: "collectionCreate" | "collectionRename", input: object) {
+	collection(
+		action: "collectionCreate" | "collectionRename" | "collectionMove" | "collectionReorder",
+		input: object
+	) {
 		return this.store.command(action, input, bookmarkCollectionSchema);
 	}
 	removeCollection(input: { id: string; version: number }) {
@@ -60,7 +73,21 @@ export class BookmarkService {
 	jobDetails(input: { id: string; offset: number }) {
 		return this.store.jobDetails(input.id, input.offset);
 	}
-	interests(input: { interests: string[] }) {
+	jobs() {
+		return this.store.jobs();
+	}
+	recommend(input: z.infer<typeof bookmarkRecommendationInputSchema>) {
+		if (!getBookmarkConfiguration().openrouter)
+			throw new DomainError(
+				"ConfigurationUnavailable",
+				"저장 추천 설정이 필요합니다. 수동으로 저장할 수 있습니다."
+			);
+		return this.store.command("recommend", input, bookmarkJobSchema);
+	}
+	recommendation(input: { id: string }) {
+		return this.store.recommendation(input.id);
+	}
+	interests(input: { interests: string[]; version?: number }) {
 		return this.store.command(
 			"interests",
 			input,
@@ -70,7 +97,13 @@ export class BookmarkService {
 	apply(input: object) {
 		return this.store.command("proposalApply", input, z.object({ applied: z.number().int() }));
 	}
+	excludeProposals(input: object) {
+		return this.store.command("proposalExclude", input, z.object({ applied: z.number().int() }));
+	}
 	bulk(input: object) {
 		return this.store.command("bulk", input, z.object({ applied: z.number().int() }));
+	}
+	moveMany(input: object) {
+		return this.store.command("bulkMove", input, z.object({ applied: z.number().int() }));
 	}
 }

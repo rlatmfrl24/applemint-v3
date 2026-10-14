@@ -1,30 +1,27 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildAIRequest, countAIInput, priceNano, reserveNano, validateAIItems } from "./ai";
+import { buildAIRequest, countAIInput, reserveNano, validateAIItems } from "./ai";
 
 afterEach(() => {
 	vi.restoreAllMocks();
 	vi.unstubAllEnvs();
 });
-it("counts the identical input and output schema without generation-only options", async () => {
-	vi.stubEnv("OPENAI_API_KEY", "fixture-only");
-	const fetch = vi
-		.spyOn(globalThis, "fetch")
-		.mockResolvedValue(Response.json({ input_tokens: 42 }));
+it("gates inputs locally without sending a paid request or calling OpenAI for token counting", async () => {
+	const fetch = vi.spyOn(globalThis, "fetch");
 	const request = buildAIRequest("interests", { collections: [] });
-	expect(await countAIInput(request)).toBe(42);
-	expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toEqual({
-		model: request.model,
-		input: request.input,
-		instructions: request.instructions,
-		reasoning: request.reasoning,
-		text: request.text,
+	expect(request.model).toBe("openai/gpt-6-luna");
+	expect(request.provider).toMatchObject({
+		require_parameters: true,
+		max_price: { prompt: 0.125, completion: 0.5 },
 	});
+	expect(await countAIInput(request)).toBeGreaterThanOrEqual(
+		Buffer.byteLength(JSON.stringify(request), "utf8")
+	);
+	expect(fetch).not.toHaveBeenCalled();
 });
 
 describe("AI cost and complete outputs", () => {
 	it("reserves the maximum output and input category cost without float rounding", () => {
 		expect(reserveNano(1000, 8192)).toBe(4_221_000);
-		expect(priceNano(1000, 8192)).toBe(4_196_000);
 	});
 	it("rejects output IDs outside the requested set", () => {
 		expect(() =>

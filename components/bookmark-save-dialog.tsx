@@ -1,148 +1,47 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, useState } from "react";
-import { toast } from "sonner";
-import {
-	AlertDialog,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import dynamic from "next/dynamic";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { collectionPath } from "@/lib/bookmark-collection";
-import { useTRPCClient } from "@/trpc/client";
+import type { Source } from "./bookmark-save-form";
 
-export const bookmarkFieldClass = "w-full rounded-md border bg-background px-3 py-2 text-sm";
+const BookmarkSaveForm = dynamic(() => import("./bookmark-save-form"), {
+	loading: () => (
+		<p role="status" className="sr-only">
+			저장 화면을 불러오는 중…
+		</p>
+	),
+});
+
 export function BookmarkSaveDialog({
 	source,
+	recommendationId,
 }: {
-	source: { id: string; url: string; title: string };
+	source: Source;
+	recommendationId?: string;
 }) {
-	const trpc = useTRPCClient();
-	const cache = useQueryClient();
 	const [open, setOpen] = useState(false);
-	const fieldId = useId();
-	const collections = useQuery({
-		queryKey: ["bookmarks", "collections"],
-		queryFn: () => trpc.bookmarkCollection.list.query(),
-		enabled: open,
-	});
-	const save = useMutation({
-		mutationFn: (input: Parameters<typeof trpc.bookmark.save.mutate>[0]) =>
-			trpc.bookmark.save.mutate(input),
-		onSuccess: async (result) => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			setOpen(false);
-			toast.success(
-				result.existing
-					? result.item.state === "trash"
-						? "휴지통에 이미 저장한 URL입니다. 복원할 수 있습니다."
-						: "이미 저장한 URL입니다. 기존 북마크를 확인해주세요."
-					: "북마크를 저장했습니다.",
-				{
-					action: {
-						label: "북마크 보기",
-						onClick: () => {
-							const path =
-								result.item.state === "trash" ? "/main/bookmarks/trash" : "/main/bookmarks";
-							window.location.href = `${path}?search=${encodeURIComponent(result.item.url)}`;
-						},
-					},
-				}
-			);
-		},
-		onError: (error) => toast.error(error.message),
-	});
+	const [ready, setReady] = useState(false);
+	const trigger = useRef<HTMLButtonElement>(null);
+	useEffect(() => setReady(true), []);
 	return (
 		<>
-			<Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-				북마크 저장
+			<Button
+				ref={trigger}
+				variant="outline"
+				size="sm"
+				disabled={!ready}
+				onClick={() => setOpen(true)}
+			>
+				{recommendationId ? "추천 확인·저장" : "북마크 저장"}
 			</Button>
-			<AlertDialog open={open} onOpenChange={setOpen}>
-				<AlertDialogContent className="max-h-[90dvh] overflow-y-auto">
-					<AlertDialogHeader>
-						<AlertDialogTitle>북마크 저장</AlertDialogTitle>
-						<AlertDialogDescription>
-							수집 글 상태를 유지합니다. 제목 수집은 저장 후 진행됩니다.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<form
-						className="space-y-3"
-						onSubmit={(event) => {
-							event.preventDefault();
-							const data = new FormData(event.currentTarget);
-							save.mutate({
-								url: source.url,
-								title: String(data.get("title")),
-								collectionId: String(data.get("collection")) || null,
-								tags: String(data.get("tags"))
-									.split(",")
-									.map((s) => s.trim())
-									.filter(Boolean),
-								note: String(data.get("note")),
-								threadId: source.id,
-							});
-						}}
-					>
-						<label className="block space-y-1" htmlFor={`${fieldId}url`}>
-							<span>URL</span>
-							<input
-								className={bookmarkFieldClass}
-								id={`${fieldId}url`}
-								type="url"
-								defaultValue={source.url}
-								readOnly
-							/>
-						</label>
-						<label className="block space-y-1" htmlFor={`${fieldId}title`}>
-							<span>제목 (선택)</span>
-							<input
-								className={bookmarkFieldClass}
-								id={`${fieldId}title`}
-								name="title"
-								maxLength={1000}
-								defaultValue={source.title}
-							/>
-						</label>
-						<div className="space-y-1">
-							<label className="block" htmlFor={`${fieldId}collection`}>
-								컬렉션
-							</label>
-							<select className={bookmarkFieldClass} id={`${fieldId}collection`} name="collection">
-								<option value="">미분류</option>
-								{collections.data?.map((c) => (
-									<option key={c.id} value={c.id}>
-										{collectionPath(c.id, collections.data ?? [])}
-									</option>
-								))}
-							</select>
-						</div>
-						<label className="block space-y-1" htmlFor={`${fieldId}tags`}>
-							<span>태그 (쉼표로 구분)</span>
-							<input className={bookmarkFieldClass} id={`${fieldId}tags`} name="tags" />
-						</label>
-						<label className="block space-y-1" htmlFor={`${fieldId}note`}>
-							<span>메모</span>
-							<textarea
-								className={bookmarkFieldClass}
-								id={`${fieldId}note`}
-								name="note"
-								maxLength={20000}
-								rows={3}
-							/>
-						</label>
-						<div className="flex justify-end gap-2">
-							<Button variant="ghost" type="button" onClick={() => setOpen(false)}>
-								취소
-							</Button>
-							<Button type="submit" disabled={save.isPending}>
-								{save.isPending ? "저장 중…" : "저장"}
-							</Button>
-						</div>
-					</form>
-				</AlertDialogContent>
-			</AlertDialog>
+			{open && (
+				<BookmarkSaveForm
+					source={source}
+					recommendationId={recommendationId}
+					close={() => setOpen(false)}
+					returnFocus={() => trigger.current?.focus()}
+				/>
+			)}
 		</>
 	);
 }

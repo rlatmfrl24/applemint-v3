@@ -16,7 +16,7 @@ select is((select count(*) from public.bookmarks), 0::bigint, 'other user cannot
 select throws_ok($$select public.bookmark_command('save','{"url":"https://example.com/forbidden"}')$$, '42501', 'owner required', 'other user cannot write');
 select set_config('request.jwt.claim.sub', '480f5282-7933-4800-a970-d6bc8f05e8cb', true);
 select lives_ok($$select public.bookmark_command('trash', jsonb_build_object('id',(select id from public.bookmarks where url='https://example.com/a'),'version',1))$$, 'trash is approved mutation');
-select throws_ok($$select public.bookmark_command('restore', jsonb_build_object('id',(select id from public.bookmarks where url='https://example.com/a'),'version',1))$$, '40001', 'bookmark changed', 'stale mutation refused');
+select throws_ok($$select public.bookmark_command('restore', jsonb_build_object('id',(select id from public.bookmarks where url='https://example.com/a'),'version',1))$$, 'PT409', 'bookmark changed', 'stale mutation refused');
 select lives_ok($$select public.bookmark_command('restore', jsonb_build_object('id',(select id from public.bookmarks where url='https://example.com/a'),'version',2))$$, 'restore succeeds');
 reset role;
 select is((select note from public.bookmarks where url='https://example.com/a'), 'retain me', 'restore preserves metadata');

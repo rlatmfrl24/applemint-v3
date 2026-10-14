@@ -30,7 +30,8 @@ export default defineConfig({
 		{ name: "setup", testMatch: /auth\.setup\.ts/u },
 		{
 			name: "bookmarks",
-			testMatch: /bookmark(?:s|-ai|-manager)\.spec\.ts/u,
+			testMatch:
+				/bookmark(?:s|-ai|-manager|-move|-drag|-order|-navigation|-recommend|-settings|-p2)\.spec\.ts/u,
 			dependencies: ["setup"],
 			use: { storageState: "playwright/.auth/owner.json" },
 		},

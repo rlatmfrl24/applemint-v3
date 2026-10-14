@@ -1,18 +1,105 @@
 "use client";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowRight, Bookmark, CheckCircle2, ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { BookmarkJobs } from "@/app/main/bookmarks/bookmark-jobs";
-import { bookmarkFieldClass } from "@/components/bookmark-save-dialog";
 import { Button } from "@/components/ui/button";
+import type { BookmarkJob } from "@/contracts/bookmark.schema";
 import { useTRPCClient } from "@/trpc/client";
 import { SettingsPageHeader, SettingsSurface } from "../admin-ui";
+import { BookmarkAIUsagePanel } from "./bookmark-ai-usage";
+import { BookmarkInterestEditor } from "./bookmark-interest-editor";
+
+function ImportSettings({
+	job,
+	configured,
+	refresh,
+}: {
+	job?: BookmarkJob;
+	configured: boolean;
+	refresh: () => Promise<void>;
+}) {
+	const trpc = useTRPCClient();
+	const [confirmed, setConfirmed] = useState(false);
+	const start = useMutation({
+		mutationFn: () => trpc.bookmarkImport.start.mutate({ confirmed: true }),
+		onSuccess: refresh,
+		onError: (error) => toast.error(error.message),
+	});
+	const complete = job?.state === "succeeded";
+	return (
+		<details className="group rounded-xl border bg-card" open={complete ? undefined : true}>
+			<summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-4 text-sm focus-visible:outline focus-visible:outline-ring sm:px-5">
+				<span className="font-medium">Raindrop 가져오기</span>
+				<span className="flex items-center gap-3 text-muted-foreground text-xs">
+					<span>{complete ? `완료 · ${job.completed.toLocaleString()}개` : "최초 한 번"}</span>
+					<ChevronDown
+						aria-hidden="true"
+						className="size-4 transition-transform group-open:rotate-180 motion-reduce:transition-none"
+					/>
+				</span>
+			</summary>
+			<div className="space-y-3 border-t p-4 text-sm sm:p-5">
+				<p className="max-w-prose text-muted-foreground text-xs leading-5">
+					최상위·하위·빈 컬렉션과 미분류를 포함합니다. Raindrop 휴지통은 제외하고 후속 동기화는 하지
+					않습니다.
+				</p>
+				<p className="max-w-prose text-xs leading-5">
+					이관 전에 백업과 API 이용 조건을 확인하세요. 완료할 때까지 Raindrop 자료를 수정하지 않는
+					것이 좋습니다.
+				</p>
+				<a
+					className="text-xs underline underline-offset-4"
+					href="https://developer.raindrop.io/terms"
+					target="_blank"
+					rel="noreferrer"
+				>
+					Raindrop API 이용 조건
+				</a>
+				<p className="text-xs">
+					서버 이관 토큰: {configured ? "설정됨" : "RAINDROP_IMPORT_TOKEN 설정 필요"}
+				</p>
+				{complete ? (
+					<p role="status" className="text-xs">
+						이관 완료 · 새 이관은 비활성화되었습니다. 서버에서 임시 RAINDROP_IMPORT_TOKEN을
+						제거해주세요.
+					</p>
+				) : (
+					<>
+						<label className="flex items-start gap-2 text-xs">
+							<input
+								type="checkbox"
+								checked={confirmed}
+								onChange={(event) => setConfirmed(event.target.checked)}
+								className="mt-0.5"
+							/>
+							<span>백업을 준비했고, 가져오기 범위와 API 이용 조건을 확인했습니다.</span>
+						</label>
+						<Button
+							size="sm"
+							disabled={
+								!confirmed ||
+								!configured ||
+								start.isPending ||
+								(job !== undefined && !["failed", "partial", "paused"].includes(job.state))
+							}
+							onClick={() => start.mutate()}
+						>
+							{job ? "기존 이관 작업 재개" : "최초 가져오기 시작"}
+						</Button>
+					</>
+				)}
+				{job && <BookmarkJobs jobs={[job]} />}
+			</div>
+		</details>
+	);
+}
 
 export default function BookmarkSettingsPage() {
 	const trpc = useTRPCClient();
 	const cache = useQueryClient();
-	const [confirmed, setConfirmed] = useState(false);
-	const [interestDraft, setInterestDraft] = useState<string | null>(null);
 	const data = useQuery({
 		queryKey: ["bookmarks", "settings"],
 		queryFn: () =>
@@ -26,173 +113,126 @@ export default function BookmarkSettingsPage() {
 	const refresh = async () => {
 		await cache.invalidateQueries({ queryKey: ["bookmarks"] });
 	};
-	const start = useMutation({
-		mutationFn: () => trpc.bookmarkImport.start.mutate({ confirmed: true }),
-		onSuccess: refresh,
-		onError: (e) => toast.error(e.message),
-	});
 	const suggest = useMutation({
 		mutationFn: () => trpc.bookmarkAI.suggestInterests.mutate(),
-		onSuccess: refresh,
-		onError: (e) => toast.error(e.message),
-	});
-	const interests = useMutation({
-		mutationFn: (input: Parameters<typeof trpc.bookmarkAI.confirmInterests.mutate>[0]) =>
-			trpc.bookmarkAI.confirmInterests.mutate(input),
 		onSuccess: async () => {
-			setInterestDraft(null);
 			await refresh();
-			toast.success("관심 주제를 확정했습니다.");
+			toast.success("관심 주제 추천을 요청했습니다.");
 		},
-		onError: (e) => toast.error(e.message),
+		onError: (error) => toast.error(error.message),
 	});
-	const importJob = data.data?.jobs.find((j) => j.kind === "import");
-	const budget = data.data?.budget;
 	const settings = data.data?.settings;
+	const suggesting =
+		suggest.isPending ||
+		data.data?.jobs.some(
+			(job) => job.kind === "interests" && ["queued", "processing", "retry"].includes(job.state)
+		);
 	return (
 		<div className="space-y-6">
 			<SettingsPageHeader
 				title="북마크 설정"
-				description="최초 이관, 관심 주제, AI 예산과 작업 상태를 관리합니다."
+				description="관심 주제를 관리하고 모델별 AI 사용량을 확인합니다."
+				action={
+					<Button asChild size="sm">
+						<a href="/main/bookmarks">
+							<Bookmark aria-hidden="true" className="size-4" />
+							북마크 관리자 열기
+							<ArrowRight aria-hidden="true" className="size-4" />
+						</a>
+					</Button>
+				}
 			/>
-			<a className="text-sm underline" href="/main/bookmarks">
-				북마크 관리자 열기
-			</a>
+			<div className="flex flex-wrap items-center gap-2 text-xs" role="status">
+				{config.isPending ? (
+					<span className="text-muted-foreground">AI 연결 상태 확인 중…</span>
+				) : config.error ? (
+					<span className="text-destructive">AI 연결 상태를 확인하지 못했습니다.</span>
+				) : config.data?.openrouter ? (
+					<>
+						<CheckCircle2
+							aria-hidden="true"
+							className="size-4 text-emerald-700 dark:text-emerald-400"
+						/>
+						<span>OpenRouter 연결됨</span>
+						<span className="text-muted-foreground">· 월 예산 $1</span>
+					</>
+				) : (
+					<span>AI 사용을 위해 서버 OPENROUTER_API_KEY를 설정해주세요.</span>
+				)}
+			</div>
 			{data.error && (
-				<p role="alert" className="text-destructive">
+				<p role="alert" className="text-destructive text-sm">
 					{data.error.message}
 				</p>
 			)}
-			<SettingsSurface
-				title="Raindrop 최초 한 번 가져오기"
-				description="최상위·하위·빈 컬렉션과 미분류를 포함합니다. Raindrop 휴지통은 제외하고 되쓰기와 후속 동기화를 하지 않습니다."
-			>
-				<div className="space-y-3 p-4 text-sm">
-					<p>
-						이관 전에 백업을 준비하고 API 이용 조건을 확인하세요. 완료할 때까지 Raindrop 자료를
-						수정하지 않는 것이 좋습니다.
-					</p>
-					<a
-						className="underline"
-						href="https://developer.raindrop.io/terms"
-						target="_blank"
-						rel="noreferrer"
-					>
-						Raindrop API 이용 조건
-					</a>
-					<p>
-						서버 이관 토큰: {config.data?.raindrop ? "설정됨" : "RAINDROP_IMPORT_TOKEN 설정 필요"}
-					</p>
-					{importJob?.state === "succeeded" ? (
-						<p role="status" className="font-medium">
-							이관 완료 · 새 이관은 비활성화되었습니다. 서버에서 임시 RAINDROP_IMPORT_TOKEN을
-							제거해주세요.
-						</p>
-					) : (
-						<>
-							<label className="flex items-start gap-2">
-								<input
-									className="mt-1"
-									type="checkbox"
-									checked={confirmed}
-									onChange={(e) => setConfirmed(e.target.checked)}
-								/>
-								<span>백업을 준비했고, 가져오기 범위와 API 이용 조건을 확인했습니다.</span>
-							</label>
-							<Button
-								disabled={
-									!confirmed ||
-									!config.data?.raindrop ||
-									start.isPending ||
-									(importJob !== undefined &&
-										!["failed", "partial", "paused"].includes(importJob.state))
-								}
-								onClick={() => start.mutate()}
-							>
-								{importJob ? "기존 이관 작업 재개" : "최초 가져오기 시작"}
-							</Button>
-						</>
-					)}
-					{importJob && <BookmarkJobs jobs={[importJob]} />}
-				</div>
-			</SettingsSurface>
-			<SettingsSurface
-				title="관심 주제"
-				description="AI 제안을 수정한 뒤 직접 확정하세요. 주제가 없어도 일반 분류와 링크 검사는 사용할 수 있습니다."
-			>
-				<div className="space-y-3 p-4">
-					<Button
-						variant="outline"
-						disabled={!config.data?.openai || suggest.isPending}
-						onClick={() => suggest.mutate()}
-					>
-						기존 컬렉션·태그로 AI 관심 주제 제안
-					</Button>
-					{settings?.suggested_at && (
-						<div className="rounded-md bg-muted p-3 text-sm">
-							<p>AI 제안: {settings.suggested_interests.join(", ") || "제안된 주제 없음"}</p>
-							<Button
-								size="sm"
-								variant="ghost"
-								onClick={() => setInterestDraft(settings.suggested_interests.join("\n"))}
-							>
-								수정 입력에 가져오기
+			<div className="grid min-w-0 items-start gap-5 lg:grid-cols-2">
+				<SettingsSurface
+					title="관심 주제"
+					description="등록한 주제를 기준으로 AI가 분류와 검토를 돕습니다."
+					className="min-w-0 shadow-none"
+					action={
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={!config.data?.openrouter || Boolean(suggesting)}
+							onClick={() => suggest.mutate()}
+						>
+							{suggesting ? "추천 생성 중…" : "AI 추천 받기"}
+						</Button>
+					}
+				>
+					{settings ? (
+						<BookmarkInterestEditor
+							interests={settings.interests}
+							version={settings.interest_version}
+							suggestions={settings.suggested_interests}
+							refresh={refresh}
+						/>
+					) : data.error ? (
+						<div className="p-5">
+							<Button size="sm" variant="outline" onClick={() => data.refetch()}>
+								관심 주제 다시 불러오기
 							</Button>
 						</div>
+					) : (
+						<p role="status" className="p-5 text-muted-foreground text-sm">
+							관심 주제를 불러오는 중…
+						</p>
 					)}
-					<form
-						className="space-y-2"
-						onSubmit={(e) => {
-							e.preventDefault();
-							interests.mutate({
-								interests: (interestDraft ?? settings?.interests.join("\n") ?? "")
-									.split("\n")
-									.map((v) => v.trim())
-									.filter(Boolean),
-							});
-						}}
-					>
-						<label className="block text-sm" htmlFor="bookmark-interests">
-							확정할 관심 주제 (한 줄에 하나)
-						</label>
-						<textarea
-							id="bookmark-interests"
-							className={bookmarkFieldClass}
-							rows={5}
-							value={interestDraft ?? settings?.interests.join("\n") ?? ""}
-							onChange={(e) => setInterestDraft(e.target.value)}
-						/>
-						<Button disabled={interests.isPending} type="submit">
-							관심 주제 확정
-						</Button>
-					</form>
-				</div>
-			</SettingsSurface>
-			<SettingsSurface
-				title="AI 사용량"
-				description="OpenAI gpt-6-luna · KST 달력 월 기준 관리 예산 $1. 청구 불명 요청은 예약액을 유지합니다."
-			>
-				<div className="space-y-2 p-4 text-sm">
-					<p>
-						{budget?.month} · 사용·예약 합계 ${((budget?.used_nano ?? 0) / 1e9).toFixed(4)} / $1
-					</p>
-					<p>OPENAI_API_KEY: {config.data?.openai ? "설정됨" : "서버 설정 필요"}</p>
-					<p>
-						세금·환율·다른 앱의 API 사용량은 포함하지 않습니다. 메타데이터만 전송하며 원문 전체를
-						수집하지 않습니다.
+				</SettingsSurface>
+				<SettingsSurface
+					title="AI 사용량"
+					description="모델별 요청 비율과 정산 비용을 확인합니다."
+					className="min-w-0 shadow-none"
+				>
+					<BookmarkAIUsagePanel />
+				</SettingsSurface>
+			</div>
+			<div className="flex flex-col items-start justify-between gap-3 border-t pt-4 sm:flex-row sm:items-center">
+				<div>
+					<h2 className="m-0 border-0 p-0 font-medium text-sm">작업 기록</h2>
+					<p className="mt-1 text-muted-foreground text-xs">
+						실패·중단된 작업을 확인하고 같은 작업을 재개합니다.
 					</p>
 				</div>
-			</SettingsSurface>
-			<SettingsSurface
-				title="작업 상태"
-				description="등록한 작업만 서버에서 진행합니다. 실패·예산 중단은 직접 재개하세요."
-			>
-				<div className="p-4">
-					<a className="text-sm underline underline-offset-4" href="/main/bookmarks/activity">
-						작업 기록에서 진행·실패·재개 확인
+				<Button asChild size="sm" variant="ghost">
+					<a href="/main/bookmarks/activity">
+						작업 기록 보기
+						<ArrowRight aria-hidden="true" className="size-4" />
 					</a>
-				</div>
-			</SettingsSurface>
+				</Button>
+			</div>
+			{data.data && (
+				<ImportSettings
+					job={data.data.jobs.find((job) => job.kind === "import")}
+					configured={Boolean(config.data?.raindrop)}
+					refresh={refresh}
+				/>
+			)}
+			<p className="max-w-prose text-muted-foreground text-xs leading-5">
+				청구 여부가 불명확한 요청은 예약액을 유지합니다. 세금·환율·다른 앱의 사용량은 포함하지
+				않습니다. AI에는 메타데이터만 전송합니다.
+			</p>
 		</div>
 	);
 }

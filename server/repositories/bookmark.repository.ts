@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { bookmarkSnapshotSchema } from "@/contracts/bookmark.schema";
+import {
+	bookmarkJobSchema,
+	bookmarkRecommendationSchema,
+	bookmarkSnapshotSchema,
+} from "@/contracts/bookmark.schema";
+import { bookmarkAIUsageSchema } from "@/contracts/bookmark-ai-usage.schema";
 import { DomainError, unexpectedFailure } from "@/server/errors/domain-error";
 import { mapPostgrestError } from "@/server/errors/error-mapper";
 import type { RequestMetrics } from "@/server/observability/request-metrics";
@@ -35,6 +40,11 @@ export class BookmarkRepository {
 		};
 		return this.metrics?.measureRepository("bookmark.snapshot", run) ?? run();
 	}
+	async aiUsage() {
+		const { data, error } = await this.supabase.rpc("bookmark_ai_usage");
+		if (error) throw mapPostgrestError(error, "AI 사용량을 불러오지 못했습니다.");
+		return bookmarkAIUsageSchema.parse(data);
+	}
 	async jobDetails(id: string, offset: number) {
 		const { data, count, error } = await this.supabase
 			.from("bookmark_job_items")
@@ -57,6 +67,43 @@ export class BookmarkRepository {
 			)
 			.parse(data ?? []);
 		return { items, total: count ?? 0 };
+	}
+
+	async jobs() {
+		const [recent, imports] = await Promise.all([
+			this.supabase
+				.from("bookmark_jobs")
+				.select("*")
+				.order("created_at", { ascending: false })
+				.limit(30),
+			this.supabase.from("bookmark_jobs").select("*").eq("kind", "import"),
+		]);
+		for (const result of [recent, imports])
+			if (result.error)
+				throw mapPostgrestError(result.error, "북마크 작업 상태를 불러오지 못했습니다.");
+		const jobs = new Map(
+			[...(recent.data ?? []), ...(imports.data ?? [])].map((job) => [job.id, job])
+		);
+		return z
+			.array(bookmarkJobSchema)
+			.parse([...jobs.values()].sort((a, b) => b.created_at.localeCompare(a.created_at)));
+	}
+	async recommendation(id: string) {
+		const { data, error } = await this.supabase
+			.from("bookmark_jobs")
+			.select("*")
+			.eq("id", id)
+			.eq("kind", "recommend")
+			.maybeSingle();
+		if (error) throw mapPostgrestError(error, "추천 작업을 불러오지 못했습니다.");
+		if (!data) throw new DomainError("NotFound", "추천 작업을 찾을 수 없습니다.");
+		const job = bookmarkJobSchema.parse(data);
+		return {
+			job,
+			recommendation: bookmarkRecommendationSchema
+				.nullable()
+				.parse(job.progress.recommendation ?? null),
+		};
 	}
 
 	async command<T>(action: string, input: object, schema: z.ZodType<T>) {

@@ -8,34 +8,24 @@ import { Drawer, DrawerClose, DrawerContent, DrawerTrigger } from "@/components/
 
 const MenuList = [
 	{
-		name: "북마크",
-		href: "/main/bookmarks",
-		type: "internal",
-	},
-	{
 		name: "Main",
 		href: "/main",
-		type: "internal",
 	},
 	{
 		name: "Quick",
 		href: "/main/quick",
-		type: "internal",
 	},
 	{
 		name: "Trash",
 		href: "/main/trash",
-		type: "internal",
+	},
+	{
+		name: "Bookmark",
+		href: "/main/bookmarks",
 	},
 	{
 		name: "Setting",
 		href: "/main/setting",
-		type: "internal",
-	},
-	{
-		name: "Raindrop",
-		href: "https://app.raindrop.io/my/0",
-		type: "external",
 	},
 ];
 
@@ -46,27 +36,18 @@ export const NavMenu = () => {
 		return pathname === href || (href !== "/main" && pathname.startsWith(`${href}/`));
 	}
 
-	function getActiveMenu(pathname: string) {
-		return MenuList.find(
-			(item) => item.type === "internal" && (item.href === pathname || isActive(item.href))
-		);
-	}
+	const activeMenu = MenuList.find((item) => isActive(item.href));
 
 	return (
 		<>
-			<h3 className="block md:hidden">{getActiveMenu(pathname)?.name ?? "Main"}</h3>
+			<h3 className="block md:hidden">{activeMenu?.name ?? "Main"}</h3>
 			<nav aria-label="Main navigation" className="hidden w-fit md:flex">
 				<ul className="flex list-none items-center justify-center space-x-1">
 					{MenuList.map((item) => (
 						<li key={item.href}>
 							<Button asChild variant={isActive(item.href) ? "secondary" : "ghost"}>
-								<a
-									aria-current={isActive(item.href) ? "page" : undefined}
-									href={item.href}
-									target={item.type === "external" ? "_blank" : undefined}
-									rel={item.type === "external" ? "noreferrer" : undefined}
-								>
-									{item.name} {item.type === "external" ? " ↗" : ""}
+								<a aria-current={isActive(item.href) ? "page" : undefined} href={item.href}>
+									{item.name}
 								</a>
 							</Button>
 						</li>
@@ -90,10 +71,8 @@ export const MainDrawer = () => {
 							<a
 								className={buttonVariants({ variant: "ghost", className: "text-xl" })}
 								href={item.href}
-								target={item.type === "external" ? "_blank" : undefined}
-								rel={item.type === "external" ? "noreferrer" : undefined}
 							>
-								{item.name} {item.type === "external" ? " ↗" : ""}
+								{item.name}
 							</a>
 						</DrawerClose>
 					))}

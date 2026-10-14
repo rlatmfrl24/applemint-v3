@@ -21,7 +21,7 @@ export async function bookmarkOwner() {
 export async function saveSourceBookmark(
 	page: Page,
 	db: Awaited<ReturnType<typeof bookmarkOwner>>,
-	title: string
+	title?: string
 ) {
 	await page.goto("/main");
 	const cards = page.getByTestId("thread-card");
@@ -39,7 +39,7 @@ export async function saveSourceBookmark(
 		const dialog = page.getByRole("alertdialog");
 		await expect(dialog.getByLabel("URL", { exact: true })).toHaveValue(url as string);
 		await expect(dialog.getByLabel("URL", { exact: true })).toHaveAttribute("readonly");
-		await dialog.getByLabel("제목 (선택)").fill(title);
+		if (title !== undefined) await dialog.getByLabel("제목 (선택)").fill(title);
 		await dialog
 			.getByLabel("메모", { exact: true })
 			.fill("관리자 UI 검증: 수집 글 상태와 원본은 보존");

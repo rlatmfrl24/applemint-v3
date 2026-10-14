@@ -24,7 +24,7 @@ insert into public.bookmark_proposals(id,job_id,bookmark_id,expected_version,kin
  ('dddddddd-0000-4000-8000-000000000001','aaaaaaaa-0000-4000-8000-000000000002','bbbbbbbb-0000-4000-8000-000000000001',1,'classify','Boundary new','AI'),
  ('dddddddd-0000-4000-8000-000000000002','aaaaaaaa-0000-4000-8000-000000000002','bbbbbbbb-0000-4000-8000-000000000002',2,'classify','Boundary new','AI');
 set local role authenticated;
-select throws_ok($$select public.bookmark_command('proposalApply','{"items":[{"id":"dddddddd-0000-4000-8000-000000000001"},{"id":"dddddddd-0000-4000-8000-000000000002"}]}')$$,'40001','bookmark changed','stale proposal rejects the whole approval');
+select throws_ok($$select public.bookmark_command('proposalApply','{"items":[{"id":"dddddddd-0000-4000-8000-000000000001"},{"id":"dddddddd-0000-4000-8000-000000000002"}]}')$$,'PT409','bookmark changed','stale proposal rejects the whole approval');
 select is((select count(*) from public.bookmark_collections where name='Boundary new'),0::bigint,'failed approval rolls back collection creation');
 select is((select version from public.bookmarks where id='bbbbbbbb-0000-4000-8000-000000000001'),1,'failed approval rolls back the preceding move');
 reset role;
@@ -37,10 +37,10 @@ select is((select count(distinct collection_id) from public.bookmarks where id i
 reset role;
 
 delete from public.bookmark_ai_reservations;
-select ok(public.bookmark_ai_reserve('eeeeeeee-0000-4000-8000-000000000001','aaaaaaaa-0000-4000-8000-000000000002','cccccccc-0000-4000-8000-000000000002',1000,600000000),'budget reservation succeeds');
-select ok(not public.bookmark_ai_reserve('eeeeeeee-0000-4000-8000-000000000002','aaaaaaaa-0000-4000-8000-000000000002','cccccccc-0000-4000-8000-000000000002',1000,500000000),'concurrent sum cannot exceed monthly cap');
+select ok(public.bookmark_ai_reserve('eeeeeeee-0000-4000-8000-000000000001','aaaaaaaa-0000-4000-8000-000000000002','cccccccc-0000-4000-8000-000000000002',1000,600000000,'openrouter','openai/gpt-6-luna'),'budget reservation succeeds');
+select ok(not public.bookmark_ai_reserve('eeeeeeee-0000-4000-8000-000000000002','aaaaaaaa-0000-4000-8000-000000000002','cccccccc-0000-4000-8000-000000000002',1000,500000000,'openrouter','openai/gpt-6-luna'),'concurrent sum cannot exceed monthly cap');
 select is((select month from public.bookmark_ai_reservations where id='eeeeeeee-0000-4000-8000-000000000001'),date_trunc('month',now() at time zone 'Asia/Seoul')::date,'budget month is KST');
-select ok(not public.bookmark_ai_reserve('eeeeeeee-0000-4000-8000-000000000001','aaaaaaaa-0000-4000-8000-000000000002','cccccccc-0000-4000-8000-000000000002',1000,1),'reservation replay cannot reserve twice');
+select ok(not public.bookmark_ai_reserve('eeeeeeee-0000-4000-8000-000000000001','aaaaaaaa-0000-4000-8000-000000000002','cccccccc-0000-4000-8000-000000000002',1000,1,'openrouter','openai/gpt-6-luna'),'reservation replay cannot reserve twice');
 select ok(not public.bookmark_worker_commit('aaaaaaaa-0000-4000-8000-000000000002','cccccccc-0000-4000-8000-000000000003','{}'),'wrong lease cannot settle or commit');
 select ok(public.bookmark_worker_commit('aaaaaaaa-0000-4000-8000-000000000002','cccccccc-0000-4000-8000-000000000002','{"reservationId":"eeeeeeee-0000-4000-8000-000000000001","reservationState":"uncertain","state":"paused"}'),'lost receipt retains the reservation');
 select is((select used_nano from jsonb_to_record(public.bookmark_snapshot()->'budget') as budget(used_nano bigint)),600000000::bigint,'uncertain receipt counts the full reserved amount');
@@ -80,7 +80,7 @@ select public.bookmark_worker_commit((select id from public.bookmark_jobs where 
 select ok((select state='trash' and title='First' and note='preserve' and original='{"collection":{"$id":-1}}'::jsonb from public.bookmarks where source_id='boundary-duplicate-1'),'replayed import preserves local trash and original metadata');
 update public.bookmark_jobs set state='succeeded' where kind='import';
 set local role authenticated;
-select throws_ok($$select public.bookmark_command('start','{"kind":"import","confirmed":true}')$$,'40001','import already completed','completed one-time import cannot start again');
+select throws_ok($$select public.bookmark_command('start','{"kind":"import","confirmed":true}')$$,'PT409','import already completed','completed one-time import cannot start again');
 reset role;
 select * from finish();
 rollback;

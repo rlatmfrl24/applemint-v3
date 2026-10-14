@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { openrouter, openrouterCost } from "./openrouter";
 
 const itemSchema = z
 	.object({
@@ -30,28 +31,12 @@ const responseSchema = z.object({
 const usageSchema = z.object({
 	input_tokens: z.number().int().nonnegative(),
 	output_tokens: z.number().int().nonnegative(),
-	input_tokens_details: z.object({
-		cached_tokens: z.number().int().nonnegative(),
-		cache_write_tokens: z.number().int().nonnegative(),
-	}),
 });
 export const AI_OUTPUT_LIMIT = 8192;
-// gpt-6-luna Standard rates verified 2026-10-13; nano-dollars per token.
+export const AI_INPUT_LIMIT = 128000;
+// OpenRouter GPT-6 Luna rates: reserve maximum cache-write input and maximum output.
 export function reserveNano(inputTokens: number, outputTokens: number) {
-	return (
-		inputTokens * (inputTokens > 272000 ? 250 : 125) +
-		outputTokens * (inputTokens > 272000 ? 750 : 500)
-	);
-}
-export function priceNano(inputTokens: number, outputTokens: number, cached = 0, written = 0) {
-	if (cached + written > inputTokens) throw new Error("INVALID_USAGE");
-	const long = inputTokens > 272000;
-	return (
-		(inputTokens - cached - written) * (long ? 200 : 100) +
-		cached * (long ? 20 : 10) +
-		written * (long ? 250 : 125) +
-		outputTokens * (long ? 750 : 500)
-	);
+	return inputTokens * 125 + outputTokens * 500;
 }
 export function validateAIItems(
 	items: z.infer<typeof itemSchema>[],
@@ -74,7 +59,12 @@ export function validateAIItems(
 export function buildAIRequest(kind: "classify" | "review" | "interests", data: object) {
 	const schema = z.toJSONSchema(outputSchema);
 	return {
-		model: "gpt-6-luna",
+		model: "openai/gpt-6-luna",
+		provider: {
+			require_parameters: true,
+			allow_fallbacks: false,
+			max_price: { prompt: 0.125, completion: 0.5 },
+		},
 		reasoning: { effort: "none" },
 		store: false,
 		service_tier: "default",
@@ -90,48 +80,30 @@ For classify/review return empty interests. Changes are only proposals; the user
 	};
 }
 
-async function openai(path: string, body: object, timeout: number) {
-	const key = process.env.OPENAI_API_KEY?.trim();
-	if (!key) throw new Error("OPENAI_NOT_CONFIGURED");
-	const response = await fetch(`https://api.openai.com/v1/${path}`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-		body: JSON.stringify(body),
-		signal: AbortSignal.timeout(timeout),
-	});
-	if (!response.ok) throw new Error(`OPENAI_HTTP_${response.status}`);
-	return response.json() as Promise<unknown>;
-}
 export async function countAIInput(request: ReturnType<typeof buildAIRequest>) {
-	const { model, input, instructions, reasoning, text } = request;
-	const result = await openai(
-		"responses/input_tokens",
-		{ model, input, instructions, reasoning, text },
-		10000
-	);
-	return z.object({ input_tokens: z.number().int().nonnegative() }).parse(result).input_tokens;
+	// No OpenRouter preflight tokenizer: use a byte-size gate and reserve the full application input limit.
+	return Buffer.byteLength(JSON.stringify(request), "utf8") + 4096;
 }
 export async function callBookmarkAI(request: ReturnType<typeof buildAIRequest>) {
-	const result = responseSchema.parse(await openai("responses", request, 25000));
-	const parsedUsage = usageSchema.safeParse(result.usage);
-	let chargedNano: number | null = null;
-	let outputTokens: number | null = null;
-	let inputTokens: number | null = null;
-	if (parsedUsage.success) {
-		const usage = parsedUsage.data;
-		try {
-			chargedNano = priceNano(
-				usage.input_tokens,
-				usage.output_tokens,
-				usage.input_tokens_details.cached_tokens,
-				usage.input_tokens_details.cache_write_tokens
-			);
-			outputTokens = usage.output_tokens;
-			inputTokens = usage.input_tokens;
-		} catch {
-			/* An invalid receipt keeps the full reservation. */
-		}
-	}
+	const raw = z
+		.object({ usage: z.unknown().optional() })
+		.passthrough()
+		.parse(await openrouter("responses", request));
+	const cost = z.object({ cost: z.unknown().optional() }).safeParse(raw.usage);
+	const chargedNano = cost.success ? openrouterCost(cost.data.cost) : null;
+	const parsedUsage = usageSchema.safeParse(raw.usage);
+	const outputTokens = parsedUsage.success ? parsedUsage.data.output_tokens : null;
+	const inputTokens = parsedUsage.success ? parsedUsage.data.input_tokens : null;
+	const parsedResponse = responseSchema.safeParse(raw);
+	if (!parsedResponse.success)
+		return {
+			output: null,
+			outputError: "INVALID_RESPONSE",
+			chargedNano,
+			outputTokens,
+			inputTokens,
+		};
+	const result = parsedResponse.data;
 	const text = result.output
 		.flatMap((o) => o.content ?? [])
 		.filter((c) => c.type === "output_text")

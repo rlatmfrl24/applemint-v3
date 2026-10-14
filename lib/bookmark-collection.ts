@@ -1,5 +1,8 @@
 import type { BookmarkCollection } from "@/contracts/bookmark.schema";
-export function collectionPath(id: string | null, collections: BookmarkCollection[]) {
+export function collectionPath(
+	id: string | null,
+	collections: Pick<BookmarkCollection, "id" | "name" | "parent_id">[]
+) {
 	const parts: string[] = [];
 	const seen = new Set<string>();
 	let current = id;
