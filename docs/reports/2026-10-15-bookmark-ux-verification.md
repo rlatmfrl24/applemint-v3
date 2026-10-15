@@ -112,3 +112,9 @@ Finish: accepted Global Constraints exclude push/merge/deploy. Keep the named br
 기존 자료를 보존한 별도 localhost 환경에서 일반 E2E 3 PASS와 실제 Main·Quick 자동 추천→저장→새로고침→소유자 DB·정산 장부 확인을 완료했다. 두 명시적 AI 요청 합계는 219492 nano($0.000219492)다. 북마크 전체 실행의 실패 2건은 기존 URL 전제와 낙관적 복원 확정 대기를 수정한 뒤 대상 재검증 및 UX 전체 파일에서 통과했다. 이는 개별 재검증을 합친 근거이며 단일 전체 명령 PASS로 대체하지 않는다. 추가 유료 관심 주제·분류 및 이전 자료 전용 시나리오 5건은 미실시다.
 
 자동 리뷰의 P2는 변경안 폼이 dirty 여부만 알리고 실제 입력은 DOM에 두어 패널↔Drawer 재마운트에서 잃는 문제였다. 제안 ID별 초안을 상위 선택 상태에 보관해 기존 대상·새 이름·승인/충돌 계약을 유지했다. 실제 검토 진입점의 회귀에서 대상 값 소실을 먼저 재현한 후 1440→1024→390→1440 전환, 목록 갱신, 계속 편집, 대상 변경 시 새 이름 초기화를 통과했다(`pr-proposal-draft-red.log`, `pr-proposal-draft-green.log`: setup 포함 2 PASS). 이 회귀의 DB 제안은 UI 초안 테스트용으로 명시해 생성·회수하며 실제 AI 실행 증거로 사용하지 않는다. TypeScript와 대상 Biome도 통과했다.
+
+P1은 같은 문서의 Back/Forward가 클릭·beforeunload 보호를 거치지 않는 문제였다. Window 이벤트는 대상의 리스너 등록 순서를 따르므로 늦게 등록한 capture 처리만으로는 Next의 이동을 막지 못하는 점도 실제 브라우저에서 확인했다. 공유 클라이언트 초기화에서 이력 위치와 보호 리스너를 준비하고, 편집 중에는 기존 항목으로 돌아온 뒤 확인하며 버릴 때 원래 이동을 다시 실행한다. Next의 불투명한 상태와 앞/뒤 항목을 보존하고 임시 history 항목은 추가하지 않는다. 문서 밖 이동은 기존 beforeunload 보호를 유지한다.
+
+Main 헤더→Bookmark의 실제 클라이언트 탐색에서 Back/Forward 각각을 Navigation API 유무 두 경우로 검사해 초안·초점·인접 이력·history 길이와 동일 문서를 확인했다(4 PASS). 컬렉션 필터 후 같은 페이지 헤더 링크로 이력을 쌓은 경우도 1 PASS다. 처음에는 초안 유실을 RED로, 이후에는 계속 편집 후 입력 초점 유실을 RED로 확인하고 모두 수정했다. 공유 청크를 2초 늦춘 보조 검사에서도 보호 리스너가 Next 리스너보다 먼저 등록됨을 확인했다. 이력 추적 단위 테스트는 Next 상태 보존·중복 초기화·push/replace/이전 위치 복귀를 검사한다. Firefox/Safari의 별도 실행은 하지 않았으며 Navigation API 부재는 Chromium에서 재현했다.
+
+두 리뷰 수정을 반영한 제품 코드에서 `pnpm check`와 전체 단위 646 PASS(선택형 네트워크 2건 제외), production build, 서버 경계 125파일이 통과했다. Main 127.6 KiB gzip으로 기존 129 KiB 한도 이내다. 이후 전체 E2E와 해당 head의 원격 필수 CI 결과는 PR 검증 원장에 기록한다.

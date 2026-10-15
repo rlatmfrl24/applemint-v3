@@ -65,7 +65,7 @@
 - 기준 576e1f9, 격리 브랜치 codex/bookmark-ux-redesign. 원본 checkout와 실자료 보존.
 - 신규 의존성/DB 마이그레이션/오프라인 큐 없음. 소유자/RLS/URL 안전/버전/원본/AI 승인/KST 월 $1 예산 유지.
 - 실자료 DB 초기화 및 일반 test:e2e 준비 명령 금지. 기존 localhost:3000/54321 사용, bookmark 전용 config만 사용.
-- Node 24.x, 기존 초기 번들 한도와 폼/통계 지연 로딩 유지. push/merge/deploy는 이 실행 범위에 없음.
+- Node 24.x, 기존 초기 번들 한도와 폼/통계 지연 로딩 유지. 초기 구현 이후 사용자 후속 요청으로 전체 검증과 push/PR 게시가 승인되었다. merge/deploy는 범위에 없음.
 - 실제 사용자 진입점/변경/새로고침/소유자 DB readback을 최종 근거로 사용. 실패 주입은 보조 회귀 검증.
 
 ## Review Focus

@@ -29,6 +29,11 @@ import type {
 } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
 import {
+	bookmarkHistoryPosition,
+	guardBookmarkHistory,
+	trackBookmarkHistory,
+} from "@/lib/bookmark-history";
+import {
 	bookmarkResultsChanged,
 	flattenBookmarkPages,
 	nextBookmarkOffset,
@@ -103,10 +108,48 @@ function useBookmarkManager(screen: BookmarkView) {
 	const [collectionDialog, setCollectionDialog] = useState<CollectionDialogSelection | null>(null);
 	const [itemDialog, rawSetItemDialog] = useState<BookmarkDetailSelection | null>(null);
 	const dirty = useRef(false);
+	const historyPosition = useRef(0);
+	const editFocus = useRef<HTMLElement | null>(null);
+	const setDirty = useCallback((value: boolean) => {
+		if (value && !dirty.current) historyPosition.current = bookmarkHistoryPosition();
+		if (value && document.activeElement instanceof HTMLElement)
+			editFocus.current = document.activeElement;
+		dirty.current = value;
+	}, []);
+	function restoreEditFocus(event: Event) {
+		if (dirty.current && editFocus.current?.isConnected) {
+			event.preventDefault();
+			editFocus.current.focus({ preventScroll: true });
+		}
+	}
 	const [pendingDetail, setPendingDetail] = useState<
-		{ selection: BookmarkDetailSelection | null } | { href: string } | null
+		| { selection: BookmarkDetailSelection | null }
+		| { href: string }
+		| { historyDelta: number }
+		| null
 	>(null);
 	useEffect(() => {
+		trackBookmarkHistory();
+		historyPosition.current = bookmarkHistoryPosition();
+		let restoring: { delta: number } | null = null;
+		function guardHistory(event: PopStateEvent) {
+			const position = historyPosition.current;
+			const nextPosition = bookmarkHistoryPosition();
+			if (restoring) {
+				event.stopImmediatePropagation();
+				if (nextPosition !== position) {
+					window.history.go(position - nextPosition);
+					return;
+				}
+				setPendingDetail({ historyDelta: restoring.delta });
+				restoring = null;
+			} else if (dirty.current && nextPosition !== position) {
+				// Popstate cannot be cancelled; restore the existing entry before Next renders the route.
+				event.stopImmediatePropagation();
+				restoring = { delta: nextPosition - position };
+				window.history.go(-restoring.delta);
+			} else historyPosition.current = nextPosition;
+		}
 		function guardNavigation(event: MouseEvent) {
 			if (
 				!dirty.current ||
@@ -136,9 +179,11 @@ function useBookmarkManager(screen: BookmarkView) {
 		}
 		document.addEventListener("click", guardNavigation, true);
 		window.addEventListener("beforeunload", guardUnload);
+		const unguardHistory = guardBookmarkHistory(guardHistory);
 		return () => {
 			document.removeEventListener("click", guardNavigation, true);
 			window.removeEventListener("beforeunload", guardUnload);
+			unguardHistory();
 		};
 	}, []);
 	function setItemDialog(next: BookmarkDetailSelection | null) {
@@ -158,6 +203,8 @@ function useBookmarkManager(screen: BookmarkView) {
 			pendingDetail && "selection" in pendingDetail ? pendingDetail.selection : null
 		);
 		if (pendingDetail && "href" in pendingDetail) router.push(pendingDetail.href);
+		if (pendingDetail && "historyDelta" in pendingDetail)
+			window.history.go(pendingDetail.historyDelta);
 		setPendingDetail(null);
 		if (returnFocus) requestAnimationFrame(() => returnFocus.isConnected && returnFocus.focus());
 	}
@@ -411,7 +458,8 @@ function useBookmarkManager(screen: BookmarkView) {
 		setSearch,
 		setComposing,
 		commitSearch,
-		dirty,
+		setDirty,
+		restoreEditFocus,
 		pendingDetail,
 		setPendingDetail,
 		discardDetail,
@@ -985,9 +1033,7 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 						changeMode={(mode) => {
 							if (m.itemDialog) m.setItemDialog({ ...m.itemDialog, mode });
 						}}
-						onDirtyChange={(value) => {
-							m.dirty.current = value;
-						}}
+						onDirtyChange={m.setDirty}
 					/>
 				</div>
 			)}
@@ -1005,7 +1051,7 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 					if (!open) m.setPendingDetail(null);
 				}}
 			>
-				<AlertDialogContent>
+				<AlertDialogContent onCloseAutoFocus={m.restoreEditFocus}>
 					<AlertDialogHeader>
 						<AlertDialogTitle>편집 내용을 버릴까요?</AlertDialogTitle>
 						<AlertDialogDescription>
