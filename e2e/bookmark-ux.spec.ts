@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { bookmarkOwner } from "./support/bookmarks";
-import { seedBookmarkUXSource } from "./support/database";
+import { seedBookmarkProposalDraft, seedBookmarkUXSource } from "./support/database";
 
 test("휴지통 이동은 응답 전에 반영되고 실행 취소는 응답 버전으로 복원한다", async ({ page }) => {
 	const db = await bookmarkOwner();
@@ -192,6 +192,52 @@ test("보기 전환은 초안 버리기를 확인하고 계속 편집하면 입�
 	await review.click();
 	await confirm.getByRole("button", { name: "변경 내용 버리기", exact: true }).click();
 	await expect(page).toHaveURL(/\/main\/bookmarks\/review$/u);
+});
+
+test("AI 변경안의 대상과 새 이름은 패널과 Drawer 전환 및 갱신 후에도 유지된다", async ({
+	page,
+}) => {
+	const fixture = seedBookmarkProposalDraft();
+	const db = await bookmarkOwner();
+	const snapshot = await db.rpc("bookmark_snapshot", { p_filter: { limit: 1 } });
+	const target = snapshot.data.collections[0];
+	expect(target).toBeTruthy();
+	try {
+		await page.goto(`/main/bookmarks/review?search=${fixture.id}`);
+		await page
+			.locator(`[data-bookmark-id="${fixture.id}"]`)
+			.getByRole("button", { name: "변경안", exact: true })
+			.click();
+		let panel = page.getByRole("complementary", { name: "검토 결과", exact: true });
+		await panel.getByLabel("대상 컬렉션", { exact: true }).selectOption(target.id);
+		await panel.getByLabel("새 컬렉션 이름", { exact: false }).fill("보존할 새 컬렉션");
+		for (const width of [1024, 390, 1440]) {
+			await page.setViewportSize({ width, height: 900 });
+			panel = page.getByRole(width >= 1280 ? "complementary" : "dialog", {
+				name: "검토 결과",
+				exact: true,
+			});
+			await expect(panel.getByLabel("대상 컬렉션", { exact: true })).toHaveValue(target.id);
+			await expect(panel.getByLabel("새 컬렉션 이름", { exact: false })).toHaveValue(
+				"보존할 새 컬렉션"
+			);
+		}
+		await page.getByRole("button", { name: "목록 새로고침", exact: true }).click();
+		await expect(panel.getByLabel("새 컬렉션 이름", { exact: false })).toHaveValue(
+			"보존할 새 컬렉션"
+		);
+		await panel.getByRole("button", { name: "닫기", exact: true }).click();
+		const confirm = page.getByRole("alertdialog", { name: "편집 내용을 버릴까요?", exact: true });
+		await expect(confirm).toBeVisible();
+		await confirm.getByRole("button", { name: "계속 편집", exact: true }).click();
+		await expect(panel.getByLabel("새 컬렉션 이름", { exact: false })).toHaveValue(
+			"보존할 새 컬렉션"
+		);
+		await panel.getByLabel("대상 컬렉션", { exact: true }).selectOption("");
+		await expect(panel.getByLabel("새 컬렉션 이름", { exact: false })).toHaveValue("");
+	} finally {
+		fixture.cleanup();
+	}
 });
 
 test("컬렉션 검색은 전체 경로로 구분하고 검색 결과로 바로 이동한다", async ({ page }) => {

@@ -264,3 +264,30 @@ export async function seedBookmarkUXSource() {
 	);
 	return JSON.parse(output) as { id: string; url: string; title: string };
 }
+
+// UI draft regression only: this fixture is not an AI execution or approval.
+export function seedBookmarkProposalDraft() {
+	const id = randomUUID();
+	const jobId = randomUUID();
+	runAdminSql(`
+		begin;
+		insert into public.bookmarks(id,url,url_key,title)
+		values('${id}','https://example.com/${id}','https://example.com/${id}','변경안 초안 검증');
+		insert into public.bookmark_jobs(id,kind,state,total,completed)
+		values('${jobId}','classify','succeeded',1,1);
+		insert into public.bookmark_proposals(job_id,bookmark_id,expected_version,kind,reason)
+		values('${jobId}','${id}',1,'classify','화면 전환 초안 회귀 검증');
+		commit;
+	`);
+	return {
+		id,
+		cleanup: () =>
+			runAdminSql(`
+				begin;
+				delete from public.bookmark_proposals where job_id='${jobId}';
+				delete from public.bookmark_jobs where id='${jobId}';
+				delete from public.bookmarks where id='${id}';
+				commit;
+			`),
+	};
+}

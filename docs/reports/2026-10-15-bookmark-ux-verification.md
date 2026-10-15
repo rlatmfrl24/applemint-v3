@@ -104,3 +104,11 @@ Finish: accepted Global Constraints exclude push/merge/deploy. Keep the named br
 - `pnpm typecheck` 및 Biome PASS. 전체 DB·유료 AI·production build는 UI 초점만 바꾸는 이번 후속 수정에서 다시 실행하지 않았다.
 - 기존 로컬 Docker를 재사용하고 해당 worktree의 Next dev 서버를 숨김 백그라운드 프로세스로 실행했다. `http://localhost:3000/login` HTTP 200 및 같은 서버의 실제 소유자 UI 회귀를 확인했다. DB 초기화·저장·유료 AI 요청 없음.
 - 기존 인앱 탭 직접 연결은 브라우저 URL 보안정책으로 차단되어 재시도하지 않았다. 사용자 탭의 수동 QA 대신 별도 테스트 프로필의 기존 소프트웨어 회귀 결과와 서버 응답을 근거로 삼는다.
+
+## PR 검증과 후속 리뷰 수정
+
+후속 사용자 요청으로 전체 테스트·빌드와 PR 게시가 승인되었다. [PR #188](https://github.com/rlatmfrl24/applemint-v3/pull/188)의 `c95706a`에서 원격 `pnpm verify` 전체가 통과했다(645 단위, 778 pgTAP, production build·번들 한도). 첫 실행의 이미지 레지스트리 요청 제한은 같은 head 재실행에서 해소되었으며 코드 변경으로 우회하지 않았다.
+
+기존 자료를 보존한 별도 localhost 환경에서 일반 E2E 3 PASS와 실제 Main·Quick 자동 추천→저장→새로고침→소유자 DB·정산 장부 확인을 완료했다. 두 명시적 AI 요청 합계는 219492 nano($0.000219492)다. 북마크 전체 실행의 실패 2건은 기존 URL 전제와 낙관적 복원 확정 대기를 수정한 뒤 대상 재검증 및 UX 전체 파일에서 통과했다. 이는 개별 재검증을 합친 근거이며 단일 전체 명령 PASS로 대체하지 않는다. 추가 유료 관심 주제·분류 및 이전 자료 전용 시나리오 5건은 미실시다.
+
+자동 리뷰의 P2는 변경안 폼이 dirty 여부만 알리고 실제 입력은 DOM에 두어 패널↔Drawer 재마운트에서 잃는 문제였다. 제안 ID별 초안을 상위 선택 상태에 보관해 기존 대상·새 이름·승인/충돌 계약을 유지했다. 실제 검토 진입점의 회귀에서 대상 값 소실을 먼저 재현한 후 1440→1024→390→1440 전환, 목록 갱신, 계속 편집, 대상 변경 시 새 이름 초기화를 통과했다(`pr-proposal-draft-red.log`, `pr-proposal-draft-green.log`: setup 포함 2 PASS). 이 회귀의 DB 제안은 UI 초안 테스트용으로 명시해 생성·회수하며 실제 AI 실행 증거로 사용하지 않는다. TypeScript와 대상 Biome도 통과했다.

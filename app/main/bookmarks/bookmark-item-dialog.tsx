@@ -122,6 +122,7 @@ type BookmarkEditDraft = {
 	tags: string;
 	collectionId: string | null;
 };
+type BookmarkProposalDraft = { collectionId: string; newCollectionName: string };
 function editDraft(item: BookmarkItem): BookmarkEditDraft {
 	return {
 		version: item.version,
@@ -154,6 +155,8 @@ function BookmarkItemDetail({
 	draft: values,
 	editing,
 	setDraft,
+	proposalDrafts,
+	setProposalDraft,
 }: {
 	item: BookmarkItem;
 	collections: BookmarkCollection[];
@@ -164,6 +167,8 @@ function BookmarkItemDetail({
 	draft: BookmarkEditDraft;
 	editing: boolean;
 	setDraft: (draft: BookmarkEditDraft) => void;
+	proposalDrafts: Record<string, BookmarkProposalDraft>;
+	setProposalDraft: (id: string, draft: BookmarkProposalDraft) => void;
 }) {
 	const trpc = useTRPCClient();
 	const cache = useQueryClient();
@@ -413,7 +418,14 @@ function BookmarkItemDetail({
 					<form
 						key={proposal.id}
 						className="space-y-2 rounded-md border p-3"
-						onChange={() => onDirtyChange(true)}
+						onChange={(event) => {
+							const data = new FormData(event.currentTarget);
+							setProposalDraft(proposal.id, {
+								collectionId: String(data.get("collectionId") ?? ""),
+								newCollectionName: String(data.get("newCollectionName") ?? ""),
+							});
+							onDirtyChange(true);
+						}}
 						onSubmit={(e) => {
 							e.preventDefault();
 							const data = new FormData(e.currentTarget);
@@ -451,7 +463,11 @@ function BookmarkItemDetail({
 										id={`${proposal.id}target`}
 										className={bookmarkFieldClass}
 										name="collectionId"
-										defaultValue={proposal.target_collection_id ?? ""}
+										defaultValue={
+											proposalDrafts[proposal.id]?.collectionId ??
+											proposal.target_collection_id ??
+											""
+										}
 										onChange={(e) => {
 											(
 												e.currentTarget.form?.elements.namedItem(
@@ -475,7 +491,11 @@ function BookmarkItemDetail({
 										className={bookmarkFieldClass}
 										name="newCollectionName"
 										maxLength={160}
-										defaultValue={proposal.new_collection_name ?? ""}
+										defaultValue={
+											proposalDrafts[proposal.id]?.newCollectionName ??
+											proposal.new_collection_name ??
+											""
+										}
 									/>
 								</label>
 							</>
@@ -552,6 +572,7 @@ function SelectedBookmarkItemDialog({
 }) {
 	const trpc = useTRPCClient();
 	const [draft, setDraft] = useState<BookmarkEditDraft | null>(null);
+	const [proposalDrafts, setProposalDrafts] = useState<Record<string, BookmarkProposalDraft>>({});
 	const [viewport, setViewport] = useState({ wide: false, tablet: false });
 	const trigger = useRef<HTMLElement | null>(null);
 	const panelHeading = useRef<HTMLHeadingElement>(null);
@@ -637,6 +658,10 @@ function SelectedBookmarkItemDialog({
 						draft={draft ?? editDraft(item)}
 						editing={Boolean(draft) || selection.mode === "edit"}
 						setDraft={setDraft}
+						proposalDrafts={proposalDrafts}
+						setProposalDraft={(id, draft) =>
+							setProposalDrafts((previous) => ({ ...previous, [id]: draft }))
+						}
 					/>
 				)
 			) : (
