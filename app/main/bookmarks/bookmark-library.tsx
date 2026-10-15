@@ -2,7 +2,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, RefreshCw, Search } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -92,6 +92,7 @@ function useBookmarkManager(screen: BookmarkView) {
 	const trpc = useTRPCClient();
 	const cache = useQueryClient();
 	const params = useSearchParams();
+	const router = useRouter();
 	const { view, collection, reviewType } = bookmarkLocation(screen, params);
 	const searchParam = params.get("search") ?? "";
 	const [search, setSearch] = useState(searchParam);
@@ -102,9 +103,44 @@ function useBookmarkManager(screen: BookmarkView) {
 	const [collectionDialog, setCollectionDialog] = useState<CollectionDialogSelection | null>(null);
 	const [itemDialog, rawSetItemDialog] = useState<BookmarkDetailSelection | null>(null);
 	const dirty = useRef(false);
-	const [pendingDetail, setPendingDetail] = useState<{
-		selection: BookmarkDetailSelection | null;
-	} | null>(null);
+	const [pendingDetail, setPendingDetail] = useState<
+		{ selection: BookmarkDetailSelection | null } | { href: string } | null
+	>(null);
+	useEffect(() => {
+		function guardNavigation(event: MouseEvent) {
+			if (
+				!dirty.current ||
+				event.defaultPrevented ||
+				event.button !== 0 ||
+				event.metaKey ||
+				event.ctrlKey ||
+				event.shiftKey ||
+				event.altKey
+			)
+				return;
+			const link =
+				event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+			if (
+				!link ||
+				link.target === "_blank" ||
+				link.hasAttribute("download") ||
+				link.origin !== window.location.origin
+			)
+				return;
+			event.preventDefault();
+			event.stopPropagation();
+			setPendingDetail({ href: link.pathname + link.search + link.hash });
+		}
+		function guardUnload(event: BeforeUnloadEvent) {
+			if (dirty.current) event.preventDefault();
+		}
+		document.addEventListener("click", guardNavigation, true);
+		window.addEventListener("beforeunload", guardUnload);
+		return () => {
+			document.removeEventListener("click", guardNavigation, true);
+			window.removeEventListener("beforeunload", guardUnload);
+		};
+	}, []);
 	function setItemDialog(next: BookmarkDetailSelection | null) {
 		if (dirty.current) {
 			setPendingDetail({ selection: next });
@@ -114,7 +150,10 @@ function useBookmarkManager(screen: BookmarkView) {
 	}
 	function discardDetail() {
 		dirty.current = false;
-		rawSetItemDialog(pendingDetail?.selection ?? null);
+		rawSetItemDialog(
+			pendingDetail && "selection" in pendingDetail ? pendingDetail.selection : null
+		);
+		if (pendingDetail && "href" in pendingDetail) router.push(pendingDetail.href);
 		setPendingDetail(null);
 	}
 

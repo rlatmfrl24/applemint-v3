@@ -114,6 +114,36 @@ function BookmarkMoveForm({
 	);
 }
 
+type BookmarkEditDraft = {
+	version: number;
+	title: string;
+	description: string;
+	note: string;
+	tags: string;
+	collectionId: string | null;
+};
+function editDraft(item: BookmarkItem): BookmarkEditDraft {
+	return {
+		version: item.version,
+		title: item.title,
+		description: item.description,
+		note: item.note,
+		tags: item.tags.join(", "),
+		collectionId: item.collection_id,
+	};
+}
+function readEditDraft(form: HTMLFormElement, version: number): BookmarkEditDraft {
+	const data = new FormData(form);
+	return {
+		version,
+		title: String(data.get("title")),
+		description: String(data.get("description")),
+		note: String(data.get("note")),
+		tags: String(data.get("tags")),
+		collectionId: String(data.get("collection")) || null,
+	};
+}
+
 function BookmarkItemDetail({
 	item,
 	collections,
@@ -121,6 +151,9 @@ function BookmarkItemDetail({
 	onDone,
 	onMove,
 	onDirtyChange,
+	draft: values,
+	editing,
+	setDraft,
 }: {
 	item: BookmarkItem;
 	collections: BookmarkCollection[];
@@ -128,11 +161,13 @@ function BookmarkItemDetail({
 	onDone: () => void;
 	onMove: () => void;
 	onDirtyChange: (dirty: boolean) => void;
+	draft: BookmarkEditDraft;
+	editing: boolean;
+	setDraft: (draft: BookmarkEditDraft) => void;
 }) {
 	const trpc = useTRPCClient();
 	const cache = useQueryClient();
-	const [editing, setEditing] = useState(mode === "edit");
-	const [editVersion, setEditVersion] = useState(item.version);
+	const editVersion = values.version;
 	const change = useBookmarkChange();
 	const changes = useBookmarkDisplayChanges();
 	const fieldId = useId();
@@ -158,7 +193,6 @@ function BookmarkItemDetail({
 		mutationFn: (input: Parameters<typeof trpc.bookmark.edit.mutate>[0]) =>
 			trpc.bookmark.edit.mutate(input),
 		onSuccess: async () => {
-			setEditing(false);
 			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
 			onDone();
 			toast.success("변경했습니다.");
@@ -278,8 +312,7 @@ function BookmarkItemDetail({
 							variant="ghost"
 							disabled={editing || pending}
 							onClick={() => {
-								setEditVersion(item.version);
-								setEditing(true);
+								setDraft(editDraft(item));
 							}}
 						>
 							수정
@@ -290,21 +323,24 @@ function BookmarkItemDetail({
 			{editing && (
 				<form
 					className="grid gap-2"
-					onChange={() => onDirtyChange(true)}
+					onChange={(event) => {
+						setDraft(readEditDraft(event.currentTarget, editVersion));
+						onDirtyChange(true);
+					}}
 					onSubmit={(e) => {
 						e.preventDefault();
-						const data = new FormData(e.currentTarget);
+						const data = readEditDraft(e.currentTarget, editVersion);
 						edit.mutate({
 							id: item.id,
 							version: editVersion,
-							title: String(data.get("title")),
-							description: String(data.get("description")),
-							note: String(data.get("note")),
-							tags: String(data.get("tags"))
+							title: data.title,
+							description: data.description,
+							note: data.note,
+							tags: data.tags
 								.split(",")
 								.map((v) => v.trim())
 								.filter(Boolean),
-							collectionId: String(data.get("collection")) || null,
+							collectionId: data.collectionId,
 						});
 					}}
 				>
@@ -314,7 +350,7 @@ function BookmarkItemDetail({
 							id={`${fieldId}title`}
 							className={bookmarkFieldClass}
 							name="title"
-							defaultValue={item.title}
+							defaultValue={values.title}
 							maxLength={1000}
 						/>
 					</label>
@@ -324,7 +360,7 @@ function BookmarkItemDetail({
 							id={`${fieldId}description`}
 							className={bookmarkFieldClass}
 							name="description"
-							defaultValue={item.description}
+							defaultValue={values.description}
 							maxLength={4000}
 						/>
 					</label>
@@ -334,7 +370,12 @@ function BookmarkItemDetail({
 							id={`${fieldId}collection`}
 							name="collection"
 							collections={collections}
-							defaultValue={item.collection_id}
+							defaultValue={values.collectionId}
+							value={values.collectionId}
+							onChange={(collectionId) => {
+								setDraft({ ...values, collectionId });
+								onDirtyChange(true);
+							}}
 							disabled={pending}
 						/>
 					</div>
@@ -344,7 +385,7 @@ function BookmarkItemDetail({
 							id={`${fieldId}tags`}
 							className={bookmarkFieldClass}
 							name="tags"
-							defaultValue={item.tags.join(", ")}
+							defaultValue={values.tags}
 						/>
 					</label>
 					<label htmlFor={`${fieldId}note`}>
@@ -353,7 +394,7 @@ function BookmarkItemDetail({
 							id={`${fieldId}note`}
 							className={bookmarkFieldClass}
 							name="note"
-							defaultValue={item.note}
+							defaultValue={values.note}
 							maxLength={20000}
 						/>
 					</label>
@@ -480,10 +521,7 @@ export type BookmarkDetailSelection = {
 };
 export function BookmarkItemDialog({
 	selection,
-	collections,
-	close,
-	onDirtyChange,
-	changeMode,
+	...props
 }: {
 	selection: BookmarkDetailSelection | null;
 	collections: BookmarkCollection[];
@@ -491,7 +529,29 @@ export function BookmarkItemDialog({
 	onDirtyChange: (dirty: boolean) => void;
 	changeMode: (mode: BookmarkDetailSelection["mode"]) => void;
 }) {
+	return selection ? (
+		<SelectedBookmarkItemDialog
+			key={selection.id + selection.mode}
+			selection={selection}
+			{...props}
+		/>
+	) : null;
+}
+function SelectedBookmarkItemDialog({
+	selection,
+	collections,
+	close,
+	onDirtyChange,
+	changeMode,
+}: {
+	selection: BookmarkDetailSelection;
+	collections: BookmarkCollection[];
+	close: () => void;
+	onDirtyChange: (dirty: boolean) => void;
+	changeMode: (mode: BookmarkDetailSelection["mode"]) => void;
+}) {
 	const trpc = useTRPCClient();
+	const [draft, setDraft] = useState<BookmarkEditDraft | null>(null);
 	const [viewport, setViewport] = useState({ wide: false, tablet: false });
 	const trigger = useRef<HTMLElement | null>(null);
 	useEffect(() => {
@@ -517,6 +577,10 @@ export function BookmarkItemDialog({
 		},
 		enabled: Boolean(selection),
 	});
+	const item = detail.data?.items[0];
+	useEffect(() => {
+		if (selection.mode === "edit" && !draft && item) setDraft(editDraft(item));
+	}, [selection.mode, draft, item]);
 	if (!selection) return null;
 	const title = {
 		move: "컬렉션 이동",
@@ -524,7 +588,6 @@ export function BookmarkItemDialog({
 		edit: "북마크 수정",
 		details: "북마크 상세",
 	}[selection.mode];
-	const item = detail.data?.items[0];
 	function restoreFocus() {
 		requestAnimationFrame(() => {
 			if (trigger.current?.isConnected) trigger.current.focus();
@@ -565,6 +628,9 @@ export function BookmarkItemDialog({
 						onDone={finish}
 						onDirtyChange={onDirtyChange}
 						onMove={() => changeMode("move")}
+						draft={draft ?? editDraft(item)}
+						editing={Boolean(draft) || selection.mode === "edit"}
+						setDraft={setDraft}
 					/>
 				)
 			) : (

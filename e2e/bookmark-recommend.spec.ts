@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, type Route, test } from "@playwright/test";
 import {
 	bookmarkJobSchema,
 	bookmarkRecommendationSchema,
@@ -48,7 +48,7 @@ test("호스트와 일치하는 컬렉션은 팝업에서 바로 선택되고 �
 	expect(after.data).toEqual(before.data);
 });
 
-test("작업 기록에서 다시 연 실제 추천은 추가 적용 버튼 없이 컬렉션 선택에 반영된다", async ({
+test("작업 기록의 추천 조회 실패는 조회만 재시도하고 실제 결과를 자동 적용한다", async ({
 	page,
 }) => {
 	const db = await bookmarkOwner();
@@ -64,12 +64,31 @@ test("작업 기록에서 다시 연 실제 추천은 추가 적용 버튼 없�
 	const job = bookmarkJobSchema.parse(completed.data);
 	const result = bookmarkRecommendationSchema.parse(job.progress.recommendation);
 	const collections = await db.from("bookmark_collections").select("*").is("archived_at", null);
+	const before = await db.rpc("bookmark_ai_usage");
+	let reads = 0;
+	let registrations = 0;
+	await page.route("**/api/trpc/**", async (route) => {
+		const url = route.request().url();
+		if (url.includes("bookmarkAI.recommendation")) {
+			reads++;
+			if (reads === 1) return route.abort();
+		} else if (url.includes("bookmarkAI.recommend")) {
+			registrations++;
+			return route.abort();
+		}
+		await route.continue();
+	});
 	await page.goto("/main/bookmarks/activity");
 	await page
 		.locator(`[data-bookmark-job-id="${job.id}"]`)
 		.getByRole("button", { name: "추천 확인·저장", exact: true })
 		.click();
 	const dialog = page.getByRole("alertdialog");
+	await expect(
+		dialog.getByRole("button", { name: "추천 결과 다시 확인", exact: true })
+	).toBeVisible();
+	await expect(dialog.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
+	await dialog.getByRole("button", { name: "추천 결과 다시 확인", exact: true }).click();
 	await expect(dialog.getByText("AI 추천", { exact: true })).toBeVisible();
 	await expect(dialog.getByLabel("컬렉션", { exact: true })).toHaveText(
 		collectionPath(result.collectionId, collections.data ?? [])
@@ -86,6 +105,9 @@ test("작업 기록에서 다시 연 실제 추천은 추가 적용 버튼 없�
 		collectionPath(result.collectionId, collections.data ?? [])
 	);
 	await dialog.getByRole("button", { name: "취소", exact: true }).click();
+	expect(registrations).toBe(0);
+	expect(reads).toBeGreaterThanOrEqual(2);
+	expect((await db.rpc("bookmark_ai_usage")).data).toEqual(before.data);
 });
 
 test("컬렉션 조회가 실패한 뒤 늦게 복구돼도 호스트 추천은 유료 요청을 보내지 않는다", async ({
@@ -436,5 +458,66 @@ for (const screen of ["Main", "Quick"]) {
 		} finally {
 			if (screen === "Quick") await restoreQuickSource(db, source.data.id);
 		}
+	});
+}
+
+async function missingAIConfiguration(route: Route) {
+	const response = await route.fetch();
+	const body = await response.json();
+	for (const entry of Array.isArray(body) ? body : [body])
+		if (typeof entry.result?.data?.openrouter === "boolean") entry.result.data.openrouter = false;
+	await route.fulfill({ response, json: body });
+}
+
+for (const failure of ["missing-key", "budget"] as const) {
+	test(`자동 추천 ${failure} 오류는 이유와 수동 저장 경로를 제공한다`, async ({ page }) => {
+		const db = await bookmarkOwner();
+		await page.goto("/main");
+		const url = await findUnmatchedSource(page, db);
+		const before = await db.rpc("bookmark_ai_usage");
+		let registrations = 0;
+		await page.route("**/api/trpc/**", async (route) => {
+			const request = route.request().url();
+			if (request.includes("bookmarkAI.recommend?") || request.includes("bookmarkAI.recommend&")) {
+				registrations++;
+				await route.fulfill({
+					status: 403,
+					contentType: "application/json",
+					body: JSON.stringify([
+						{
+							error: {
+								message: "북마크 AI 월 예산이 부족합니다.",
+								code: -32003,
+								data: { code: "FORBIDDEN", httpStatus: 403, path: "bookmarkAI.recommend" },
+							},
+						},
+					]),
+				});
+				return;
+			}
+			if (failure === "missing-key" && request.includes("bookmarkImport.configuration")) {
+				await missingAIConfiguration(route);
+				return;
+			}
+			await route.continue();
+		});
+		await page
+			.locator(`[data-thread-url=${JSON.stringify(url)}]`)
+			.getByRole("button", { name: "북마크 저장", exact: true })
+			.click();
+		const dialog = page.getByRole("alertdialog");
+		await expect(
+			dialog.getByText(
+				failure === "missing-key"
+					? "AI 설정이 없어 수동으로 저장할 수 있습니다."
+					: "북마크 AI 월 예산이 부족합니다.",
+				{ exact: true }
+			)
+		).toBeVisible();
+		await expect(dialog.getByLabel("컬렉션", { exact: true })).toBeEnabled();
+		await expect(dialog.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
+		expect(registrations).toBe(failure === "missing-key" ? 0 : 1);
+		await dialog.getByRole("button", { name: "취소", exact: true }).click();
+		expect((await db.rpc("bookmark_ai_usage")).data).toEqual(before.data);
 	});
 }
