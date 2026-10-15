@@ -1,5 +1,46 @@
 import { expect, test } from "@playwright/test";
 
+test("저장 팝업은 자동 추천 중 위치와 저장만 잠그고 요청 실패 후 수동 저장을 허용한다", async ({
+	page,
+}) => {
+	let release = () => {};
+	const gate = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	let registered = 0;
+	await page.route("**/api/trpc/**", async (route) => {
+		const url = route.request().url();
+		if (url.includes("bookmarkAI.recommend") && !url.includes("bookmarkAI.recommendation")) {
+			registered++;
+			await gate;
+			await route.abort();
+			return;
+		}
+		await route.continue();
+	});
+	try {
+		await page.goto("/main");
+		await page
+			.locator('[data-thread-url^="http://www.slrclub.com/"]')
+			.getByRole("button", { name: "북마크 저장", exact: true })
+			.click();
+		const dialog = page.getByRole("alertdialog", { name: "북마크 저장", exact: true });
+		await expect(
+			dialog.getByText("저장할 컬렉션을 추천하고 있어요", { exact: true })
+		).toBeVisible();
+		await expect(dialog.getByLabel("컬렉션", { exact: true })).toBeDisabled();
+		await expect(dialog.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
+		await expect(dialog.getByLabel("제목 (선택)")).toBeEnabled();
+		await expect.poll(() => registered).toBe(1);
+		release();
+		await expect(dialog.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
+		await expect(dialog.getByRole("alert")).toBeVisible();
+		await dialog.getByRole("button", { name: "취소", exact: true }).click();
+	} finally {
+		release();
+	}
+});
+
 test("상세는 한 번 클릭해 패널로 열고 원문 주소와 전체 URL을 제공한다", async ({ page }) => {
 	await page.goto("/main/bookmarks");
 	const row = page.locator("article[data-bookmark-id]").first();
