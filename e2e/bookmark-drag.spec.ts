@@ -34,7 +34,7 @@ test("선택한 두 북마크만 함께 드래그하고 미분류로 복구한�
 		.select("id,name")
 		.is("parent_id", null)
 		.is("archived_at", null)
-		.not("source_id", "eq", "-1")
+		.or("source_id.is.null,source_id.neq.-1")
 		.order("name")
 		.limit(1)
 		.single();

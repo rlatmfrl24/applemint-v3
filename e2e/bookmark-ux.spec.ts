@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { bookmarkOwner } from "./support/bookmarks";
+import { seedBookmarkUXSource } from "./support/database";
 
 test("휴지통 이동은 응답 전에 반영되고 실행 취소는 응답 버전으로 복원한다", async ({ page }) => {
 	const db = await bookmarkOwner();
@@ -204,6 +205,7 @@ test("컬렉션 검색은 전체 경로로 구분하고 검색 결과로 바로 
 test("저장 팝업은 자동 추천 중 위치와 저장만 잠그고 요청 실패 후 수동 저장을 허용한다", async ({
 	page,
 }) => {
+	const source = await seedBookmarkUXSource();
 	let release = () => {};
 	const gate = new Promise<void>((resolve) => {
 		release = resolve;
@@ -222,7 +224,7 @@ test("저장 팝업은 자동 추천 중 위치와 저장만 잠그고 요청 �
 	try {
 		await page.goto("/main");
 		await page
-			.locator('[data-thread-url^="http://www.slrclub.com/"]')
+			.locator(`[data-thread-url=${JSON.stringify(source.url)}]`)
 			.getByRole("button", { name: "북마크 저장", exact: true })
 			.click();
 		const dialog = page.getByRole("alertdialog", { name: "북마크 저장", exact: true });
@@ -239,6 +241,16 @@ test("저장 팝업은 자동 추천 중 위치와 저장만 잠그고 요청 �
 		await dialog.getByRole("button", { name: "취소", exact: true }).click();
 	} finally {
 		release();
+		const db = await bookmarkOwner();
+		expect(
+			(
+				await db.rpc("transition_thread_state", {
+					p_thread_id: Number(source.id),
+					p_expected_state: "inbox",
+					p_destination_state: "trash",
+				})
+			).error
+		).toBeNull();
 	}
 });
 

@@ -162,15 +162,33 @@ test("수동 링크 검사 후 검토 유지·휴지통·복원을 실제 UI에�
 	await page.goto(`/main/bookmarks?search=${encodeURIComponent(sample.data?.url)}`);
 	const row = page.locator(`[data-bookmark-id="${sample.data?.id}"]`);
 	await row.getByRole("checkbox").check();
+	const started = new Date().toISOString();
 	await page.getByRole("button", { name: "링크 검사", exact: true }).click();
+	await expect
+		.poll(
+			async () => {
+				const result = await db
+					.from("bookmark_checks")
+					.select("id")
+					.eq("bookmark_id", sample.data?.id)
+					.gte("checked_at", started)
+					.limit(1)
+					.maybeSingle();
+				expect(result.error).toBeNull();
+				return result.data?.id ?? null;
+			},
+			{ timeout: 180000, intervals: [1000, 2000, 5000] }
+		)
+		.not.toBeNull();
 	await expect(row.getByText("죽은 링크 의심", { exact: true })).toBeVisible({ timeout: 180000 });
 	await page.goto(
 		`/main/bookmarks/review?type=dead&search=${encodeURIComponent(sample.data?.url)}`
 	);
 	await expect(row).toContainText("1분 뒤 재검사");
 	await row.getByRole("button", { name: "근거", exact: true }).click();
-	await expect(page.getByRole("alertdialog")).toContainText("404");
-	await page.getByRole("button", { name: "닫기", exact: true }).click();
+	const panel = page.getByRole("complementary", { name: "검토 결과", exact: true });
+	await expect(panel).toContainText("404");
+	await panel.getByRole("button", { name: "닫기", exact: true }).click();
 	await row.getByRole("button", { name: "유지", exact: true }).click();
 	await expect(row).toHaveCount(0);
 	await page.reload();
@@ -190,9 +208,12 @@ test("수동 링크 검사 후 검토 유지·휴지통·복원을 실제 UI에�
 	await page.goto(`/main/bookmarks/trash?search=${encodeURIComponent(sample.data?.url)}`);
 	await row.getByRole("button", { name: "복원", exact: true }).click();
 	await expect(row).toHaveCount(0);
-	expect(
-		(await db.from("bookmarks").select("state").eq("id", sample.data?.id).single()).data?.state
-	).toBe("library");
+	await expect
+		.poll(
+			async () =>
+				(await db.from("bookmarks").select("state").eq("id", sample.data?.id).single()).data?.state
+		)
+		.toBe("library");
 	console.log(
 		"REVIEW_KEEP_READBACK",
 		JSON.stringify({ dead: true, keptNotRepeated: true, trashedAndRestored: true })
