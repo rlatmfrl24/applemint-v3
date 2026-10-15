@@ -81,7 +81,7 @@ export function BookmarkRow({
 			draggable={view === "library" && !moving && !selectionDisabled}
 			onDragStart={(event) => startDrag(event, item)}
 			onDragEnd={endDrag}
-			className={`relative isolate grid min-h-[72px] grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 border-b px-3 py-2 text-sm transition-colors duration-150 last:border-b-0 data-[detail-selected=true]:bg-accent data-[detail-selected=true]:hover:bg-accent motion-reduce:transition-none ${checked ? "bg-accent/60" : "hover:bg-muted/35"}`}
+			className={`relative isolate grid min-h-[72px] grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 border-b px-3 py-2 text-sm transition-colors duration-150 last:border-b-0 data-[detail-selected=true]:bg-accent data-[detail-selected=true]:hover:bg-accent motion-reduce:transition-none ${checked ? "bg-accent/60" : "hover:bg-muted/60"}`}
 		>
 			<label className="relative z-10 -m-3 flex size-11 items-center justify-center">
 				<input
@@ -95,7 +95,7 @@ export function BookmarkRow({
 			</label>
 			<div className="min-w-0">
 				<div className="flex min-w-0 items-center gap-2">
-					<h2 className="min-w-0 border-0 p-0 font-medium text-sm leading-5">
+					<h2 className="min-w-0 border-0 p-0 font-semibold text-[15px] leading-5 tracking-normal">
 						<button
 							type="button"
 							aria-label={`${item.title || item.url} 상세 보기`}
@@ -201,12 +201,12 @@ function BookmarkRowContext({
 	reason: string;
 }) {
 	return view === "review" ? (
-		<p className="m-0 truncate text-muted-foreground text-xs leading-4" title={reason}>
+		<p className="m-0 truncate text-foreground/70 text-xs leading-4" title={reason}>
 			{reason}
 		</p>
 	) : (
 		item.tags.length > 0 && (
-			<p className="m-0 hidden truncate text-muted-foreground text-xs leading-4 xl:block">
+			<p className="m-0 hidden truncate text-foreground/70 text-xs leading-4 xl:block">
 				{item.tags.join(" · ")}
 			</p>
 		)
@@ -231,7 +231,7 @@ function BookmarkMetadata({
 }) {
 	const safe = /^https?:\/\//iu.test(item.url);
 	return (
-		<div className="min-w-0 space-y-0.5 text-muted-foreground text-xs">
+		<div className="mt-0.5 min-w-0 space-y-1 text-foreground/70 text-xs leading-4">
 			<a
 				draggable={false}
 				href={safe ? item.url : undefined}
@@ -240,15 +240,14 @@ function BookmarkMetadata({
 				aria-disabled={!safe || undefined}
 				onClick={safe ? onOpen : undefined}
 				title={item.url}
-				className="relative z-10 flex min-h-11 pointer-coarse:min-h-11 w-fit min-w-0 max-w-full items-center gap-1 rounded-sm underline decoration-muted-foreground/50 underline-offset-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring md:min-h-0"
+				className="relative z-10 flex min-h-11 pointer-coarse:min-h-11 w-fit min-w-0 max-w-full items-center gap-1.5 rounded-sm text-[13px] underline decoration-muted-foreground/40 underline-offset-3 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring md:min-h-0"
 			>
 				<ExternalLink className="size-3 shrink-0" aria-hidden="true" />
 				<span className="truncate">{item.url.replace(/^https?:\/\//iu, "")}</span>
 			</a>
 			<div className="flex min-w-0 items-center gap-2">
-				<span className="shrink-0">컬렉션</span>
 				<span
-					className="inline-flex min-w-0 items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-foreground"
+					className="inline-flex min-w-0 items-center gap-1 rounded-sm bg-muted px-1.5"
 					title={path}
 				>
 					<Folder className="size-3 shrink-0" aria-hidden="true" />

@@ -47,7 +47,8 @@ for (const width of [1440, 390]) {
 			await expect(panel).not.toBeVisible();
 			await page.keyboard.press("Escape");
 		}
-		await expect(row.getByText("컬렉션", { exact: true })).toBeVisible();
+		await expect(row.getByText("컬렉션", { exact: true })).toHaveCount(0);
+		await expect(row.locator("span[title]")).toHaveText(/\S/u);
 		const link = row.getByRole("link");
 		if (width < 768) expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(44);
 		const url = await link.getAttribute("href");

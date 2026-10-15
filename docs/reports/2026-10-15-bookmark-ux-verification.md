@@ -129,3 +129,13 @@ Main 헤더→Bookmark의 실제 클라이언트 탐색에서 Back/Forward 각�
 - 최종 제품 코드의 행/포커스/드래그/강조/디자인 화면 행렬 7 PASS(setup 포함). 주소의 안전 프로토콜 검사와 native 링크 동작, 실제 열기 기록·이전 경로 DB 보존도 기존 lifecycle 회귀에서 통과했다.
 - 최종 `pnpm check`(Biome/Knip/TypeScript), production build, 서버 경계 125파일 PASS. Main 127.8 KiB gzip으로 129 KiB 한도 이내다. 이후 변경은 검증 문서뿐이다.
 - 유료 AI opt-in과 실제 링크 재검사는 이 UI 수정에서 재실행하지 않았다. 해당 API/worker 코드는 이전 검증과 동일하며, 이번 실행의 선택형 8건은 별도로 명시한다. 원본 DB 초기화나 일반 E2E 준비 명령은 실행하지 않았다.
+
+## 후속 요청: 항목 라벨 제거와 가시성
+
+반복되는 ‘컬렉션’ 라벨만 제거하고 실제 소속 경로·폴더 아이콘을 유지했다. 제목은 15px semibold/기본 자간, 주소는 13px, 보조 정보는 foreground 70%로 정리했다. 간격을 재배분해 행 높이와 터치 영역을 유지한다. 변경은 공용 행 렌더링과 그 회귀·기준 시안에 한정되며 저장·권한·URL·API/DB·예산 계약은 동일하다.
+
+- 기존 행 회귀의 라벨 존재 검사를 새 요청에 맞춰 변경하고 실제 UI RED(라벨 1개)를 확인했다. 제거 후 데스크톱/모바일의 제목·행·주소·선택·메뉴 분리, 경로 표시, 초점 복귀를 통과했다.
+- UX 회귀 7 PASS(setup 포함, `reports/pr-row-polish-regression.log`), 다중 드래그·원상 복구 2 PASS(setup 포함, `pr-row-polish-drag.log`). 1440/1024/390px 양쪽 테마·8행 밀도·200% 상당 CSS 화면·모션 감소를 포함한다.
+- 같은 크기·상태의 기준/구현 시각 비교와 12개 텍스트/상태의 최소 대비 7.40:1을 확인했다. `design-qa.md`에 근거와 범위를 기록했다. Impeccable 기계 검사는 빈 결과다.
+- Node 24.19.0에서 `pnpm check`(Biome·Knip·TypeScript), production build·서버 경계 125파일 PASS. Main 127.8 KiB gzip으로 기존 129 KiB 한도 이내다. 근거는 `pr-row-polish-{check,build}.log`이며 제품 변경 이후 검증했다.
+- 로컬 전체 DB/유료 AI/일반 E2E는 이번 표시 변경에서 반복하지 않았다. 기존 관련 서버 검증과 새 PR head의 필수 CI를 구분해 PR 원장에 기록한다. 기존 개발 서버를 유지하며 원본 DB 초기화·재시작은 하지 않았다.
