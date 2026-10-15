@@ -21,6 +21,7 @@ import type { BookmarkCollection, BookmarkItem } from "@/contracts/bookmark.sche
 import { collectionPath } from "@/lib/bookmark-collection";
 import { useTRPCClient } from "@/trpc/client";
 import styles from "./bookmark-detail.module.css";
+import { useBookmarkChange, useBookmarkDisplayChanges } from "./use-bookmark-actions";
 
 const healthLabels = {
 	healthy: "정상",
@@ -66,20 +67,15 @@ function BookmarkMoveForm({
 	collections: BookmarkCollection[];
 	onDone: () => void;
 }) {
-	const trpc = useTRPCClient();
 	const cache = useQueryClient();
 	const fieldId = useId();
 	const [chosen, setChosen] = useState(items.length === 1);
+	const change = useBookmarkChange();
 	const move = useMutation({
 		mutationFn: (collectionId: string | null) =>
-			trpc.bookmarkCollection.moveMany.mutate({
-				items: items.map(({ id, version }) => ({ id, version })),
-				collectionId,
-			}),
-		onSuccess: async (result) => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
+			change.mutateAsync({ action: "move", items, collectionId }),
+		onSuccess: async () => {
 			onDone();
-			toast.success(`북마크 ${result.applied}개를 이동했습니다.`);
 		},
 		onError: async (error) => {
 			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
@@ -135,10 +131,14 @@ function BookmarkItemDetail({
 	const cache = useQueryClient();
 	const [editing, setEditing] = useState(mode === "edit");
 	const [editVersion, setEditVersion] = useState(item.version);
+	const change = useBookmarkChange();
+	const changes = useBookmarkDisplayChanges();
 	const fieldId = useId();
 	const mutate = useMutation({
 		mutationFn: async (action: "trash" | "restore" | "keep") =>
-			trpc.bookmark[action].mutate({ id: item.id, version: item.version }),
+			action === "keep"
+				? trpc.bookmark.keep.mutate({ id: item.id, version: item.version })
+				: change.mutateAsync({ action, items: [item] }),
 		onSuccess: async (_item, action) => {
 			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
 			onDone();
@@ -179,7 +179,11 @@ function BookmarkItemDetail({
 		onSuccess: () => cache.invalidateQueries({ queryKey: ["bookmarks"] }),
 		onError: (e) => toast.error(`열기 기록 저장 실패: ${e.message}`),
 	});
-	const pending = mutate.isPending || apply.isPending || edit.isPending;
+	const pending =
+		mutate.isPending ||
+		apply.isPending ||
+		edit.isPending ||
+		changes.some((change) => change.items.some((candidate) => candidate.id === item.id));
 	const safeUrl = /^https?:\/\//iu.test(item.url);
 	return (
 		<div className="space-y-3">
@@ -266,7 +270,7 @@ function BookmarkItemDetail({
 						<Button
 							size="sm"
 							variant="ghost"
-							disabled={editing}
+							disabled={editing || pending}
 							onClick={() => {
 								setEditVersion(item.version);
 								setEditing(true);
@@ -574,6 +578,9 @@ export function BookmarkItemDialog({
 			>
 				<AlertDialogContent
 					className="max-h-[85dvh] overflow-y-auto"
+					onEscapeKeyDown={(event) => {
+						if ((event.target as HTMLElement).closest('[role="tree"]')) event.preventDefault();
+					}}
 					onCloseAutoFocus={(event) => {
 						event.preventDefault();
 						restoreFocus();
@@ -621,6 +628,9 @@ export function BookmarkItemDialog({
 			}}
 		>
 			<DrawerContent
+				onEscapeKeyDown={(event) => {
+					if ((event.target as HTMLElement).closest('[role="tree"]')) event.preventDefault();
+				}}
 				className={`${styles.drawer} ${viewport.tablet ? "inset-y-0 right-0 left-auto mt-0 h-full max-h-dvh w-[420px] max-w-full rounded-none" : ""}`}
 				onCloseAutoFocus={(event) => {
 					event.preventDefault();

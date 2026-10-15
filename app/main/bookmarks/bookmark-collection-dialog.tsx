@@ -19,6 +19,7 @@ import type { BookmarkCollection } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
 import { canReparentCollection } from "@/lib/bookmark-tree";
 import { useTRPCClient } from "@/trpc/client";
+import { useCollectionChange } from "./use-bookmark-actions";
 
 export type CollectionDialogSelection = {
 	parentId: string | null;
@@ -53,6 +54,7 @@ export function BookmarkCollectionDialog({
 }) {
 	const trpc = useTRPCClient();
 	const cache = useQueryClient();
+	const change = useCollectionChange();
 	const fieldId = useId();
 	const returnFocus = useRef<HTMLElement | null>(null);
 	const [parent, setParent] = useState("");
@@ -72,13 +74,15 @@ export function BookmarkCollectionDialog({
 				});
 			if (!collection) throw new Error("컬렉션을 다시 선택해주세요.");
 			if (mode === "move")
-				return trpc.bookmarkCollection.reparent.mutate({
+				return change.mutateAsync({
+					kind: "reparent",
 					id: collection.id,
 					version: collection.version,
 					parentId: String(data.get("parent")) || null,
 				});
 			if (mode === "rename")
-				return trpc.bookmarkCollection.rename.mutate({
+				return change.mutateAsync({
+					kind: "rename",
 					id: collection.id,
 					version: collection.version,
 					name: String(data.get("name")),
@@ -94,7 +98,14 @@ export function BookmarkCollectionDialog({
 				toast.success(
 					`컬렉션을 삭제했습니다. 북마크 ${result.movedBookmarks}개는 미분류로, 하위 컬렉션 ${result.reparentedCollections}개는 한 단계 위로 이동했습니다.`
 				);
-			} else toast.success(messages[mode]);
+			} else {
+				await cache.cancelQueries({ queryKey: ["bookmarks", "collections"] });
+				cache.setQueryData<BookmarkCollection[]>(["bookmarks", "collections"], (old) => [
+					...(old ?? []).filter((collection) => collection.id !== result.id),
+					result,
+				]);
+				toast.success(messages[mode]);
+			}
 			close();
 			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
 		},

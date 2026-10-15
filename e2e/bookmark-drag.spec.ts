@@ -49,6 +49,7 @@ test("선택한 두 북마크만 함께 드래그하고 미분류로 복구한�
 		await expect(bulkDialog).toContainText("선택한 북마크 2개");
 		await expect(bulkDialog.getByRole("button", { name: "이동", exact: true })).toBeDisabled();
 		await bulkDialog.getByRole("button", { name: "닫기", exact: true }).click();
+		await expect(row(selected[0].id)).toHaveAttribute("draggable", "true");
 		await row(selected[0].id).dragTo(
 			navigation.getByRole("button", { name: target.data?.name, exact: true })
 		);
@@ -77,6 +78,7 @@ test("선택한 두 북마크만 함께 드래그하고 미분류로 복구한�
 				expect(moved?.[key]).toEqual(item[key]);
 			await row(item.id).getByRole("checkbox").check();
 		}
+		await expect(row(selected[0].id)).toHaveAttribute("draggable", "true");
 		await row(selected[0].id).dragTo(
 			navigation.getByRole("button", { name: "미분류", exact: true })
 		);

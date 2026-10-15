@@ -14,6 +14,7 @@ import type { BookmarkCollection, BookmarkItem } from "@/contracts/bookmark.sche
 import { collectionPath } from "@/lib/bookmark-collection";
 import { useTRPCClient } from "@/trpc/client";
 import type { BookmarkDetailSelection } from "./bookmark-item-dialog";
+import { useBookmarkChange } from "./use-bookmark-actions";
 
 export function BookmarkRow({
 	item,
@@ -40,6 +41,7 @@ export function BookmarkRow({
 }) {
 	const trpc = useTRPCClient();
 	const cache = useQueryClient();
+	const change = useBookmarkChange();
 	const menuTrigger = useRef<HTMLButtonElement>(null);
 	const openingDialog = useRef(false);
 	function showDialog(mode: "details" | "edit" | "move") {
@@ -60,18 +62,21 @@ export function BookmarkRow({
 		onSuccess: () => cache.invalidateQueries({ queryKey: ["bookmarks"] }),
 		onError: (error) => toast.error(error.message),
 	});
+	const rowPending = action.isPending || selectionDisabled;
 	const safe = /^https?:\/\//iu.test(item.url);
 	const path = collectionPath(item.collection_id, collections);
 	const dead =
 		item.check?.status === "dead" &&
 		item.check.bookmark_version === item.version &&
 		!item.check.reviewed_at;
-	const classify = item.proposals.some((proposal) => proposal.kind === "classify");
+	const proposalLabel = item.proposals.some((proposal) => proposal.kind === "classify")
+		? "변경안"
+		: "근거";
 	const reason = reviewReason(item, dead);
 	return (
 		<article
 			data-bookmark-id={item.id}
-			draggable={view === "library" && !moving}
+			draggable={view === "library" && !moving && !selectionDisabled}
 			onDragStart={(event) => startDrag(event, item)}
 			onDragEnd={endDrag}
 			className={`grid min-h-[72px] grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 border-b px-3 py-2 text-sm last:border-b-0 ${checked ? "bg-accent/60" : "hover:bg-muted/35"}`}
@@ -88,6 +93,7 @@ export function BookmarkRow({
 				<div className="flex min-w-0 items-center gap-2">
 					<h2 className="min-w-0 border-0 p-0 font-medium text-sm leading-5">
 						<a
+							draggable={false}
 							href={safe ? item.url : undefined}
 							target="_blank"
 							rel="noopener noreferrer"
@@ -101,17 +107,7 @@ export function BookmarkRow({
 					{dead && <span className="shrink-0 text-destructive text-xs">죽은 링크 의심</span>}
 				</div>
 				<BookmarkMetadata item={item} path={path} />
-				{view === "review" ? (
-					<p className="m-0 truncate text-muted-foreground text-xs leading-4" title={reason}>
-						{reason}
-					</p>
-				) : (
-					item.tags.length > 0 && (
-						<p className="m-0 hidden truncate text-muted-foreground text-xs leading-4 xl:block">
-							{item.tags.join(" · ")}
-						</p>
-					)
-				)}
+				<BookmarkRowContext item={item} view={view} reason={reason} />
 			</div>
 			<div className="flex shrink-0 items-center gap-1">
 				{view === "library" && (
@@ -126,40 +122,28 @@ export function BookmarkRow({
 						<Button
 							variant="ghost"
 							size="sm"
-							disabled={action.isPending}
+							disabled={rowPending}
 							onClick={() => action.mutate("keep")}
 						>
 							유지
 						</Button>
-						{classify ? (
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={(event) =>
-									detail({ id: item.id, mode: "proposal", trigger: event.currentTarget })
-								}
-							>
-								변경안
-							</Button>
-						) : (
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={(event) =>
-									detail({ id: item.id, mode: "proposal", trigger: event.currentTarget })
-								}
-							>
-								근거
-							</Button>
-						)}
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={(event) =>
+								detail({ id: item.id, mode: "proposal", trigger: event.currentTarget })
+							}
+						>
+							{proposalLabel}
+						</Button>
 					</>
 				)}
 				{view === "trash" && (
 					<Button
 						variant="outline"
 						size="sm"
-						disabled={action.isPending}
-						onClick={() => action.mutate("restore")}
+						disabled={rowPending}
+						onClick={() => change.mutate({ action: "restore", items: [item] })}
 					>
 						복원
 					</Button>
@@ -180,7 +164,7 @@ export function BookmarkRow({
 					<DropdownMenuTrigger asChild>
 						<Button
 							ref={menuTrigger}
-							disabled={moving}
+							disabled={selectionDisabled}
 							variant="ghost"
 							size="icon"
 							className="size-8"
@@ -203,8 +187,8 @@ export function BookmarkRow({
 								<DropdownMenuItem onSelect={() => showDialog("move")}>컬렉션 이동</DropdownMenuItem>
 								<DropdownMenuItem
 									className="text-destructive"
-									disabled={action.isPending}
-									onSelect={() => action.mutate("trash")}
+									disabled={rowPending}
+									onSelect={() => change.mutate({ action: "trash", items: [item] })}
 								>
 									휴지통 이동
 								</DropdownMenuItem>
@@ -214,6 +198,27 @@ export function BookmarkRow({
 				</DropdownMenu>
 			</div>
 		</article>
+	);
+}
+function BookmarkRowContext({
+	item,
+	view,
+	reason,
+}: {
+	item: BookmarkItem;
+	view: string;
+	reason: string;
+}) {
+	return view === "review" ? (
+		<p className="m-0 truncate text-muted-foreground text-xs leading-4" title={reason}>
+			{reason}
+		</p>
+	) : (
+		item.tags.length > 0 && (
+			<p className="m-0 hidden truncate text-muted-foreground text-xs leading-4 xl:block">
+				{item.tags.join(" · ")}
+			</p>
+		)
 	);
 }
 function reviewReason(item: BookmarkItem, dead: boolean) {

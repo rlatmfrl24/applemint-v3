@@ -29,6 +29,7 @@ test("목록 드래그와 수정 트리로 실제 컬렉션을 이동하고 원�
 	await expect(row).toBeVisible();
 	await expect(row).toHaveAttribute("draggable", "true");
 	try {
+		await expect(row).toHaveAttribute("draggable", "true");
 		await row.dragTo(
 			page
 				.getByRole("navigation", { name: "북마크 탐색", exact: true })
@@ -45,10 +46,12 @@ test("목록 드래그와 수정 트리로 실제 컬렉션을 이동하고 원�
 		const beforeSame = (await db.from("bookmarks").select("version").eq("id", original.id).single())
 			.data?.version;
 		const navigation = page.getByRole("navigation", { name: "북마크 탐색", exact: true });
+		await expect(row).toHaveAttribute("draggable", "true");
 		await row.dragTo(navigation.getByRole("button", { name: root.name, exact: true }));
 		expect(
 			(await db.from("bookmarks").select("version").eq("id", original.id).single()).data?.version
 		).toBe(beforeSame);
+		await expect(row).toHaveAttribute("draggable", "true");
 		await row.dragTo(navigation.getByRole("button", { name: "미분류", exact: true }));
 		await expect
 			.poll(
@@ -58,6 +61,7 @@ test("목록 드래그와 수정 트리로 실제 컬렉션을 이동하고 원�
 			)
 			.toBeNull();
 		await expect(row).toContainText("미분류");
+		await expect(row).toHaveAttribute("draggable", "true");
 		await row.dragTo(navigation.getByRole("button", { name: root.name, exact: true }));
 		await expect
 			.poll(
@@ -69,7 +73,7 @@ test("목록 드래그와 수정 트리로 실제 컬렉션을 이동하고 원�
 		await page.reload();
 		await row.getByRole("button", { name: `${original.title} 항목 메뉴`, exact: true }).click();
 		await page.getByRole("menuitem", { name: "수정", exact: true }).click();
-		const dialog = page.getByRole("alertdialog");
+		const dialog = page.getByRole("complementary", { name: "북마크 수정", exact: true });
 		await dialog.getByLabel("컬렉션", { exact: true }).click();
 		const tree = dialog.getByRole("tree", { name: "컬렉션 선택", exact: true });
 		for (const ancestor of collectionAncestors(nested.id, collections).reverse()) {
@@ -178,6 +182,7 @@ test("드래그 시작 이후 다른 변경이 생기면 오래된 버전의 이
 		const target = page
 			.getByRole("navigation", { name: "북마크 탐색", exact: true })
 			.getByRole("button", { name: root.name, exact: true });
+		await expect(row).toHaveAttribute("draggable", "true");
 		await row.dragTo(target);
 		await expect(
 			page.getByText("다른 화면에서 상태가 변경되었습니다. 최신 값을 확인해주세요.", {
@@ -193,7 +198,7 @@ test("드래그 시작 이후 다른 변경이 생기면 오래된 버전의 이
 		await page.goto(`/main/bookmarks?search=${encodeURIComponent(original.title)}`);
 		await row.getByRole("button", { name: `${original.title} 항목 메뉴`, exact: true }).click();
 		await page.getByRole("menuitem", { name: "수정", exact: true }).click();
-		const dialog = page.getByRole("alertdialog");
+		const dialog = page.getByRole("complementary", { name: "북마크 수정", exact: true });
 		await dialog.getByRole("textbox", { name: "메모", exact: true }).fill(original.note);
 		await dialog.getByLabel("컬렉션", { exact: true }).click();
 		await dialog

@@ -22,6 +22,43 @@ function savedMessage(result: { existing: boolean; item: { state: string } }) {
 		? "휴지통에 이미 저장한 URL입니다. 복원할 수 있습니다."
 		: "이미 저장한 URL입니다. 기존 북마크를 확인해주세요.";
 }
+function RecommendationFeedback({
+	busy,
+	origin,
+	error,
+	retry,
+}: {
+	busy: boolean;
+	origin?: string;
+	error?: string;
+	retry?: () => void;
+}) {
+	return (
+		<>
+			{busy ? (
+				<p role="status" className="mt-2 flex items-center gap-2 text-muted-foreground text-xs">
+					<Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
+					저장할 컬렉션을 추천하고 있어요
+				</p>
+			) : origin ? (
+				<p role="status" className="mt-2 text-muted-foreground text-xs">
+					{origin}
+				</p>
+			) : null}
+			{error && (
+				<div role="alert" className="mt-2 text-destructive text-xs">
+					<p className="m-0">{error}</p>
+					<p className="m-0">직접 컬렉션을 선택하거나 미분류로 저장할 수 있습니다.</p>
+					{retry && (
+						<Button type="button" size="sm" variant="ghost" onClick={retry}>
+							추천 결과 다시 확인
+						</Button>
+					)}
+				</div>
+			)}
+		</>
+	);
+}
 export default function BookmarkSaveForm({
 	source,
 	close,
@@ -177,36 +214,19 @@ export default function BookmarkSaveForm({
 						disabled={locked}
 						onChange={choose}
 					/>
-					{busy ? (
-						<p role="status" className="mt-2 flex items-center gap-2 text-muted-foreground text-xs">
-							<Loader2
-								aria-hidden="true"
-								className="size-4 animate-spin motion-reduce:animate-none"
-							/>
-							저장할 컬렉션을 추천하고 있어요
-						</p>
-					) : origin ? (
-						<p role="status" className="mt-2 text-muted-foreground text-xs">
-							{origin}
-						</p>
-					) : null}
+					<RecommendationFeedback
+						busy={busy}
+						origin={origin}
+						error={error}
+						retry={
+							recommendation.error
+								? () => {
+										void recommendation.refetch();
+									}
+								: undefined
+						}
+					/>
 				</div>
-				{error && (
-					<div role="alert" className="text-destructive text-xs">
-						<p className="m-0">{error}</p>
-						<p className="m-0">직접 컬렉션을 선택하거나 미분류로 저장할 수 있습니다.</p>
-						{recommendation.error && (
-							<Button
-								type="button"
-								size="sm"
-								variant="ghost"
-								onClick={() => void recommendation.refetch()}
-							>
-								추천 결과 다시 확인
-							</Button>
-						)}
-					</div>
-				)}
 				{collections.error && (
 					<p role="alert" className="text-destructive text-xs">
 						컬렉션을 불러오지 못했습니다. 다시 불러오거나 미분류로 저장할 수 있습니다.

@@ -33,7 +33,13 @@ import {
 	flattenBookmarkPages,
 	nextBookmarkOffset,
 } from "@/lib/bookmark-list";
+import {
+	projectBookmarkItems,
+	projectCollections,
+	refreshBookmarkChanges,
+} from "@/lib/bookmark-optimistic";
 import { latestClassificationProposals } from "@/lib/bookmark-proposal";
+import { collectionAncestors } from "@/lib/bookmark-tree";
 import { useTRPCClient } from "@/trpc/client";
 import {
 	BookmarkCollectionDialog,
@@ -45,6 +51,12 @@ import { BookmarkJobs } from "./bookmark-jobs";
 import styles from "./bookmark-library.module.css";
 import { BookmarkListSkeleton } from "./bookmark-loading";
 import { BookmarkRow } from "./bookmark-row";
+import {
+	useBookmarkChange,
+	useBookmarkDisplayChanges,
+	useCollectionChange,
+	useCollectionDisplayChanges,
+} from "./use-bookmark-actions";
 
 export type BookmarkView = "library" | "review" | "trash" | "activity";
 const viewInfo = {
@@ -145,8 +157,26 @@ function useBookmarkManager(screen: BookmarkView) {
 		refetchInterval: 10000,
 	});
 	const snapshot = query.data?.pages.at(-1);
-	const collections = collectionQuery.data ?? snapshot?.collections ?? [];
-	const items = useMemo(() => flattenBookmarkPages(query.data?.pages), [query.data?.pages]);
+	const collectionChanges = useCollectionDisplayChanges();
+	const collections = projectCollections(
+		collectionQuery.data ?? snapshot?.collections ?? [],
+		collectionChanges
+	);
+	const rawItems = useMemo(() => flattenBookmarkPages(query.data?.pages), [query.data?.pages]);
+	const displayChanges = useBookmarkDisplayChanges();
+	const items = projectBookmarkItems(rawItems, displayChanges, filter);
+	const bookmarkChange = useBookmarkChange();
+	const collectionChange = useCollectionChange();
+	const total = snapshot ? Math.max(0, snapshot.total + items.length - rawItems.length) : undefined;
+	async function refresh() {
+		try {
+			if (displayChanges.length) await refreshBookmarkChanges(cache);
+			else await query.refetch();
+		} catch {
+			toast.error("변경은 저장되었습니다. 최신 목록을 확인하지 못했습니다.");
+		}
+	}
+
 	const selectedItems = items.filter((item) => selected.includes(item.id));
 	const selectedIds = selectedItems.map((item) => item.id);
 	useEffect(() => {
@@ -214,19 +244,25 @@ function useBookmarkManager(screen: BookmarkView) {
 		onError: (error) => toast.error(error.message),
 	});
 	const classifications = latestClassificationProposals(selectedItems);
-	const bulk = useMutation({
-		mutationFn: (action: "keep" | "trash" | "restore") =>
-			trpc.bookmark.bulk.mutate({
-				action,
-				items: selectedItems.map((item) => ({ id: item.id, version: item.version })),
-			}),
+	const keep = useMutation({
+		mutationFn: (items: { id: string; version: number }[]) =>
+			trpc.bookmark.bulk.mutate({ action: "keep", items }),
 		onSuccess: async () => {
-			setSelected([]);
 			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.success("선택 항목을 처리했습니다.");
+			toast.success("선택 항목을 유지했습니다.");
 		},
 		onError: (error) => toast.error(error.message),
 	});
+	const bulk = {
+		isPending: keep.isPending || bookmarkChange.isPending,
+		mutate: (action: "keep" | "trash" | "restore") => {
+			const items = selectedItems;
+			setSelected([]);
+			if (action === "keep") keep.mutate(items.map(({ id, version }) => ({ id, version })));
+			else bookmarkChange.mutate({ action, items });
+		},
+	};
+
 	const proposals = useMutation({
 		mutationFn: (exclude: boolean) =>
 			exclude
@@ -244,44 +280,33 @@ function useBookmarkManager(screen: BookmarkView) {
 		onError: (error) => toast.error(error.message),
 	});
 	const disabled = job.isPending || (scope === "selected" && selectedIds.length === 0);
-	const move = useMutation({
-		mutationFn: (input: Parameters<typeof trpc.bookmarkCollection.moveMany.mutate>[0]) =>
-			trpc.bookmarkCollection.moveMany.mutate(input),
-		onSuccess: async (result) => {
+	const move = {
+		isPending: bookmarkChange.isPending && bookmarkChange.variables?.action === "move",
+		variables: bookmarkChange.variables,
+		mutate: (input: Parameters<typeof trpc.bookmarkCollection.moveMany.mutate>[0]) => {
+			const items = input.items.map((value) => {
+				const item = rawItems.find((item) => item.id === value.id);
+				if (!item) throw new Error("목록에서 항목을 다시 선택해주세요.");
+				return { ...item, version: value.version };
+			});
 			setSelected([]);
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.success(`북마크 ${result.applied}개를 이동했습니다.`);
+			bookmarkChange.mutate({ action: "move", items, collectionId: input.collectionId });
 		},
-		onError: async (error) => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.error(error.message);
-		},
-	});
-	const reparent = useMutation({
-		mutationFn: (input: Parameters<typeof trpc.bookmarkCollection.reparent.mutate>[0]) =>
-			trpc.bookmarkCollection.reparent.mutate(input),
-		onSuccess: async () => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.success("컬렉션을 이동했습니다.");
-		},
-		onError: async (error) => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.error(error.message);
-		},
-	});
-	const reorder = useMutation({
-		mutationFn: (input: Parameters<typeof trpc.bookmarkCollection.reorder.mutate>[0]) =>
-			trpc.bookmarkCollection.reorder.mutate(input),
-		onSuccess: async () => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.success("컬렉션 순서를 변경했습니다.");
-		},
-		onError: async (error) => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.error(error.message);
-		},
-	});
-	const moving = move.isPending || reparent.isPending || reorder.isPending;
+	};
+
+	const reparent = {
+		mutate: (input: Parameters<typeof trpc.bookmarkCollection.reparent.mutate>[0]) =>
+			collectionChange.mutate({ ...input, kind: "reparent" }),
+	};
+	const reorder = {
+		mutate: (input: Parameters<typeof trpc.bookmarkCollection.reorder.mutate>[0]) =>
+			collectionChange.mutate({ ...input, kind: "reorder" }),
+	};
+	const moving =
+		collectionChanges.length > 0 ||
+		move.isPending ||
+		displayChanges.some((change) => change.action === "move");
+
 	function reorderCollection(
 		source: BookmarkCollection,
 		target: BookmarkCollection,
@@ -334,6 +359,9 @@ function useBookmarkManager(screen: BookmarkView) {
 	}
 	return {
 		view,
+		total,
+		displayChanges,
+		refresh,
 		collection,
 		search,
 		setSearch,
@@ -532,7 +560,9 @@ function Toolbar({ m }: { m: Manager }) {
 					variant="ghost"
 					aria-label="목록 새로고침"
 					disabled={m.query.isFetching}
-					onClick={() => m.query.refetch()}
+					onClick={() => {
+						void m.refresh();
+					}}
 				>
 					<RefreshCw className="size-4" aria-hidden="true" />
 				</Button>
@@ -573,7 +603,7 @@ function Toolbar({ m }: { m: Manager }) {
 					불러온 항목 선택{m.items.length > 2000 ? " (최대 2,000개)" : ""}
 				</label>
 				<span className="ml-auto font-mono text-muted-foreground">
-					{m.snapshot?.total.toLocaleString() ?? "…"}개 · 선택 {m.selected.length}개
+					{m.total?.toLocaleString() ?? "…"}개 · 선택 {m.selected.length}개
 				</span>
 			</div>
 			<BulkControls m={m} />
@@ -608,7 +638,9 @@ function Results({ m }: { m: Manager }) {
 						size="sm"
 						variant="outline"
 						disabled={m.query.isFetching}
-						onClick={() => m.query.refetch()}
+						onClick={() => {
+							void m.refresh();
+						}}
 					>
 						다시 불러오기
 					</Button>
@@ -668,7 +700,11 @@ function Results({ m }: { m: Manager }) {
 							endDrag={m.endDrag}
 							moving={m.moving}
 							selectionDisabled={
-								m.moving || (!m.selected.includes(item.id) && m.selected.length >= 2000)
+								m.moving ||
+								m.displayChanges.some((change) =>
+									change.items.some((candidate) => candidate.id === item.id)
+								) ||
+								(!m.selected.includes(item.id) && m.selected.length >= 2000)
 							}
 						/>
 					))}
@@ -686,7 +722,8 @@ function BookmarkLoadMore({
 	scrollRef: React.RefObject<HTMLDivElement | null>;
 }) {
 	const sentinel = useRef<HTMLDivElement>(null);
-	const { hasNextPage, isFetching, error, fetchNextPage } = m.query;
+	const { hasNextPage, error, fetchNextPage } = m.query;
+	const isFetching = m.query.isFetching || m.displayChanges.length > 0;
 	useEffect(() => {
 		const target = sentinel.current;
 		if (!target || !hasNextPage || isFetching || error) return;
@@ -714,7 +751,7 @@ function BookmarkLoadMore({
 				)}
 				<div className={styles.loadMore}>
 					<span>
-						{m.items.length.toLocaleString()} / {m.snapshot?.total.toLocaleString()}개
+						{m.items.length.toLocaleString()} / {m.total?.toLocaleString()}개
 					</span>
 					{hasNextPage ? (
 						<Button size="sm" variant="ghost" disabled={isFetching} onClick={() => fetchNextPage()}>
@@ -730,6 +767,42 @@ function BookmarkLoadMore({
 				</div>
 			</div>
 		</>
+	);
+}
+function CollectionBreadcrumb({ m, title }: { m: Manager; title: string }) {
+	const path = [...collectionAncestors(m.collection, m.collections).reverse(), m.collection]
+		.map((id) => m.collections.find((c) => c.id === id))
+		.filter((c) => c !== undefined);
+	return (
+		<div>
+			<h2
+				aria-label={title}
+				className="m-0 flex flex-wrap items-center gap-1 break-words border-0 p-0 font-medium text-base"
+			>
+				{path.length
+					? path.map((collection, index) => (
+							<span key={collection.id} className="contents">
+								{index > 0 && (
+									<span aria-hidden="true" className="text-muted-foreground">
+										/
+									</span>
+								)}
+								<button
+									type="button"
+									aria-label={`${collection.name} 컬렉션으로 이동`}
+									className="min-h-8 max-w-full break-all rounded px-1 text-left hover:bg-muted focus-visible:outline focus-visible:outline-ring"
+									onClick={() => m.updateURL({ collection: collection.id })}
+								>
+									{collection.name}
+								</button>
+							</span>
+						))
+					: title}
+			</h2>
+			{m.collection !== "all" && (
+				<p className="m-0 text-muted-foreground text-xs">현재 컬렉션의 직접 소속 항목</p>
+			)}
+		</div>
 	);
 }
 function Activity({ m }: { m: Manager }) {
@@ -844,11 +917,7 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 						{m.view === "trash" && (
 							<h2 className="m-0 border-0 p-0 font-medium text-base">휴지통</h2>
 						)}
-						{m.view === "library" && (
-							<h2 className="m-0 break-words border-0 p-0 font-medium text-base">
-								{collectionTitle}
-							</h2>
-						)}
+						{m.view === "library" && <CollectionBreadcrumb m={m} title={collectionTitle} />}
 						<Toolbar m={m} />
 						{m.query.isFetching && !m.query.isPending && !m.query.isFetchingNextPage && (
 							<p role="status" className="m-0 text-muted-foreground text-xs">
