@@ -1,23 +1,26 @@
 "use client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Drawer as DrawerPrimitive } from "vaul";
 import {
 	BookmarkCollectionPicker,
 	bookmarkFieldClass,
 } from "@/components/bookmark-collection-picker";
 import {
 	AlertDialog,
-	AlertDialogCancel,
 	AlertDialogContent,
 	AlertDialogDescription,
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Drawer, DrawerContent } from "@/components/ui/drawer";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { BookmarkCollection, BookmarkItem } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
 import { useTRPCClient } from "@/trpc/client";
+import styles from "./bookmark-detail.module.css";
 
 const healthLabels = {
 	healthy: "정상",
@@ -120,15 +123,18 @@ function BookmarkItemDetail({
 	collections,
 	mode,
 	onDone,
+	onDirtyChange,
 }: {
 	item: BookmarkItem;
 	collections: BookmarkCollection[];
 	mode: "details" | "edit" | "proposal";
 	onDone: () => void;
+	onDirtyChange: (dirty: boolean) => void;
 }) {
 	const trpc = useTRPCClient();
 	const cache = useQueryClient();
 	const [editing, setEditing] = useState(mode === "edit");
+	const [editVersion, setEditVersion] = useState(item.version);
 	const fieldId = useId();
 	const mutate = useMutation({
 		mutationFn: async (action: "trash" | "restore" | "keep") =>
@@ -183,6 +189,19 @@ function BookmarkItemDetail({
 						{item.title || item.url}
 					</h2>
 					<p className="break-all text-muted-foreground text-xs">{item.url}</p>
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						onClick={() => {
+							void navigator.clipboard.writeText(item.url).then(
+								() => toast.success("주소를 복사했습니다."),
+								() => toast.error("주소를 복사하지 못했습니다.")
+							);
+						}}
+					>
+						주소 복사
+					</Button>
 					<p className="mt-1 text-xs">
 						{collectionPath(item.collection_id, collections)}{" "}
 						{item.tags.length > 0 && `· ${item.tags.join(", ")}`}
@@ -244,7 +263,15 @@ function BookmarkItemDetail({
 						>
 							휴지통 이동
 						</Button>
-						<Button size="sm" variant="ghost" onClick={() => setEditing(!editing)}>
+						<Button
+							size="sm"
+							variant="ghost"
+							disabled={editing}
+							onClick={() => {
+								setEditVersion(item.version);
+								setEditing(true);
+							}}
+						>
 							수정
 						</Button>
 					</>
@@ -253,12 +280,13 @@ function BookmarkItemDetail({
 			{editing && (
 				<form
 					className="grid gap-2"
+					onChange={() => onDirtyChange(true)}
 					onSubmit={(e) => {
 						e.preventDefault();
 						const data = new FormData(e.currentTarget);
 						edit.mutate({
 							id: item.id,
-							version: item.version,
+							version: editVersion,
 							title: String(data.get("title")),
 							description: String(data.get("description")),
 							note: String(data.get("note")),
@@ -319,6 +347,11 @@ function BookmarkItemDetail({
 							maxLength={20000}
 						/>
 					</label>
+					{editVersion !== item.version && (
+						<p role="status" className="text-destructive text-xs">
+							다른 곳에서 변경된 항목입니다. 입력은 보존되며 저장 시 충돌을 확인합니다.
+						</p>
+					)}
 					<Button type="submit" disabled={edit.isPending}>
 						변경 저장
 					</Button>
@@ -329,6 +362,7 @@ function BookmarkItemDetail({
 					<form
 						key={proposal.id}
 						className="space-y-2 rounded-md border p-3"
+						onChange={() => onDirtyChange(true)}
 						onSubmit={(e) => {
 							e.preventDefault();
 							const data = new FormData(e.currentTarget);
@@ -429,7 +463,7 @@ function BookmarkItemDetail({
 }
 
 export type BookmarkDetailSelection = {
-	item: BookmarkItem;
+	id: string;
 	items?: BookmarkItem[];
 	mode: "details" | "edit" | "proposal" | "move";
 	trigger: HTMLElement | null;
@@ -438,70 +472,174 @@ export function BookmarkItemDialog({
 	selection,
 	collections,
 	close,
+	onDirtyChange,
 }: {
 	selection: BookmarkDetailSelection | null;
 	collections: BookmarkCollection[];
 	close: () => void;
+	onDirtyChange: (dirty: boolean) => void;
 }) {
+	const trpc = useTRPCClient();
+	const [viewport, setViewport] = useState({ wide: false, tablet: false });
 	const trigger = useRef<HTMLElement | null>(null);
+	useEffect(() => {
+		const wide = window.matchMedia("(min-width:1280px)");
+		const tablet = window.matchMedia("(min-width:768px)");
+		const update = () => setViewport({ wide: wide.matches, tablet: tablet.matches });
+		update();
+		wide.addEventListener("change", update);
+		tablet.addEventListener("change", update);
+		return () => {
+			wide.removeEventListener("change", update);
+			tablet.removeEventListener("change", update);
+		};
+	}, []);
 	useEffect(() => {
 		if (selection) trigger.current = selection.trigger;
 	}, [selection]);
-	return (
-		<AlertDialog
-			open={Boolean(selection)}
-			onOpenChange={(open) => {
-				if (!open) close();
-			}}
-		>
-			<AlertDialogContent
-				className="max-h-[85dvh] max-w-2xl overflow-y-auto"
-				onEscapeKeyDown={(event) => {
-					if ((event.target as HTMLElement).closest('[role="tree"]')) event.preventDefault();
-				}}
-				onCloseAutoFocus={(event) => {
-					event.preventDefault();
-					if (trigger.current?.isConnected) trigger.current.focus();
-					else document.getElementById("bookmark-search")?.focus();
-				}}
-			>
-				<AlertDialogHeader>
-					<AlertDialogTitle className="border-0 p-0 text-lg">
-						{selection?.mode === "move"
-							? "컬렉션 이동"
-							: selection?.mode === "proposal"
-								? "검토 결과"
-								: selection?.mode === "edit"
-									? "북마크 수정"
-									: "북마크 상세"}
-					</AlertDialogTitle>
-					<AlertDialogDescription>
-						저장 정보와 검토 근거를 확인합니다. 변경은 확인 후 적용됩니다.
-					</AlertDialogDescription>
-				</AlertDialogHeader>
-				{selection?.mode === "move" ? (
+	const detail = useQuery({
+		queryKey: ["bookmarks", "detail", selection?.id],
+		queryFn: () => {
+			if (!selection) throw new Error("북마크를 선택해주세요.");
+			return trpc.bookmark.detail.query({ id: selection.id });
+		},
+		enabled: Boolean(selection),
+	});
+	if (!selection) return null;
+	const title = {
+		move: "컬렉션 이동",
+		proposal: "검토 결과",
+		edit: "북마크 수정",
+		details: "북마크 상세",
+	}[selection.mode];
+	const item = detail.data?.items[0];
+	function restoreFocus() {
+		requestAnimationFrame(() => {
+			if (trigger.current?.isConnected) trigger.current.focus();
+			else document.getElementById("bookmark-search")?.focus();
+		});
+	}
+	function finish() {
+		onDirtyChange(false);
+		close();
+		restoreFocus();
+	}
+	function dismiss() {
+		close();
+		restoreFocus();
+	}
+	const body = (
+		<>
+			{detail.isPending ? (
+				<div role="status" aria-label="상세를 불러오는 중" className="space-y-3">
+					<Skeleton className="h-6 w-2/3" />
+					<Skeleton className="h-20 w-full" />
+				</div>
+			) : item ? (
+				selection.mode === "move" ? (
 					<BookmarkMoveForm
-						key={selection.item.id}
-						item={selection.item}
+						key={item.id}
+						item={item}
 						items={selection.items}
 						collections={collections}
-						onDone={close}
+						onDone={finish}
 					/>
 				) : (
-					selection && (
-						<BookmarkItemDetail
-							key={selection.item.id + selection.mode}
-							item={selection.item}
-							collections={collections}
-							mode={selection.mode}
-							onDone={close}
-						/>
-					)
-				)}
-				<div className="flex justify-end">
-					<AlertDialogCancel>닫기</AlertDialogCancel>
+					<BookmarkItemDetail
+						key={item.id + selection.mode}
+						item={item}
+						collections={collections}
+						mode={selection.mode}
+						onDone={finish}
+						onDirtyChange={onDirtyChange}
+					/>
+				)
+			) : (
+				<div role="alert">
+					<p>{detail.error?.message ?? "북마크를 찾을 수 없습니다."}</p>
+					<Button variant="outline" onClick={() => detail.refetch()}>
+						다시 불러오기
+					</Button>
 				</div>
-			</AlertDialogContent>
-		</AlertDialog>
+			)}
+		</>
+	);
+	if (selection.mode === "move")
+		return (
+			<AlertDialog
+				open
+				onOpenChange={(open) => {
+					if (!open) dismiss();
+				}}
+			>
+				<AlertDialogContent
+					className="max-h-[85dvh] overflow-y-auto"
+					onCloseAutoFocus={(event) => {
+						event.preventDefault();
+						restoreFocus();
+					}}
+				>
+					<AlertDialogHeader>
+						<AlertDialogTitle>{title}</AlertDialogTitle>
+						<AlertDialogDescription>이동할 컬렉션을 선택하세요.</AlertDialogDescription>
+					</AlertDialogHeader>
+					{body}
+					<Button variant="ghost" onClick={dismiss}>
+						닫기
+					</Button>
+				</AlertDialogContent>
+			</AlertDialog>
+		);
+	if (viewport.wide)
+		return (
+			<aside
+				aria-label={title}
+				className={styles.panel}
+				onKeyDown={(event) => {
+					if (event.key === "Escape" && !(event.target as HTMLElement).closest('[role="tree"]')) {
+						event.stopPropagation();
+						dismiss();
+					}
+				}}
+			>
+				<div className="mb-4 flex items-center justify-between gap-3">
+					<h2 className="m-0 border-0 p-0 font-medium text-sm">{title}</h2>
+					<Button size="sm" variant="ghost" onClick={dismiss}>
+						닫기
+					</Button>
+				</div>
+				{body}
+			</aside>
+		);
+	return (
+		<Drawer
+			open
+			direction={viewport.tablet ? "right" : "bottom"}
+			shouldScaleBackground={false}
+			onOpenChange={(open) => {
+				if (!open) dismiss();
+			}}
+		>
+			<DrawerContent
+				className={`${styles.drawer} ${viewport.tablet ? "inset-y-0 right-0 left-auto mt-0 h-full max-h-dvh w-[420px] max-w-full rounded-none" : ""}`}
+				onCloseAutoFocus={(event) => {
+					event.preventDefault();
+					restoreFocus();
+				}}
+			>
+				<div className="my-3 flex items-center justify-between">
+					<DrawerPrimitive.Title className="m-0 border-0 p-0 font-medium text-base">
+						{title}
+					</DrawerPrimitive.Title>
+					<Button variant="ghost" onClick={dismiss}>
+						닫기
+					</Button>
+				</div>
+				<DrawerPrimitive.Description className="sr-only">
+					저장 정보와 검토 근거를 확인하고 수정합니다.
+				</DrawerPrimitive.Description>
+				{body}
+			</DrawerContent>
+		</Drawer>
 	);
 }

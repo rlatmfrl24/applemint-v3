@@ -55,7 +55,7 @@ test("현재 컬렉션을 떠난 선택 항목으로 AI 작업을 실행할 수 
 		await row.getByRole("checkbox").check();
 		await row.getByRole("button", { name: `${sample.data?.title} 항목 메뉴`, exact: true }).click();
 		await page.getByRole("menuitem", { name: "수정", exact: true }).click();
-		dialog = page.getByRole("alertdialog");
+		dialog = page.getByRole("complementary", { name: "북마크 수정", exact: true });
 		await dialog.getByLabel("컬렉션", { exact: true }).click();
 		await dialog
 			.getByRole("tree", { name: "컬렉션 선택" })

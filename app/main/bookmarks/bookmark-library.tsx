@@ -1,9 +1,19 @@
 "use client";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, RefreshCw, Search } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { type DragEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -33,6 +43,7 @@ import { BookmarkCollectionTree, type BookmarkDrag } from "./bookmark-collection
 import { type BookmarkDetailSelection, BookmarkItemDialog } from "./bookmark-item-dialog";
 import { BookmarkJobs } from "./bookmark-jobs";
 import styles from "./bookmark-library.module.css";
+import { BookmarkListSkeleton } from "./bookmark-loading";
 import { BookmarkRow } from "./bookmark-row";
 
 export type BookmarkView = "library" | "review" | "trash" | "activity";
@@ -72,16 +83,35 @@ function useBookmarkManager(screen: BookmarkView) {
 	const { view, collection, reviewType } = bookmarkLocation(screen, params);
 	const searchParam = params.get("search") ?? "";
 	const [search, setSearch] = useState(searchParam);
+	const [querySearch, setQuerySearch] = useState(searchParam);
+	const [composing, setComposing] = useState(false);
 	const [selected, setSelected] = useState<string[]>([]);
 	const [scope, setScope] = useState<"selected" | "collection" | "all">("selected");
 	const [collectionDialog, setCollectionDialog] = useState<CollectionDialogSelection | null>(null);
-	const [itemDialog, setItemDialog] = useState<BookmarkDetailSelection | null>(null);
+	const [itemDialog, rawSetItemDialog] = useState<BookmarkDetailSelection | null>(null);
+	const dirty = useRef(false);
+	const [pendingDetail, setPendingDetail] = useState<{
+		selection: BookmarkDetailSelection | null;
+	} | null>(null);
+	function setItemDialog(next: BookmarkDetailSelection | null) {
+		if (dirty.current) {
+			setPendingDetail({ selection: next });
+			return;
+		}
+		rawSetItemDialog(next);
+	}
+	function discardDetail() {
+		dirty.current = false;
+		rawSetItemDialog(pendingDetail?.selection ?? null);
+		setPendingDetail(null);
+	}
+
 	const [dragged, setDragged] = useState<BookmarkDrag | null>(null);
 	const filter = {
 		state: view === "trash" ? ("trash" as const) : ("library" as const),
 		review: view === "review",
 		reviewType,
-		search: view === "activity" ? "" : search,
+		search: view === "activity" ? "" : querySearch,
 		limit: view === "activity" ? 1 : 100,
 		...(collection === "all" || collection === "trash" ? {} : { collectionId: collection || null }),
 	};
@@ -126,26 +156,42 @@ function useBookmarkManager(screen: BookmarkView) {
 			previous.every((id) => pageIds.has(id)) ? previous : previous.filter((id) => pageIds.has(id))
 		);
 	}, [query.data]);
-	function updateURL(values: Record<string, string | null>) {
-		const next = new URLSearchParams(params.toString());
-		for (const [key, value] of Object.entries(values)) {
-			if (value === null || value === "") next.delete(key);
-			else next.set(key, value);
-		}
-		const queryString = next.toString();
-		window.history.replaceState(
-			null,
-			"",
-			`${viewInfo[screen].path}${queryString ? `?${queryString}` : ""}`
-		);
-		setSelected([]);
-	}
+	const updateURL = useCallback(
+		(values: Record<string, string | null>) => {
+			const next = new URLSearchParams(params.toString());
+			for (const [key, value] of Object.entries(values)) {
+				if (value === null || value === "") next.delete(key);
+				else next.set(key, value);
+			}
+			const queryString = next.toString();
+			window.history.replaceState(
+				null,
+				"",
+				`${viewInfo[screen].path}${queryString ? `?${queryString}` : ""}`
+			);
+			setSelected([]);
+		},
+		[params, screen]
+	);
+	const commitSearch = useCallback(
+		(value: string) => {
+			setQuerySearch(value);
+			updateURL({ search: value, page: null });
+		},
+		[updateURL]
+	);
 	useEffect(() => {
 		setSearch(searchParam);
+		setQuerySearch(searchParam);
 		setSelected([]);
 		setDragged(null);
 	}, [searchParam]);
-	const selectionKey = JSON.stringify([view, collection, reviewType, search]);
+	useEffect(() => {
+		if (composing || search === querySearch) return;
+		const timer = setTimeout(() => commitSearch(search), 250);
+		return () => clearTimeout(timer);
+	}, [search, querySearch, composing, commitSearch]);
+	const selectionKey = JSON.stringify([view, collection, reviewType, querySearch]);
 	const previousSelectionKey = useRef(selectionKey);
 	useEffect(() => {
 		if (previousSelectionKey.current !== selectionKey) {
@@ -291,6 +337,13 @@ function useBookmarkManager(screen: BookmarkView) {
 		collection,
 		search,
 		setSearch,
+		setComposing,
+		commitSearch,
+		dirty,
+		pendingDetail,
+		setPendingDetail,
+		discardDetail,
+		collectionQuery,
 		filterKey: selectionKey,
 		reviewType,
 		selected: selectedIds,
@@ -418,7 +471,7 @@ function BulkControls({ m }: { m: Manager }) {
 					disabled={m.moving}
 					onClick={(event) =>
 						m.setItemDialog({
-							item: m.selectedItems[0],
+							id: m.selectedItems[0].id,
 							items: m.selectedItems,
 							mode: "move",
 							trigger: event.currentTarget,
@@ -462,9 +515,14 @@ function Toolbar({ m }: { m: Manager }) {
 						className="h-9 w-full rounded-md border bg-background pr-3 pl-9 text-sm"
 						placeholder="제목 또는 URL 검색"
 						value={m.search}
+						onCompositionStart={() => m.setComposing(true)}
+						onCompositionEnd={() => m.setComposing(false)}
+						onKeyDown={(event) => {
+							if (event.key === "Enter" && !event.nativeEvent.isComposing)
+								m.commitSearch(event.currentTarget.value);
+						}}
 						onChange={(event) => {
 							m.setSearch(event.target.value);
-							m.updateURL({ search: event.target.value, page: null });
 						}}
 					/>
 				</div>
@@ -532,12 +590,13 @@ function Results({ m }: { m: Manager }) {
 		trash: "휴지통이 비어 있습니다.",
 	};
 	return (
-		<div ref={scrollRef} className={styles.results} data-bookmark-scroll>
-			{m.query.isPending && (
-				<p role="status" className="p-4 text-muted-foreground text-sm">
-					북마크를 불러오는 중…
-				</p>
-			)}
+		<div
+			ref={scrollRef}
+			className={styles.results}
+			data-bookmark-scroll
+			aria-busy={m.query.isFetching}
+		>
+			{m.query.isPending && <BookmarkListSkeleton />}
 			{m.query.error && !m.query.isFetchNextPageError && (
 				<div role="alert" className="sticky top-0 z-10 bg-background py-2 text-destructive text-sm">
 					<p>
@@ -557,7 +616,32 @@ function Results({ m }: { m: Manager }) {
 			)}
 			{m.query.data && m.items.length === 0 && (
 				<div className="rounded-lg border border-dashed py-16 text-center text-muted-foreground text-sm">
-					{emptyText[view]}
+					<p className="m-0">
+						{m.search
+							? "검색 결과가 없습니다."
+							: m.collection !== "all" && view === "library"
+								? "이 컬렉션에 저장한 북마크가 없습니다."
+								: emptyText[view]}
+					</p>
+					{m.search ? (
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={() => {
+								m.setSearch("");
+								m.commitSearch("");
+							}}
+						>
+							검색 초기화
+						</Button>
+					) : view === "library" ? (
+						<>
+							<p className="m-0 text-xs">Main·Quick에서 북마크 저장을 눌러 추가하세요.</p>
+							<Button variant="ghost" size="sm" onClick={() => m.updateURL({ collection: null })}>
+								전체 보기
+							</Button>
+						</>
+					) : null}
 				</div>
 			)}
 			{m.items.length > 0 && (
@@ -648,6 +732,33 @@ function BookmarkLoadMore({
 		</>
 	);
 }
+function Activity({ m }: { m: Manager }) {
+	return (
+		<section aria-label="작업 기록" className="max-w-4xl">
+			<p className="mb-4 text-muted-foreground text-sm">
+				등록한 작업의 진행과 실패 항목을 확인하고 재개할 수 있습니다.
+			</p>
+			{m.jobsQuery.error && (
+				<div role="alert">
+					<p>{m.jobsQuery.error.message}</p>
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={m.jobsQuery.isFetching}
+						onClick={() => m.jobsQuery.refetch()}
+					>
+						다시 불러오기
+					</Button>
+				</div>
+			)}
+			{m.jobsQuery.isPending ? (
+				<p role="status">작업 기록을 불러오는 중…</p>
+			) : (
+				m.jobsQuery.data && <BookmarkJobs jobs={m.jobsQuery.data} />
+			)}
+		</section>
+	);
+}
 export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 	const m = useBookmarkManager(view);
 	const frame = useRef<HTMLDivElement>(null);
@@ -678,7 +789,7 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 			</header>
 			<nav aria-label="북마크 보기" className="flex items-center gap-1 border-b pb-2">
 				{(["library", "review", "activity"] as const).map((key) => (
-					<a
+					<Link
 						key={key}
 						href={viewInfo[key].path}
 						aria-current={view === key ? "page" : undefined}
@@ -691,40 +802,25 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 						].join(" ")}
 					>
 						{viewInfo[key].label}
-					</a>
+					</Link>
 				))}
 			</nav>
 			{view === "activity" ? (
-				<section aria-label="작업 기록" className="max-w-4xl">
-					<p className="mb-4 text-muted-foreground text-sm">
-						등록한 작업의 진행과 실패 항목을 확인하고 재개할 수 있습니다.
-					</p>
-					{m.jobsQuery.error && (
-						<div role="alert">
-							<p>{m.jobsQuery.error.message}</p>
-							<Button
-								size="sm"
-								variant="outline"
-								disabled={m.jobsQuery.isFetching}
-								onClick={() => m.jobsQuery.refetch()}
-							>
-								다시 불러오기
-							</Button>
-						</div>
-					)}
-					<BookmarkJobs jobs={m.jobsQuery.data ?? []} />
-				</section>
+				<Activity m={m} />
 			) : (
 				<div
 					ref={frame}
-					className={[
-						styles.frame,
-						"grid min-w-0 gap-5",
-						view === "library" ? "md:grid-cols-[230px_minmax(0,1fr)]" : "grid-cols-1",
-					].join(" ")}
+					data-library={view === "library"}
+					data-detail={Boolean(m.itemDialog && m.itemDialog.mode !== "move")}
+					className={[styles.frame, "grid min-w-0 gap-5"].join(" ")}
 				>
 					{view === "library" && (
 						<BookmarkCollectionTree
+							loading={m.collectionQuery.isPending && m.collections.length === 0}
+							error={m.collectionQuery.error?.message}
+							retry={() => {
+								void m.collectionQuery.refetch();
+							}}
 							collections={m.collections}
 							selected={m.collection}
 							select={(id) =>
@@ -754,6 +850,11 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 							</h2>
 						)}
 						<Toolbar m={m} />
+						{m.query.isFetching && !m.query.isPending && !m.query.isFetchingNextPage && (
+							<p role="status" className="m-0 text-muted-foreground text-xs">
+								목록 갱신 중…
+							</p>
+						)}
 						{m.moving && (
 							<p role="status" className="text-muted-foreground text-xs">
 								{m.move.isPending
@@ -763,6 +864,14 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 						)}
 						<Results key={m.filterKey} m={m} />
 					</main>
+					<BookmarkItemDialog
+						selection={m.itemDialog}
+						collections={m.collections}
+						close={() => m.setItemDialog(null)}
+						onDirtyChange={(value) => {
+							m.dirty.current = value;
+						}}
+					/>
 				</div>
 			)}
 			<BookmarkCollectionDialog
@@ -773,11 +882,25 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 					if (m.collection === id) m.updateURL({ collection: null, page: null });
 				}}
 			/>
-			<BookmarkItemDialog
-				selection={m.itemDialog}
-				collections={m.collections}
-				close={() => m.setItemDialog(null)}
-			/>
+			<AlertDialog
+				open={Boolean(m.pendingDetail)}
+				onOpenChange={(open) => {
+					if (!open) m.setPendingDetail(null);
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>편집 내용을 버릴까요?</AlertDialogTitle>
+						<AlertDialogDescription>
+							아직 저장하지 않은 변경 내용이 있습니다.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<div className="flex justify-end gap-2">
+						<AlertDialogCancel>계속 편집</AlertDialogCancel>
+						<AlertDialogAction onClick={m.discardDetail}>변경 내용 버리기</AlertDialogAction>
+					</div>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }

@@ -38,4 +38,15 @@
 	.frame {
 		grid-template-rows: minmax(0, 1fr);
 	}
+	.frame[data-library="true"] {
+		grid-template-columns: 240px minmax(0, 1fr);
+	}
+}
+@media (min-width: 1280px) {
+	.frame[data-detail="true"] {
+		grid-template-columns: minmax(0, 1fr) 360px;
+	}
+	.frame[data-library="true"][data-detail="true"] {
+		grid-template-columns: 240px minmax(0, 1fr) 360px;
+	}
 }

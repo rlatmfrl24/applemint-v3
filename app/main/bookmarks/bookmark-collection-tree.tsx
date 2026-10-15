@@ -1,13 +1,16 @@
 "use client";
 import { ChevronRight, Folder, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { type DragEvent, type HTMLAttributes, useEffect, useRef, useState } from "react";
+import { Drawer as DrawerPrimitive } from "vaul";
 import { Button } from "@/components/ui/button";
+import { Drawer, DrawerContent } from "@/components/ui/drawer";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { BookmarkCollection, BookmarkItem } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
 import {
@@ -23,6 +26,9 @@ export type BookmarkDrag =
 	| { kind: "bookmarks"; items: Pick<BookmarkItem, "id" | "version" | "collection_id">[] }
 	| { kind: "collection"; collection: BookmarkCollection };
 type Props = {
+	loading?: boolean;
+	error?: string;
+	retry?: () => void;
 	collections: BookmarkCollection[];
 	selected: string;
 	select: (id: string) => void;
@@ -265,6 +271,17 @@ export function BookmarkCollectionTree(props: Props) {
 	const [expanded, setExpanded] = useState<string[]>([]);
 	const [loaded, setLoaded] = useState(false);
 	const [mobileOpen, setMobileOpen] = useState(false);
+	const [mobile, setMobile] = useState(false);
+	useEffect(() => {
+		const media = window.matchMedia("(max-width:767px)");
+		const update = () => {
+			setMobile(media.matches);
+			if (!media.matches) setMobileOpen(false);
+		};
+		update();
+		media.addEventListener("change", update);
+		return () => media.removeEventListener("change", update);
+	}, []);
 	function select(id: string) {
 		props.select(id);
 		setMobileOpen(false);
@@ -356,102 +373,136 @@ export function BookmarkCollectionTree(props: Props) {
 				sessionStorage.setItem("bookmark-collection-expansion", JSON.stringify(expanded));
 			} catch {}
 	}, [expanded, loaded]);
+	const navigation = (
+		<nav
+			id="bookmark-collection-navigation"
+			aria-label="북마크 탐색"
+			data-open={mobile ? mobileOpen : true}
+			className={`${styles.navigation} text-sm`}
+		>
+			{[
+				{ id: "all", label: "전체 북마크" },
+				{ id: "", label: "미분류" },
+				{ id: "trash", label: "휴지통" },
+			].map((entry) => (
+				<button
+					key={entry.id}
+					{...(entry.id === "" && props.dragged?.kind === "bookmarks" ? dropHandlers(null) : {})}
+					type="button"
+					aria-current={props.selected === entry.id ? "page" : undefined}
+					className={`mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left focus-visible:outline focus-visible:outline-ring ${props.dragged?.kind === "bookmarks" && dropTarget?.id === null && entry.id === "" ? "bg-accent" : ""} ${props.selected === entry.id ? "bg-accent font-medium" : "hover:bg-muted/70"}`}
+					onClick={() => select(entry.id)}
+				>
+					{entry.id === "trash" && <Trash2 className="size-3.5" aria-hidden="true" />}
+					{entry.label}
+				</button>
+			))}
+			<section
+				aria-labelledby="bookmark-collections-heading"
+				className={`${styles.collections} mt-3 border-t pt-3`}
+			>
+				<section
+					aria-label="최상위 컬렉션 이동 영역"
+					{...(props.dragged?.kind === "collection" ? dropHandlers(null) : {})}
+					className={`${styles.rootTarget} flex items-center justify-between rounded-md bg-background pl-3`}
+					title="컬렉션을 여기에 놓으면 최상위로 이동합니다."
+				>
+					<h2
+						id="bookmark-collections-heading"
+						className="m-0 border-0 p-0 font-medium text-muted-foreground text-xs"
+					>
+						{props.dragged?.kind === "collection" ? "최상위로 이동" : "컬렉션"}
+					</h2>
+					<Button
+						id="bookmark-collection-add"
+						disabled={props.moving}
+						variant="ghost"
+						size="icon"
+						className="size-8"
+						aria-label="컬렉션 추가"
+						onClick={(event) =>
+							props.manage({
+								mode: "create",
+								parentId: props.collections.some((collection) => collection.id === props.selected)
+									? props.selected
+									: null,
+								trigger: event.currentTarget,
+							})
+						}
+					>
+						<Plus className="size-4" />
+					</Button>
+				</section>
+				{props.error && (
+					<div role="alert" className="p-2 text-xs">
+						<p>{props.error}</p>
+						<Button size="sm" variant="ghost" onClick={props.retry}>
+							다시 불러오기
+						</Button>
+					</div>
+				)}
+				<section className={styles.treeScroll} aria-label="컬렉션 트리" aria-busy={props.loading}>
+					{props.loading && (
+						<div role="status" aria-label="컬렉션을 불러오는 중" className="space-y-4 p-3">
+							{[0, 1, 2, 3, 4].map((index) => (
+								<Skeleton key={index} className="h-5 w-4/5" />
+							))}
+						</div>
+					)}
+					<ul className="mt-1">
+						{collectionChildren(null, props.collections).map((collection) => (
+							<CollectionNode
+								key={collection.id}
+								collection={collection}
+								props={{ ...props, select }}
+								expanded={expanded}
+								toggle={(id) =>
+									setExpanded((previous) =>
+										previous.includes(id)
+											? previous.filter((value) => value !== id)
+											: [...previous, id]
+									)
+								}
+								seen={new Set([collection.id])}
+								dropHandlers={dropHandlers}
+							/>
+						))}
+					</ul>
+				</section>
+			</section>
+		</nav>
+	);
 	return (
 		<aside className={`${styles.sidebar} min-w-0`}>
-			<div className="px-2 md:hidden">
-				<button
-					type="button"
-					className="flex items-center gap-2 font-medium text-sm md:hidden"
-					aria-expanded={mobileOpen}
-					aria-controls="bookmark-collection-navigation"
-					onClick={() => setMobileOpen(!mobileOpen)}
-				>
-					<ChevronRight className={`size-4 ${mobileOpen ? "rotate-90" : ""}`} />
-					북마크 탐색
-				</button>
-			</div>
-			<nav
-				id="bookmark-collection-navigation"
-				aria-label="북마크 탐색"
-				data-open={mobileOpen}
-				className={`${styles.navigation} text-sm`}
-			>
-				{[
-					{ id: "all", label: "전체 북마크" },
-					{ id: "", label: "미분류" },
-					{ id: "trash", label: "휴지통" },
-				].map((entry) => (
+			{mobile ? (
+				<Drawer open={mobileOpen} shouldScaleBackground={false} onOpenChange={setMobileOpen}>
 					<button
-						key={entry.id}
-						{...(entry.id === "" && props.dragged?.kind === "bookmarks" ? dropHandlers(null) : {})}
 						type="button"
-						aria-current={props.selected === entry.id ? "page" : undefined}
-						className={`mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left focus-visible:outline focus-visible:outline-ring ${props.dragged?.kind === "bookmarks" && dropTarget?.id === null && entry.id === "" ? "bg-accent" : ""} ${props.selected === entry.id ? "bg-accent font-medium" : "hover:bg-muted/70"}`}
-						onClick={() => select(entry.id)}
+						className="flex min-h-11 items-center gap-2 text-sm"
+						aria-expanded={mobileOpen}
+						onClick={() => setMobileOpen(true)}
 					>
-						{entry.id === "trash" && <Trash2 className="size-3.5" aria-hidden="true" />}
-						{entry.label}
+						<ChevronRight className="size-4" />
+						북마크 탐색
 					</button>
-				))}
-				<section
-					aria-labelledby="bookmark-collections-heading"
-					className={`${styles.collections} mt-3 border-t pt-3`}
-				>
-					<section
-						aria-label="최상위 컬렉션 이동 영역"
-						{...(props.dragged?.kind === "collection" ? dropHandlers(null) : {})}
-						className={`${styles.rootTarget} flex items-center justify-between rounded-md bg-background pl-3`}
-						title="컬렉션을 여기에 놓으면 최상위로 이동합니다."
-					>
-						<h2
-							id="bookmark-collections-heading"
-							className="m-0 border-0 p-0 font-medium text-muted-foreground text-xs"
-						>
-							{props.dragged?.kind === "collection" ? "최상위로 이동" : "컬렉션"}
-						</h2>
-						<Button
-							id="bookmark-collection-add"
-							disabled={props.moving}
-							variant="ghost"
-							size="icon"
-							className="size-8"
-							aria-label="컬렉션 추가"
-							onClick={(event) =>
-								props.manage({
-									mode: "create",
-									parentId: props.collections.some((collection) => collection.id === props.selected)
-										? props.selected
-										: null,
-									trigger: event.currentTarget,
-								})
-							}
-						>
-							<Plus className="size-4" />
-						</Button>
-					</section>
-					<section className={styles.treeScroll} aria-label="컬렉션 트리">
-						<ul className="mt-1">
-							{collectionChildren(null, props.collections).map((collection) => (
-								<CollectionNode
-									key={collection.id}
-									collection={collection}
-									props={{ ...props, select }}
-									expanded={expanded}
-									toggle={(id) =>
-										setExpanded((previous) =>
-											previous.includes(id)
-												? previous.filter((value) => value !== id)
-												: [...previous, id]
-										)
-									}
-									seen={new Set([collection.id])}
-									dropHandlers={dropHandlers}
-								/>
-							))}
-						</ul>
-					</section>
-				</section>
-			</nav>
+					<DrawerContent className="max-h-[90dvh] bg-background p-4 pb-[max(16px,env(safe-area-inset-bottom))]">
+						<div className="my-2 flex items-center justify-between">
+							<DrawerPrimitive.Title className="m-0 border-0 p-0 text-base">
+								컬렉션 탐색
+							</DrawerPrimitive.Title>
+							<Button variant="ghost" onClick={() => setMobileOpen(false)}>
+								닫기
+							</Button>
+						</div>
+						<DrawerPrimitive.Description className="sr-only">
+							컬렉션과 북마크 보기를 선택합니다.
+						</DrawerPrimitive.Description>
+						{navigation}
+					</DrawerContent>
+				</Drawer>
+			) : (
+				navigation
+			)}
 			<DragStatus dragged={props.dragged} target={dropTarget} collections={props.collections} />
 		</aside>
 	);

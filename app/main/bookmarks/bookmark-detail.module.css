@@ -1,0 +1,39 @@
+.panel {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	overflow: auto;
+	border: 1px solid hsl(var(--border));
+	border-radius: 8px;
+	padding: 16px;
+	overscroll-behavior: contain;
+	scrollbar-width: thin;
+	animation: enter 200ms ease-out;
+}
+.drawer {
+	max-height: 94dvh;
+	padding: 16px;
+	padding-bottom: max(16px, env(safe-area-inset-bottom));
+	overflow: auto;
+	background: hsl(var(--background));
+	color: hsl(var(--foreground));
+}
+@keyframes enter {
+	from {
+		opacity: 0;
+		transform: translateX(8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.panel {
+		animation: none;
+	}
+	.drawer[data-vaul-drawer][data-state] {
+		animation: none;
+		transition: none;
+	}
+}

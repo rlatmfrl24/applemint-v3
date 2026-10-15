@@ -1,6 +1,6 @@
 "use client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { GripVertical, MoreHorizontal } from "lucide-react";
+import { GripVertical, MoreHorizontal, PanelRightOpen } from "lucide-react";
 import { type DragEvent, useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,7 @@ export function BookmarkRow({
 	const openingDialog = useRef(false);
 	function showDialog(mode: "details" | "edit" | "move") {
 		openingDialog.current = true;
-		detail({ item, mode, trigger: menuTrigger.current });
+		detail({ id: item.id, mode, trigger: menuTrigger.current });
 	}
 	const action = useMutation({
 		mutationFn: (kind: "keep" | "trash" | "restore") =>
@@ -74,7 +74,7 @@ export function BookmarkRow({
 			draggable={view === "library" && !moving}
 			onDragStart={(event) => startDrag(event, item)}
 			onDragEnd={endDrag}
-			className={`grid min-h-16 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 border-b px-3 py-2 text-sm last:border-b-0 ${checked ? "bg-accent/60" : "hover:bg-muted/35"}`}
+			className={`grid min-h-[72px] grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 border-b px-3 py-2 text-sm last:border-b-0 ${checked ? "bg-accent/60" : "hover:bg-muted/35"}`}
 		>
 			<input
 				type="checkbox"
@@ -86,19 +86,17 @@ export function BookmarkRow({
 			/>
 			<div className="min-w-0">
 				<div className="flex min-w-0 items-center gap-2">
-					<h2 className="min-w-0 truncate border-0 p-0 font-medium text-sm leading-5">
-						<button
-							type="button"
-							className="max-w-full truncate text-left hover:underline focus-visible:outline focus-visible:outline-ring"
-							disabled={!safe}
+					<h2 className="min-w-0 border-0 p-0 font-medium text-sm leading-5">
+						<a
+							href={safe ? item.url : undefined}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="line-clamp-2 break-words text-left hover:underline focus-visible:outline focus-visible:outline-ring"
 							title={item.title || item.url}
-							onClick={() => {
-								window.open(item.url, "_blank", "noopener,noreferrer");
-								open.mutate();
-							}}
+							onClick={() => open.mutate()}
 						>
 							{item.title || item.url}
-						</button>
+						</a>
 					</h2>
 					{dead && <span className="shrink-0 text-destructive text-xs">죽은 링크 의심</span>}
 				</div>
@@ -118,7 +116,7 @@ export function BookmarkRow({
 			<div className="flex shrink-0 items-center gap-1">
 				{view === "library" && (
 					<GripVertical
-						className="size-4 text-muted-foreground"
+						className="hidden size-4 text-muted-foreground md:block"
 						style={{ cursor: "grab" }}
 						aria-hidden="true"
 					/>
@@ -138,7 +136,7 @@ export function BookmarkRow({
 								variant="outline"
 								size="sm"
 								onClick={(event) =>
-									detail({ item, mode: "proposal", trigger: event.currentTarget })
+									detail({ id: item.id, mode: "proposal", trigger: event.currentTarget })
 								}
 							>
 								변경안
@@ -148,7 +146,7 @@ export function BookmarkRow({
 								variant="outline"
 								size="sm"
 								onClick={(event) =>
-									detail({ item, mode: "proposal", trigger: event.currentTarget })
+									detail({ id: item.id, mode: "proposal", trigger: event.currentTarget })
 								}
 							>
 								근거
@@ -166,6 +164,18 @@ export function BookmarkRow({
 						복원
 					</Button>
 				)}
+				<Button
+					variant="ghost"
+					size="icon"
+					className="size-11 md:size-8"
+					aria-label="상세"
+					title="북마크 상세"
+					onClick={(event) =>
+						detail({ id: item.id, mode: "details", trigger: event.currentTarget })
+					}
+				>
+					<PanelRightOpen className="size-4" aria-hidden="true" />
+				</Button>
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button
@@ -216,22 +226,25 @@ function reviewReason(item: BookmarkItem, dead: boolean) {
 
 function BookmarkMetadata({ item, path }: { item: BookmarkItem; path: string }) {
 	return (
-		<div className="flex min-w-0 items-center gap-2 text-muted-foreground text-xs">
-			<span className="max-w-[40%] truncate" title={item.url}>
+		<div className="min-w-0 space-y-0.5 text-muted-foreground text-xs">
+			<span className="block truncate" title={item.url}>
 				{item.url.replace(/^https?:\/\//iu, "")}
 			</span>
-			<span className="truncate" title={path}>
+			<span className="inline-block max-w-full truncate align-bottom" title={path}>
 				{path}
 			</span>
 			{!item.collection_id && item.previous_collection_path && (
-				<span className="truncate" title={item.previous_collection_path}>
+				<span
+					className="ml-2 inline-block max-w-full truncate align-bottom"
+					title={item.previous_collection_path}
+				>
 					이전: {item.previous_collection_path}
 				</span>
 			)}
-			<span className="hidden shrink-0 lg:inline">
+			<span className="ml-2 hidden shrink-0 2xl:inline">
 				{new Date(item.saved_at).toLocaleDateString("ko-KR")}
 			</span>
-			<span className="hidden shrink-0 xl:inline">
+			<span className="ml-2 hidden shrink-0 2xl:inline">
 				{item.open_count ? `열기 ${item.open_count}회` : "사용 이력 없음"}
 			</span>
 		</div>
