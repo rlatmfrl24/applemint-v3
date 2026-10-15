@@ -79,41 +79,41 @@
 ### Task 1: 시각 기준과 실행 환경
 
 **Interfaces:** Produces standalone design reference, baseline evidence and task ledger. Consumes approved dimensions/tokens/current captures.
-- [ ] 기존 캡처와 토큰으로 desktop/mobile 및 loading/empty/error/recommending 기준 HTML 작성·캡처.
-- [ ] Node 24에서 `pnpm exec vitest run bookmark` 실행. Expected: baseline PASS.
-- [ ] 계획/기준을 범위 커밋하고 결과 기록.
+- [x] 기존 캡처와 토큰으로 desktop/mobile 및 loading/empty/error/recommending 기준 HTML 작성·캡처.
+- [x] Node 24에서 `pnpm exec vitest run bookmark` 실행. Expected: baseline PASS.
+- [x] 계획/기준을 범위 커밋하고 결과 기록.
 
 ### Task 2: 작업 공간·로딩
 
 **Interfaces:** Consumes existing BookmarkItem/Collection/detail; produces ID selection, reusable detail content, responsive frame and search/load states.
-- [ ] 실제 UI 회귀에 상세 단일 진입/최신 조회/편집 보호, 검색 IME/디바운스, 초기·추가 로딩 검사를 추가하고 RED 확인.
-- [ ] 공통 상세와 반응형 패널/Drawer, URL/제목 표시, 검색/로딩/빈 상태 구현.
-- [ ] `pnpm typecheck` 및 bookmark navigation/manager 회귀 실행. Expected: 해당 동작 PASS.
-- [ ] 범위 커밋/ledger 기록.
+- [x] 실제 UI 회귀에 상세 단일 진입/최신 조회/편집 보호, 검색 IME/디바운스, 초기·추가 로딩 검사를 추가하고 RED 확인.
+- [x] 공통 상세와 반응형 패널/Drawer, URL/제목 표시, 검색/로딩/빈 상태 구현.
+- [x] `pnpm typecheck` 및 bookmark navigation/manager 회귀 실행. Expected: 해당 동작 PASS.
+- [x] 범위 커밋/ledger 기록.
 
 ### Task 3: 자동 추천 저장
 
 **Interfaces:** Consumes existing recommend/recommendation/save and shared picker; produces QueryClient-scoped reusable request identity and explicit phase locking.
-- [ ] 자동 시작/중복 방지/잠금/제목 변경/수동 전환/오류 보존 회귀 RED.
-- [ ] 즉시 팝업 골격, 자동 추천과 동일 requestId 재사용, 30초 수동 전환, 추가 정보 접기 구현.
-- [ ] 추천 unit/E2E 및 실제 Main·Quick→추천→저장→DB 확인. Expected: 중복 호출 없이 결과/저장 일치.
-- [ ] 이전 수동 정책 문서 갱신, 범위 커밋/ledger 기록.
+- [x] 자동 시작/중복 방지/잠금/제목 변경/수동 전환/오류 보존 회귀 RED.
+- [x] 즉시 팝업 골격, 자동 추천과 동일 requestId 재사용, 30초 수동 전환, 추가 정보 접기 구현.
+- [x] 추천 unit/E2E 및 실제 Main·Quick→추천→저장→DB 확인. Expected: 중복 호출 없이 결과/저장 일치.
+- [x] 이전 수동 정책 문서 갱신, 범위 커밋/ledger 기록.
 
 ### Task 4: 계층·낙관적 조작
 
 **Interfaces:** Produces per-operation UI overlay and shared mutations used by rows/panel/bulk. Consumes existing versioned command responses; preserves query page lengths.
-- [ ] 계층 검색/경로·낙관적 표시/동시 실패/offset/실행 취소 RED.
-- [ ] 공통 변경 처리, 소속 projection, 구조 직렬화, 검색/경로/드롭 구분 구현.
-- [ ] unit + 실제 이동/휴지통/복원/동시 변경·200개 로딩 회귀와 DB readback. Expected: 보존/정합성 PASS.
-- [ ] 범위 커밋/ledger 기록.
+- [x] 계층 검색/경로·낙관적 표시/동시 실패/offset/실행 취소 RED.
+- [x] 공통 변경 처리, 소속 projection, 구조 직렬화, 검색/경로/드롭 구분 구현.
+- [x] unit + 실제 이동/휴지통/복원/동시 변경·200개 로딩 회귀와 DB readback. Expected: 보존/정합성 PASS.
+- [x] 범위 커밋/ledger 기록.
 
 ### Task 5: 설정·작업 기록·모션
 
 **Interfaces:** Consumes existing settings/version/usage ledger/jobs, produces prioritized settings and honest pending states.
-- [ ] 중복 추천/설정 낙관적 실패/작업 초기 상태 회귀 RED.
-- [ ] 설정 위계/추천 후보/상세 통계 접기, 작업 로딩, 공통 motion/reduced-motion 구현.
-- [ ] 설정 UI 변경·새로고침·DB 대조와 responsive/keyboard 검사. Expected: 변경/비용 장부 일치.
-- [ ] 범위 커밋/ledger 기록.
+- [x] 중복 추천/설정 낙관적 실패/작업 초기 상태 회귀 RED.
+- [x] 설정 위계/추천 후보/상세 통계 접기, 작업 로딩, 공통 motion/reduced-motion 구현.
+- [x] 설정 UI 변경·새로고침·DB 대조와 responsive/keyboard 검사. Expected: 변경/비용 장부 일치.
+- [x] 범위 커밋/ledger 기록.
 
 ### Task 6: 통합 검증·디자인 QA·최종 리뷰
 

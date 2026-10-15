@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
+import { seedBookmarkUXSource } from "./database";
 import { getE2ERuntime } from "./runtime";
 
 export async function bookmarkOwner() {
@@ -57,7 +58,10 @@ export async function saveSourceBookmark(
 		).toBe(source.data?.state);
 		return saved.data;
 	}
-	throw new Error("현재 수집 글 목록에 아직 저장하지 않은 항목이 없습니다.");
+	const source = await seedBookmarkUXSource();
+	await page.goto("/main");
+	await expect(page.locator(`[data-thread-url=${JSON.stringify(source.url)}]`)).toBeVisible();
+	return saveSourceBookmark(page, db, title);
 }
 
 export async function removeCollectionUI(page: Page, name: string, id?: string) {

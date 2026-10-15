@@ -146,3 +146,11 @@ test("Bklit 모델 비율과 비용이 월 전체 장부와 일치하고 테마�
 	await expect(page).toHaveURL(/\/main\/bookmarks$/u);
 	await expect(page.getByRole("navigation", { name: "북마크 보기", exact: true })).toBeVisible();
 });
+
+test("예산 요약이 관심 주제 편집을 첫 화면 아래로 밀어내지 않는다", async ({ page }) => {
+	await page.goto("/main/setting/bookmarks");
+	await expect(page.getByLabel("관심 주제 이름", { exact: true })).toBeVisible();
+	const box = await page.getByRole("heading", { name: "관심 주제", exact: true }).boundingBox();
+	expect(box?.y).toBeLessThan(550);
+	await expect(page.getByTestId("bookmark-ai-charged")).toBeVisible();
+});

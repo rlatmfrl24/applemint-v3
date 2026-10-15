@@ -24,7 +24,7 @@ test("수집 글 저장·수정·열기·휴지통·복원과 컬렉션 삭제�
 	const row = page.locator(`[data-bookmark-id="${saved.id}"]`);
 	await expect(row).toBeVisible();
 	const popup = context.waitForEvent("page");
-	await row.getByRole("button", { name: title, exact: true }).click();
+	await row.getByRole("link", { name: title, exact: true }).click();
 	await (await popup).close();
 	await expect(row).toContainText("열기 1회");
 	expect(
@@ -40,7 +40,7 @@ test("수집 글 저장·수정·열기·휴지통·복원과 컬렉션 삭제�
 	expect(collection.error).toBeNull();
 	await row.getByRole("button", { name: `${title} 항목 메뉴`, exact: true }).click();
 	await page.getByRole("menuitem", { name: "수정", exact: true }).click();
-	dialog = page.getByRole("alertdialog");
+	dialog = page.getByRole("complementary", { name: "북마크 수정", exact: true });
 	await dialog.getByLabel("컬렉션", { exact: true }).click();
 	await dialog
 		.getByRole("tree", { name: "컬렉션 선택" })
@@ -80,7 +80,9 @@ test("수집 글 저장·수정·열기·휴지통·복원과 컬렉션 삭제�
 	expect(after.data?.original).toEqual(saved.original);
 	await row.getByRole("button", { name: `${title} 항목 메뉴`, exact: true }).click();
 	await page.getByRole("menuitem", { name: "상세", exact: true }).click();
-	await expect(page.getByRole("alertdialog")).toContainText("복원 후에도 유지");
+	await expect(page.getByRole("complementary", { name: "북마크 상세", exact: true })).toContainText(
+		"복원 후에도 유지"
+	);
 	await page.getByRole("button", { name: "닫기", exact: true }).click();
 	await expect(row.getByRole("button", { name: `${title} 항목 메뉴`, exact: true })).toBeFocused();
 	console.log(

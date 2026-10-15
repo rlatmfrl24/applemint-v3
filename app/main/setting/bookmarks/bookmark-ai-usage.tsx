@@ -46,7 +46,7 @@ export function BookmarkAIUsagePanel() {
 		);
 	const percent = (usage.usedNano / usage.limitNano) * 100;
 	return (
-		<div className="space-y-5 p-4 sm:p-5">
+		<div className="space-y-3 p-4 sm:p-5">
 			<div className="space-y-2">
 				<div className="flex items-baseline justify-between gap-2">
 					<span className="text-muted-foreground text-xs">
@@ -113,12 +113,13 @@ export function BookmarkAIUsagePanel() {
 						<p className="py-6 text-center text-muted-foreground text-sm">
 							이번 달 AI 요청이 없습니다. 추천이나 분류를 사용하면 모델별 사용량이 표시됩니다.
 						</p>
-					))}
+					))}{" "}
+				<p className="text-muted-foreground text-xs leading-5">
+					정산·예약 장부 기준이며 해제된 요청은 제외합니다. 모델 정보가 없는 이전 요청은 ‘모델
+					미기록’으로 표시합니다.
+				</p>
 			</details>
-			<p className="text-muted-foreground text-xs leading-5">
-				정산·예약 장부 기준이며 해제된 요청은 제외합니다. 모델 정보가 없는 이전 요청은 ‘모델
-				미기록’으로 표시합니다.
-			</p>
+
 			{query.error && (
 				<p role="alert" className="text-destructive text-xs">
 					최신 사용량 조회에 실패했습니다. 마지막 확인 값을 표시합니다.

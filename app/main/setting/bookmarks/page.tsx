@@ -161,13 +161,10 @@ export default function BookmarkSettingsPage() {
 					<span>AI 사용을 위해 서버 OPENROUTER_API_KEY를 설정해주세요.</span>
 				)}
 			</div>
-			<SettingsSurface
-				title="AI 사용량"
-				description="이번 달 정산 비용과 예약액은 실제 사용 장부를 기준으로 합니다."
-				className="min-w-0 shadow-none"
-			>
+			<section aria-label="이번 달 AI 사용량" className="min-w-0 rounded-xl border bg-card">
+				<h2 className="sr-only">AI 사용량</h2>
 				<BookmarkAIUsagePanel />
-			</SettingsSurface>
+			</section>
 			{data.error && (
 				<p role="alert" className="text-destructive text-sm">
 					{data.error.message}

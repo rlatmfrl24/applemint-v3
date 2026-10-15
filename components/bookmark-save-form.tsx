@@ -1,9 +1,11 @@
 "use client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { useEffect, useId, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+	AlertDialog,
 	AlertDialogContent,
 	AlertDialogDescription,
 	AlertDialogHeader,
@@ -59,7 +61,7 @@ function RecommendationFeedback({
 		</>
 	);
 }
-export default function BookmarkSaveForm({
+function BookmarkSaveForm({
 	source,
 	close,
 	recommendationId,
@@ -73,6 +75,7 @@ export default function BookmarkSaveForm({
 	onSavingChange: (saving: boolean) => void;
 }) {
 	const trpc = useTRPCClient();
+	const router = useRouter();
 	const cache = useQueryClient();
 	const fieldId = useId();
 	const titleInput = useRef<HTMLInputElement>(null);
@@ -105,7 +108,9 @@ export default function BookmarkSaveForm({
 				action: {
 					label: "북마크 보기",
 					onClick: () => {
-						window.location.href = `/main/bookmarks?state=${result.item.state}&search=${encodeURIComponent(result.item.url)}`;
+						router.push(
+							`/main/bookmarks?state=${result.item.state}&search=${encodeURIComponent(result.item.url)}`
+						);
 					},
 				},
 			});
@@ -275,5 +280,24 @@ export default function BookmarkSaveForm({
 				</div>
 			</form>
 		</AlertDialogContent>
+	);
+}
+
+export default function BookmarkSaveRoot(props: {
+	source: Source;
+	recommendationId?: string;
+	close: () => void;
+	returnFocus: () => void;
+}) {
+	const [saving, setSaving] = useState(false);
+	return (
+		<AlertDialog
+			open
+			onOpenChange={(open) => {
+				if (!open && !saving) props.close();
+			}}
+		>
+			<BookmarkSaveForm {...props} onSavingChange={setSaving} />
+		</AlertDialog>
 	);
 }

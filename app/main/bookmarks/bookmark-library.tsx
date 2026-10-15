@@ -688,6 +688,7 @@ function Results({ m }: { m: Manager }) {
 							collections={m.collections}
 							view={view}
 							checked={m.selected.includes(item.id)}
+							detailed={m.itemDialog?.id === item.id}
 							select={() =>
 								m.setSelected((previous) =>
 									previous.includes(item.id)
@@ -937,6 +938,9 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 						selection={m.itemDialog}
 						collections={m.collections}
 						close={() => m.setItemDialog(null)}
+						changeMode={(mode) => {
+							if (m.itemDialog) m.setItemDialog({ ...m.itemDialog, mode });
+						}}
 						onDirtyChange={(value) => {
 							m.dirty.current = value;
 						}}

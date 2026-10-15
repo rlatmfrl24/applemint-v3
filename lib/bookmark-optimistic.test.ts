@@ -93,3 +93,14 @@ it("a restore from another screen does not insert an unverified match into searc
 	);
 	expect(projectBookmarkItems([], [restored], { state: "library", review: true })).toEqual([]);
 });
+
+it("a rejected command refreshes stale versions even when no other optimistic operation remains", async () => {
+	const cache = new QueryClient();
+	let version = 1;
+	const key = ["bookmarks", "list", {}];
+	await cache.fetchQuery({ queryKey: key, queryFn: async () => ({ version }) });
+	version = 2;
+	await refreshBookmarkChanges(cache, true);
+	expect(cache.getQueryData(key)).toEqual({ version: 2 });
+	cache.clear();
+});

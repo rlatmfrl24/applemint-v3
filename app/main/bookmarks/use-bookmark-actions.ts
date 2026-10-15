@@ -109,7 +109,7 @@ export function useBookmarkChange() {
 				);
 			toast.error(error.message);
 			try {
-				await refreshBookmarkChanges(cache);
+				await refreshBookmarkChanges(cache, true);
 			} catch {
 				toast.info("이전 변경은 저장되었습니다. 최신 목록을 다시 확인해주세요.");
 			}

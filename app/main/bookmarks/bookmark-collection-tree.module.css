@@ -119,3 +119,14 @@
 .branch[data-insertion="after"]::before {
 	bottom: -3px;
 }
+
+.mobileDrawer[data-vaul-drawer] {
+	animation-duration: 200ms;
+	transition-duration: 200ms;
+}
+@media (prefers-reduced-motion: reduce) {
+	.mobileDrawer[data-vaul-drawer][data-vaul-snap-points][data-vaul-drawer-direction][data-state] {
+		animation: none;
+		transition: none;
+	}
+}

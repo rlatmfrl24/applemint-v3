@@ -604,7 +604,9 @@ export function BookmarkCollectionTree(props: Props) {
 						<ChevronRight className="size-4" />
 						북마크 탐색
 					</button>
-					<DrawerContent className="max-h-[90dvh] bg-background p-4 pb-[max(16px,env(safe-area-inset-bottom))]">
+					<DrawerContent
+						className={`${styles.mobileDrawer} max-h-[90dvh] bg-background p-4 pb-[max(16px,env(safe-area-inset-bottom))]`}
+					>
 						<div className="my-2 flex items-center justify-between">
 							<DrawerPrimitive.Title className="m-0 border-0 p-0 text-base">
 								컬렉션 탐색

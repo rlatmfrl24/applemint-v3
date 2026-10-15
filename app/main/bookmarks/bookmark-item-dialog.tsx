@@ -119,12 +119,14 @@ function BookmarkItemDetail({
 	collections,
 	mode,
 	onDone,
+	onMove,
 	onDirtyChange,
 }: {
 	item: BookmarkItem;
 	collections: BookmarkCollection[];
 	mode: "details" | "edit" | "proposal";
 	onDone: () => void;
+	onMove: () => void;
 	onDirtyChange: (dirty: boolean) => void;
 }) {
 	const trpc = useTRPCClient();
@@ -179,11 +181,12 @@ function BookmarkItemDetail({
 		onSuccess: () => cache.invalidateQueries({ queryKey: ["bookmarks"] }),
 		onError: (e) => toast.error(`열기 기록 저장 실패: ${e.message}`),
 	});
-	const pending =
-		mutate.isPending ||
-		apply.isPending ||
-		edit.isPending ||
-		changes.some((change) => change.items.some((candidate) => candidate.id === item.id));
+	const pending = [
+		mutate.isPending,
+		apply.isPending,
+		edit.isPending,
+		changes.some((change) => change.items.some((candidate) => candidate.id === item.id)),
+	].some(Boolean);
 	const safeUrl = /^https?:\/\//iu.test(item.url);
 	return (
 		<div className="space-y-3">
@@ -266,6 +269,9 @@ function BookmarkItemDetail({
 							onClick={() => mutate.mutate("trash")}
 						>
 							휴지통 이동
+						</Button>
+						<Button size="sm" variant="outline" disabled={editing || pending} onClick={onMove}>
+							컬렉션 이동
 						</Button>
 						<Button
 							size="sm"
@@ -477,11 +483,13 @@ export function BookmarkItemDialog({
 	collections,
 	close,
 	onDirtyChange,
+	changeMode,
 }: {
 	selection: BookmarkDetailSelection | null;
 	collections: BookmarkCollection[];
 	close: () => void;
 	onDirtyChange: (dirty: boolean) => void;
+	changeMode: (mode: BookmarkDetailSelection["mode"]) => void;
 }) {
 	const trpc = useTRPCClient();
 	const [viewport, setViewport] = useState({ wide: false, tablet: false });
@@ -556,6 +564,7 @@ export function BookmarkItemDialog({
 						mode={selection.mode}
 						onDone={finish}
 						onDirtyChange={onDirtyChange}
+						onMove={() => changeMode("move")}
 					/>
 				)
 			) : (

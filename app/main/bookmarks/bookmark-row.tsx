@@ -21,6 +21,7 @@ export function BookmarkRow({
 	collections,
 	view,
 	checked,
+	detailed,
 	select,
 	detail,
 	startDrag,
@@ -32,6 +33,7 @@ export function BookmarkRow({
 	collections: BookmarkCollection[];
 	view: "library" | "review" | "trash";
 	checked: boolean;
+	detailed: boolean;
 	select: () => void;
 	detail: (selection: BookmarkDetailSelection) => void;
 	startDrag: (event: DragEvent<HTMLElement>, item: BookmarkItem) => void;
@@ -76,19 +78,22 @@ export function BookmarkRow({
 	return (
 		<article
 			data-bookmark-id={item.id}
+			data-detail-selected={detailed}
 			draggable={view === "library" && !moving && !selectionDisabled}
 			onDragStart={(event) => startDrag(event, item)}
 			onDragEnd={endDrag}
-			className={`grid min-h-[72px] grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 border-b px-3 py-2 text-sm last:border-b-0 ${checked ? "bg-accent/60" : "hover:bg-muted/35"}`}
+			className={`grid min-h-[72px] grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 border-b px-3 py-2 text-sm transition-colors duration-150 last:border-b-0 motion-reduce:transition-none ${checked ? "bg-accent/60" : "hover:bg-muted/35"}`}
 		>
-			<input
-				type="checkbox"
-				disabled={selectionDisabled}
-				className="size-4 accent-teal-600"
-				aria-label={`${item.title || item.url} 선택`}
-				checked={checked}
-				onChange={select}
-			/>
+			<label className="-m-3 flex size-11 items-center justify-center">
+				<input
+					type="checkbox"
+					disabled={selectionDisabled}
+					className="size-4 accent-teal-600"
+					aria-label={`${item.title || item.url} 선택`}
+					checked={checked}
+					onChange={select}
+				/>
+			</label>
 			<div className="min-w-0">
 				<div className="flex min-w-0 items-center gap-2">
 					<h2 className="min-w-0 border-0 p-0 font-medium text-sm leading-5">
@@ -167,7 +172,7 @@ export function BookmarkRow({
 							disabled={selectionDisabled}
 							variant="ghost"
 							size="icon"
-							className="size-8"
+							className="hidden size-8 md:inline-flex"
 							aria-label={`${item.title || item.url} 항목 메뉴`}
 						>
 							<MoreHorizontal className="size-4" />

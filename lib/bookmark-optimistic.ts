@@ -62,10 +62,12 @@ export function projectCollections(collections: BookmarkCollection[], changes: C
 		});
 	}, collections);
 }
-export async function refreshBookmarkChanges(cache: QueryClient) {
+export async function refreshBookmarkChanges(cache: QueryClient, force = false) {
+	let needsRefresh = force;
 	while (true) {
 		const changes = cache.getQueryData<BookmarkChange[]>(BOOKMARK_CHANGES_KEY) ?? [];
-		if (!changes.length || changes.some((change) => !change.acknowledged)) return;
+		if ((!changes.length && !needsRefresh) || changes.some((change) => !change.acknowledged))
+			return;
 		await cache.fetchQuery({
 			queryKey: ["bookmark-ui-refresh"],
 			staleTime: 0,
@@ -91,5 +93,6 @@ export async function refreshBookmarkChanges(cache: QueryClient) {
 				return true;
 			},
 		});
+		needsRefresh = false;
 	}
 }
