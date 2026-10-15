@@ -53,6 +53,9 @@ test("선택한 두 북마크만 함께 드래그하고 미분류로 복구한�
 		await row(selected[0].id).dragTo(
 			navigation.getByRole("button", { name: target.data?.name, exact: true })
 		);
+		await expect(page.getByRole("complementary", { name: "북마크 상세", exact: true })).toHaveCount(
+			0
+		);
 		await expect
 			.poll(
 				async () =>

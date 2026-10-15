@@ -2,6 +2,69 @@ import { expect, type Page, test } from "@playwright/test";
 import { bookmarkOwner } from "./support/bookmarks";
 import { seedBookmarkProposalDraft, seedBookmarkUXSource } from "./support/database";
 
+for (const width of [1440, 390]) {
+	test(`북마크 행의 제목·빈 영역은 상세를 열고 주소만 원문을 연다 (${width}px)`, async ({
+		page,
+	}) => {
+		const db = await bookmarkOwner();
+		const sample = await db
+			.from("bookmarks")
+			.select("id,url")
+			.eq("state", "library")
+			.like("url", "https://nextjs.org/%")
+			.limit(1)
+			.single();
+		expect(sample.error).toBeNull();
+		await page.setViewportSize({ width, height: 900 });
+		await page.goto(`/main/bookmarks?search=${encodeURIComponent(sample.data?.url ?? "")}`);
+		const row = page.locator(`article[data-bookmark-id="${sample.data?.id}"]`);
+		await expect(row).toBeVisible();
+		const title = row.getByRole("heading");
+		await expect(title.getByRole("link")).toHaveCount(0);
+		const trigger = title.getByRole("button", { name: /상세 보기$/u });
+		const panel = page.getByRole(width >= 1280 ? "complementary" : "dialog", {
+			name: "북마크 상세",
+			exact: true,
+		});
+		await trigger.press("Enter");
+		await expect(panel).toBeVisible();
+		await page.keyboard.press("Escape");
+		await expect(trigger).toBeFocused();
+		expect(
+			await trigger.evaluate((element) => getComputedStyle(element, "::after").outlineStyle)
+		).toBe("solid");
+		await row.click({ position: { x: 60, y: 3 } });
+		await expect(panel).toBeVisible();
+		await panel.getByRole("button", { name: "닫기", exact: true }).click();
+		const checkbox = row.getByRole("checkbox");
+		await checkbox.check();
+		await expect(checkbox).toBeChecked();
+		await expect(panel).not.toBeVisible();
+		await checkbox.uncheck();
+		if (width >= 1280) {
+			await row.getByRole("button", { name: /항목 메뉴$/u }).click();
+			await expect(page.getByRole("menu")).toBeVisible();
+			await expect(panel).not.toBeVisible();
+			await page.keyboard.press("Escape");
+		}
+		await expect(row.getByText("컬렉션", { exact: true })).toBeVisible();
+		const link = row.getByRole("link");
+		if (width < 768) expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+		const url = await link.getAttribute("href");
+		expect(url).toMatch(/^https?:\/\//u);
+		await expect(link).toHaveAttribute("target", "_blank");
+		const popupPromise = page.waitForEvent("popup");
+		await link.click();
+		const popup = await popupPromise;
+		try {
+			await expect(popup).toHaveURL(url ?? "");
+			await expect(panel).not.toBeVisible();
+		} finally {
+			await popup.close();
+		}
+	});
+}
+
 test("휴지통 이동은 응답 전에 반영되고 실행 취소는 응답 버전으로 복원한다", async ({ page }) => {
 	const db = await bookmarkOwner();
 	await page.goto("/main/bookmarks");
@@ -106,11 +169,17 @@ test("한 항목의 실패가 동시에 성공한 다른 항목을 복구하지 
 test("상세 편집 중 다른 항목을 선택해도 확인 전에는 입력을 잃지 않는다", async ({ page }) => {
 	await page.goto("/main/bookmarks");
 	const rows = page.locator("article[data-bookmark-id]");
-	await rows.nth(0).getByRole("button", { name: "상세", exact: true }).click();
+	await rows
+		.nth(0)
+		.getByRole("button", { name: / 상세 보기$/u })
+		.click();
 	const panel = page.getByRole("complementary", { name: "북마크 상세", exact: true });
 	await panel.getByRole("button", { name: "수정", exact: true }).click();
 	await panel.getByLabel("제목", { exact: true }).fill("아직 저장하지 않은 편집 내용");
-	await rows.nth(1).getByRole("button", { name: "상세", exact: true }).click();
+	await rows
+		.nth(1)
+		.getByRole("button", { name: / 상세 보기$/u })
+		.click();
 	const confirm = page.getByRole("alertdialog", { name: "편집 내용을 버릴까요?", exact: true });
 	await expect(confirm).toBeVisible();
 	await confirm.getByRole("button", { name: "계속 편집", exact: true }).click();
@@ -128,7 +197,10 @@ test("컬렉션만 편집해도 닫기와 다른 항목 선택 전에 확인한�
 	const target = snapshot.data.collections.find((c: { parent_id: string | null }) => !c.parent_id);
 	await page.goto("/main/bookmarks");
 	const rows = page.locator("article[data-bookmark-id]");
-	await rows.first().getByRole("button", { name: "상세", exact: true }).click();
+	await rows
+		.first()
+		.getByRole("button", { name: / 상세 보기$/u })
+		.click();
 	const panel = page.getByRole("complementary", { name: "북마크 상세", exact: true });
 	await panel.getByRole("button", { name: "수정", exact: true }).click();
 	await panel.getByLabel("컬렉션", { exact: true }).click();
@@ -138,7 +210,10 @@ test("컬렉션만 편집해도 닫기와 다른 항목 선택 전에 확인한�
 	await expect(confirm).toBeVisible();
 	await confirm.getByRole("button", { name: "계속 편집", exact: true }).click();
 	await expect(panel.getByLabel("컬렉션", { exact: true })).toContainText(target.name);
-	await rows.nth(1).getByRole("button", { name: "상세", exact: true }).click();
+	await rows
+		.nth(1)
+		.getByRole("button", { name: / 상세 보기$/u })
+		.click();
 	await expect(confirm).toBeVisible();
 });
 
@@ -147,7 +222,7 @@ test("편집 초안은 데스크톱과 Drawer 경계를 양방향으로 넘어�
 	await page
 		.locator("article[data-bookmark-id]")
 		.first()
-		.getByRole("button", { name: "상세", exact: true })
+		.getByRole("button", { name: / 상세 보기$/u })
 		.click();
 	let panel = page.getByRole("complementary", { name: "북마크 상세", exact: true });
 	await panel.getByRole("button", { name: "수정", exact: true }).click();
@@ -175,7 +250,7 @@ test("보기 전환은 초안 버리기를 확인하고 계속 편집하면 입�
 	await page
 		.locator("article[data-bookmark-id]")
 		.first()
-		.getByRole("button", { name: "상세", exact: true })
+		.getByRole("button", { name: / 상세 보기$/u })
 		.click();
 	const panel = page.getByRole("complementary", { name: "북마크 상세", exact: true });
 	await panel.getByRole("button", { name: "수정", exact: true }).click();
@@ -306,7 +381,7 @@ test("데스크톱 상세는 제목에 초점을 두고 Tab으로 조작하며 E
 	await page.goto("/main/bookmarks");
 	const rows = page.locator("article[data-bookmark-id]");
 	for (const index of [0, 1]) {
-		const trigger = rows.nth(index).getByRole("button", { name: "상세", exact: true });
+		const trigger = rows.nth(index).getByRole("button", { name: / 상세 보기$/u });
 		await trigger.press("Enter");
 		const panel = page.getByRole("complementary", { name: "북마크 상세", exact: true });
 		const heading = panel.getByRole("heading", { name: "북마크 상세", exact: true });
@@ -326,8 +401,11 @@ test("데스크톱 상세는 제목에 초점을 두고 Tab으로 조작하며 E
 		await expect(panel).not.toBeVisible();
 		await expect(trigger).toBeFocused();
 	}
-	await rows.first().getByRole("button", { name: "상세", exact: true }).press("Enter");
-	const next = rows.nth(1).getByRole("button", { name: "상세", exact: true });
+	await rows
+		.first()
+		.getByRole("button", { name: / 상세 보기$/u })
+		.press("Enter");
+	const next = rows.nth(1).getByRole("button", { name: / 상세 보기$/u });
 	await next.press("Enter");
 	const panel = page.getByRole("complementary", { name: "북마크 상세", exact: true });
 	await expect(panel.getByRole("heading", { name: "북마크 상세", exact: true })).toBeFocused();
@@ -343,14 +421,14 @@ test("상세는 한 번 클릭해 패널로 열고 원문 주소와 전체 URL�
 	await expect(link).toHaveAttribute("href", /^https?:\/\//u);
 	const url = await link.getAttribute("href");
 	if (!url) throw new Error("원문 주소가 없습니다.");
-	await row.getByRole("button", { name: "상세", exact: true }).click();
+	await row.getByRole("button", { name: / 상세 보기$/u }).click();
 	const panel = page.getByRole("complementary", { name: "북마크 상세", exact: true });
 	await expect(panel).toBeVisible();
 	await expect(panel.getByText(url, { exact: true })).toBeVisible();
 	await expect(panel.getByRole("button", { name: "주소 복사", exact: true })).toBeVisible();
 	await panel.getByRole("button", { name: "닫기", exact: true }).click();
 	await expect(panel).not.toBeVisible();
-	await expect(row.getByRole("button", { name: "상세", exact: true })).toBeFocused();
+	await expect(row.getByRole("button", { name: / 상세 보기$/u })).toBeFocused();
 });
 
 test("초기 조회를 기다릴 때 행 골격을 표시하고 빈 상태를 표시하지 않는다", async ({ page }) => {
@@ -380,7 +458,7 @@ test("모바일 상세 Drawer와 컬렉션 탐색은 겹치지 않고 화면 안
 	await page
 		.locator("article[data-bookmark-id]")
 		.first()
-		.getByRole("button", { name: "상세", exact: true })
+		.getByRole("button", { name: / 상세 보기$/u })
 		.click();
 	const detail = page.getByRole("dialog", { name: "북마크 상세", exact: true });
 	await expect(detail).toBeVisible();
@@ -459,7 +537,10 @@ async function captureBookmarkQA(
 		expect(count).toBeGreaterThanOrEqual(8);
 	}
 	await page.screenshot({ path: `reports/qa-${viewport.width}-${theme}-list.png` });
-	await rows.first().getByRole("button", { name: "상세", exact: true }).press("Enter");
+	await rows
+		.first()
+		.getByRole("button", { name: / 상세 보기$/u })
+		.press("Enter");
 	const panel =
 		viewport.width >= 1280
 			? page.getByRole("complementary", { name: "북마크 상세", exact: true })
@@ -521,7 +602,7 @@ test("200%에 해당하는 CSS 화면과 모션 감소에서 패널과 키보드
 		const trigger = page
 			.locator("article[data-bookmark-id]")
 			.first()
-			.getByRole("button", { name: "상세", exact: true });
+			.getByRole("button", { name: / 상세 보기$/u });
 		await trigger.press("Enter");
 		const panel = page.getByRole("dialog", { name: "북마크 상세", exact: true });
 		await expect(panel.getByRole("button", { name: "주소 복사", exact: true })).toBeVisible();
@@ -572,6 +653,7 @@ test("폼 코드가 늦게 도착해도 저장 팝업 골격과 취소가 즉시
 test("30초 이후 수동 선택 전환은 진행 중 요청을 취소나 실패로 표시하지 않는다", async ({
 	page,
 }) => {
+	const source = await seedBookmarkUXSource();
 	await page.clock.install();
 	let release = () => {};
 	const gate = new Promise<void>((resolve) => {
@@ -583,7 +665,7 @@ test("30초 이후 수동 선택 전환은 진행 중 요청을 취소나 실패
 	});
 	try {
 		await page.goto("/main");
-		const card = page.locator('[data-thread-url^="https://nextjs.org/"]').first();
+		const card = page.locator(`[data-thread-url=${JSON.stringify(source.url)}]`);
 		await card.getByRole("button", { name: "북마크 저장", exact: true }).click();
 		const dialog = page.getByRole("alertdialog");
 		await expect(
@@ -598,20 +680,38 @@ test("30초 이후 수동 선택 전환은 진행 중 요청을 취소나 실패
 		await dialog.getByRole("button", { name: "취소", exact: true }).click();
 	} finally {
 		release();
+		const db = await bookmarkOwner();
+		expect(
+			(
+				await db.rpc("transition_thread_state", {
+					p_thread_id: Number(source.id),
+					p_expected_state: "inbox",
+					p_destination_state: "trash",
+				})
+			).error
+		).toBeNull();
 	}
 });
 
 test("열린 상세 행을 강조하고 모바일에서는 상세 안에서 명시적으로 이동한다", async ({ page }) => {
 	await page.goto("/main/bookmarks");
 	const row = page.locator("article[data-bookmark-id]").first();
-	await row.getByRole("button", { name: "상세", exact: true }).click();
+	await expect(row).toBeVisible();
+	const background = await row.evaluate((element) => getComputedStyle(element).backgroundColor);
+	await row.getByRole("button", { name: / 상세 보기$/u }).press("Enter");
 	await expect(row).toHaveAttribute("data-detail-selected", "true");
+	await expect
+		.poll(() => row.evaluate((element) => getComputedStyle(element).backgroundColor))
+		.not.toBe(background);
 	await page
 		.getByRole("complementary", { name: "북마크 상세", exact: true })
 		.getByRole("button", { name: "닫기", exact: true })
 		.click();
+	await expect
+		.poll(() => row.evaluate((element) => getComputedStyle(element).backgroundColor))
+		.toBe(background);
 	await page.setViewportSize({ width: 390, height: 844 });
-	await row.getByRole("button", { name: "상세", exact: true }).click();
+	await row.getByRole("button", { name: / 상세 보기$/u }).click();
 	const detail = page.getByRole("dialog", { name: "북마크 상세", exact: true });
 	await detail.getByRole("button", { name: "컬렉션 이동", exact: true }).click();
 	await expect(page.getByRole("alertdialog", { name: "컬렉션 이동", exact: true })).toBeVisible();
@@ -745,7 +845,7 @@ test("한 항목을 이동하는 동안에도 다른 항목의 상세를 탐색�
 					.getByRole("button", { name: target.name, exact: true })
 			);
 		await expect(rows.first().getByRole("checkbox")).toBeDisabled();
-		const other = rows.nth(1).getByRole("button", { name: "상세", exact: true });
+		const other = rows.nth(1).getByRole("button", { name: / 상세 보기$/u });
 		await expect(other).toBeEnabled();
 		await other.click();
 		await expect(

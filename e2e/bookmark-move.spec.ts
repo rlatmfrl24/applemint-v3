@@ -125,7 +125,7 @@ test("모바일 이동 팝업에서 트리를 키보드로 탐색하고 Escape�
 	await page.setViewportSize({ width: 375, height: 812 });
 	await page.goto("/main/bookmarks");
 	const row = page.locator("article[data-bookmark-id]").first();
-	await row.getByRole("button", { name: "상세", exact: true }).click();
+	await row.getByRole("button", { name: / 상세 보기$/u }).click();
 	await page
 		.getByRole("dialog", { name: "북마크 상세", exact: true })
 		.getByRole("button", { name: "컬렉션 이동", exact: true })

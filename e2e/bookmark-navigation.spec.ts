@@ -26,7 +26,7 @@ for (const legacy of [false, true]) {
 			await page
 				.locator("article[data-bookmark-id]")
 				.first()
-				.getByRole("button", { name: "상세", exact: true })
+				.getByRole("button", { name: / 상세 보기$/u })
 				.click();
 			const panel = page.getByRole("complementary", { name: "북마크 상세", exact: true });
 			await panel.getByRole("button", { name: "수정", exact: true }).click();
@@ -76,7 +76,7 @@ test("같은 북마크 화면에서 쌓은 방문 기록도 편집을 시작한 
 	await page
 		.locator("article[data-bookmark-id]")
 		.first()
-		.getByRole("button", { name: "상세", exact: true })
+		.getByRole("button", { name: / 상세 보기$/u })
 		.click();
 	const panel = page.getByRole("complementary", { name: "북마크 상세", exact: true });
 	await panel.getByRole("button", { name: "수정", exact: true }).click();

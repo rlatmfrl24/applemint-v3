@@ -253,7 +253,8 @@ function BookmarkItemDetail({
 						{item.tags.length > 0 && `· ${item.tags.join(", ")}`}
 						{!item.collection_id && item.previous_collection_path && (
 							<span className="block break-words text-muted-foreground">
-								이전 소속: {item.previous_collection_path}
+								이전 컬렉션: {item.previous_collection_path}
+								<span className="block">이동이나 컬렉션 삭제 전에 저장된 소속 경로입니다.</span>
 							</span>
 						)}
 					</p>

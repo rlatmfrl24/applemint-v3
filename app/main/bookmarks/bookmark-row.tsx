@@ -1,6 +1,6 @@
 "use client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { GripVertical, MoreHorizontal, PanelRightOpen } from "lucide-react";
+import { ExternalLink, Folder, GripVertical, MoreHorizontal } from "lucide-react";
 import { type DragEvent, useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -65,7 +65,6 @@ export function BookmarkRow({
 		onError: (error) => toast.error(error.message),
 	});
 	const rowPending = action.isPending || selectionDisabled;
-	const safe = /^https?:\/\//iu.test(item.url);
 	const path = collectionPath(item.collection_id, collections);
 	const dead =
 		item.check?.status === "dead" &&
@@ -82,9 +81,9 @@ export function BookmarkRow({
 			draggable={view === "library" && !moving && !selectionDisabled}
 			onDragStart={(event) => startDrag(event, item)}
 			onDragEnd={endDrag}
-			className={`grid min-h-[72px] grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 border-b px-3 py-2 text-sm transition-colors duration-150 last:border-b-0 motion-reduce:transition-none ${checked ? "bg-accent/60" : "hover:bg-muted/35"}`}
+			className={`relative isolate grid min-h-[72px] grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 border-b px-3 py-2 text-sm transition-colors duration-150 last:border-b-0 data-[detail-selected=true]:bg-accent data-[detail-selected=true]:hover:bg-accent motion-reduce:transition-none ${checked ? "bg-accent/60" : "hover:bg-muted/35"}`}
 		>
-			<label className="-m-3 flex size-11 items-center justify-center">
+			<label className="relative z-10 -m-3 flex size-11 items-center justify-center">
 				<input
 					type="checkbox"
 					disabled={selectionDisabled}
@@ -97,24 +96,23 @@ export function BookmarkRow({
 			<div className="min-w-0">
 				<div className="flex min-w-0 items-center gap-2">
 					<h2 className="min-w-0 border-0 p-0 font-medium text-sm leading-5">
-						<a
-							draggable={false}
-							href={safe ? item.url : undefined}
-							target="_blank"
-							rel="noopener noreferrer"
-							className="line-clamp-2 break-words text-left hover:underline focus-visible:outline focus-visible:outline-ring"
-							title={item.title || item.url}
-							onClick={() => open.mutate()}
+						<button
+							type="button"
+							aria-label={`${item.title || item.url} 상세 보기`}
+							className="block w-full cursor-pointer text-left after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-ring focus-visible:after:-outline-offset-2"
+							onClick={(event) =>
+								detail({ id: item.id, mode: "details", trigger: event.currentTarget })
+							}
 						>
-							{item.title || item.url}
-						</a>
+							<span className="line-clamp-2 break-words">{item.title || item.url}</span>
+						</button>
 					</h2>
 					{dead && <span className="shrink-0 text-destructive text-xs">죽은 링크 의심</span>}
 				</div>
-				<BookmarkMetadata item={item} path={path} />
+				<BookmarkMetadata item={item} path={path} onOpen={() => open.mutate()} />
 				<BookmarkRowContext item={item} view={view} reason={reason} />
 			</div>
-			<div className="flex shrink-0 items-center gap-1">
+			<div className="relative z-10 flex shrink-0 items-center gap-1">
 				{view === "library" && (
 					<GripVertical
 						className="hidden size-4 text-muted-foreground md:block"
@@ -153,18 +151,6 @@ export function BookmarkRow({
 						복원
 					</Button>
 				)}
-				<Button
-					variant="ghost"
-					size="icon"
-					className="size-11 md:size-8"
-					aria-label="상세"
-					title="북마크 상세"
-					onClick={(event) =>
-						detail({ id: item.id, mode: "details", trigger: event.currentTarget })
-					}
-				>
-					<PanelRightOpen className="size-4" aria-hidden="true" />
-				</Button>
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button
@@ -234,29 +220,47 @@ function reviewReason(item: BookmarkItem, dead: boolean) {
 	);
 }
 
-function BookmarkMetadata({ item, path }: { item: BookmarkItem; path: string }) {
+function BookmarkMetadata({
+	item,
+	path,
+	onOpen,
+}: {
+	item: BookmarkItem;
+	path: string;
+	onOpen: () => void;
+}) {
+	const safe = /^https?:\/\//iu.test(item.url);
 	return (
 		<div className="min-w-0 space-y-0.5 text-muted-foreground text-xs">
-			<span className="block truncate" title={item.url}>
-				{item.url.replace(/^https?:\/\//iu, "")}
-			</span>
-			<span className="inline-block max-w-full truncate align-bottom" title={path}>
-				{path}
-			</span>
-			{!item.collection_id && item.previous_collection_path && (
+			<a
+				draggable={false}
+				href={safe ? item.url : undefined}
+				target="_blank"
+				rel="noopener noreferrer"
+				aria-disabled={!safe || undefined}
+				onClick={safe ? onOpen : undefined}
+				title={item.url}
+				className="relative z-10 flex min-h-11 pointer-coarse:min-h-11 w-fit min-w-0 max-w-full items-center gap-1 rounded-sm underline decoration-muted-foreground/50 underline-offset-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring md:min-h-0"
+			>
+				<ExternalLink className="size-3 shrink-0" aria-hidden="true" />
+				<span className="truncate">{item.url.replace(/^https?:\/\//iu, "")}</span>
+			</a>
+			<div className="flex min-w-0 items-center gap-2">
+				<span className="shrink-0">컬렉션</span>
 				<span
-					className="ml-2 inline-block max-w-full truncate align-bottom"
-					title={item.previous_collection_path}
+					className="inline-flex min-w-0 items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-foreground"
+					title={path}
 				>
-					이전: {item.previous_collection_path}
+					<Folder className="size-3 shrink-0" aria-hidden="true" />
+					<span className="truncate">{path}</span>
 				</span>
-			)}
-			<span className="ml-2 hidden shrink-0 2xl:inline">
-				{new Date(item.saved_at).toLocaleDateString("ko-KR")}
-			</span>
-			<span className="ml-2 hidden shrink-0 2xl:inline">
-				{item.open_count ? `열기 ${item.open_count}회` : "사용 이력 없음"}
-			</span>
+				<span className="hidden shrink-0 2xl:inline">
+					{new Date(item.saved_at).toLocaleDateString("ko-KR")}
+				</span>
+				<span className="hidden shrink-0 2xl:inline">
+					{item.open_count ? `열기 ${item.open_count}회` : "사용 이력 없음"}
+				</span>
+			</div>
 		</div>
 	);
 }
