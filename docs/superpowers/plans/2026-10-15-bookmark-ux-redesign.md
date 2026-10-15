@@ -118,8 +118,8 @@
 ### Task 6: 통합 검증·디자인 QA·최종 리뷰
 
 **Interfaces:** Consumes complete real UI and reference; produces evidence, design-qa.md and reviewed commits.
-- [ ] Main/Quick→추천→저장→목록→새로고침→DB, 관리/검토/활동/설정의 실제 흐름 검증.
-- [ ] 1440x900/1024x768/390x844, light/dark, 200%/keyboard/reduced-motion 확인. 기본 desktop 최소 8행, mobile overflow 없음.
-- [ ] 같은 viewport/state의 기준/구현을 함께 배치해 디자인 QA. P0/P1/P2 수정 뒤 재캡처. 폰트/간격/색상/자산/문구 모두 확인.
-- [ ] `pnpm typecheck`, `pnpm verify`, `pnpm exec playwright test --config playwright.bookmarks.config.ts` 실행. Expected: 전체 필수 게이트 PASS, 의도된 외부 opt-in 제외 명시.
-- [ ] 독립 whole-branch 리뷰, Important/Critical을 회귀 RED→GREEN으로 수정. 실제 결과/제한/판단/잔여 minor 기록.
+- [x] Main/Quick→추천→저장→목록→새로고침→DB, 관리/검토/활동/설정의 실제 흐름 검증.
+- [x] 1440x900/1024x768/390x844, light/dark, 200%/keyboard/reduced-motion 확인. 기본 desktop 최소 8행, mobile overflow 없음.
+- [x] 같은 viewport/state의 기준/구현을 함께 배치해 디자인 QA. P0/P1/P2 수정 뒤 재캡처. 폰트/간격/색상/자산/문구 모두 확인.
+- [x] `pnpm typecheck`, `pnpm verify`, `pnpm exec playwright test --config playwright.bookmarks.config.ts` 실행. Expected: 전체 필수 게이트 PASS, 의도된 외부 opt-in 제외 명시.
+- [x] 독립 whole-branch 리뷰, Important/Critical을 회귀 RED→GREEN으로 수정. 실제 결과/제한/판단/잔여 minor 기록.
