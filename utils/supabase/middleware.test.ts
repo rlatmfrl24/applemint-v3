@@ -138,3 +138,22 @@ describe("updateSession", () => {
 		expect(response.headers.get("x-middleware-request-x-untrusted-header")).toBeNull();
 	});
 });
+it("RSC navigation preserves framework transport headers without forwarding forged authorization", () => {
+	const transport = {
+		rsc: "1",
+		"next-router-state-tree": '["",{}]',
+		"next-router-prefetch": "1",
+		"next-router-segment-prefetch": "/_tree",
+		"next-hmr-refresh": "1",
+		"x-nextjs-request-id": "navigation-1",
+		"x-nextjs-html-request-id": "document-1",
+	};
+	const headers = getAllowedRequestHeaders(
+		new NextRequest("http://localhost/main/bookmarks", {
+			headers: { ...transport, "x-owner-id": "forged", "x-middleware-subrequest": "forged" },
+		})
+	);
+	for (const [name, value] of Object.entries(transport)) expect(headers.get(name)).toBe(value);
+	expect(headers.get("x-owner-id")).toBeNull();
+	expect(headers.get("x-middleware-subrequest")).toBeNull();
+});

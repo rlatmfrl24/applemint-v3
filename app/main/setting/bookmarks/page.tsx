@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Bookmark, CheckCircle2, ChevronDown } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { BookmarkJobs } from "@/app/main/bookmarks/bookmark-jobs";
@@ -111,7 +112,7 @@ export default function BookmarkSettingsPage() {
 		queryFn: () => trpc.bookmarkImport.configuration.query(),
 	});
 	const refresh = async () => {
-		await cache.invalidateQueries({ queryKey: ["bookmarks"] });
+		await cache.invalidateQueries({ queryKey: ["bookmarks"] }, { throwOnError: true });
 	};
 	const suggest = useMutation({
 		mutationFn: () => trpc.bookmarkAI.suggestInterests.mutate(),
@@ -134,38 +135,45 @@ export default function BookmarkSettingsPage() {
 				description="관심 주제를 관리하고 모델별 AI 사용량을 확인합니다."
 				action={
 					<Button asChild size="sm">
-						<a href="/main/bookmarks">
+						<Link href="/main/bookmarks">
 							<Bookmark aria-hidden="true" className="size-4" />
 							북마크 관리자 열기
 							<ArrowRight aria-hidden="true" className="size-4" />
-						</a>
+						</Link>
 					</Button>
 				}
 			/>
 			<div className="flex flex-wrap items-center gap-2 text-xs" role="status">
 				{config.isPending ? (
-					<span className="text-muted-foreground">AI 연결 상태 확인 중…</span>
+					<span className="text-muted-foreground">AI 설정 상태 확인 중…</span>
 				) : config.error ? (
-					<span className="text-destructive">AI 연결 상태를 확인하지 못했습니다.</span>
+					<span className="text-destructive">AI 설정 상태를 확인하지 못했습니다.</span>
 				) : config.data?.openrouter ? (
 					<>
 						<CheckCircle2
 							aria-hidden="true"
 							className="size-4 text-emerald-700 dark:text-emerald-400"
 						/>
-						<span>OpenRouter 연결됨</span>
+						<span>AI 설정됨</span>
 						<span className="text-muted-foreground">· 월 예산 $1</span>
 					</>
 				) : (
 					<span>AI 사용을 위해 서버 OPENROUTER_API_KEY를 설정해주세요.</span>
 				)}
 			</div>
+			<SettingsSurface
+				title="AI 사용량"
+				description="이번 달 정산 비용과 예약액은 실제 사용 장부를 기준으로 합니다."
+				className="min-w-0 shadow-none"
+			>
+				<BookmarkAIUsagePanel />
+			</SettingsSurface>
 			{data.error && (
 				<p role="alert" className="text-destructive text-sm">
 					{data.error.message}
 				</p>
 			)}
-			<div className="grid min-w-0 items-start gap-5 lg:grid-cols-2">
+			<div className="grid min-w-0 items-start gap-5">
 				<SettingsSurface
 					title="관심 주제"
 					description="등록한 주제를 기준으로 AI가 분류와 검토를 돕습니다."
@@ -200,13 +208,6 @@ export default function BookmarkSettingsPage() {
 						</p>
 					)}
 				</SettingsSurface>
-				<SettingsSurface
-					title="AI 사용량"
-					description="모델별 요청 비율과 정산 비용을 확인합니다."
-					className="min-w-0 shadow-none"
-				>
-					<BookmarkAIUsagePanel />
-				</SettingsSurface>
 			</div>
 			<div className="flex flex-col items-start justify-between gap-3 border-t pt-4 sm:flex-row sm:items-center">
 				<div>
@@ -216,10 +217,10 @@ export default function BookmarkSettingsPage() {
 					</p>
 				</div>
 				<Button asChild size="sm" variant="ghost">
-					<a href="/main/bookmarks/activity">
+					<Link href="/main/bookmarks/activity">
 						작업 기록 보기
 						<ArrowRight aria-hidden="true" className="size-4" />
-					</a>
+					</Link>
 				</Button>
 			</div>
 			{data.data && (

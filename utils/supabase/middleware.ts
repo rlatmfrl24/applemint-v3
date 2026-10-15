@@ -10,6 +10,14 @@ const FORWARDED_HEADER_ALLOWLIST = [
 	"content-type",
 	"cookie",
 	"host",
+	// Flight and its dev debug channel must keep their IDs or client navigation never completes.
+	"rsc",
+	"next-router-state-tree",
+	"next-router-prefetch",
+	"next-router-segment-prefetch",
+	"next-hmr-refresh",
+	"x-nextjs-request-id",
+	"x-nextjs-html-request-id",
 	// Next.js includes this in its RSC navigation hash; dropping it causes redirect loops.
 	"next-url",
 	"user-agent",

@@ -1,6 +1,7 @@
 "use client";
 
 import { MenuIcon } from "lucide-react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -46,9 +47,9 @@ export const NavMenu = () => {
 					{MenuList.map((item) => (
 						<li key={item.href}>
 							<Button asChild variant={isActive(item.href) ? "secondary" : "ghost"}>
-								<a aria-current={isActive(item.href) ? "page" : undefined} href={item.href}>
+								<Link aria-current={isActive(item.href) ? "page" : undefined} href={item.href}>
 									{item.name}
-								</a>
+								</Link>
 							</Button>
 						</li>
 					))}
@@ -68,12 +69,12 @@ export const MainDrawer = () => {
 				<div className="container mx-auto flex w-full flex-col gap-2 p-4">
 					{MenuList.map((item) => (
 						<DrawerClose asChild key={item.href}>
-							<a
+							<Link
 								className={buttonVariants({ variant: "ghost", className: "text-xl" })}
 								href={item.href}
 							>
 								{item.name}
-							</a>
+							</Link>
 						</DrawerClose>
 					))}
 				</div>

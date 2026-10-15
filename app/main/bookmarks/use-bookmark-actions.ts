@@ -1,5 +1,6 @@
 "use client";
 import {
+	skipToken,
 	type UseMutationResult,
 	useMutation,
 	useMutationState,
@@ -23,12 +24,15 @@ type Command = {
 	collectionId?: string | null;
 };
 export function useBookmarkDisplayChanges() {
-	return useQuery<BookmarkChange[]>({
-		queryKey: BOOKMARK_CHANGES_KEY,
-		initialData: [],
-		enabled: false,
-		gcTime: Number.POSITIVE_INFINITY,
-	}).data;
+	return (
+		useQuery<BookmarkChange[]>({
+			queryKey: BOOKMARK_CHANGES_KEY,
+			queryFn: skipToken,
+			initialData: [],
+			enabled: false,
+			gcTime: Number.POSITIVE_INFINITY,
+		}).data ?? []
+	);
 }
 type ChangeResult =
 	| Omit<BookmarkItem, "check" | "proposals" | "last_review" | "duplicate_count">
