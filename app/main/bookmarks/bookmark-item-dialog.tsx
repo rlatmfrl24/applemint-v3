@@ -554,6 +554,12 @@ function SelectedBookmarkItemDialog({
 	const [draft, setDraft] = useState<BookmarkEditDraft | null>(null);
 	const [viewport, setViewport] = useState({ wide: false, tablet: false });
 	const trigger = useRef<HTMLElement | null>(null);
+	const panelHeading = useRef<HTMLHeadingElement>(null);
+	useEffect(() => {
+		if (!viewport.wide) return;
+		const frame = requestAnimationFrame(() => panelHeading.current?.focus({ preventScroll: true }));
+		return () => cancelAnimationFrame(frame);
+	}, [viewport.wide]);
 	useEffect(() => {
 		const wide = window.matchMedia("(min-width:1280px)");
 		const tablet = window.matchMedia("(min-width:768px)");
@@ -685,7 +691,13 @@ function SelectedBookmarkItemDialog({
 				}}
 			>
 				<div className="mb-4 flex items-center justify-between gap-3">
-					<h2 className="m-0 border-0 p-0 font-medium text-sm">{title}</h2>
+					<h2
+						ref={panelHeading}
+						tabIndex={-1}
+						className="m-0 rounded-sm border-0 p-0 font-medium text-sm focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4"
+					>
+						{title}
+					</h2>
 					<Button size="sm" variant="ghost" onClick={dismiss}>
 						닫기
 					</Button>

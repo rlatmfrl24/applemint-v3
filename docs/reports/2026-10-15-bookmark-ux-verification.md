@@ -1,6 +1,6 @@
 # 북마크 UI·UX 구현 검증
 
-구현 브랜치 `codex/bookmark-ux-redesign`, 기준 `576e1f9`, 최종 제품 코드 `7af63fac526d6b9d58146a253b813958e9c2db82`. 격리 worktree에서 구현했고 원본 checkout은 깨끗하다. push·PR·병합·배포는 실행하지 않았다.
+구현 브랜치 `codex/bookmark-ux-redesign`, 기준 `576e1f9`, 1차 제품 코드 `7af63fac526d6b9d58146a253b813958e9c2db82`. 아래 전체 검증은 이 1차 구현의 기록이며, 이후 키보드 초점 수정은 마지막 추가 검증 절에 기록했다. 격리 worktree에서 구현했고 원본 checkout은 깨끗하다. push·PR·병합·배포는 실행하지 않았다.
 
 ## 실제 도달 가능한 결과
 
@@ -49,7 +49,7 @@
 
 독립 리뷰는 `gpt-6-astra` fresh context에서 `576e1f9..71d3ca6` 전체를 확인했다. Critical 없음, Important 3건(컬렉션만 편집한 dirty 누락, 반응형 재마운트 초안 소실, 보기 전환 시 초안 소실)은 테스트에서 실패를 먼저 확인하고 `7af63fa`에서 수정했다. Declined to judge 없음. 재리뷰를 반복하지 않고 전체 suite로 회귀를 확인했다.
 
-Deferred minor: 데스크톱 상세를 열 때 초점은 원래 목록 버튼에 남는다. 닫기 초점 복귀는 동작하지만, 키보드로 패널 조작에 접근하는 Tab 횟수를 줄이는 개선은 남아 있다. 시각 QA의 P0/P1/P2 결함으로 분류하지 않은 기능 탐색 효율 항목이다.
+초기 Deferred minor였던 데스크톱 상세 진입의 키보드 초점 문제는 후속 요청으로 수정했다. 마지막 추가 검증 절을 참조한다.
 
 실제 운영 배포, 브라우저 메뉴 자체의 200% 확대, 실기기 소프트 키보드, 스크린리더는 확인하지 않았다. CSS 720×450/DPR 2 reflow는 네이티브 확대를 완전히 대체하지 않는다. 자동 추천의 호출량 증가 위험은 요청 재사용·중복 방지와 기존 예산 정책으로 제한하지만 운영 트래픽 측정은 필요하다.
 
@@ -93,3 +93,14 @@ Finish: accepted Global Constraints exclude push/merge/deploy. Keep the named br
 
 
 정리 제한: 자동 승인 검토가 폴더 삭제를 포함한 마무리 명령을 `blocked by policy`로 거절했고 상세 사유는 반환하지 않았다. 따라서 이 계획의 ignored `.superpowers/sdd/2026-10-15-bookmark-ux-redesign/` 기록 폴더는 보존했다. 제품·검증 결과에는 영향이 없으며 삭제를 다른 방식으로 재시도하지 않았다. 이는 실행 스킬의 scratch 정리 지침에 대한 추가 판단이며, 비용은 작은 임시 파일이 남는 것이다.
+
+## 추가 검증: 데스크톱 상세의 키보드 초점
+
+2026-10-15 후속 요청으로 남은 초점 문제를 수정했다. 패널 제목에 프로그램 초점을 주고 키보드 초점 표시를 적용했다. 항목/모드에 따라 다시 마운트되거나 데스크톱으로 전환될 때만 초점을 옮기며, 일반 입력·조회 갱신에서는 초점을 빼앗지 않는다. 미저장 내용을 버리고 닫을 때도 기존 목록 버튼으로 돌아온다.
+
+- 신규 실제 UI 회귀에서 진입 제목 초점 실패를 확인했다(`reports/focus-red.log`). 이후 미저장 확인 후 닫기의 복귀 실패도 재현했다(`reports/focus-green.log`). 두 경로 모두 수정 후 GREEN.
+- Enter 진입, 제목의 보이는 outline, 다음 Tab의 닫기 버튼, 편집 입력 유지, 다른 항목 전환, 일반/미저장 Escape 닫기, 원래 트리거 복귀를 확인했다.
+- 관련 Playwright **9 PASS**(로그인 setup 포함), 미저장 보호·반응형 Drawer·200% 상당 CSS/reduced-motion 회귀 포함: `reports/focus-verified.log`.
+- `pnpm typecheck` 및 Biome PASS. 전체 DB·유료 AI·production build는 UI 초점만 바꾸는 이번 후속 수정에서 다시 실행하지 않았다.
+- 기존 로컬 Docker를 재사용하고 해당 worktree의 Next dev 서버를 숨김 백그라운드 프로세스로 실행했다. `http://localhost:3000/login` HTTP 200 및 같은 서버의 실제 소유자 UI 회귀를 확인했다. DB 초기화·저장·유료 AI 요청 없음.
+- 기존 인앱 탭 직접 연결은 브라우저 URL 보안정책으로 차단되어 재시도하지 않았다. 사용자 탭의 수동 QA 대신 별도 테스트 프로필의 기존 소프트웨어 회귀 결과와 서버 응답을 근거로 삼는다.

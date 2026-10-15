@@ -149,12 +149,17 @@ function useBookmarkManager(screen: BookmarkView) {
 		rawSetItemDialog(next);
 	}
 	function discardDetail() {
+		const returnFocus =
+			pendingDetail && "selection" in pendingDetail && pendingDetail.selection === null
+				? itemDialog?.trigger
+				: null;
 		dirty.current = false;
 		rawSetItemDialog(
 			pendingDetail && "selection" in pendingDetail ? pendingDetail.selection : null
 		);
 		if (pendingDetail && "href" in pendingDetail) router.push(pendingDetail.href);
 		setPendingDetail(null);
+		if (returnFocus) requestAnimationFrame(() => returnFocus.isConnected && returnFocus.focus());
 	}
 
 	const [dragged, setDragged] = useState<BookmarkDrag | null>(null);

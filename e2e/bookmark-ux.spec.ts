@@ -242,6 +242,41 @@ test("저장 팝업은 자동 추천 중 위치와 저장만 잠그고 요청 �
 	}
 });
 
+test("데스크톱 상세는 제목에 초점을 두고 Tab으로 조작하며 Escape로 원래 항목에 돌아온다", async ({
+	page,
+}) => {
+	await page.goto("/main/bookmarks");
+	const rows = page.locator("article[data-bookmark-id]");
+	for (const index of [0, 1]) {
+		const trigger = rows.nth(index).getByRole("button", { name: "상세", exact: true });
+		await trigger.press("Enter");
+		const panel = page.getByRole("complementary", { name: "북마크 상세", exact: true });
+		const heading = panel.getByRole("heading", { name: "북마크 상세", exact: true });
+		await expect(heading).toBeFocused();
+		await expect(heading).toHaveCSS("outline-style", "solid");
+		await page.keyboard.press("Tab");
+		await expect(panel.getByRole("button", { name: "닫기", exact: true })).toBeFocused();
+		await panel.getByRole("button", { name: "수정", exact: true }).click();
+		const input = panel.getByLabel("제목", { exact: true });
+		await input.fill("초점을 빼앗기지 않는 미저장 입력");
+		await expect(input).toBeFocused();
+		await panel.getByRole("button", { name: "닫기", exact: true }).press("Escape");
+		await page
+			.getByRole("alertdialog", { name: "편집 내용을 버릴까요?", exact: true })
+			.getByRole("button", { name: "변경 내용 버리기", exact: true })
+			.click();
+		await expect(panel).not.toBeVisible();
+		await expect(trigger).toBeFocused();
+	}
+	await rows.first().getByRole("button", { name: "상세", exact: true }).press("Enter");
+	const next = rows.nth(1).getByRole("button", { name: "상세", exact: true });
+	await next.press("Enter");
+	const panel = page.getByRole("complementary", { name: "북마크 상세", exact: true });
+	await expect(panel.getByRole("heading", { name: "북마크 상세", exact: true })).toBeFocused();
+	await panel.press("Escape");
+	await expect(next).toBeFocused();
+});
+
 test("상세는 한 번 클릭해 패널로 열고 원문 주소와 전체 URL을 제공한다", async ({ page }) => {
 	await page.goto("/main/bookmarks");
 	const row = page.locator("article[data-bookmark-id]").first();
