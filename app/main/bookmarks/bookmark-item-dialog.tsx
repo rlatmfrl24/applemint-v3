@@ -67,21 +67,9 @@ function BookmarkMoveForm({
 	collections: BookmarkCollection[];
 	onDone: () => void;
 }) {
-	const cache = useQueryClient();
 	const fieldId = useId();
 	const [chosen, setChosen] = useState(items.length === 1);
-	const change = useBookmarkChange();
-	const move = useMutation({
-		mutationFn: (collectionId: string | null) =>
-			change.mutateAsync({ action: "move", items, collectionId }),
-		onSuccess: async () => {
-			onDone();
-		},
-		onError: async (error) => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.error(error.message);
-		},
-	});
+	const move = useBookmarkChange();
 	function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		const collectionId = String(new FormData(event.currentTarget).get("collection") ?? "") || null;
@@ -89,7 +77,7 @@ function BookmarkMoveForm({
 			onDone();
 			return;
 		}
-		move.mutate(collectionId);
+		move.mutate({ action: "move", items, collectionId }, { onSuccess: onDone });
 	}
 	return (
 		<form className="space-y-3" onSubmit={submit}>
@@ -176,21 +164,12 @@ function BookmarkItemDetail({
 	const change = useBookmarkChange();
 	const changes = useBookmarkDisplayChanges();
 	const fieldId = useId();
-	const mutate = useMutation({
-		mutationFn: async (action: "trash" | "restore" | "keep") =>
-			action === "keep"
-				? trpc.bookmark.keep.mutate({ id: item.id, version: item.version })
-				: change.mutateAsync({ action, items: [item] }),
-		onSuccess: async (_item, action) => {
+	const keep = useMutation({
+		mutationFn: () => trpc.bookmark.keep.mutate({ id: item.id, version: item.version }),
+		onSuccess: async () => {
 			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
 			onDone();
-			toast.success(
-				{
-					trash: "휴지통으로 이동했습니다.",
-					restore: "복원했습니다.",
-					keep: "유지 검토를 기록했습니다.",
-				}[action]
-			);
+			toast.success("유지 검토를 기록했습니다.");
 		},
 		onError: (e) => toast.error(e.message),
 	});
@@ -221,7 +200,8 @@ function BookmarkItemDetail({
 		onError: (e) => toast.error(`열기 기록 저장 실패: ${e.message}`),
 	});
 	const pending = [
-		mutate.isPending,
+		keep.isPending,
+		change.isPending,
 		apply.isPending,
 		edit.isPending,
 		changes.some((change) => change.items.some((candidate) => candidate.id === item.id)),
@@ -289,24 +269,27 @@ function BookmarkItemDetail({
 					열기
 				</Button>
 				{item.state === "trash" ? (
-					<Button size="sm" disabled={pending} onClick={() => mutate.mutate("restore")}>
+					<Button
+						size="sm"
+						disabled={pending}
+						onClick={() =>
+							change.mutate({ action: "restore", items: [item] }, { onSuccess: onDone })
+						}
+					>
 						복원
 					</Button>
 				) : (
 					<>
-						<Button
-							size="sm"
-							variant="outline"
-							disabled={pending}
-							onClick={() => mutate.mutate("keep")}
-						>
+						<Button size="sm" variant="outline" disabled={pending} onClick={() => keep.mutate()}>
 							유지
 						</Button>
 						<Button
 							size="sm"
 							variant="destructive"
 							disabled={pending}
-							onClick={() => mutate.mutate("trash")}
+							onClick={() =>
+								change.mutate({ action: "trash", items: [item] }, { onSuccess: onDone })
+							}
 						>
 							휴지통 이동
 						</Button>

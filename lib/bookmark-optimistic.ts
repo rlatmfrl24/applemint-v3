@@ -19,7 +19,7 @@ export function projectBookmarkItems(
 	filter: { state?: string; collectionId?: string | null; search?: string; review?: boolean }
 ) {
 	const extras = changes.flatMap((change) =>
-		change.action === "restore" && !filter.search && !filter.review
+		!filter.search && !filter.review
 			? change.items.filter((item) => !items.some((existing) => existing.id === item.id))
 			: []
 	);

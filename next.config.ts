@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
 	devIndicators: false,
 	experimental: {
 		useTypeScriptCli: true,
+		// Persisted dev cache restored HTML 404s for API routes after a Windows cold start.
+		turbopackFileSystemCacheForDev: false,
 	},
 	images: {
 		remotePatterns: [

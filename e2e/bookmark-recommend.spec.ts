@@ -329,8 +329,10 @@ for (const screen of ["Main", "Quick"]) {
 		const db = await bookmarkOwner();
 		const before = await db.rpc("bookmark_snapshot", { p_filter: { limit: 1 } });
 		expect(before.error).toBeNull();
+		const seeded = await seedBookmarkUXSource();
+		expect(collectionForHost(seeded.url, before.data.collections)).toBeNull();
 		await page.goto("/main");
-		const url = await findUnmatchedSource(page, db);
+		const url = seeded.url;
 		const source = await db.from("threads").select("id,state").eq("url", url).single();
 		expect(source.error).toBeNull();
 		if (!source.data) throw new Error("수집 글이 없습니다.");
@@ -442,6 +444,8 @@ for (const screen of ["Main", "Quick"]) {
 				receipt.data?.charged_nano
 			);
 			await page.goto(`/main/bookmarks?search=${encodeURIComponent(url)}`);
+			await expect(page.locator(`[data-bookmark-id="${saved.data?.id}"]`)).toBeVisible();
+			await page.reload();
 			await expect(page.locator(`[data-bookmark-id="${saved.data?.id}"]`)).toBeVisible();
 			console.log(
 				"JEV_SAVE_READBACK",

@@ -38,6 +38,10 @@ export async function startWhenDockerReady(child = null) {
 		windowsHide: true,
 		timeout: 3_000,
 	});
+	if (docker.error?.code === "ETIMEDOUT") {
+		logStatus("Docker 상태 조회가 지연되었습니다. 웹 서버를 유지하고 다시 확인합니다.");
+		return child;
+	}
 	if (docker.status !== 0) {
 		if (child?.pid) {
 			spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {

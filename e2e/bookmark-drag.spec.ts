@@ -202,6 +202,11 @@ test("컬렉션 드래그·상위 이동·트리 팝업으로 하위 이동하�
 		await dialog.getByRole("treeitem", { name: names[1], exact: true }).click();
 		await dialog.getByRole("button", { name: "이동", exact: true }).click();
 		await expect(dialog).not.toBeVisible();
+		await expect(
+			page
+				.locator('[data-sonner-toast][data-type="success"]')
+				.filter({ hasText: /컬렉션 (이동|변경을 저장)했습니다\./u })
+		).toHaveCount(1);
 		await page.reload();
 		expect(
 			(await db.from("bookmark_collections").select("parent_id").eq("id", created[2].id).single())

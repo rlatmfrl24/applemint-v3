@@ -97,4 +97,13 @@ describe("automatic startup when Docker becomes ready", () => {
 		);
 		expect(boundary.spawn).not.toHaveBeenCalled();
 	});
+	it("does not kill the web server when a Docker status query only times out", async () => {
+		boundary.dockerReady = true;
+		const child = await watcher.startWhenDockerReady();
+		if (!child) throw new Error("Expected an owned server");
+		Object.defineProperty(child, "pid", { value: 45678 });
+		boundary.spawnSync.mockClear().mockReturnValue({ status: null, error: { code: "ETIMEDOUT" } });
+		expect(await watcher.startWhenDockerReady(child)).toBe(child);
+		expect(boundary.spawnSync.mock.calls.some(([command]) => command === "taskkill")).toBe(false);
+	});
 });

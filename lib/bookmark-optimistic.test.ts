@@ -46,6 +46,25 @@ it("a restored item immediately leaves the trash view", () => {
 		})
 	).toEqual([]);
 });
+it.each(["move", "trash", "restore"] as const)(
+	"a pending %s appears once in its destination without changing the fetched page",
+	(action) => {
+		const pending = change("pending", action, "a");
+		if (action === "restore") pending.items[0].state = "trash";
+		const filter = {
+			state: action === "trash" ? "trash" : "library",
+			collectionId: action === "move" ? "two" : "one",
+		};
+		const page: BookmarkItem[] = [];
+		expect(projectBookmarkItems(page, [pending], filter)).toMatchObject([
+			{ id: "a", state: filter.state, collection_id: filter.collectionId },
+		]);
+		expect(page).toEqual([]);
+		expect(projectBookmarkItems([item("a")], [pending], filter)).toHaveLength(1);
+		expect(projectBookmarkItems(page, [pending], { ...filter, search: "other" })).toEqual([]);
+		expect(projectBookmarkItems(page, [pending], { ...filter, review: true })).toEqual([]);
+	}
+);
 it("collection reordering only changes display order of siblings and preserves server versions", () => {
 	const collections = [
 		{ id: "a", parent_id: null, sort_order: 0, version: 4 },
