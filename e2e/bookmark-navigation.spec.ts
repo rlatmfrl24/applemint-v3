@@ -1,6 +1,101 @@
 import { expect, test } from "@playwright/test";
 import { bookmarkOwner } from "./support/bookmarks";
 
+for (const legacy of [false, true]) {
+	for (const direction of ["back", "forward"] as const) {
+		test(`저장하지 않은 편집은 ${direction === "back" ? "뒤로" : "앞으로"} 이동을 확인하고 방문 기록을 보존한다${legacy ? " (Navigation API 없음)" : ""}`, async ({
+			page,
+		}) => {
+			if (legacy)
+				await page.addInitScript(() =>
+					Object.defineProperty(window, "navigation", { value: undefined })
+				);
+			await page.goto("/main");
+			const identity = await page.evaluate(() => performance.timeOrigin);
+			await page
+				.getByRole("navigation", { name: "Main navigation", exact: true })
+				.getByRole("link", { name: "Bookmark", exact: true })
+				.click();
+			const views = page.getByRole("navigation", { name: "북마크 보기", exact: true });
+			await expect(page).toHaveURL(/\/main\/bookmarks$/u);
+			await views.getByRole("link", { name: "검토", exact: true }).click();
+			await expect(page).toHaveURL(/\/main\/bookmarks\/review$/u);
+			await page.goBack();
+			await expect(page).toHaveURL(/\/main\/bookmarks$/u);
+			const historyLength = await page.evaluate(() => history.length);
+			await page
+				.locator("article[data-bookmark-id]")
+				.first()
+				.getByRole("button", { name: / 상세 보기$/u })
+				.click();
+			const panel = page.getByRole("complementary", { name: "북마크 상세", exact: true });
+			await panel.getByRole("button", { name: "수정", exact: true }).click();
+			const title = panel.getByRole("textbox", { name: "제목", exact: true });
+			await title.fill("방문 기록 이동 중 보존할 초안");
+			const confirm = page.getByRole("alertdialog", { name: "편집 내용을 버릴까요?", exact: true });
+			const traverse = () => (direction === "back" ? page.goBack() : page.goForward());
+			await traverse();
+			await expect(confirm).toBeVisible();
+			await expect(page).toHaveURL(/\/main\/bookmarks$/u);
+			await confirm.getByRole("button", { name: "계속 편집", exact: true }).click();
+			await expect(title).toHaveValue("방문 기록 이동 중 보존할 초안");
+			await expect(title).toBeFocused();
+			await traverse();
+			await expect(confirm).toBeVisible();
+			await confirm.getByRole("button", { name: "변경 내용 버리기", exact: true }).click();
+			await expect(page).toHaveURL(
+				direction === "back" ? /\/main$/u : /\/main\/bookmarks\/review$/u
+			);
+			if (direction === "back") await page.goForward();
+			else await page.goBack();
+			await expect(page).toHaveURL(/\/main\/bookmarks$/u);
+			await expect(panel).not.toBeVisible();
+			if (direction === "back") await page.goForward();
+			else await page.goBack();
+			await expect(page).toHaveURL(
+				direction === "back" ? /\/main\/bookmarks\/review$/u : /\/main$/u
+			);
+			expect(await page.evaluate(() => history.length)).toBe(historyLength);
+			expect(await page.evaluate(() => performance.timeOrigin)).toBe(identity);
+		});
+	}
+}
+
+test("같은 북마크 화면에서 쌓은 방문 기록도 편집을 시작한 위치로 되돌린다", async ({ page }) => {
+	await page.goto("/main/bookmarks");
+	await page
+		.getByRole("navigation", { name: "북마크 탐색", exact: true })
+		.getByRole("button", { name: "미분류", exact: true })
+		.click();
+	await expect(page).toHaveURL(/collection=unfiled$/u);
+	await page
+		.getByRole("navigation", { name: "Main navigation", exact: true })
+		.getByRole("link", { name: "Bookmark", exact: true })
+		.click();
+	await expect(page).toHaveURL(/\/main\/bookmarks$/u);
+	await page
+		.locator("article[data-bookmark-id]")
+		.first()
+		.getByRole("button", { name: / 상세 보기$/u })
+		.click();
+	const panel = page.getByRole("complementary", { name: "북마크 상세", exact: true });
+	await panel.getByRole("button", { name: "수정", exact: true }).click();
+	const title = panel.getByRole("textbox", { name: "제목", exact: true });
+	await title.fill("같은 화면 방문 기록에서 보존할 초안");
+	const confirm = page.getByRole("alertdialog", { name: "편집 내용을 버릴까요?", exact: true });
+	await page.goBack();
+	await expect(confirm).toBeVisible();
+	await expect(page).toHaveURL(/\/main\/bookmarks$/u);
+	await confirm.getByRole("button", { name: "계속 편집", exact: true }).click();
+	await expect(title).toHaveValue("같은 화면 방문 기록에서 보존할 초안");
+	await expect(title).toBeFocused();
+	await page.goBack();
+	await expect(confirm).toBeVisible();
+	await confirm.getByRole("button", { name: "변경 내용 버리기", exact: true }).click();
+	await expect(page).toHaveURL(/collection=unfiled$/u);
+	await expect(panel).not.toBeVisible();
+});
+
 test("헤더 순서와 휴지통의 같은 문서 전환·기존 URL 진입을 확인한다", async ({ page }) => {
 	const renderErrors: string[] = [];
 	page.on("console", (event) => {

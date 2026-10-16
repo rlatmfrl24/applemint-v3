@@ -34,7 +34,7 @@ test("선택한 두 북마크만 함께 드래그하고 미분류로 복구한�
 		.select("id,name")
 		.is("parent_id", null)
 		.is("archived_at", null)
-		.not("source_id", "eq", "-1")
+		.or("source_id.is.null,source_id.neq.-1")
 		.order("name")
 		.limit(1)
 		.single();
@@ -49,8 +49,12 @@ test("선택한 두 북마크만 함께 드래그하고 미분류로 복구한�
 		await expect(bulkDialog).toContainText("선택한 북마크 2개");
 		await expect(bulkDialog.getByRole("button", { name: "이동", exact: true })).toBeDisabled();
 		await bulkDialog.getByRole("button", { name: "닫기", exact: true }).click();
+		await expect(row(selected[0].id)).toHaveAttribute("draggable", "true");
 		await row(selected[0].id).dragTo(
 			navigation.getByRole("button", { name: target.data?.name, exact: true })
+		);
+		await expect(page.getByRole("complementary", { name: "북마크 상세", exact: true })).toHaveCount(
+			0
 		);
 		await expect
 			.poll(
@@ -77,6 +81,7 @@ test("선택한 두 북마크만 함께 드래그하고 미분류로 복구한�
 				expect(moved?.[key]).toEqual(item[key]);
 			await row(item.id).getByRole("checkbox").check();
 		}
+		await expect(row(selected[0].id)).toHaveAttribute("draggable", "true");
 		await row(selected[0].id).dragTo(
 			navigation.getByRole("button", { name: "미분류", exact: true })
 		);
@@ -197,6 +202,11 @@ test("컬렉션 드래그·상위 이동·트리 팝업으로 하위 이동하�
 		await dialog.getByRole("treeitem", { name: names[1], exact: true }).click();
 		await dialog.getByRole("button", { name: "이동", exact: true }).click();
 		await expect(dialog).not.toBeVisible();
+		await expect(
+			page
+				.locator('[data-sonner-toast][data-type="success"]')
+				.filter({ hasText: /컬렉션 (이동|변경을 저장)했습니다\./u })
+		).toHaveCount(1);
 		await page.reload();
 		expect(
 			(await db.from("bookmark_collections").select("parent_id").eq("id", created[2].id).single())

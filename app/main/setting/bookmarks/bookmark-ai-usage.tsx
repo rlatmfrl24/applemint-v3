@@ -1,7 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useTRPCClient } from "@/trpc/client";
 
@@ -18,6 +20,7 @@ const ModelChart = dynamic(() => import("./bookmark-model-chart"), {
 
 export function BookmarkAIUsagePanel() {
 	const trpc = useTRPCClient();
+	const [expanded, setExpanded] = useState(false);
 	const query = useQuery({
 		queryKey: ["bookmarks", "ai-usage"],
 		queryFn: () => trpc.bookmarkAI.usage.query(),
@@ -35,7 +38,7 @@ export function BookmarkAIUsagePanel() {
 						</Button>
 					</div>
 				) : (
-					<p role="status" className="text-muted-foreground text-sm">
+					<p role="status" aria-busy="true" className="min-h-24 text-muted-foreground text-sm">
 						사용량을 불러오는 중…
 					</p>
 				)}
@@ -43,7 +46,7 @@ export function BookmarkAIUsagePanel() {
 		);
 	const percent = (usage.usedNano / usage.limitNano) * 100;
 	return (
-		<div className="space-y-5 p-4 sm:p-5">
+		<div className="space-y-3 p-4 sm:p-5">
 			<div className="space-y-2">
 				<div className="flex items-baseline justify-between gap-2">
 					<span className="text-muted-foreground text-xs">
@@ -95,17 +98,28 @@ export function BookmarkAIUsagePanel() {
 					</dd>
 				</div>
 			</dl>
-			{usage.requestCount > 0 ? (
-				<ModelChart usage={usage} />
-			) : (
-				<p className="py-10 text-center text-muted-foreground text-sm">
-					이번 달 AI 요청이 없습니다. 추천이나 분류를 사용하면 모델별 사용량이 표시됩니다.
+			<details className="group" onToggle={(event) => setExpanded(event.currentTarget.open)}>
+				<summary className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-md text-sm focus-visible:outline focus-visible:outline-ring">
+					상세 사용량
+					<ChevronDown
+						aria-hidden="true"
+						className="size-4 transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none"
+					/>
+				</summary>
+				{expanded &&
+					(usage.requestCount > 0 ? (
+						<ModelChart usage={usage} />
+					) : (
+						<p className="py-6 text-center text-muted-foreground text-sm">
+							이번 달 AI 요청이 없습니다. 추천이나 분류를 사용하면 모델별 사용량이 표시됩니다.
+						</p>
+					))}{" "}
+				<p className="text-muted-foreground text-xs leading-5">
+					정산·예약 장부 기준이며 해제된 요청은 제외합니다. 모델 정보가 없는 이전 요청은 ‘모델
+					미기록’으로 표시합니다.
 				</p>
-			)}
-			<p className="text-muted-foreground text-xs leading-5">
-				정산·예약 장부 기준이며 해제된 요청은 제외합니다. 모델 정보가 없는 이전 요청은 ‘모델
-				미기록’으로 표시합니다.
-			</p>
+			</details>
+
 			{query.error && (
 				<p role="alert" className="text-destructive text-xs">
 					최신 사용량 조회에 실패했습니다. 마지막 확인 값을 표시합니다.

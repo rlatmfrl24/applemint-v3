@@ -7,6 +7,12 @@ const boundary = vi.hoisted(() => ({
 	portOpen: false,
 	spawnSync: vi.fn(),
 	spawn: vi.fn(),
+	readRuntime: vi.fn(() => ({})),
+	inspectLocalStack: vi.fn(),
+}));
+vi.mock("./start-local.mjs", () => ({
+	readRuntime: boundary.readRuntime,
+	inspectLocalStack: boundary.inspectLocalStack,
 }));
 vi.mock("node:child_process", () => ({ spawnSync: boundary.spawnSync, spawn: boundary.spawn }));
 vi.mock("node:fs", () => ({
@@ -34,6 +40,9 @@ describe("automatic startup when Docker becomes ready", () => {
 		boundary.dockerReady = false;
 		boundary.supabaseReady = true;
 		boundary.portOpen = false;
+		boundary.inspectLocalStack
+			.mockReset()
+			.mockImplementation(() => ({ ready: boundary.supabaseReady }));
 		boundary.spawn.mockReset().mockImplementation(() => new EventEmitter());
 		boundary.spawnSync.mockReset().mockImplementation((command) => ({
 			status: (command === "supabase" ? boundary.supabaseReady : boundary.dockerReady) ? 0 : 1,
@@ -70,5 +79,31 @@ describe("automatic startup when Docker becomes ready", () => {
 		boundary.supabaseReady = true;
 		expect(await watcher.startWhenDockerReady()).not.toBeNull();
 		expect(boundary.spawn).toHaveBeenCalledOnce();
+	});
+
+	it("stops only its own web process tree when Docker goes away", async () => {
+		boundary.dockerReady = true;
+		const child = await watcher.startWhenDockerReady();
+		if (!child) throw new Error("Expected an owned server");
+		Object.defineProperty(child, "pid", { value: 45678 });
+		boundary.dockerReady = false;
+		boundary.spawn.mockClear();
+		boundary.spawnSync.mockClear();
+		expect(await watcher.startWhenDockerReady(child)).toBe(child);
+		expect(boundary.spawnSync).toHaveBeenCalledWith(
+			"taskkill",
+			["/PID", "45678", "/T", "/F"],
+			expect.objectContaining({ windowsHide: true })
+		);
+		expect(boundary.spawn).not.toHaveBeenCalled();
+	});
+	it("does not kill the web server when a Docker status query only times out", async () => {
+		boundary.dockerReady = true;
+		const child = await watcher.startWhenDockerReady();
+		if (!child) throw new Error("Expected an owned server");
+		Object.defineProperty(child, "pid", { value: 45678 });
+		boundary.spawnSync.mockClear().mockReturnValue({ status: null, error: { code: "ETIMEDOUT" } });
+		expect(await watcher.startWhenDockerReady(child)).toBe(child);
+		expect(boundary.spawnSync.mock.calls.some(([command]) => command === "taskkill")).toBe(false);
 	});
 });

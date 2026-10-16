@@ -13,7 +13,7 @@ test("실제 AI 관심 주제·분류를 검토 팝업에서 수정·승인하�
 	const beforeUsed = initial.data.budget.used_nano;
 	const beforeJobs = initial.data.jobs.map((job: { id: string }) => job.id);
 	await page.goto("/main/setting/bookmarks");
-	await expect(page.getByText("OpenRouter 연결됨", { exact: true })).toBeVisible();
+	await expect(page.getByText("AI 설정됨", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "AI 추천 받기", exact: true }).click();
 	await expect
 		.poll(
@@ -117,7 +117,7 @@ test("실제 AI 관심 주제·분류를 검토 팝업에서 수정·승인하�
 		const name = `AI 관리자 검증 컬렉션 ${Date.now()}`;
 		const first = page.locator(`[data-bookmark-id="${ids[0]}"]`);
 		await first.getByRole("button", { name: "변경안", exact: true }).click();
-		let dialog = page.getByRole("alertdialog");
+		let dialog = page.getByRole("complementary", { name: "검토 결과", exact: true });
 		await dialog.getByLabel("새 컬렉션 이름 (입력하면 새 컬렉션으로 이동)").fill(name);
 		await dialog.getByRole("button", { name: "이 항목 승인·이동", exact: true }).click();
 		await expect(dialog).not.toBeVisible();
@@ -133,7 +133,7 @@ test("실제 AI 관심 주제·분류를 검토 팝업에서 수정·승인하�
 		);
 		const second = page.locator(`[data-bookmark-id="${ids[1]}"]`);
 		await second.getByRole("button", { name: "변경안", exact: true }).click();
-		dialog = page.getByRole("alertdialog");
+		dialog = page.getByRole("complementary", { name: "검토 결과", exact: true });
 		await dialog.getByLabel("대상 컬렉션", { exact: true }).selectOption(created.data?.id);
 		await expect(dialog.getByLabel("새 컬렉션 이름 (입력하면 새 컬렉션으로 이동)")).toHaveValue("");
 		await dialog.getByRole("button", { name: "이 항목 승인·이동", exact: true }).click();

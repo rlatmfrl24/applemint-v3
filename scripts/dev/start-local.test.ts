@@ -6,7 +6,7 @@ const { spawnSync, readFileSync, runtime } = vi.hoisted(() => ({
 			command: string,
 			args: string[],
 			options?: { env?: NodeJS.ProcessEnv }
-		) => { status: number; stderr?: string }
+		) => { status: number; stderr?: string; stdout?: string }
 	>(() => ({ status: 0 })),
 	readFileSync: vi.fn(),
 	runtime: {
@@ -14,6 +14,7 @@ const { spawnSync, readFileSync, runtime } = vi.hoisted(() => ({
 		publishableKey: "local-public-key",
 		secretKey: "private-server-key",
 		internalSecret: "private-worker-key",
+		databaseContainer: "supabase_db_local-verify",
 	},
 }));
 vi.mock("node:child_process", () => ({ spawnSync }));
@@ -23,8 +24,24 @@ readFileSync.mockReturnValue(JSON.stringify(runtime));
 import * as launcher from "./start-local.mjs";
 
 describe("local startup", () => {
+	const containers = () =>
+		["db", "auth", "rest", "kong"].map((service) => ({
+			Name: `/supabase_${service}_local-verify`,
+			State: { Running: true, Health: { Status: "healthy" } },
+			HostConfig: {
+				PortBindings:
+					service === "db"
+						? { "5432/tcp": [{ HostIp: "127.0.0.1", HostPort: "54322" }] }
+						: service === "kong"
+							? { "8000/tcp": [{ HostIp: "127.0.0.1", HostPort: "54321" }] }
+							: {},
+			},
+		}));
 	beforeEach(() => {
-		spawnSync.mockReset().mockReturnValue({ status: 0 });
+		spawnSync.mockReset().mockImplementation((_command, args) => ({
+			status: 0,
+			stdout: args[0] === "inspect" ? JSON.stringify(containers()) : "",
+		}));
 		readFileSync.mockReturnValue(JSON.stringify(runtime));
 		vi.spyOn(console, "log").mockImplementation(() => {});
 		vi.stubEnv("APPLEMINT_DOCKER_AUTO_START", "");
@@ -34,23 +51,39 @@ describe("local startup", () => {
 		vi.unstubAllEnvs();
 	});
 
-	it("starts Docker and the existing local stack before starting Next on port 3000", () => {
+	it("starts Docker and only the configured existing containers before Next", () => {
 		expect(launcher.startLocal).toBeTypeOf("function");
+		let dockerReady = false;
+		let stackReady = false;
 		spawnSync.mockImplementation((command, args) => {
 			if (command === "docker" && args[0] === "info") {
-				return { status: spawnSync.mock.calls.length === 1 ? 1 : 0 };
+				const status = dockerReady ? 0 : 1;
+				dockerReady = true;
+				return { status };
 			}
-			if (command === "supabase" && args[0] === "status") return { status: 1 };
+			if (args[0] === "inspect") {
+				const stack = containers();
+				stack[0].State.Running = stackReady;
+				return { status: 0, stdout: JSON.stringify(stack) };
+			}
+			if (args[0] === "start") stackReady = true;
 			return { status: 0 };
 		});
 		launcher.startLocal();
-		expect(spawnSync.mock.calls.map(([command, args]) => [command, args])).toEqual([
+		expect(spawnSync.mock.calls.slice(0, 3).map(([command, args]) => [command, args])).toEqual([
 			["docker", ["info", "--format", "{{.ServerVersion}}"]],
 			["docker", ["desktop", "start", "--timeout", "120"]],
 			["docker", ["info", "--format", "{{.ServerVersion}}"]],
-			["supabase", ["status"]],
-			["supabase", ["start"]],
-			["pnpm", ["exec", "next", "dev", "--port", "3000"]],
+		]);
+		expect(spawnSync).toHaveBeenCalledWith(
+			"docker",
+			["start", ...containers().map((container) => container.Name.slice(1))],
+			expect.anything()
+		);
+		expect(spawnSync.mock.calls.some(([command]) => command === "supabase")).toBe(false);
+		expect(spawnSync.mock.calls.at(-1)?.slice(0, 2)).toEqual([
+			process.execPath,
+			expect.arrayContaining(["dev", "--hostname", "127.0.0.1", "--port", "3000"]),
 		]);
 		const options = spawnSync.mock.calls.at(-1)?.[2];
 		expect(options?.env).toMatchObject({
@@ -60,13 +93,13 @@ describe("local startup", () => {
 		});
 	});
 
-	it("reuses running Docker and Supabase without restarting or resetting them", () => {
+	it("reuses healthy configured containers without restarting or resetting them", () => {
 		expect(launcher.startLocal).toBeTypeOf("function");
 		launcher.startLocal();
 		expect(spawnSync.mock.calls.map(([command, args]) => [command, args[0]])).toEqual([
 			["docker", "info"],
-			["supabase", "status"],
-			["pnpm", "exec"],
+			["docker", "inspect"],
+			[process.execPath, expect.stringMatching(/next[/\\]dist[/\\]bin[/\\]next$/u)],
 		]);
 	});
 
@@ -84,24 +117,44 @@ describe("local startup", () => {
 		expect(spawnSync).toHaveBeenCalledOnce();
 	});
 
-	it("does not expose CLI secrets or start Next after a Supabase failure", () => {
+	it("does not start or expose a stack with non-loopback bindings", () => {
 		expect(launcher.startLocal).toBeTypeOf("function");
-		spawnSync.mockImplementation((command) => ({
-			status: command === "supabase" ? 1 : 0,
-			stderr: "private-server-key",
+		const stack = containers();
+		stack[0].HostConfig.PortBindings["5432/tcp"] = [{ HostIp: "", HostPort: "54322" }];
+		spawnSync.mockImplementation((_command, args) => ({
+			status: 0,
+			stdout: args[0] === "inspect" ? JSON.stringify(stack) : "",
 		}));
-		expect(() => launcher.startLocal()).toThrow(/Supabase/u);
-		expect(() => launcher.startLocal()).not.toThrow(/private-server-key/u);
-		expect(spawnSync.mock.calls.some(([command]) => command === "pnpm")).toBe(false);
+		expect(() => launcher.startLocal()).toThrow(/loopback/u);
+		expect(spawnSync.mock.calls.every(([command]) => command === "docker")).toBe(true);
 		expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining("private-server-key"));
+	});
+
+	it("automatic startup waits for auth and never restarts manually stopped containers", () => {
+		vi.stubEnv("APPLEMINT_DOCKER_AUTO_START", "1");
+		const stack = containers();
+		stack[1].State.Health.Status = "starting";
+		spawnSync.mockImplementation((_command, args) => ({
+			status: 0,
+			stdout: args[0] === "inspect" ? JSON.stringify(stack) : "",
+		}));
+		expect(() => launcher.startLocal()).toThrow(/준비/u);
+		expect(spawnSync.mock.calls.every(([, args]) => ["info", "inspect"].includes(args[0]))).toBe(
+			true
+		);
 	});
 
 	it("preserves a Next startup failure without falling back to another port", () => {
 		expect(launcher.startLocal).toBeTypeOf("function");
-		spawnSync.mockImplementation((command) => ({ status: command === "pnpm" ? 1 : 0 }));
+		spawnSync.mockImplementation((command, args) => ({
+			status: command === process.execPath ? 1 : 0,
+			stdout: args[0] === "inspect" ? JSON.stringify(containers()) : "",
+		}));
 		launcher.startLocal();
 		expect(process.exitCode).toBe(1);
-		expect(spawnSync.mock.calls.filter(([command]) => command === "pnpm")).toHaveLength(1);
+		expect(spawnSync.mock.calls.filter(([command]) => command === process.execPath)).toHaveLength(
+			1
+		);
 	});
 
 	it("leaves existing accounts untouched when local authentication is missing", () => {

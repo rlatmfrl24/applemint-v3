@@ -4,6 +4,14 @@ import { collectionAncestors } from "../lib/bookmark-tree";
 import { bookmarkOwner, removeCollectionUI } from "./support/bookmarks";
 import { getE2ERuntime } from "./support/runtime";
 
+test("자동 실행 서버의 북마크 API와 내부 worker 경로가 등록된다", async ({ page }) => {
+	const collections = await page.request.get("/api/trpc/bookmarkCollection.list");
+	expect(collections.status()).toBe(200);
+	expect(Array.isArray((await collections.json()).result.data)).toBe(true);
+	expect((await page.request.get("/api/bookmarks/worker")).status()).toBe(405);
+	expect((await page.request.post("/api/bookmarks/worker", { data: {} })).status()).toBe(401);
+});
+
 test("목록 갱신이 실패해도 새 컬렉션을 트리에서 관리할 수 있다", async ({ page }) => {
 	const db = await bookmarkOwner();
 	const name = `컬렉션 갱신 검증 ${Date.now()}`;
@@ -55,7 +63,7 @@ test("현재 컬렉션을 떠난 선택 항목으로 AI 작업을 실행할 수 
 		await row.getByRole("checkbox").check();
 		await row.getByRole("button", { name: `${sample.data?.title} 항목 메뉴`, exact: true }).click();
 		await page.getByRole("menuitem", { name: "수정", exact: true }).click();
-		dialog = page.getByRole("alertdialog");
+		dialog = page.getByRole("complementary", { name: "북마크 수정", exact: true });
 		await dialog.getByLabel("컬렉션", { exact: true }).click();
 		await dialog
 			.getByRole("tree", { name: "컬렉션 선택" })
@@ -395,6 +403,11 @@ test("컬렉션 팝업으로 계층 생성·이름 수정·삭제하고 DB에서
 		await dialog.getByRole("button", { name: "저장", exact: true }).click();
 		await expect(dialog).not.toBeVisible();
 		await expect(page.getByRole("button", { name: renamed, exact: true })).toBeVisible();
+		await expect(
+			page
+				.locator('[data-sonner-toast][data-type="success"]')
+				.filter({ hasText: /컬렉션 (이름을 변경|변경을 저장)했습니다\./u })
+		).toHaveCount(1);
 		await page.getByRole("button", { name: `${renamed} 메뉴`, exact: true }).click();
 		await page.getByRole("menuitem", { name: "컬렉션 삭제", exact: true }).click();
 		dialog = page.getByRole("alertdialog");

@@ -1,5 +1,6 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { BookmarkSaveDialog } from "@/components/bookmark-save-dialog";
@@ -37,16 +38,30 @@ function JobItems({ id }: { id: string }) {
 	});
 	return (
 		<details className="mt-2" onToggle={(e) => setOpen(e.currentTarget.open)}>
-			<summary className="cursor-pointer">실패·재검사·미처리 항목 확인</summary>
-			{query.error && <p role="alert">{query.error.message}</p>}
+			<summary className="min-h-11 cursor-pointer rounded-md py-2 focus-visible:outline focus-visible:outline-ring">
+				실패·재검사·미처리 항목 확인
+			</summary>
+			{open && query.isPending && (
+				<p role="status" aria-busy="true">
+					작업 항목을 불러오는 중…
+				</p>
+			)}
+			{query.error && (
+				<div role="alert">
+					<p>{query.error.message}</p>
+					<Button size="sm" variant="outline" onClick={() => query.refetch()}>
+						작업 항목 다시 불러오기
+					</Button>
+				</div>
+			)}
 			{query.data?.items.map((item) => (
 				<p className="mt-2" key={item.bookmark_id}>
-					<a
+					<Link
 						className="underline"
 						href={`/main/bookmarks?search=${encodeURIComponent(item.bookmarks.url)}`}
 					>
 						{item.bookmarks.title || item.bookmarks.url}
-					</a>{" "}
+					</Link>{" "}
 					·{" "}
 					{item.error ||
 						{ pending: "미처리", waiting: "1분 뒤 재검사 대기", failed: "실패" }[item.state]}

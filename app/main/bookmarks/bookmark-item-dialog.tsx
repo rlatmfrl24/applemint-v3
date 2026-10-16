@@ -1,23 +1,27 @@
 "use client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Drawer as DrawerPrimitive } from "vaul";
 import {
 	BookmarkCollectionPicker,
 	bookmarkFieldClass,
 } from "@/components/bookmark-collection-picker";
 import {
 	AlertDialog,
-	AlertDialogCancel,
 	AlertDialogContent,
 	AlertDialogDescription,
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Drawer, DrawerContent } from "@/components/ui/drawer";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { BookmarkCollection, BookmarkItem } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
 import { useTRPCClient } from "@/trpc/client";
+import styles from "./bookmark-detail.module.css";
+import { useBookmarkChange, useBookmarkDisplayChanges } from "./use-bookmark-actions";
 
 const healthLabels = {
 	healthy: "정상",
@@ -63,26 +67,9 @@ function BookmarkMoveForm({
 	collections: BookmarkCollection[];
 	onDone: () => void;
 }) {
-	const trpc = useTRPCClient();
-	const cache = useQueryClient();
 	const fieldId = useId();
 	const [chosen, setChosen] = useState(items.length === 1);
-	const move = useMutation({
-		mutationFn: (collectionId: string | null) =>
-			trpc.bookmarkCollection.moveMany.mutate({
-				items: items.map(({ id, version }) => ({ id, version })),
-				collectionId,
-			}),
-		onSuccess: async (result) => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			onDone();
-			toast.success(`북마크 ${result.applied}개를 이동했습니다.`);
-		},
-		onError: async (error) => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.error(error.message);
-		},
-	});
+	const move = useBookmarkChange();
 	function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		const collectionId = String(new FormData(event.currentTarget).get("collection") ?? "") || null;
@@ -90,7 +77,7 @@ function BookmarkMoveForm({
 			onDone();
 			return;
 		}
-		move.mutate(collectionId);
+		move.mutate({ action: "move", items, collectionId }, { onSuccess: onDone });
 	}
 	return (
 		<form className="space-y-3" onSubmit={submit}>
@@ -115,34 +102,74 @@ function BookmarkMoveForm({
 	);
 }
 
+type BookmarkEditDraft = {
+	version: number;
+	title: string;
+	description: string;
+	note: string;
+	tags: string;
+	collectionId: string | null;
+};
+type BookmarkProposalDraft = { collectionId: string; newCollectionName: string };
+function editDraft(item: BookmarkItem): BookmarkEditDraft {
+	return {
+		version: item.version,
+		title: item.title,
+		description: item.description,
+		note: item.note,
+		tags: item.tags.join(", "),
+		collectionId: item.collection_id,
+	};
+}
+function readEditDraft(form: HTMLFormElement, version: number): BookmarkEditDraft {
+	const data = new FormData(form);
+	return {
+		version,
+		title: String(data.get("title")),
+		description: String(data.get("description")),
+		note: String(data.get("note")),
+		tags: String(data.get("tags")),
+		collectionId: String(data.get("collection")) || null,
+	};
+}
+
 function BookmarkItemDetail({
 	item,
 	collections,
 	mode,
 	onDone,
+	onMove,
+	onDirtyChange,
+	draft: values,
+	editing,
+	setDraft,
+	proposalDrafts,
+	setProposalDraft,
 }: {
 	item: BookmarkItem;
 	collections: BookmarkCollection[];
 	mode: "details" | "edit" | "proposal";
 	onDone: () => void;
+	onMove: () => void;
+	onDirtyChange: (dirty: boolean) => void;
+	draft: BookmarkEditDraft;
+	editing: boolean;
+	setDraft: (draft: BookmarkEditDraft) => void;
+	proposalDrafts: Record<string, BookmarkProposalDraft>;
+	setProposalDraft: (id: string, draft: BookmarkProposalDraft) => void;
 }) {
 	const trpc = useTRPCClient();
 	const cache = useQueryClient();
-	const [editing, setEditing] = useState(mode === "edit");
+	const editVersion = values.version;
+	const change = useBookmarkChange();
+	const changes = useBookmarkDisplayChanges();
 	const fieldId = useId();
-	const mutate = useMutation({
-		mutationFn: async (action: "trash" | "restore" | "keep") =>
-			trpc.bookmark[action].mutate({ id: item.id, version: item.version }),
-		onSuccess: async (_item, action) => {
+	const keep = useMutation({
+		mutationFn: () => trpc.bookmark.keep.mutate({ id: item.id, version: item.version }),
+		onSuccess: async () => {
 			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
 			onDone();
-			toast.success(
-				{
-					trash: "휴지통으로 이동했습니다.",
-					restore: "복원했습니다.",
-					keep: "유지 검토를 기록했습니다.",
-				}[action]
-			);
+			toast.success("유지 검토를 기록했습니다.");
 		},
 		onError: (e) => toast.error(e.message),
 	});
@@ -150,7 +177,6 @@ function BookmarkItemDetail({
 		mutationFn: (input: Parameters<typeof trpc.bookmark.edit.mutate>[0]) =>
 			trpc.bookmark.edit.mutate(input),
 		onSuccess: async () => {
-			setEditing(false);
 			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
 			onDone();
 			toast.success("변경했습니다.");
@@ -173,7 +199,13 @@ function BookmarkItemDetail({
 		onSuccess: () => cache.invalidateQueries({ queryKey: ["bookmarks"] }),
 		onError: (e) => toast.error(`열기 기록 저장 실패: ${e.message}`),
 	});
-	const pending = mutate.isPending || apply.isPending || edit.isPending;
+	const pending = [
+		keep.isPending,
+		change.isPending,
+		apply.isPending,
+		edit.isPending,
+		changes.some((change) => change.items.some((candidate) => candidate.id === item.id)),
+	].some(Boolean);
 	const safeUrl = /^https?:\/\//iu.test(item.url);
 	return (
 		<div className="space-y-3">
@@ -183,12 +215,26 @@ function BookmarkItemDetail({
 						{item.title || item.url}
 					</h2>
 					<p className="break-all text-muted-foreground text-xs">{item.url}</p>
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						onClick={() => {
+							void navigator.clipboard.writeText(item.url).then(
+								() => toast.success("주소를 복사했습니다."),
+								() => toast.error("주소를 복사하지 못했습니다.")
+							);
+						}}
+					>
+						주소 복사
+					</Button>
 					<p className="mt-1 text-xs">
 						{collectionPath(item.collection_id, collections)}{" "}
 						{item.tags.length > 0 && `· ${item.tags.join(", ")}`}
 						{!item.collection_id && item.previous_collection_path && (
 							<span className="block break-words text-muted-foreground">
-								이전 소속: {item.previous_collection_path}
+								이전 컬렉션: {item.previous_collection_path}
+								<span className="block">이동이나 컬렉션 삭제 전에 저장된 소속 경로입니다.</span>
 							</span>
 						)}
 					</p>
@@ -223,28 +269,41 @@ function BookmarkItemDetail({
 					열기
 				</Button>
 				{item.state === "trash" ? (
-					<Button size="sm" disabled={pending} onClick={() => mutate.mutate("restore")}>
+					<Button
+						size="sm"
+						disabled={pending}
+						onClick={() =>
+							change.mutate({ action: "restore", items: [item] }, { onSuccess: onDone })
+						}
+					>
 						복원
 					</Button>
 				) : (
 					<>
-						<Button
-							size="sm"
-							variant="outline"
-							disabled={pending}
-							onClick={() => mutate.mutate("keep")}
-						>
+						<Button size="sm" variant="outline" disabled={pending} onClick={() => keep.mutate()}>
 							유지
 						</Button>
 						<Button
 							size="sm"
 							variant="destructive"
 							disabled={pending}
-							onClick={() => mutate.mutate("trash")}
+							onClick={() =>
+								change.mutate({ action: "trash", items: [item] }, { onSuccess: onDone })
+							}
 						>
 							휴지통 이동
 						</Button>
-						<Button size="sm" variant="ghost" onClick={() => setEditing(!editing)}>
+						<Button size="sm" variant="outline" disabled={editing || pending} onClick={onMove}>
+							컬렉션 이동
+						</Button>
+						<Button
+							size="sm"
+							variant="ghost"
+							disabled={editing || pending}
+							onClick={() => {
+								setDraft(editDraft(item));
+							}}
+						>
 							수정
 						</Button>
 					</>
@@ -253,20 +312,24 @@ function BookmarkItemDetail({
 			{editing && (
 				<form
 					className="grid gap-2"
+					onChange={(event) => {
+						setDraft(readEditDraft(event.currentTarget, editVersion));
+						onDirtyChange(true);
+					}}
 					onSubmit={(e) => {
 						e.preventDefault();
-						const data = new FormData(e.currentTarget);
+						const data = readEditDraft(e.currentTarget, editVersion);
 						edit.mutate({
 							id: item.id,
-							version: item.version,
-							title: String(data.get("title")),
-							description: String(data.get("description")),
-							note: String(data.get("note")),
-							tags: String(data.get("tags"))
+							version: editVersion,
+							title: data.title,
+							description: data.description,
+							note: data.note,
+							tags: data.tags
 								.split(",")
 								.map((v) => v.trim())
 								.filter(Boolean),
-							collectionId: String(data.get("collection")) || null,
+							collectionId: data.collectionId,
 						});
 					}}
 				>
@@ -276,7 +339,7 @@ function BookmarkItemDetail({
 							id={`${fieldId}title`}
 							className={bookmarkFieldClass}
 							name="title"
-							defaultValue={item.title}
+							defaultValue={values.title}
 							maxLength={1000}
 						/>
 					</label>
@@ -286,7 +349,7 @@ function BookmarkItemDetail({
 							id={`${fieldId}description`}
 							className={bookmarkFieldClass}
 							name="description"
-							defaultValue={item.description}
+							defaultValue={values.description}
 							maxLength={4000}
 						/>
 					</label>
@@ -296,7 +359,12 @@ function BookmarkItemDetail({
 							id={`${fieldId}collection`}
 							name="collection"
 							collections={collections}
-							defaultValue={item.collection_id}
+							defaultValue={values.collectionId}
+							value={values.collectionId}
+							onChange={(collectionId) => {
+								setDraft({ ...values, collectionId });
+								onDirtyChange(true);
+							}}
 							disabled={pending}
 						/>
 					</div>
@@ -306,7 +374,7 @@ function BookmarkItemDetail({
 							id={`${fieldId}tags`}
 							className={bookmarkFieldClass}
 							name="tags"
-							defaultValue={item.tags.join(", ")}
+							defaultValue={values.tags}
 						/>
 					</label>
 					<label htmlFor={`${fieldId}note`}>
@@ -315,10 +383,15 @@ function BookmarkItemDetail({
 							id={`${fieldId}note`}
 							className={bookmarkFieldClass}
 							name="note"
-							defaultValue={item.note}
+							defaultValue={values.note}
 							maxLength={20000}
 						/>
 					</label>
+					{editVersion !== item.version && (
+						<p role="status" className="text-destructive text-xs">
+							다른 곳에서 변경된 항목입니다. 입력은 보존되며 저장 시 충돌을 확인합니다.
+						</p>
+					)}
 					<Button type="submit" disabled={edit.isPending}>
 						변경 저장
 					</Button>
@@ -329,6 +402,14 @@ function BookmarkItemDetail({
 					<form
 						key={proposal.id}
 						className="space-y-2 rounded-md border p-3"
+						onChange={(event) => {
+							const data = new FormData(event.currentTarget);
+							setProposalDraft(proposal.id, {
+								collectionId: String(data.get("collectionId") ?? ""),
+								newCollectionName: String(data.get("newCollectionName") ?? ""),
+							});
+							onDirtyChange(true);
+						}}
 						onSubmit={(e) => {
 							e.preventDefault();
 							const data = new FormData(e.currentTarget);
@@ -366,7 +447,11 @@ function BookmarkItemDetail({
 										id={`${proposal.id}target`}
 										className={bookmarkFieldClass}
 										name="collectionId"
-										defaultValue={proposal.target_collection_id ?? ""}
+										defaultValue={
+											proposalDrafts[proposal.id]?.collectionId ??
+											proposal.target_collection_id ??
+											""
+										}
 										onChange={(e) => {
 											(
 												e.currentTarget.form?.elements.namedItem(
@@ -390,7 +475,11 @@ function BookmarkItemDetail({
 										className={bookmarkFieldClass}
 										name="newCollectionName"
 										maxLength={160}
-										defaultValue={proposal.new_collection_name ?? ""}
+										defaultValue={
+											proposalDrafts[proposal.id]?.newCollectionName ??
+											proposal.new_collection_name ??
+											""
+										}
 									/>
 								</label>
 							</>
@@ -429,79 +518,234 @@ function BookmarkItemDetail({
 }
 
 export type BookmarkDetailSelection = {
-	item: BookmarkItem;
+	id: string;
 	items?: BookmarkItem[];
 	mode: "details" | "edit" | "proposal" | "move";
 	trigger: HTMLElement | null;
 };
 export function BookmarkItemDialog({
 	selection,
-	collections,
-	close,
+	...props
 }: {
 	selection: BookmarkDetailSelection | null;
 	collections: BookmarkCollection[];
 	close: () => void;
+	onDirtyChange: (dirty: boolean) => void;
+	changeMode: (mode: BookmarkDetailSelection["mode"]) => void;
 }) {
+	return selection ? (
+		<SelectedBookmarkItemDialog
+			key={selection.id + selection.mode}
+			selection={selection}
+			{...props}
+		/>
+	) : null;
+}
+function SelectedBookmarkItemDialog({
+	selection,
+	collections,
+	close,
+	onDirtyChange,
+	changeMode,
+}: {
+	selection: BookmarkDetailSelection;
+	collections: BookmarkCollection[];
+	close: () => void;
+	onDirtyChange: (dirty: boolean) => void;
+	changeMode: (mode: BookmarkDetailSelection["mode"]) => void;
+}) {
+	const trpc = useTRPCClient();
+	const [draft, setDraft] = useState<BookmarkEditDraft | null>(null);
+	const [proposalDrafts, setProposalDrafts] = useState<Record<string, BookmarkProposalDraft>>({});
+	const [viewport, setViewport] = useState({ wide: false, tablet: false });
 	const trigger = useRef<HTMLElement | null>(null);
+	const panelHeading = useRef<HTMLHeadingElement>(null);
+	useEffect(() => {
+		if (!viewport.wide) return;
+		const frame = requestAnimationFrame(() => panelHeading.current?.focus({ preventScroll: true }));
+		return () => cancelAnimationFrame(frame);
+	}, [viewport.wide]);
+	useEffect(() => {
+		const wide = window.matchMedia("(min-width:1280px)");
+		const tablet = window.matchMedia("(min-width:768px)");
+		const update = () => setViewport({ wide: wide.matches, tablet: tablet.matches });
+		update();
+		wide.addEventListener("change", update);
+		tablet.addEventListener("change", update);
+		return () => {
+			wide.removeEventListener("change", update);
+			tablet.removeEventListener("change", update);
+		};
+	}, []);
 	useEffect(() => {
 		if (selection) trigger.current = selection.trigger;
 	}, [selection]);
+	const detail = useQuery({
+		queryKey: ["bookmarks", "detail", selection?.id],
+		queryFn: () => {
+			if (!selection) throw new Error("북마크를 선택해주세요.");
+			return trpc.bookmark.detail.query({ id: selection.id });
+		},
+		enabled: Boolean(selection),
+	});
+	const item = detail.data?.items[0];
+	useEffect(() => {
+		if (selection.mode === "edit" && !draft && item) setDraft(editDraft(item));
+	}, [selection.mode, draft, item]);
+	if (!selection) return null;
+	const title = {
+		move: "컬렉션 이동",
+		proposal: "검토 결과",
+		edit: "북마크 수정",
+		details: "북마크 상세",
+	}[selection.mode];
+	function restoreFocus() {
+		requestAnimationFrame(() => {
+			if (trigger.current?.isConnected) trigger.current.focus();
+			else document.getElementById("bookmark-search")?.focus();
+		});
+	}
+	function finish() {
+		onDirtyChange(false);
+		close();
+		restoreFocus();
+	}
+	function dismiss() {
+		close();
+		restoreFocus();
+	}
+	const body = (
+		<>
+			{detail.isPending ? (
+				<div role="status" aria-label="상세를 불러오는 중" className="space-y-3">
+					<Skeleton className="h-6 w-2/3" />
+					<Skeleton className="h-20 w-full" />
+				</div>
+			) : item ? (
+				selection.mode === "move" ? (
+					<BookmarkMoveForm
+						key={item.id}
+						item={item}
+						items={selection.items}
+						collections={collections}
+						onDone={finish}
+					/>
+				) : (
+					<BookmarkItemDetail
+						key={item.id + selection.mode}
+						item={item}
+						collections={collections}
+						mode={selection.mode}
+						onDone={finish}
+						onDirtyChange={onDirtyChange}
+						onMove={() => changeMode("move")}
+						draft={draft ?? editDraft(item)}
+						editing={Boolean(draft) || selection.mode === "edit"}
+						setDraft={setDraft}
+						proposalDrafts={proposalDrafts}
+						setProposalDraft={(id, draft) =>
+							setProposalDrafts((previous) => ({ ...previous, [id]: draft }))
+						}
+					/>
+				)
+			) : (
+				<div role="alert">
+					<p>{detail.error?.message ?? "북마크를 찾을 수 없습니다."}</p>
+					<Button variant="outline" onClick={() => detail.refetch()}>
+						다시 불러오기
+					</Button>
+				</div>
+			)}
+		</>
+	);
+	if (selection.mode === "move")
+		return (
+			<AlertDialog
+				open
+				onOpenChange={(open) => {
+					if (!open) dismiss();
+				}}
+			>
+				<AlertDialogContent
+					className="max-h-[85dvh] overflow-y-auto"
+					onEscapeKeyDown={(event) => {
+						if ((event.target as HTMLElement).closest('[role="tree"]')) event.preventDefault();
+					}}
+					onCloseAutoFocus={(event) => {
+						event.preventDefault();
+						restoreFocus();
+					}}
+				>
+					<AlertDialogHeader>
+						<AlertDialogTitle>{title}</AlertDialogTitle>
+						<AlertDialogDescription>이동할 컬렉션을 선택하세요.</AlertDialogDescription>
+					</AlertDialogHeader>
+					{body}
+					<Button variant="ghost" onClick={dismiss}>
+						닫기
+					</Button>
+				</AlertDialogContent>
+			</AlertDialog>
+		);
+	if (viewport.wide)
+		return (
+			<aside
+				aria-label={title}
+				className={styles.panel}
+				onKeyDown={(event) => {
+					if (event.key === "Escape" && !(event.target as HTMLElement).closest('[role="tree"]')) {
+						event.stopPropagation();
+						dismiss();
+					}
+				}}
+			>
+				<div className="mb-4 flex items-center justify-between gap-3">
+					<h2
+						ref={panelHeading}
+						tabIndex={-1}
+						className="m-0 rounded-sm border-0 p-0 font-medium text-sm focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4"
+					>
+						{title}
+					</h2>
+					<Button size="sm" variant="ghost" onClick={dismiss}>
+						닫기
+					</Button>
+				</div>
+				{body}
+			</aside>
+		);
 	return (
-		<AlertDialog
-			open={Boolean(selection)}
+		<Drawer
+			open
+			direction={viewport.tablet ? "right" : "bottom"}
+			shouldScaleBackground={false}
 			onOpenChange={(open) => {
-				if (!open) close();
+				if (!open) dismiss();
 			}}
 		>
-			<AlertDialogContent
-				className="max-h-[85dvh] max-w-2xl overflow-y-auto"
+			<DrawerContent
 				onEscapeKeyDown={(event) => {
 					if ((event.target as HTMLElement).closest('[role="tree"]')) event.preventDefault();
 				}}
+				className={`${styles.drawer} ${viewport.tablet ? "inset-y-0 right-0 left-auto mt-0 h-full max-h-dvh w-[420px] max-w-full rounded-none" : ""}`}
 				onCloseAutoFocus={(event) => {
 					event.preventDefault();
-					if (trigger.current?.isConnected) trigger.current.focus();
-					else document.getElementById("bookmark-search")?.focus();
+					restoreFocus();
 				}}
 			>
-				<AlertDialogHeader>
-					<AlertDialogTitle className="border-0 p-0 text-lg">
-						{selection?.mode === "move"
-							? "컬렉션 이동"
-							: selection?.mode === "proposal"
-								? "검토 결과"
-								: selection?.mode === "edit"
-									? "북마크 수정"
-									: "북마크 상세"}
-					</AlertDialogTitle>
-					<AlertDialogDescription>
-						저장 정보와 검토 근거를 확인합니다. 변경은 확인 후 적용됩니다.
-					</AlertDialogDescription>
-				</AlertDialogHeader>
-				{selection?.mode === "move" ? (
-					<BookmarkMoveForm
-						key={selection.item.id}
-						item={selection.item}
-						items={selection.items}
-						collections={collections}
-						onDone={close}
-					/>
-				) : (
-					selection && (
-						<BookmarkItemDetail
-							key={selection.item.id + selection.mode}
-							item={selection.item}
-							collections={collections}
-							mode={selection.mode}
-							onDone={close}
-						/>
-					)
-				)}
-				<div className="flex justify-end">
-					<AlertDialogCancel>닫기</AlertDialogCancel>
+				<div className="my-3 flex items-center justify-between">
+					<DrawerPrimitive.Title className="m-0 border-0 p-0 font-medium text-base">
+						{title}
+					</DrawerPrimitive.Title>
+					<Button variant="ghost" onClick={dismiss}>
+						닫기
+					</Button>
 				</div>
-			</AlertDialogContent>
-		</AlertDialog>
+				<DrawerPrimitive.Description className="sr-only">
+					저장 정보와 검토 근거를 확인하고 수정합니다.
+				</DrawerPrimitive.Description>
+				{body}
+			</DrawerContent>
+		</Drawer>
 	);
 }

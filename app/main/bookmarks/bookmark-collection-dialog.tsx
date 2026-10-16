@@ -1,6 +1,6 @@
 "use client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	BookmarkCollectionPicker,
@@ -19,6 +19,7 @@ import type { BookmarkCollection } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
 import { canReparentCollection } from "@/lib/bookmark-tree";
 import { useTRPCClient } from "@/trpc/client";
+import { useCollectionChange } from "./use-bookmark-actions";
 
 export type CollectionDialogSelection = {
 	parentId: string | null;
@@ -34,12 +35,6 @@ const titles = {
 	move: "컬렉션 이동",
 };
 const buttons = { create: "저장", rename: "저장", remove: "삭제", move: "이동" };
-const messages = {
-	create: "컬렉션을 만들었습니다.",
-	rename: "컬렉션 이름을 변경했습니다.",
-	remove: "컬렉션을 삭제했습니다.",
-	move: "컬렉션을 이동했습니다.",
-};
 export function BookmarkCollectionDialog({
 	selection,
 	collections,
@@ -53,6 +48,7 @@ export function BookmarkCollectionDialog({
 }) {
 	const trpc = useTRPCClient();
 	const cache = useQueryClient();
+	const change = useCollectionChange();
 	const fieldId = useId();
 	const returnFocus = useRef<HTMLElement | null>(null);
 	const [parent, setParent] = useState("");
@@ -70,19 +66,7 @@ export function BookmarkCollectionDialog({
 					name: String(data.get("name")),
 					parentId: String(data.get("parent")) || null,
 				});
-			if (!collection) throw new Error("컬렉션을 다시 선택해주세요.");
-			if (mode === "move")
-				return trpc.bookmarkCollection.reparent.mutate({
-					id: collection.id,
-					version: collection.version,
-					parentId: String(data.get("parent")) || null,
-				});
-			if (mode === "rename")
-				return trpc.bookmarkCollection.rename.mutate({
-					id: collection.id,
-					version: collection.version,
-					name: String(data.get("name")),
-				});
+			if (mode !== "remove") throw new Error("컬렉션을 다시 선택해주세요.");
 			return trpc.bookmarkCollection.remove.mutate({
 				id: collection.id,
 				version: collection.version,
@@ -94,7 +78,14 @@ export function BookmarkCollectionDialog({
 				toast.success(
 					`컬렉션을 삭제했습니다. 북마크 ${result.movedBookmarks}개는 미분류로, 하위 컬렉션 ${result.reparentedCollections}개는 한 단계 위로 이동했습니다.`
 				);
-			} else toast.success(messages[mode]);
+			} else {
+				await cache.cancelQueries({ queryKey: ["bookmarks", "collections"] });
+				cache.setQueryData<BookmarkCollection[]>(["bookmarks", "collections"], (old) => [
+					...(old ?? []).filter((collection) => collection.id !== result.id),
+					result,
+				]);
+				toast.success("컬렉션을 만들었습니다.");
+			}
 			close();
 			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
 		},
@@ -103,6 +94,27 @@ export function BookmarkCollectionDialog({
 			toast.error(error.message);
 		},
 	});
+	function submit(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		const data = new FormData(event.currentTarget);
+		if (selection?.mode === "rename" || selection?.mode === "move") {
+			const { collection } = selection;
+			change.mutate(
+				{
+					id: collection.id,
+					version: collection.version,
+					...(selection.mode === "rename"
+						? ({ kind: "rename", name: String(data.get("name")) } as const)
+						: ({
+								kind: "reparent",
+								parentId: String(data.get("parent")) || null,
+							} as const)),
+				},
+				{ onSuccess: close }
+			);
+		} else mutate.mutate(data);
+	}
+	const pending = [mutate.isPending, change.isPending].some(Boolean);
 	return (
 		<AlertDialog
 			open={Boolean(selection)}
@@ -133,10 +145,7 @@ export function BookmarkCollectionDialog({
 				<form
 					key={`${selection?.mode}-${selection?.collection?.id}`}
 					className="min-w-0 space-y-4"
-					onSubmit={(event) => {
-						event.preventDefault();
-						mutate.mutate(new FormData(event.currentTarget));
-					}}
+					onSubmit={submit}
 				>
 					{selection?.mode === "remove" ? (
 						<p className="break-all text-sm">
@@ -160,7 +169,7 @@ export function BookmarkCollectionDialog({
 								)}
 								defaultValue={selection.collection.parent_id}
 								rootLabel="최상위"
-								disabled={mutate.isPending}
+								disabled={pending}
 							/>
 						</div>
 					) : (
@@ -209,11 +218,11 @@ export function BookmarkCollectionDialog({
 						</>
 					)}
 					<div className="flex justify-end gap-2">
-						<AlertDialogCancel disabled={mutate.isPending}>취소</AlertDialogCancel>
+						<AlertDialogCancel disabled={pending}>취소</AlertDialogCancel>
 						<Button
 							type="submit"
 							variant={selection?.mode === "remove" ? "destructive" : "default"}
-							disabled={mutate.isPending}
+							disabled={pending}
 						>
 							{buttons[mode]}
 						</Button>

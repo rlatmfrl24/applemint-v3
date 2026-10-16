@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
+import { seedBookmarkUXSource } from "./database";
 import { getE2ERuntime } from "./runtime";
 
 export async function bookmarkOwner() {
@@ -40,6 +41,7 @@ export async function saveSourceBookmark(
 		await expect(dialog.getByLabel("URL", { exact: true })).toHaveValue(url as string);
 		await expect(dialog.getByLabel("URL", { exact: true })).toHaveAttribute("readonly");
 		if (title !== undefined) await dialog.getByLabel("제목 (선택)").fill(title);
+		await dialog.getByText("추가 정보 · 태그와 메모", { exact: true }).click();
 		await dialog
 			.getByLabel("메모", { exact: true })
 			.fill("관리자 UI 검증: 수집 글 상태와 원본은 보존");
@@ -56,7 +58,10 @@ export async function saveSourceBookmark(
 		).toBe(source.data?.state);
 		return saved.data;
 	}
-	throw new Error("현재 수집 글 목록에 아직 저장하지 않은 항목이 없습니다.");
+	const source = await seedBookmarkUXSource();
+	await page.goto("/main");
+	await expect(page.locator(`[data-thread-url=${JSON.stringify(source.url)}]`)).toBeVisible();
+	return saveSourceBookmark(page, db, title);
 }
 
 export async function removeCollectionUI(page: Page, name: string, id?: string) {

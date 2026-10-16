@@ -185,4 +185,3 @@ export type BookmarkCollection = z.infer<typeof bookmarkCollectionSchema>;
 export type BookmarkJob = z.infer<typeof bookmarkJobSchema>;
 export type BookmarkSaveInput = z.input<typeof bookmarkSaveInputSchema>;
 export type BookmarkScope = z.infer<typeof bookmarkScopeInputSchema>;
-export type BookmarkRecommendationStatus = z.infer<typeof bookmarkRecommendationStatusSchema>;

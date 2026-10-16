@@ -1,5 +1,5 @@
 "use client";
-import { ChevronDown, ChevronRight, Folder } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
 import { type FocusEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import type { BookmarkCollection } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
@@ -41,8 +41,12 @@ function CollectionChoiceRow({
 			) : (
 				<span className="w-8 shrink-0" />
 			)}
-			<Folder className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-			<span className="truncate" title={collection.name}>
+			{isOpen ? (
+				<FolderOpen className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+			) : (
+				<Folder className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+			)}
+			<span className="line-clamp-2 break-words" title={collection.name}>
 				{collection.name}
 			</span>
 		</div>
@@ -71,6 +75,7 @@ export function BookmarkCollectionPicker({
 	const [chosen, setChosen] = useState(defaultValue ?? "");
 	const value = controlledValue === undefined ? chosen : (controlledValue ?? "");
 	const [open, setOpen] = useState(false);
+	const [search, setSearch] = useState("");
 	const [expanded, setExpanded] = useState(collectionAncestors(defaultValue ?? "", collections));
 	const [focused, setFocused] = useState(defaultValue ?? "");
 	const trigger = useRef<HTMLButtonElement>(null);
@@ -193,7 +198,7 @@ export function BookmarkCollectionPicker({
 							toggle={toggle}
 						/>
 						{isOpen && hasChildren && (
-							<fieldset className="ml-4 border-l pl-1">
+							<fieldset className={`${level < 5 ? "ml-3" : ""} border-l pl-1`}>
 								{nodes(collection.id, new Set([...seen, collection.id]), level + 1)}
 							</fieldset>
 						)}
@@ -201,6 +206,11 @@ export function BookmarkCollectionPicker({
 				);
 			});
 	}
+	const matches = collections.filter((collection) =>
+		collectionPath(collection.id, collections)
+			.toLocaleLowerCase()
+			.includes(search.trim().toLocaleLowerCase())
+	);
 	return (
 		<div>
 			<input type="hidden" name={name} value={value} />
@@ -230,8 +240,34 @@ export function BookmarkCollectionPicker({
 					id={`${id}-tree`}
 					role="tree"
 					aria-label="컬렉션 선택"
-					className="mt-1 max-h-64 overflow-y-auto rounded-md border p-1"
+					className="mt-1 max-h-80 overflow-y-auto rounded-md border p-1"
 				>
+					<label className="sticky top-0 z-10 block bg-background p-1">
+						<span className="sr-only">컬렉션 검색</span>
+						<input
+							type="search"
+							aria-label="컬렉션 검색"
+							value={search}
+							className="h-10 w-full rounded border bg-background px-3 text-sm"
+							placeholder="컬렉션 검색"
+							onChange={(event) => {
+								setSearch(event.target.value);
+								setFocused("");
+							}}
+							onKeyDown={(event) => {
+								if (event.key === "ArrowDown") {
+									event.preventDefault();
+									tree.current?.querySelector<HTMLElement>('[role="treeitem"]')?.focus();
+								}
+								if (event.key === "Escape") {
+									event.preventDefault();
+									event.stopPropagation();
+									setOpen(false);
+									trigger.current?.focus();
+								}
+							}}
+						/>
+					</label>
 					<div
 						role="treeitem"
 						aria-label={rootLabel}
@@ -246,7 +282,30 @@ export function BookmarkCollectionPicker({
 					>
 						{rootLabel}
 					</div>
-					{nodes(null, new Set(), 1)}
+					{search.trim()
+						? matches.map((collection) => (
+								<div
+									key={collection.id}
+									role="treeitem"
+									aria-label={collectionPath(collection.id, collections)}
+									aria-level={1}
+									aria-selected={value === collection.id}
+									data-collection-id={collection.id}
+									tabIndex={focused === collection.id ? 0 : -1}
+									className="min-h-11 cursor-pointer break-words rounded px-3 py-2 text-xs hover:bg-muted focus-visible:outline focus-visible:outline-ring"
+									onFocus={() => setFocused(collection.id)}
+									onClick={() => choose(collection.id)}
+									onKeyDown={(event) => key(event, collection.id, null, false)}
+								>
+									{collectionPath(collection.id, collections)}
+								</div>
+							))
+						: nodes(null, new Set(), 1)}
+					{search.trim() && matches.length === 0 && (
+						<p role="status" className="p-3 text-xs">
+							일치하는 컬렉션이 없습니다.
+						</p>
+					)}
 				</div>
 			)}
 		</div>
