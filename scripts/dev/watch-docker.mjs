@@ -4,6 +4,7 @@ import { createConnection, createServer } from "node:net";
 import { delimiter, dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { checkRuntime } from "./check-runtime.mjs";
+import { inspectLocalStack, readRuntime } from "./start-local.mjs";
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const LOG_PATH = resolve(PROJECT_ROOT, "reports/docker-auto-start.log");
@@ -30,34 +31,39 @@ function portIsOpen() {
 	});
 }
 
-export async function startWhenDockerReady() {
+/** @param {import("node:child_process").ChildProcess | null} child */
+export async function startWhenDockerReady(child = null) {
 	const docker = spawnSync("docker", ["info", "--format", "{{.ServerVersion}}"], {
 		stdio: "ignore",
 		windowsHide: true,
 		timeout: 3_000,
 	});
 	if (docker.status !== 0) {
-		logStatus("Docker 엔진이 꺼져 있습니다. 실행을 기다립니다.");
-		return null;
+		if (child?.pid) {
+			spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+				stdio: "ignore",
+				windowsHide: true,
+				timeout: 10_000,
+			});
+			logStatus("Docker 엔진이 종료되어 자동 실행한 웹 서버를 종료합니다.");
+		} else {
+			logStatus("Docker 엔진이 꺼져 있습니다. 실행을 기다립니다.");
+		}
+		return child;
 	}
+	if (child) return child;
 	if (await portIsOpen()) {
 		logStatus("3000번 포트가 사용 중입니다. 새 서버를 실행하지 않습니다.");
 		return null;
 	}
-	const supabase = spawnSync("supabase", ["status"], {
-		cwd: PROJECT_ROOT,
-		stdio: "pipe",
-		windowsHide: true,
-		timeout: 10_000,
-	});
-	if (supabase.status !== 0) {
+	if (!inspectLocalStack(readRuntime()).ready) {
 		logStatus("Docker는 실행 중입니다. Supabase DB·인증 서비스 준비를 기다립니다.");
 		return null;
 	}
 	logStatus("Docker 엔진 준비를 확인했습니다. Applemint 개발 서버를 자동 실행합니다.");
 	const output = openSync(LOG_PATH, "a");
 	try {
-		const child = spawn(process.execPath, [resolve(PROJECT_ROOT, "scripts/dev/start-local.mjs")], {
+		const server = spawn(process.execPath, [resolve(PROJECT_ROOT, "scripts/dev/start-local.mjs")], {
 			cwd: PROJECT_ROOT,
 			env: {
 				...process.env,
@@ -67,8 +73,8 @@ export async function startWhenDockerReady() {
 			stdio: ["ignore", output, output],
 			windowsHide: true,
 		});
-		child.once("error", (error) => logStatus(`개발 서버 실행 오류: ${error.message}`));
-		return child;
+		server.once("error", (error) => logStatus(`개발 서버 실행 오류: ${error.message}`));
+		return server;
 	} finally {
 		closeSync(output);
 	}
@@ -89,14 +95,17 @@ if (isMain) {
 		let child = null;
 		let checking = false;
 		const tick = async () => {
-			if (child || checking) return;
+			if (checking) return;
 			checking = true;
 			try {
-				child = await startWhenDockerReady();
-				child?.once("close", (code) => {
-					logStatus(`개발 서버가 종료되었습니다 (code=${code}). 도커 상태를 다시 확인합니다.`);
-					child = null;
-				});
+				const server = await startWhenDockerReady(child);
+				if (server && server !== child) {
+					server.once("close", (code) => {
+						logStatus(`개발 서버가 종료되었습니다 (code=${code}). 도커 상태를 다시 확인합니다.`);
+						if (child === server) child = null;
+					});
+				}
+				child = server;
 			} catch (error) {
 				logStatus(`자동 실행 확인 오류: ${error instanceof Error ? error.message : String(error)}`);
 			} finally {

@@ -14,10 +14,13 @@ Docker Desktop만 실행하면 기존 로컬 Supabase 컨테이너가 재시작�
 준비가 끝나면 [북마크 관리자](http://localhost:3000/main/bookmarks)에 접속합니다.
 이미 3000번 포트가 사용 중이면 기존 서버를 유지하고 중복 실행하지 않습니다.
 진행·오류 로그는 `reports/docker-auto-start.log`에 기록됩니다. 도커를 끈 상태에서는 대기만 하며 도커를 강제로 다시 켜지 않습니다.
-자동 시작 항목은 최소화 상태로 실행됩니다. Supabase를 명시적으로 중지했거나 컨테이너가 비정상이면 준비를 기다리며 로그에 표시합니다.
-최소화된 대기 프로세스 창을 닫으면 자동 실행 감지가 중단됩니다.
+`scripts/dev/watch-docker.ps1`이 감시 프로세스를 숨김으로 실행합니다. 별도 Node 콘솔 창을 열어 둘 필요가 없습니다.
+`playwright/.auth/local-dev.json`의 `databaseContainer`가 가리키는 DB·인증·REST·게이트웨이를 모두 확인하며, DB·API가 loopback에 바인딩되지 않으면 시작하지 않습니다. 다른 프로젝트나 이전 DB를 CLI 기본값으로 시작하지 않습니다.
+해당 기존 컨테이너에는 Docker 재시작 정책 `unless-stopped`가 필요합니다. Supabase를 명시적으로 중지했거나 컨테이너가 비정상이면 준비를 기다리며 로그에 표시합니다.
+Docker가 종료되면 자동 실행한 웹 서버의 프로세스 트리만 종료하고 감시를 계속합니다. 사용자가 별도로 실행한 서버는 종료하지 않습니다.
 자동 시작을 해제하려면 Windows 시작프로그램 폴더의 `Applemint Docker 자동 실행.lnk`를 제거하고 실행 중인 대기 프로세스를 종료합니다.
 자동 시작 등록은 이 PC의 사용자 환경 설정이며 Git checkout만으로 다른 PC에 등록되지는 않습니다.
+바로가기의 작업 폴더와 실행 스크립트는 사용할 checkout을 가리켜야 합니다. 검증용 checkout과 인증 파일을 사용하는 동안 원본 DB는 중지·보존합니다.
 
 Docker Desktop, Supabase CLI, pnpm, Node.js 24와 기존 `playwright/.auth/local-dev.json`이 필요합니다.
 수동 실행·문제 진단 시에는 프로젝트의 `local.cmd`를 사용할 수 있습니다. 로컬 인증 파일이 없으면 기존
