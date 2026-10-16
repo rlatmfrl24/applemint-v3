@@ -123,3 +123,15 @@
 - [x] 같은 viewport/state의 기준/구현을 함께 배치해 디자인 QA. P0/P1/P2 수정 뒤 재캡처. 폰트/간격/색상/자산/문구 모두 확인.
 - [x] `pnpm typecheck`, `pnpm verify`, `pnpm exec playwright test --config playwright.bookmarks.config.ts` 실행. Expected: 전체 필수 게이트 PASS, 의도된 외부 opt-in 제외 명시.
 - [x] 독립 whole-branch 리뷰, Important/Critical을 회귀 RED→GREEN으로 수정. 실제 결과/제한/판단/잔여 minor 기록.
+
+### 2026-10-16 리뷰 후 보완
+
+- [x] C1: 이동·휴지통 목적지의 낙관적 항목 누락을 unit RED로 재현하고 세 동작 모두 표시 계층에서 처리. 검색/검토 제외·원본 페이지 보존 유지. 지연 응답 중 목적지 탐색·실패 복구와 휴지통 실행 취소 UI PASS.
+- [x] C2: 느린 상세 조회에서 reduced-motion의 `animation-name: pulse`를 재현. 공통 Skeleton에서 제거하고 트리/상세 골격 및 일반 모션의 pulse 유지 UI PASS.
+- [x] S1: 상세 복원 알림 2개를 UI에서 재현. 이동/휴지통/복원·컬렉션 이름/부모 변경 후처리는 공통 mutation이 소유하고 호출부는 완료 시 닫기만 수행. keep/create/remove 처리 유지.
+- [x] 로컬 worker 전달 주소를 자동 실행 포트 3000과 영구 정합화하고 내부 인증 일치 확인. Docker 조회 timeout 오인 종료와 Windows 개발 캐시의 API HTML404를 추가 재현·수정. 원본 DB/예산/API 계약 변경 없음.
+- [x] 수정 커밋 `c639bfa`에서 Docker Desktop 전체 종료→Desktop만 실행→기존 컨테이너·웹 자동 복구. 북마크/컬렉션 전체 내용 체크섬·컨테이너 ID/실행 상태/포트/볼륨 동일.
+- [x] 같은 자동 복구 서버에서 Main·Quick 실제 Jev 추천·명시적 저장·새로고침·소유자 DB/정산 readback PASS. 두 건 합계 229950 nano, 월 $1 상한 유지. worker 직접 실행이나 모델 mock 사용 없음.
+- [x] Standards/Spec 독립 재검토: 각각 추가 발견 0건. 전체 unit 652 PASS/외부 opt-in 2 SKIP, check/typecheck/production build/서버 경계·번들 한도 PASS.
+- [x] 기본 전체 북마크 E2E 73 PASS/8 SKIP/1 FAIL(기준 시안 3011 서버 부재). 시안과 실제 폰트/로고를 파일에서 직접 읽도록 수정하고 화면 행렬 재검증 2 PASS(setup 포함). 74건의 합성 통과 근거이며 단일 전체 명령 PASS로 보고하지 않는다. 기본 SKIP 중 Main·Quick 실제 AI는 위 별도 실행에서 통과.
+- 최종 공개 PR head의 공식 `pnpm verify` 결과는 PR #188 댓글 원장에 기록한다. 로컬 실자료 DB의 일반 E2E 준비·초기화 명령은 사용하지 않는다.

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import { bookmarkOwner } from "./support/bookmarks";
 import { seedBookmarkProposalDraft, seedBookmarkUXSource } from "./support/database";
@@ -660,10 +661,26 @@ test("디자인 QA 화면 행렬에서 목록·트리·상세·설정·검토·�
 		{ width: 390, height: 844 },
 	];
 	const reference = await context.newPage();
+	// Load the real reference assets without depending on a second local server.
+	const referenceHtml = readFileSync("docs/design/bookmark-ux-reference.html", "utf8")
+		.replace(
+			"/node_modules/geist/dist/fonts/geist-sans/Geist-Regular.woff2",
+			`data:font/woff2;base64,${readFileSync("node_modules/geist/dist/fonts/geist-sans/Geist-Regular.woff2").toString("base64")}`
+		)
+		.replace(
+			"/public/brand/applemint-mark-dark.svg",
+			`data:image/svg+xml;base64,${readFileSync("public/brand/applemint-mark-dark.svg").toString("base64")}`
+		);
 	for (const viewport of viewports) {
 		await reference.setViewportSize(viewport);
-		await reference.goto("http://127.0.0.1:3011/docs/design/bookmark-ux-reference.html");
+		await reference.setContent(referenceHtml);
 		await reference.evaluate(() => document.fonts.ready.then(() => true));
+		expect(await reference.evaluate(() => document.fonts.check("14px Geist"))).toBe(true);
+		expect(
+			await reference
+				.locator("header img")
+				.evaluate((image) => (image as HTMLImageElement).naturalWidth)
+		).toBeGreaterThan(0);
 		await reference.screenshot({ path: `reports/reference-${viewport.width}.png` });
 		await page.setViewportSize(viewport);
 		for (const theme of ["Dark", "Light"]) await captureBookmarkQA(page, viewport, theme);
