@@ -17,6 +17,8 @@ jobs:
     name: verify
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
 
     steps:
       - name: Checkout
