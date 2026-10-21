@@ -15,8 +15,8 @@ insert into public.bookmark_collections(id,name,parent_id) values
  ('dddddddd-6000-4000-8000-000000000004','C','dddddddd-6000-4000-8000-000000000001');
 create temporary table order_results(result jsonb);
 select plan(7);
-select extensions.dblink_connect('order_a',format('host=supabase_db_applemint-v3 port=5432 dbname=postgres user=bookmark_order_login password=%s',:'order_password'));
-select extensions.dblink_connect('order_b',format('host=supabase_db_applemint-v3 port=5432 dbname=postgres user=bookmark_order_login password=%s',:'order_password'));
+select extensions.dblink_connect('order_a',format('host=%s port=5432 dbname=postgres user=bookmark_order_login password=%s',host(inet_server_addr()),:'order_password'));
+select extensions.dblink_connect('order_b',format('host=%s port=5432 dbname=postgres user=bookmark_order_login password=%s',host(inet_server_addr()),:'order_password'));
 select extensions.dblink_exec('order_a',$$set request.jwt.claim.sub='480f5282-7933-4800-a970-d6bc8f05e8cb'$$);
 select extensions.dblink_exec('order_b',$$set request.jwt.claim.sub='480f5282-7933-4800-a970-d6bc8f05e8cb'$$);
 select extensions.dblink_send_query('order_a',$$select private.try_bookmark_order('collectionReorder','{"id":"dddddddd-6000-4000-8000-000000000004","version":1,"targetId":"dddddddd-6000-4000-8000-000000000002","targetVersion":1,"position":"before"}')$$);

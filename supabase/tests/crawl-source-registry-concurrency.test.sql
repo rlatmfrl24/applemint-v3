@@ -222,7 +222,8 @@ select is(
 	extensions.dblink_connect(
 		'registry_worker',
 		format(
-			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=registry_lifecycle_worker password=%s',
+			'host=%s port=5432 dbname=postgres user=registry_lifecycle_worker password=%s',
+			host(inet_server_addr()),
 			:'registry_worker_password'
 		)
 	),
@@ -233,7 +234,8 @@ select is(
 	extensions.dblink_connect(
 		'registry_retire',
 		format(
-			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=registry_lifecycle_retire password=%s',
+			'host=%s port=5432 dbname=postgres user=registry_lifecycle_retire password=%s',
+			host(inet_server_addr()),
 			:'registry_retire_password'
 		)
 	),
@@ -320,7 +322,8 @@ select is(
 	extensions.dblink_connect(
 		'registry_worker',
 		format(
-			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=registry_lifecycle_worker password=%s',
+			'host=%s port=5432 dbname=postgres user=registry_lifecycle_worker password=%s',
+			host(inet_server_addr()),
 			:'registry_worker_password'
 		)
 	),
@@ -331,7 +334,8 @@ select is(
 	extensions.dblink_connect(
 		'registry_retire',
 		format(
-			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=registry_lifecycle_retire password=%s',
+			'host=%s port=5432 dbname=postgres user=registry_lifecycle_retire password=%s',
+			host(inet_server_addr()),
 			:'registry_retire_password'
 		)
 	),
@@ -451,7 +455,8 @@ select is(
 	extensions.dblink_connect(
 		'registry_worker',
 		format(
-			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=registry_lifecycle_worker password=%s',
+			'host=%s port=5432 dbname=postgres user=registry_lifecycle_worker password=%s',
+			host(inet_server_addr()),
 			:'registry_worker_password'
 		)
 	),
@@ -462,7 +467,8 @@ select is(
 	extensions.dblink_connect(
 		'registry_retire',
 		format(
-			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=registry_lifecycle_retire password=%s',
+			'host=%s port=5432 dbname=postgres user=registry_lifecycle_retire password=%s',
+			host(inet_server_addr()),
 			:'registry_retire_password'
 		)
 	),
@@ -608,7 +614,8 @@ select is(
 	extensions.dblink_connect(
 		'registry_worker',
 		format(
-			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=registry_lifecycle_worker password=%s',
+			'host=%s port=5432 dbname=postgres user=registry_lifecycle_worker password=%s',
+			host(inet_server_addr()),
 			:'registry_worker_password'
 		)
 	),
@@ -619,7 +626,8 @@ select is(
 	extensions.dblink_connect(
 		'registry_retire',
 		format(
-			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=registry_lifecycle_retire password=%s',
+			'host=%s port=5432 dbname=postgres user=registry_lifecycle_retire password=%s',
+			host(inet_server_addr()),
 			:'registry_retire_password'
 		)
 	),
@@ -745,7 +753,8 @@ select is(
 	extensions.dblink_connect(
 		'registry_worker',
 		format(
-			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=registry_lifecycle_worker password=%s',
+			'host=%s port=5432 dbname=postgres user=registry_lifecycle_worker password=%s',
+			host(inet_server_addr()),
 			:'registry_worker_password'
 		)
 	),
@@ -756,7 +765,8 @@ select is(
 	extensions.dblink_connect(
 		'registry_retire',
 		format(
-			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=registry_lifecycle_retire password=%s',
+			'host=%s port=5432 dbname=postgres user=registry_lifecycle_retire password=%s',
+			host(inet_server_addr()),
 			:'registry_retire_password'
 		)
 	),

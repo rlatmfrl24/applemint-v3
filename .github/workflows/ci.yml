@@ -49,8 +49,5 @@ jobs:
         with:
           version: 2.109.1
 
-      - name: Start database-only Supabase
-        run: supabase db start
-
       - name: Run required verification
         run: pnpm verify

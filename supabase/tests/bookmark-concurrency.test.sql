@@ -21,8 +21,8 @@ begin
 end $$;
 create trigger bookmark_test_proposal_delay before insert on public.bookmark_proposals for each row execute function private.delay_bookmark_test_proposal();
 select plan(6);
-select extensions.dblink_connect('bookmark_a',format('host=supabase_db_applemint-v3 port=5432 dbname=postgres user=bookmark_concurrent_login password=%s',:'bookmark_test_password'));
-select extensions.dblink_connect('bookmark_b',format('host=supabase_db_applemint-v3 port=5432 dbname=postgres user=bookmark_concurrent_login password=%s',:'bookmark_test_password'));
+select extensions.dblink_connect('bookmark_a',format('host=%s port=5432 dbname=postgres user=bookmark_concurrent_login password=%s',host(inet_server_addr()),:'bookmark_test_password'));
+select extensions.dblink_connect('bookmark_b',format('host=%s port=5432 dbname=postgres user=bookmark_concurrent_login password=%s',host(inet_server_addr()),:'bookmark_test_password'));
 select extensions.dblink_exec('bookmark_b',$$set request.jwt.claim.sub='480f5282-7933-4800-a970-d6bc8f05e8cb'$$);
 select greatest(0,1000000000-coalesce(sum(case when state='released' then 0 when state='settled' then charged_nano else reserved_nano end),0))::bigint as bookmark_remaining,
  greatest(0,1000000000-coalesce(sum(case when state='released' then 0 when state='settled' then charged_nano else reserved_nano end),0))>=2 as bookmark_can_test_budget from public.bookmark_ai_reservations where month=date_trunc('month',now() at time zone 'Asia/Seoul')::date \gset

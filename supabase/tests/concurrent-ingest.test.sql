@@ -51,7 +51,8 @@ select is(
 	extensions.dblink_connect(
 		'p0_ingest_1',
 		format(
-			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=p0_concurrent_ingest_login password=%s',
+			'host=%s port=5432 dbname=postgres user=p0_concurrent_ingest_login password=%s',
+			host(inet_server_addr()),
 			:'p0_test_password'
 		)
 	),
@@ -62,7 +63,8 @@ select is(
 	extensions.dblink_connect(
 		'p0_ingest_2',
 		format(
-			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=p0_concurrent_ingest_login password=%s',
+			'host=%s port=5432 dbname=postgres user=p0_concurrent_ingest_login password=%s',
+			host(inet_server_addr()),
 			:'p0_test_password'
 		)
 	),
