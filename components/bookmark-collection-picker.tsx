@@ -80,6 +80,7 @@ export function BookmarkCollectionPicker({
 	const [focused, setFocused] = useState(defaultValue ?? "");
 	const trigger = useRef<HTMLButtonElement>(null);
 	const tree = useRef<HTMLDivElement>(null);
+	const pendingFocus = useRef<string | null>(null);
 	useEffect(() => {
 		if (disabled) setOpen(false);
 	}, [disabled]);
@@ -93,13 +94,24 @@ export function BookmarkCollectionPicker({
 		);
 	}, [value, collections]);
 	useEffect(() => {
-		if (!open) return;
+		pendingFocus.current = open ? value : null;
+	}, [open, value]);
+	useEffect(() => {
+		if (
+			!open ||
+			pendingFocus.current !== value ||
+			collectionAncestors(value, collections).some((id) => !expanded.includes(id))
+		)
+			return;
 		const item = [...(tree.current?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? [])].find(
 			(node) => node.dataset.collectionId === value
 		);
-		item?.focus();
-		item?.scrollIntoView({ block: "nearest" });
-	}, [open, value]);
+		if (item) {
+			pendingFocus.current = null;
+			item.focus();
+			item.scrollIntoView({ block: "nearest" });
+		}
+	}, [open, value, expanded, collections]);
 	function toggle(id: string) {
 		setExpanded((previous) =>
 			previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id]

@@ -6,6 +6,5 @@
 		"e2e/**/*.{spec,setup}.ts",
 		"public/sw.js"
 	],
-	"ignoreBinaries": ["supabase"],
 	"playwright": false
 }

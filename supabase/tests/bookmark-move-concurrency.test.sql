@@ -16,8 +16,8 @@ insert into public.bookmarks(id,url,url_key) values
  ('bbbbbbbb-4000-4000-8000-000000000002','https://example.com/move-concurrent-b','https://example.com/move-concurrent-b');
 create temporary table move_results(result jsonb);
 select plan(7);
-select extensions.dblink_connect('move_a',format('host=supabase_db_applemint-v3 port=5432 dbname=postgres user=bookmark_move_login password=%s',:'move_password'));
-select extensions.dblink_connect('move_b',format('host=supabase_db_applemint-v3 port=5432 dbname=postgres user=bookmark_move_login password=%s',:'move_password'));
+select extensions.dblink_connect('move_a',format('host=%s port=5432 dbname=postgres user=bookmark_move_login password=%s',host(inet_server_addr()),:'move_password'));
+select extensions.dblink_connect('move_b',format('host=%s port=5432 dbname=postgres user=bookmark_move_login password=%s',host(inet_server_addr()),:'move_password'));
 select extensions.dblink_exec('move_a',$$set request.jwt.claim.sub='480f5282-7933-4800-a970-d6bc8f05e8cb'$$);
 select extensions.dblink_exec('move_b',$$set request.jwt.claim.sub='480f5282-7933-4800-a970-d6bc8f05e8cb'$$);
 select extensions.dblink_send_query('move_a',$$select private.try_bookmark_move('collectionMove','{"id":"dddddddd-4000-4000-8000-000000000001","version":1,"parentId":"dddddddd-4000-4000-8000-000000000002"}')$$);

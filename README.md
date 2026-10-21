@@ -265,7 +265,7 @@ erDiagram
 - 하나의 작업과 PR은 하나의 브랜치에만 담고, 관련 없는 변경을 함께 커밋하지 않음
 - 모든 PR은 `master`를 대상으로 하며 `verify` 통과와 리뷰 스레드 해결 후 squash merge
 - 병합된 원격 작업 브랜치는 자동 삭제하고, 로컬에서는 `master`를 fast-forward한 뒤 작업 브랜치를 삭제
-- 빠른 로컬 정적 검증은 `pnpm check`, 병합과 같은 전체 검증은 `supabase db start` 후 `pnpm verify`
+- 빠른 정적 검증은 `pnpm check`, 병합 전 전체 검증은 독립된 임시 DB를 사용하는 `pnpm verify`로 실행
 - 브라우저 E2E는 자동 CI·smoke에 포함하지 않으며 사용자가 필요할 때 `pnpm test:e2e`로 핵심 흐름 2개를 확인
 - E2E는 Docker가 실행 중인 상태에서 로컬 DB를 초기화하므로 테스트 데이터가 필요한 경우에만 실행
 - 최초 실행 전 `pnpm exec playwright install chromium`으로 테스트 브라우저를 설치
@@ -298,11 +298,23 @@ AI 사용 시 실제 웹 서버 checkout의 `.env.local`에 `OPENROUTER_API_KEY`
 ## 검증 명령
 
 - `pnpm check`: Biome, Knip, TypeScript를 이용한 빠른 로컬 정적 검증
-- `pnpm verify`: Biome → Knip → Vitest → pgTAP → production build 순서의 필수 검증
+- `pnpm verify`: Biome → Knip → 생성 타입 drift → Vitest 커버리지 하한선 → pgTAP → production build 필수 검증
 - `pnpm test`: Next API, 인증, UI loading, optimistic cache 단위 테스트
 - `pnpm test:coverage`: 선택 실행하는 단위 테스트와 V8 커버리지 하한선 검사
-- `pnpm test:db`: 15개 계약 suite로 구성된 이동·적재 rollback, 권한, lock·queue·scheduler pgTAP 테스트
+- `pnpm test:db`: 31개 계약 suite로 구성된 이동·적재 rollback, 권한, lock·queue·scheduler pgTAP 테스트
 - `pnpm typecheck`: TypeScript strict 검사
 - `pnpm build`: Next.js production build 뒤 일반 tRPC의 service-role·`web-push` 격리와 주요 route gzip 번들 예산을 검사
 - `pnpm test:e2e`: 사용자 주도로 로컬 Supabase 초기화 후 Chromium 핵심 흐름 2개 검증
 - `pnpm test:e2e:ui`: 사용자 주도로 로컬 Supabase 초기화 후 Playwright UI 모드 실행
+
+## 로컬 DB 검증
+
+`pnpm verify`, `pnpm db:types:check`, `pnpm db:types:generate`, `pnpm test:db`는 Docker와 Supabase CLI **2.109.1**을 사용합니다. CLI 버전이 다르면 검증 시작 전에 실패합니다. 여러 CLI 버전을 설치한 환경에서는 `APPLEMINT_SUPABASE_BIN`에 2.109.1 실행 파일의 절대 경로를 지정할 수 있습니다.
+
+각 명령은 임시 작업 폴더에 `supabase/config.toml`, migrations, tests, seed만 복사하고, 고유 프로젝트 ID와 임의의 빈 포트로 검증 전용 DB를 만듭니다. Docker 네트워크의 기본 바인딩과 실제 공개 포트가 `127.0.0.1`인지 확인합니다. 개발 DB의 프로젝트 ID, 데이터, 볼륨, `.env.local`, 인증 런타임 파일, 원격 프로젝트 연결 정보는 사용하지 않습니다.
+
+`pnpm verify`는 같은 검증 DB에서 타입 drift 검사와 pgTAP을 수행합니다. 타입 생성도 커밋된 migration을 재현한 DB를 사용하므로 개발 DB의 임시 스키마 변경이 타입 파일에 들어가지 않습니다. 성공·실패·중단 시 소유권을 확인한 검증 프로젝트와 임시 파일만 정리합니다. 소유권 확인이나 정리에 실패하면 명령이 실패하며 남은 임시 폴더 경로를 출력합니다. `supabase db start`를 미리 실행할 필요가 없습니다.
+
+Docker Desktop이 네트워크의 기본 loopback 설정을 무시하면, migration 재현을 끝낸 해당 검증 컨테이너만 명시적인 `127.0.0.1` 포트로 다시 만듭니다. 이때 소유한 볼륨과 시작 설정을 보존하고 실제 바인딩을 다시 확인한 뒤 타입 검사와 pgTAP을 실행합니다. 이 과정에서 개발 데이터나 사용자 비밀 파일은 복사하지 않습니다.
+
+동시성 pgTAP의 dblink 연결은 `inet_server_addr()`로 현재 검증 DB의 주소를 구해 연결하므로 프로젝트 이름이나 Docker 별칭에 의존하지 않습니다. loopback의 trust 인증을 우회하는 대신 기존 테스트 계정의 비밀번호 인증을 그대로 검증합니다.

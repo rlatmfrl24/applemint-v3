@@ -112,7 +112,8 @@ select is(
 	extensions.dblink_connect(
 		'phase2_claim_1',
 		format(
-			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=phase2_claim_worker password=%s',
+			'host=%s port=5432 dbname=postgres user=phase2_claim_worker password=%s',
+			host(inet_server_addr()),
 			:'phase2_worker_password'
 		)
 	),
@@ -123,7 +124,8 @@ select is(
 	extensions.dblink_connect(
 		'phase2_claim_2',
 		format(
-			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=phase2_claim_worker password=%s',
+			'host=%s port=5432 dbname=postgres user=phase2_claim_worker password=%s',
+			host(inet_server_addr()),
 			:'phase2_worker_password'
 		)
 	),
@@ -268,7 +270,8 @@ select is(
 	extensions.dblink_connect(
 		'phase2_finish_worker',
 		format(
-			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=phase2_claim_worker password=%s',
+			'host=%s port=5432 dbname=postgres user=phase2_claim_worker password=%s',
+			host(inet_server_addr()),
 			:'phase2_worker_password'
 		)
 	),
@@ -279,7 +282,8 @@ select is(
 	extensions.dblink_connect(
 		'phase2_trash_transition',
 		format(
-			'host=supabase_db_applemint-v3 port=5432 dbname=postgres user=phase2_claim_worker password=%s',
+			'host=%s port=5432 dbname=postgres user=phase2_claim_worker password=%s',
+			host(inet_server_addr()),
 			:'phase2_worker_password'
 		)
 	),

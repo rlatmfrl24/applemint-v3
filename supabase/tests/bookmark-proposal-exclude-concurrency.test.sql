@@ -16,8 +16,8 @@ insert into public.bookmark_proposals(id,job_id,bookmark_id,expected_version,kin
  ('dddddddd-9600-4000-8000-000000000001','aaaaaaaa-9600-4000-8000-000000000001','bbbbbbbb-9600-4000-8000-000000000001',1,'classify','concurrent exclusion'),
  ('dddddddd-9600-4000-8000-000000000002','aaaaaaaa-9600-4000-8000-000000000001','bbbbbbbb-9600-4000-8000-000000000002',1,'classify','concurrent exclusion');
 select plan(4);
-select extensions.dblink_connect('exclude_a',format('host=supabase_db_applemint-v3 port=5432 dbname=postgres user=bookmark_exclude_login password=%s',:'exclude_password'));
-select extensions.dblink_connect('exclude_b',format('host=supabase_db_applemint-v3 port=5432 dbname=postgres user=bookmark_exclude_login password=%s',:'exclude_password'));
+select extensions.dblink_connect('exclude_a',format('host=%s port=5432 dbname=postgres user=bookmark_exclude_login password=%s',host(inet_server_addr()),:'exclude_password'));
+select extensions.dblink_connect('exclude_b',format('host=%s port=5432 dbname=postgres user=bookmark_exclude_login password=%s',host(inet_server_addr()),:'exclude_password'));
 select extensions.dblink_exec('exclude_a',$$set request.jwt.claim.sub='480f5282-7933-4800-a970-d6bc8f05e8cb'; set statement_timeout='5s'$$);
 select extensions.dblink_exec('exclude_b',$$set request.jwt.claim.sub='480f5282-7933-4800-a970-d6bc8f05e8cb'; set statement_timeout='5s'$$);
 select extensions.dblink_send_query('exclude_a',$$select private.try_bookmark_exclude('proposalExclude','{"items":[{"id":"bbbbbbbb-9600-4000-8000-000000000002","version":1},{"id":"bbbbbbbb-9600-4000-8000-000000000001","version":1}]}')$$);

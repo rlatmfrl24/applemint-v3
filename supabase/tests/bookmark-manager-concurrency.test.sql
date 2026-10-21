@@ -23,8 +23,8 @@ begin return public.bookmark_command(p_action,p_input); exception when others th
 revoke all on function private.manager_try(text,jsonb) from public;
 grant execute on function private.manager_try(text,jsonb) to bookmark_manager_login;
 select plan(6);
-select extensions.dblink_connect('manager_a',format('host=supabase_db_applemint-v3 port=5432 dbname=postgres user=bookmark_manager_login password=%s',:'manager_password'));
-select extensions.dblink_connect('manager_b',format('host=supabase_db_applemint-v3 port=5432 dbname=postgres user=bookmark_manager_login password=%s',:'manager_password'));
+select extensions.dblink_connect('manager_a',format('host=%s port=5432 dbname=postgres user=bookmark_manager_login password=%s',host(inet_server_addr()),:'manager_password'));
+select extensions.dblink_connect('manager_b',format('host=%s port=5432 dbname=postgres user=bookmark_manager_login password=%s',host(inet_server_addr()),:'manager_password'));
 select extensions.dblink_exec('manager_a',$$set request.jwt.claim.sub='480f5282-7933-4800-a970-d6bc8f05e8cb'$$);
 select extensions.dblink_exec('manager_b',$$set request.jwt.claim.sub='480f5282-7933-4800-a970-d6bc8f05e8cb'$$);
 select extensions.dblink_send_query('manager_a',$$select public.bookmark_command('collectionRemove','{"id":"dddddddd-2000-4000-8000-000000000001","version":1}')$$);
