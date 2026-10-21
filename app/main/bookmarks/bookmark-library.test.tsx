@@ -279,8 +279,8 @@ describe("bookmark library navigation and results", () => {
 		fireEvent.keyDown(search, { key: "Enter", isComposing: true });
 		expect(window.location.search).toBe("");
 		fireEvent.compositionEnd(search);
-		await waitFor(() => expect(window.location.search).toContain("search="));
-		expect(api.bookmark.list.query.mock.calls.at(-1)?.[0].search).toBe("한글");
+		await waitFor(() => expect(api.bookmark.list.query.mock.calls.at(-1)?.[0].search).toBe("한글"));
+		expect(new URLSearchParams(window.location.search).get("search")).toBe("한글");
 	});
 	it("maps unfiled/trash selections and invalid review filters safely", async () => {
 		mount();
