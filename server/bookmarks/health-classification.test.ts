@@ -24,6 +24,10 @@ it.each([
 	vi.mocked(safeFetch).mockResolvedValue({
 		status,
 		body: "",
+		bodyBytes: new Uint8Array(),
+		truncated: false,
+		retryAfter: null,
+		contentEncoding: null,
 		contentType: "text/html",
 		finalUrl: "https://example.com/",
 	});
@@ -33,6 +37,10 @@ it("a login redirect does not become a dead or healthy candidate", async () => {
 	vi.mocked(safeFetch).mockResolvedValue({
 		status: 200,
 		body: "",
+		bodyBytes: new Uint8Array(),
+		truncated: false,
+		retryAfter: null,
+		contentEncoding: null,
 		contentType: "text/html",
 		finalUrl: "https://example.com/login",
 	});

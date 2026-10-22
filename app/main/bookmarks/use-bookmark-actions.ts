@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { BookmarkCollection, BookmarkItem } from "@/contracts/bookmark.schema";
+import { healthReviewInput } from "@/lib/bookmark-health";
 import {
 	BOOKMARK_CHANGES_KEY,
 	type BookmarkChange,
@@ -48,7 +49,9 @@ export function useBookmarkChange() {
 	>({
 		mutationKey: ["bookmarks", "change"],
 		mutationFn: (input: Command) => {
-			const items = input.items.map(({ id, version }) => ({ id, version }));
+			const items = input.items.map((item) =>
+				input.action === "trash" ? healthReviewInput(item) : { id: item.id, version: item.version }
+			);
 			if (input.action === "move")
 				return trpc.bookmarkCollection.moveMany.mutate({
 					items,

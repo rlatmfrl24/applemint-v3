@@ -31,6 +31,8 @@ const snapshot = {
 	jobs: [job],
 	settings: {
 		id: true,
+		health_auto_enabled: false,
+		health_daily_limit: 500,
 		interests: [],
 		interest_version: 1,
 		suggested_interests: [],
@@ -251,10 +253,13 @@ describe("BookmarkRepository table queries", () => {
 			error: null,
 		});
 
-		await expect(repository.jobDetails(otherId, 50)).resolves.toEqual({ items: [item], total: 51 });
+		await expect(repository.jobDetails(otherId, 50)).resolves.toEqual({
+			items: [{ ...item, phase: null, waitingReason: "retry" }],
+			total: 51,
+		});
 		expect(from).toHaveBeenCalledWith("bookmark_job_items");
 		expect(builder.select).toHaveBeenCalledWith(
-			"bookmark_id,state,error,available_at,bookmarks(url,title)",
+			"bookmark_id,state,error,available_at,phase:work->>phase,bookmarks(url,title)",
 			{ count: "exact" }
 		);
 		expect(builder.eq).toHaveBeenCalledWith("job_id", otherId);
@@ -333,5 +338,35 @@ describe("BookmarkRepository table queries", () => {
 		await expect(repository.recommendation(id)).rejects.toMatchObject({ code: "NotFound" });
 		builder.maybeSingle.mockResolvedValueOnce({ data: null, error: { code: "42501" } });
 		await expect(repository.recommendation(id)).rejects.toMatchObject({ code: "Forbidden" });
+	});
+});
+it("reads and updates health settings without exposing worker secrets", async () => {
+	const data = {
+		enabled: false,
+		dailyLimit: 500,
+		timeZone: "Asia/Seoul",
+		hour: 9,
+		lastAutomaticJob: null,
+		workerConfigured: false,
+	};
+	const rpc = vi.fn().mockResolvedValue({ data, error: null });
+	const repository = new BookmarkRepository({ rpc } as unknown as AppSupabaseClient);
+	await expect(repository.healthSettings()).resolves.toEqual(data);
+	await expect(
+		repository.updateHealthSettings({ enabled: true, dailyLimit: 500 })
+	).resolves.toEqual(data);
+	expect(rpc).toHaveBeenCalledWith("bookmark_health_update_settings", {
+		p_enabled: true,
+		p_daily_limit: 500,
+	});
+});
+it("returns all-reused health starts without manufacturing a job", async () => {
+	const data = { job: null, requestedCount: 2, queuedCount: 0, reusedCount: 2, activeJobIds: [id] };
+	const rpc = vi.fn().mockResolvedValue({ data, error: null });
+	const repository = new BookmarkRepository({ rpc } as unknown as AppSupabaseClient);
+	await expect(repository.startHealth({ scope: "all" })).resolves.toEqual(data);
+	expect(rpc).toHaveBeenCalledWith("bookmark_command", {
+		p_action: "start",
+		p_input: { kind: "check", scope: "all" },
 	});
 });

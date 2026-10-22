@@ -17,6 +17,19 @@ const kindLabels: Record<BookmarkJob["kind"], string> = {
 	review: "AI 미사용 검토",
 	recommend: "저장 컬렉션 추천",
 };
+const phaseLabels = {
+	page: "원문 확인",
+	media: "미디어 확인",
+	decision: "AI 판정",
+	confirm: "의심 재확인",
+	done: "관측 완료",
+};
+const waitingLabels = {
+	host: "호스트 요청 간격·접근 제한 대기",
+	ai_budget: "AI 예산 대기",
+	confirmation: "의심 재확인 대기",
+	retry: "다음 처리 대기",
+};
 const stateLabels: Record<BookmarkJob["state"], string> = {
 	queued: "대기",
 	processing: "처리 중",
@@ -64,7 +77,12 @@ function JobItems({ id }: { id: string }) {
 					</Link>{" "}
 					·{" "}
 					{item.error ||
-						{ pending: "미처리", waiting: "1분 뒤 재검사 대기", failed: "실패" }[item.state]}
+						(item.waitingReason
+							? waitingLabels[item.waitingReason]
+							: { pending: "미처리", waiting: "다음 처리 대기", failed: "실패" }[item.state])}
+					{item.phase && ` · ${phaseLabels[item.phase]}`}
+					{item.state === "waiting" &&
+						` · ${new Date(item.available_at).toLocaleString("ko-KR")} 이후`}
 				</p>
 			))}
 			{query.data?.total === 0 && <p>남은 미처리·실패 항목이 없습니다.</p>}
@@ -117,12 +135,13 @@ export function BookmarkJobs({ jobs }: { jobs: BookmarkJob[] }) {
 							<p>사용량 확인 불가 · 예약액 유지 · 생성된 제안은 보존됩니다.</p>
 						)}
 						<div className="flex flex-wrap items-center justify-between gap-2">
-							<strong>{kindLabels[job.kind]}</strong>
+							<JobHeading job={job} />
 							<span>
 								{stateLabels[job.state]} · {job.completed.toLocaleString()}/
 								{job.total.toLocaleString()} · 실패 {job.failed}
 							</span>
 						</div>
+
 						{job.kind === "import" && (
 							<p className="mt-1 text-muted-foreground">
 								조회 {String(job.progress.readCount ?? 0)} · 저장{" "}
@@ -166,6 +185,24 @@ export function BookmarkJobs({ jobs }: { jobs: BookmarkJob[] }) {
 						)}
 					</article>
 				))
+			)}
+		</div>
+	);
+}
+
+function JobHeading({ job }: { job: BookmarkJob }) {
+	return (
+		<div>
+			<strong>
+				{kindLabels[job.kind]}
+				{job.kind === "check" && ` · ${job.scope.origin === "automatic" ? "자동" : "수동"}`}
+			</strong>
+			{job.kind === "check" && (
+				<p className="mt-1 text-muted-foreground">
+					판단 불가 {Number(job.progress.unknownCount ?? 0)}개 · AI 대기{" "}
+					{Number(job.progress.aiPendingCount ?? 0)}개 · 완료는 정상 링크 비율이 아닌 검사 진행
+					상태입니다.
+				</p>
 			)}
 		</div>
 	);

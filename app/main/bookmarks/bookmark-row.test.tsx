@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BookmarkItem } from "@/contracts/bookmark.schema";
+import { bookmarkHealthEvidenceSchema } from "@/contracts/bookmark-health.schema";
 import { uiBookmark, uiCollections } from "@/test-support/collection-ui-fixtures";
 import { BookmarkRow } from "./bookmark-row";
 
@@ -106,6 +107,9 @@ function deadCheck(
 		job_id: "job-1",
 		bookmark_version: 3,
 		status: "dead",
+		checked_url: null,
+		evidence: null,
+		evidence_revision: 1,
 		reason: "The server returned 404",
 		final_url: null,
 		http_status: 404,
@@ -253,7 +257,11 @@ describe("BookmarkRow", () => {
 		setup({ view: "review" });
 		const keep = screen.getByRole("button", { name: "유지" });
 		fireEvent.click(keep);
-		await waitFor(() => expect(mocks.error).toHaveBeenCalledExactlyOnceWith("Version conflict"));
+		await waitFor(() =>
+			expect(mocks.error).toHaveBeenCalledExactlyOnceWith(
+				expect.stringContaining("Version conflict")
+			)
+		);
 		expect((keep as HTMLButtonElement).disabled).toBe(false);
 		fireEvent.click(keep);
 		await waitFor(() => expect(mocks.success).toHaveBeenCalledOnce());
@@ -330,4 +338,26 @@ describe("BookmarkRow", () => {
 			expect(screen.getByTitle(reason)).toBeDefined();
 		}
 	);
+});
+it("row keep sends the displayed health revision and leaves evidence visible on a conflict", async () => {
+	const check = deadCheck({
+		checked_url: uiBookmark().url,
+		evidence: bookmarkHealthEvidenceSchema.parse({ observedAt: "2026-10-22T00:00:00Z" }),
+		evidence_revision: 7,
+	});
+	mocks.keep.mockRejectedValueOnce(new Error("health evidence changed"));
+	const { props } = setup({ view: "review", item: uiBookmark({ check }) });
+	fireEvent.click(screen.getByRole("button", { name: "유지" }));
+	await waitFor(() =>
+		expect(mocks.keep).toHaveBeenCalledWith({
+			id: props.item.id,
+			version: props.item.version,
+			evidenceId: check.id,
+			evidenceRevision: 7,
+		})
+	);
+	await waitFor(() =>
+		expect(mocks.error).toHaveBeenCalledWith(expect.stringContaining("최신 검사 근거"))
+	);
+	expect(screen.getByText("죽은 링크 의심")).toBeTruthy();
 });

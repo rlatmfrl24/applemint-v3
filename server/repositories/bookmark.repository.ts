@@ -1,5 +1,9 @@
 import { z } from "zod";
 import {
+	type BookmarkHealthStartResult,
+	type BookmarkScope,
+	bookmarkHealthSettingsSchema,
+	bookmarkHealthStartResultSchema,
 	bookmarkJobSchema,
 	bookmarkLookupSchema,
 	bookmarkRecommendationSchema,
@@ -54,6 +58,22 @@ export class BookmarkRepository {
 		};
 		return this.metrics?.measureRepository("bookmark.snapshot", run) ?? run();
 	}
+	async healthSettings() {
+		const { data, error } = await this.supabase.rpc("bookmark_health_settings");
+		if (error) throw mapPostgrestError(error, "자동 검사 설정을 불러오지 못했습니다.");
+		return bookmarkHealthSettingsSchema.parse(data);
+	}
+	async updateHealthSettings(input: { enabled: boolean; dailyLimit: number }) {
+		const { data, error } = await this.supabase.rpc("bookmark_health_update_settings", {
+			p_enabled: input.enabled,
+			p_daily_limit: input.dailyLimit,
+		});
+		if (error) throw mapPostgrestError(error, "자동 검사 설정을 저장하지 못했습니다.");
+		return bookmarkHealthSettingsSchema.parse(data);
+	}
+	startHealth(scope: BookmarkScope): Promise<BookmarkHealthStartResult> {
+		return this.command("start", { ...scope, kind: "check" }, bookmarkHealthStartResultSchema);
+	}
 	async aiUsage() {
 		const { data, error } = await this.supabase.rpc("bookmark_ai_usage");
 		if (error) throw mapPostgrestError(error, "AI 사용량을 불러오지 못했습니다.");
@@ -62,7 +82,9 @@ export class BookmarkRepository {
 	async jobDetails(id: string, offset: number) {
 		const { data, count, error } = await this.supabase
 			.from("bookmark_job_items")
-			.select("bookmark_id,state,error,available_at,bookmarks(url,title)", { count: "exact" })
+			.select("bookmark_id,state,error,available_at,phase:work->>phase,bookmarks(url,title)", {
+				count: "exact",
+			})
 			.eq("job_id", id)
 			.neq("state", "done")
 			.order("state")
@@ -76,11 +98,27 @@ export class BookmarkRepository {
 					state: z.enum(["pending", "waiting", "failed"]),
 					error: z.string().nullable(),
 					available_at: z.string(),
+					phase: z.enum(["page", "media", "decision", "confirm", "done"]).nullable().default(null),
 					bookmarks: z.object({ url: z.string(), title: z.string() }),
 				})
 			)
 			.parse(data ?? []);
-		return { items, total: count ?? 0 };
+		return {
+			items: items.map((item) => ({
+				...item,
+				waitingReason:
+					item.state !== "waiting"
+						? null
+						: item.phase === "decision"
+							? ("ai_budget" as const)
+							: item.phase === "confirm"
+								? ("confirmation" as const)
+								: ["page", "media"].includes(item.phase ?? "")
+									? ("host" as const)
+									: ("retry" as const),
+			})),
+			total: count ?? 0,
+		};
 	}
 
 	async jobs() {

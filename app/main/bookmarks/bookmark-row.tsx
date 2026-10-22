@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { BookmarkCollection, BookmarkItem } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
+import { healthReviewInput, healthSummary } from "@/lib/bookmark-health";
 import { useTRPCClient } from "@/trpc/client";
 import type { BookmarkDetailSelection } from "./bookmark-item-dialog";
 import { useBookmarkChange } from "./use-bookmark-actions";
@@ -52,12 +53,17 @@ export function BookmarkRow({
 	}
 	const action = useMutation({
 		mutationFn: (kind: "keep" | "trash" | "restore") =>
-			trpc.bookmark[kind].mutate({ id: item.id, version: item.version }),
+			trpc.bookmark[kind].mutate(
+				kind === "keep" ? healthReviewInput(item) : { id: item.id, version: item.version }
+			),
 		onSuccess: async () => {
 			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
 			toast.success("항목을 처리했습니다.");
 		},
-		onError: (error) => toast.error(error.message),
+		onError: async (error) => {
+			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
+			toast.error(`${error.message} 최신 검사 근거를 다시 확인해주세요.`);
+		},
 	});
 	const open = useMutation({
 		mutationFn: () => trpc.bookmark.open.mutate({ id: item.id }),
@@ -73,6 +79,7 @@ export function BookmarkRow({
 	const proposalLabel = item.proposals.some((proposal) => proposal.kind === "classify")
 		? "변경안"
 		: "근거";
+	const health = healthSummary(item);
 	const reason = reviewReason(item, dead);
 	return (
 		<article
@@ -107,7 +114,14 @@ export function BookmarkRow({
 							<span className="line-clamp-2 break-words">{item.title || item.url}</span>
 						</button>
 					</h2>
-					{dead && <span className="shrink-0 text-destructive text-xs">죽은 링크 의심</span>}
+					{health && (
+						<span
+							title={health.detail}
+							className={`shrink-0 text-xs ${health.severity === "danger" ? "text-destructive" : "text-muted-foreground"}`}
+						>
+							{health.label}
+						</span>
+					)}
 				</div>
 				<BookmarkMetadata item={item} path={path} onOpen={() => open.mutate()} />
 				<BookmarkRowContext item={item} view={view} reason={reason} />
@@ -214,6 +228,9 @@ function BookmarkRowContext({
 }
 function reviewReason(item: BookmarkItem, dead: boolean) {
 	if (dead && item.check) return item.check.reason;
+	const summary = healthSummary(item);
+	if (item.check?.evidence && summary?.severity !== "neutral")
+		return summary?.detail ?? item.check?.reason ?? "판단 불가";
 	return (
 		item.proposals[0]?.reason ||
 		(item.duplicate_count > 0 ? `같은 URL ${item.duplicate_count + 1}개` : "오래된 저장 항목")

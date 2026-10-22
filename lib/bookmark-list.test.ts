@@ -28,3 +28,12 @@ it("refreshes results on completed or stopped work, not every unchanged progress
 		expect(bookmarkResultsChanged([], [stopped])).toBe(true);
 	}
 });
+it("refreshes provisional check evidence during retry and processing without refreshing unchanged polls", () => {
+	const previous = [{ id: "health", kind: "check", state: "retry", updated_at: "1" }];
+	for (const state of ["retry", "processing"]) {
+		expect(bookmarkResultsChanged(previous, [{ ...previous[0], state, updated_at: "2" }])).toBe(
+			true
+		);
+	}
+	expect(bookmarkResultsChanged(previous, previous)).toBe(false);
+});

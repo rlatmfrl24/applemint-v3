@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { bookmarkHealthEvidenceSchema } from "./bookmark-health.schema";
 
 const id = z.uuid();
 const json = z.record(z.string(), z.unknown());
@@ -32,6 +33,9 @@ const checkSchema = z.object({
 	bookmark_id: id,
 	job_id: id,
 	bookmark_version: z.number().int(),
+	checked_url: z.string().nullable().default(null),
+	evidence: bookmarkHealthEvidenceSchema.nullable().default(null),
+	evidence_revision: z.number().int().positive().default(1),
 	status: z.enum(["healthy", "dead", "restricted", "temporary", "uncheckable"]),
 	reason: z.string(),
 	final_url: z.string().nullable(),
@@ -99,7 +103,26 @@ const settingsSchema = z.object({
 	suggestions_job_id: id.nullable(),
 	suggested_at: z.string().nullable(),
 	interests_confirmed_at: z.string().nullable(),
+	health_auto_enabled: z.boolean().default(false),
+	health_daily_limit: z.number().int().min(1).max(1000).default(500),
 });
+export const bookmarkHealthSettingsSchema = z.object({
+	enabled: z.boolean(),
+	dailyLimit: z.number().int().min(1).max(1000),
+	timeZone: z.literal("Asia/Seoul"),
+	hour: z.literal(9),
+	lastAutomaticJob: bookmarkJobSchema.nullable(),
+	workerConfigured: z.boolean().default(false),
+});
+export const bookmarkHealthStartResultSchema = z.object({
+	job: bookmarkJobSchema.nullable(),
+	requestedCount: z.number().int().nonnegative(),
+	queuedCount: z.number().int().nonnegative(),
+	reusedCount: z.number().int().nonnegative(),
+	activeJobIds: z.array(id),
+});
+export type BookmarkHealthSettings = z.infer<typeof bookmarkHealthSettingsSchema>;
+export type BookmarkHealthStartResult = z.infer<typeof bookmarkHealthStartResultSchema>;
 export const bookmarkSnapshotSchema = z.object({
 	items: z.array(bookmarkItemSchema),
 	total: z.number().int(),
@@ -118,7 +141,9 @@ export const bookmarkListInputSchema = z.object({
 	search: z.string().max(200).optional(),
 	offset: z.number().int().nonnegative().default(0),
 	review: z.boolean().default(false),
-	reviewType: z.enum(["all", "dead", "unused", "classify"]).default("all"),
+	reviewType: z
+		.enum(["all", "dead", "unused", "classify", "content", "media", "uncheckable"])
+		.default("all"),
 	limit: z.number().int().min(1).max(100).default(50),
 });
 export const bookmarkSaveInputSchema = z.object({
@@ -164,6 +189,7 @@ export const bookmarkVersionInputSchema = z.object({
 	id,
 	version: z.number().int().positive(),
 	evidenceId: id.optional(),
+	evidenceRevision: z.number().int().positive().optional(),
 });
 export const bookmarkEditInputSchema = bookmarkVersionInputSchema.extend({
 	title: z.string().trim().max(1000),

@@ -339,3 +339,41 @@ describe("BookmarkService RPC response contracts", () => {
 		expect(store.recommendation).toHaveBeenCalledExactlyOnceWith(id);
 	});
 });
+it("delegates health settings and the check-specific start envelope", async () => {
+	const data = {
+		enabled: false,
+		dailyLimit: 500,
+		timeZone: "Asia/Seoul",
+		hour: 9,
+		lastAutomaticJob: null,
+		workerConfigured: false,
+	};
+	const { service, rpc } = createService(data);
+	await expect(service.healthSettings()).resolves.toEqual(data);
+	await expect(service.updateHealthSettings({ enabled: true, dailyLimit: 500 })).resolves.toEqual(
+		data
+	);
+	rpc.mockResolvedValue({
+		data: { job: null, requestedCount: 1, queuedCount: 0, reusedCount: 1, activeJobIds: [id] },
+		error: null,
+	});
+	await expect(service.startHealth({ scope: "all" })).resolves.toMatchObject({
+		job: null,
+		queuedCount: 0,
+	});
+});
+it("health settings require both the server worker secret and Vault configuration", async () => {
+	const data = {
+		enabled: false,
+		dailyLimit: 500,
+		timeZone: "Asia/Seoul",
+		hour: 9,
+		lastAutomaticJob: null,
+		workerConfigured: true,
+	};
+	const { service } = createService(data);
+	vi.stubEnv("CRAWL_INTERNAL_SECRET", "");
+	expect((await service.healthSettings()).workerConfigured).toBe(false);
+	vi.stubEnv("CRAWL_INTERNAL_SECRET", "fixture-only");
+	expect((await service.healthSettings()).workerConfigured).toBe(true);
+});

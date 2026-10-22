@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BookmarkCollection, BookmarkItem } from "@/contracts/bookmark.schema";
+import { bookmarkHealthEvidenceSchema } from "@/contracts/bookmark-health.schema";
 import type { BookmarkCollectionDialog } from "./bookmark-collection-dialog";
 import type { BookmarkCollectionTree } from "./bookmark-collection-tree";
 import type { BookmarkItemDialog } from "./bookmark-item-dialog";
@@ -549,4 +550,66 @@ describe("bookmark manager actions", () => {
 		fireEvent.click(screen.getByRole("button", { name: "변경 내용 버리기" }));
 		expect(push).toHaveBeenCalledWith("/main/bookmarks/review");
 	});
+});
+it.each(["content", "media", "uncheckable"])(
+	"routes the %s health filter with server totals",
+	async (type) => {
+		window.history.replaceState(null, "", `/main/bookmarks/review?type=${type}`);
+		api.bookmark.list.query.mockResolvedValue(page(items, 37));
+		mount("review");
+		await screen.findByText("Alpha");
+		expect(api.bookmark.list.query.mock.calls[0]?.[0]).toMatchObject({ reviewType: type });
+		expect(screen.getAllByText(/37/).length).toBeGreaterThan(0);
+	}
+);
+it("bulk keep includes each displayed check revision", async () => {
+	const current = item("Health");
+	current.check = {
+		id: "99999999-9999-4999-8999-999999999999",
+		bookmark_id: current.id,
+		job_id: "66666666-6666-4666-8666-666666666666",
+		bookmark_version: current.version,
+		status: "healthy",
+		reason: "HTTP 200",
+		final_url: current.url,
+		http_status: 200,
+		checked_at: "2026-10-22T00:00:00Z",
+		checked_url: current.url,
+		evidence: bookmarkHealthEvidenceSchema.parse({ observedAt: "2026-10-22T00:00:00Z" }),
+		evidence_revision: 4,
+		reviewed_at: null,
+	};
+	api.bookmark.list.query.mockResolvedValue(page([current]));
+	mount("review");
+	fireEvent.click(await screen.findByRole("checkbox", { name: "Select Health" }));
+	fireEvent.click(screen.getByRole("button", { name: "선택 항목 유지" }));
+	await waitFor(() =>
+		expect(api.bookmark.bulk.mutate).toHaveBeenCalledWith({
+			action: "keep",
+			items: [
+				{
+					id: current.id,
+					version: current.version,
+					evidenceId: current.check?.id,
+					evidenceRevision: 4,
+				},
+			],
+		})
+	);
+});
+it("manual start exposes the all-reused result with a jobs entry point", async () => {
+	api.bookmarkCheck.start.mutate.mockResolvedValue({
+		job: null,
+		requestedCount: 1,
+		queuedCount: 0,
+		reusedCount: 1,
+		activeJobIds: ["job"],
+	});
+	mount();
+	fireEvent.click(await screen.findByRole("checkbox", { name: "Select Alpha" }));
+	fireEvent.click(screen.getByRole("button", { name: "링크 검사" }));
+	await screen.findByText(/새 검사 0개 · 진행 중 1개 재사용/);
+	expect(screen.getByRole("link", { name: "진행 작업 보기" }).getAttribute("href")).toBe(
+		"/main/bookmarks/activity"
+	);
 });
