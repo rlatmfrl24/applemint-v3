@@ -100,6 +100,7 @@ function useBookmarkManager(screen: BookmarkView) {
 	const router = useRouter();
 	const { view, collection, reviewType } = bookmarkLocation(screen, params);
 	const searchParam = params.get("search") ?? "";
+	const linkedBookmark = params.get("bookmark");
 	const [search, setSearch] = useState(searchParam);
 	const [querySearch, setQuerySearch] = useState(searchParam);
 	const [composing, setComposing] = useState(false);
@@ -107,6 +108,16 @@ function useBookmarkManager(screen: BookmarkView) {
 	const [scope, setScope] = useState<"selected" | "collection" | "all">("selected");
 	const [collectionDialog, setCollectionDialog] = useState<CollectionDialogSelection | null>(null);
 	const [itemDialog, rawSetItemDialog] = useState<BookmarkDetailSelection | null>(null);
+	const linkedPanel = useRef<string | null>(null);
+	useEffect(() => {
+		if (!linkedBookmark && !linkedPanel.current) return;
+		linkedPanel.current = linkedBookmark;
+		const selection: BookmarkDetailSelection | null = linkedBookmark
+			? { id: linkedBookmark, mode: "details", trigger: null }
+			: null;
+		if (dirty.current) setPendingDetail({ selection });
+		else rawSetItemDialog(selection);
+	}, [linkedBookmark]);
 	const dirty = useRef(false);
 	const historyPosition = useRef(0);
 	const editFocus = useRef<HTMLElement | null>(null);
@@ -191,7 +202,14 @@ function useBookmarkManager(screen: BookmarkView) {
 			setPendingDetail({ selection: next });
 			return;
 		}
+		applyItemDialog(next);
+	}
+	function applyItemDialog(next: BookmarkDetailSelection | null) {
 		rawSetItemDialog(next);
+		if (linkedBookmark && linkedBookmark !== next?.id) {
+			linkedPanel.current = null;
+			updateURL({ bookmark: null });
+		}
 	}
 	function discardDetail() {
 		const returnFocus =
@@ -199,9 +217,7 @@ function useBookmarkManager(screen: BookmarkView) {
 				? itemDialog?.trigger
 				: null;
 		dirty.current = false;
-		rawSetItemDialog(
-			pendingDetail && "selection" in pendingDetail ? pendingDetail.selection : null
-		);
+		applyItemDialog(pendingDetail && "selection" in pendingDetail ? pendingDetail.selection : null);
 		if (pendingDetail && "href" in pendingDetail) router.push(pendingDetail.href);
 		if (pendingDetail && "historyDelta" in pendingDetail)
 			window.history.go(pendingDetail.historyDelta);

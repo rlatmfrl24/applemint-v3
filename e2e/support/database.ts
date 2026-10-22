@@ -257,10 +257,14 @@ export async function seedThreads(
 }
 
 // Real public page metadata; only local QA setup bypasses ingestion, never bookmark saving.
-export async function seedBookmarkUXSource() {
-	const url = `https://nextjs.org/docs/app/getting-started/linking-and-navigating?applemint_ux_qa=${randomUUID()}`;
+export async function seedBookmarkUXSource(
+	baseUrl = "https://nextjs.org/docs/app/getting-started/linking-and-navigating"
+) {
+	const link = new URL(baseUrl);
+	link.searchParams.set("applemint_ux_qa", randomUUID());
+	const url = link.toString();
 	const output = runAdminSql(
-		`insert into public.threads(type,url,title,description,host,tag,state) values('normal',${quoteLiteral(url)},'Next.js 링크와 탐색 · 북마크 UX 검증','Next.js 공식 문서','nextjs.org',array['arcalive']::text[],'inbox') returning json_build_object('id',id::text,'url',url,'title',title)::text;`
+		`insert into public.threads(type,url,title,description,host,tag,state) values('normal',${quoteLiteral(url)},'링크와 탐색 · 북마크 UX 검증','북마크 저장 흐름 검증',${quoteLiteral(link.hostname)},array['arcalive']::text[],'inbox') returning json_build_object('id',id::text,'url',url,'title',title)::text;`
 	);
 	return JSON.parse(output) as { id: string; url: string; title: string };
 }

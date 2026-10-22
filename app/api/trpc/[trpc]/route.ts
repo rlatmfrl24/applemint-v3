@@ -17,6 +17,10 @@ const handler = async (request: Request) => {
 	let context: Awaited<ReturnType<typeof createTRPCContext>> | undefined;
 
 	const response = await fetchRequestHandler({
+		allowMethodOverride: new URL(request.url).pathname
+			.slice("/api/trpc/".length)
+			.split(",")
+			.every((path) => path === "bookmark.lookup"),
 		endpoint: "/api/trpc",
 		req: request,
 		router: appRouter,

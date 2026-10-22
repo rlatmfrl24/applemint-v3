@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
 	bookmarkJobSchema,
+	bookmarkLookupSchema,
 	bookmarkRecommendationSchema,
 	bookmarkSnapshotSchema,
 } from "@/contracts/bookmark.schema";
@@ -25,6 +26,19 @@ export class BookmarkRepository {
 		if (error) throw mapPostgrestError(error, "수집 글을 불러오지 못했습니다.");
 		if (!data) throw new DomainError("NotFound", "수집 글을 찾을 수 없습니다.");
 		return data;
+	}
+	async lookup(url: string) {
+		const run = async () => {
+			const { data, error } = await this.supabase
+				.rpc("bookmark_lookup", { p_url: url })
+				.maybeSingle();
+			if (error) throw mapPostgrestError(error, "북마크 저장 여부를 확인하지 못했습니다.");
+			const parsed = bookmarkLookupSchema.nullable().safeParse(data);
+			if (!parsed.success)
+				throw unexpectedFailure("북마크 조회 응답이 올바르지 않습니다.", parsed.error);
+			return parsed.data;
+		};
+		return this.metrics?.measureRepository("bookmark.lookup", run) ?? run();
 	}
 
 	async snapshot(input: object) {

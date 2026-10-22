@@ -40,6 +40,86 @@ function mount(recommendationId?: string) {
 }
 
 describe("bookmark save form", () => {
+	it.each([undefined, jobId])(
+		"waits for lookup before starting recommendation %s",
+		async (recommendationId) => {
+			const pending = deferred<null>();
+			backend.client.bookmark.lookup.query.mockReturnValue(pending.promise);
+			mount(recommendationId);
+			await screen.findByText("저장 여부를 확인하고 있어요");
+			expect(backend.client.bookmarkAI.recommend.mutate).not.toHaveBeenCalled();
+			expect(backend.client.bookmarkAI.recommendation.query).not.toHaveBeenCalled();
+			expect(screen.queryByRole("button", { name: "저장" })).toBeNull();
+			await act(async () => pending.resolve(null));
+			await screen.findByText("AI 추천");
+			expect(backend.client.bookmark.lookup.query).toHaveBeenCalledWith({
+				url: source.url,
+				threadId: source.id,
+			});
+		}
+	);
+	it.each(["library", "trash"] as const)(
+		"routes an existing %s bookmark without AI or saving",
+		async (state) => {
+			backend.client.bookmark.lookup.query.mockResolvedValue(
+				bookmarkItem({ state, title: "Existing title" })
+			);
+			const { props } = mount(jobId);
+			await screen.findByText("Existing title");
+			expect(screen.getByText(source.url)).toBeTruthy();
+			expect(backend.client.bookmarkAI.recommend.mutate).not.toHaveBeenCalled();
+			expect(backend.client.bookmarkAI.recommendation.query).not.toHaveBeenCalled();
+			expect(backend.client.bookmark.save.mutate).not.toHaveBeenCalled();
+			fireEvent.click(
+				screen.getByRole("button", {
+					name: state === "trash" ? "휴지통에서 보기" : "기존 북마크 보기",
+				})
+			);
+			expect(backend.push).toHaveBeenCalledWith(
+				`/main/bookmarks?state=${state}&bookmark=${bookmarkItem().id}`
+			);
+			await waitFor(() => expect(props.close).toHaveBeenCalled());
+		}
+	);
+	it("keeps lookup errors closed to recommendation and save until retry succeeds", async () => {
+		backend.client.bookmark.lookup.query.mockRejectedValueOnce(new Error("Lookup offline"));
+		mount();
+		expect((await screen.findByRole("alert")).textContent).toContain("Lookup offline");
+		expect(backend.client.bookmarkAI.recommend.mutate).not.toHaveBeenCalled();
+		expect(screen.queryByRole("button", { name: "저장" })).toBeNull();
+		fireEvent.click(screen.getByRole("button", { name: "다시 확인" }));
+		await screen.findByText("AI 추천");
+		expect(backend.client.bookmark.lookup.query).toHaveBeenCalledTimes(2);
+	});
+	it("waits for fresh lookup on reopen even when the cache says the URL is new", async () => {
+		const { props, wrapper, unmount } = mount(jobId);
+		await screen.findByText("AI 추천");
+		unmount();
+		backend.client.bookmarkAI.recommendation.query.mockClear();
+		const pending = deferred<ReturnType<typeof bookmarkItem>>();
+		backend.client.bookmark.lookup.query.mockReturnValue(pending.promise);
+		render(<BookmarkSaveRoot {...props} />, { wrapper });
+		await screen.findByText("저장 여부를 확인하고 있어요");
+		expect(screen.queryByRole("textbox", { name: "제목 (선택)" })).toBeNull();
+		expect(backend.client.bookmarkAI.recommendation.query).not.toHaveBeenCalled();
+		await act(async () => pending.resolve(bookmarkItem()));
+		await screen.findByRole("button", { name: "기존 북마크 보기" });
+		expect(backend.client.bookmarkAI.recommendation.query).not.toHaveBeenCalled();
+	});
+	it("does not reuse a pending lookup after close and reopen", async () => {
+		const old = deferred<null>();
+		backend.client.bookmark.lookup.query
+			.mockReturnValueOnce(old.promise)
+			.mockResolvedValue(bookmarkItem());
+		const { props, wrapper, unmount } = mount(jobId);
+		await screen.findByText("저장 여부를 확인하고 있어요");
+		unmount();
+		render(<BookmarkSaveRoot {...props} />, { wrapper });
+		await screen.findByRole("button", { name: "기존 북마크 보기" });
+		expect(backend.client.bookmark.lookup.query).toHaveBeenCalledTimes(2);
+		await act(async () => old.resolve(null));
+		expect(backend.client.bookmarkAI.recommendation.query).not.toHaveBeenCalled();
+	});
 	it("saves a validated recommendation with title, tags, note, thread and collection versions", async () => {
 		const { props } = mount(jobId);
 		await screen.findByText("AI 추천");
@@ -69,7 +149,7 @@ describe("bookmark save form", () => {
 		);
 		backend.success.mock.calls.at(-1)?.[1].action.onClick();
 		expect(backend.push).toHaveBeenCalledWith(
-			`/main/bookmarks?state=library&search=${encodeURIComponent(source.url)}`
+			`/main/bookmarks?state=library&bookmark=${bookmarkItem().id}`
 		);
 	});
 

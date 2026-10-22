@@ -305,6 +305,9 @@ service는 HTTP나 tRPC에 종속되지 않은 domain error를 반환하거나 t
 - 기존 TanStack Query의 cache, infinite query, optimistic update와 invalidation 전략을 유지합니다.
 - browser tRPC client는 `httpBatchLink`를 사용하되 `maxItems`와 `maxURLLength`를 무제한으로 두지
   않습니다.
+- 긴 URL을 입력하는 `bookmark.lookup` query만 POST 본문을 사용합니다. 서버의 method override
+  허용도 이 경로로 제한하며, 기존 소유자 권한 검사는 동일하게 적용합니다.
+- 저장 결과와 중복 안내는 URL 전체를 검색 주소에 넣지 않고 `bookmark` ID로 기존 상세 화면을 엽니다.
 - batching은 HTTP 요청만 합칩니다. Supabase RPC 수를 줄이려면 service 또는 DB RPC를 별도로
   통합해야 합니다.
 - `thread.list` cursor와 `AbortSignal` 취소 동작을 보존합니다.

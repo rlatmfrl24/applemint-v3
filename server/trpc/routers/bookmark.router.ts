@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
 	bookmarkEditInputSchema,
 	bookmarkListInputSchema,
+	bookmarkLookupInputSchema,
 	bookmarkProposalApplyInputSchema,
 	bookmarkRecommendationInputSchema,
 	bookmarkRecommendationStatusSchema,
@@ -14,6 +15,9 @@ import { createTRPCRouter, ownerProcedure } from "../init";
 const idInput = z.object({ id: z.uuid() });
 const name = z.string().trim().min(1).max(160);
 export const bookmarkRouter = createTRPCRouter({
+	lookup: ownerProcedure
+		.input(bookmarkLookupInputSchema)
+		.query(({ ctx, input }) => ctx.services.bookmark.lookup(input)),
 	bulk: ownerProcedure
 		.input(
 			z.object({

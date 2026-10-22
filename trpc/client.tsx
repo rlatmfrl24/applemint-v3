@@ -1,7 +1,7 @@
 "use client";
 
 import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createTRPCClient, httpBatchLink } from "@trpc/client";
+import { createTRPCClient, httpBatchLink, splitLink } from "@trpc/client";
 import { createTRPCContext } from "@trpc/tanstack-react-query";
 import { useState } from "react";
 import type { AppRouter } from "@/server/trpc/router";
@@ -18,10 +18,15 @@ export function AppTRPCProvider({ children }: { children: React.ReactNode }) {
 	const [trpcClient] = useState(() =>
 		createTRPCClient<AppRouter>({
 			links: [
-				httpBatchLink({
-					url: "/api/trpc",
-					maxItems: 8,
-					maxURLLength: 2048,
+				splitLink({
+					condition: (operation) => operation.path === "bookmark.lookup",
+					true: httpBatchLink({
+						url: "/api/trpc",
+						maxItems: 8,
+						maxURLLength: 2048,
+						methodOverride: "POST",
+					}),
+					false: httpBatchLink({ url: "/api/trpc", maxItems: 8, maxURLLength: 2048 }),
 				}),
 			],
 		})

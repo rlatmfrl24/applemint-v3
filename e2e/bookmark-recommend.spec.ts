@@ -1,6 +1,7 @@
 import { expect, type Page, type Route, test } from "@playwright/test";
 import {
 	bookmarkJobSchema,
+	bookmarkLookupSchema,
 	bookmarkRecommendationSchema,
 	bookmarkSaveInputSchema,
 } from "../contracts/bookmark.schema";
@@ -8,6 +9,82 @@ import { collectionPath } from "../lib/bookmark-collection";
 import { collectionForHost } from "../lib/bookmark-host";
 import { bookmarkOwner } from "./support/bookmarks";
 import { seedBookmarkUXSource } from "./support/database";
+
+async function completedRecommendations(db: Awaited<ReturnType<typeof bookmarkOwner>>) {
+	const completed = await db
+		.from("bookmark_jobs")
+		.select("*")
+		.eq("kind", "recommend")
+		.eq("state", "succeeded")
+		.order("created_at", { ascending: false });
+	expect(completed.error).toBeNull();
+	const jobs = (completed.data ?? []).map((job) => bookmarkJobSchema.parse(job));
+	if (jobs.length === 0) return [];
+	const saved = await Promise.all(
+		jobs.map((job) => db.rpc("bookmark_lookup", { p_url: String(job.scope.url) }).maybeSingle())
+	);
+	for (const result of saved) expect(result.error).toBeNull();
+	return jobs.map((job, index) => ({
+		job,
+		bookmark: bookmarkLookupSchema.nullable().parse(saved[index].data),
+	}));
+}
+
+test("작업 기록의 이미 저장된 링크는 추천 조회 없이 기존 북마크로 안내한다", async ({ page }) => {
+	const db = await bookmarkOwner();
+	const completed = await completedRecommendations(db);
+	const saved = completed.find((result) => result.bookmark);
+	if (!saved?.bookmark) throw new Error("이미 저장된 링크의 실제 추천 기록이 필요합니다.");
+	const { job, bookmark } = saved;
+	const aiRequests: string[] = [];
+	page.on("request", (request) => {
+		if (request.url().includes("bookmarkAI.recommend")) aiRequests.push(request.url());
+	});
+	await page.goto("/main/bookmarks/activity");
+	const trigger = page
+		.locator(`[data-bookmark-job-id="${job.id}"]`)
+		.getByRole("button", { name: "Review & Save", exact: true });
+	await trigger.click();
+	const dialog = page.getByRole("alertdialog");
+	await expect(dialog).toContainText("이미 저장한 URL");
+	await expect(dialog.getByRole("button", { name: "저장", exact: true })).toHaveCount(0);
+	await dialog.getByRole("button", { name: "닫기", exact: true }).click();
+	await expect(trigger).toBeFocused();
+	await trigger.click();
+	await dialog
+		.getByRole("button", {
+			name: bookmark?.state === "trash" ? "휴지통에서 보기" : "기존 북마크 보기",
+			exact: true,
+		})
+		.click();
+	await expect(page.getByRole("complementary", { name: "북마크 상세", exact: true })).toBeVisible();
+	await expect(page).toHaveURL(`/main/bookmarks?state=${bookmark?.state}&bookmark=${bookmark?.id}`);
+	expect(aiRequests).toEqual([]);
+});
+
+test("중복 조회 실패는 저장과 추천 없이 재시도하고 실제 조회 결과로 안내한다", async ({ page }) => {
+	await page.goto("/main");
+	let attempts = 0;
+	const aiRequests: string[] = [];
+	page.on("request", (request) => {
+		if (request.url().includes("bookmarkAI.recommend")) aiRequests.push(request.url());
+	});
+	await page.route("**/api/trpc/bookmark.lookup**", (route) =>
+		++attempts === 1 ? route.abort() : route.continue()
+	);
+	const card = page.getByTestId("thread-card").first();
+	await card.getByRole("button", { name: "Bookmark", exact: true }).click();
+	const dialog = page.getByRole("alertdialog");
+	await expect(dialog.getByRole("alert")).toBeVisible();
+	await expect(dialog.getByRole("button", { name: "저장", exact: true })).toHaveCount(0);
+	expect(aiRequests).toEqual([]);
+	await dialog.getByRole("button", { name: "다시 확인", exact: true }).click();
+	await expect(dialog.getByRole("alert")).not.toBeVisible();
+	expect(attempts).toBe(2);
+	await expect(
+		dialog.getByRole("button", { name: /기존 북마크 보기|휴지통에서 보기|저장/u })
+	).toBeVisible();
+});
 
 async function findUnmatchedSource(page: Page, db: Awaited<ReturnType<typeof bookmarkOwner>>) {
 	const active = await db.from("bookmark_collections").select("*").is("archived_at", null);
@@ -17,9 +94,9 @@ async function findUnmatchedSource(page: Page, db: Awaited<ReturnType<typeof boo
 	for (let index = 0; index < (await cards.count()); index++) {
 		const candidate = await cards.nth(index).getAttribute("data-thread-url");
 		if (!candidate || collectionForHost(candidate, active.data ?? [])) continue;
-		const existing = await db.from("bookmarks").select("id").eq("url", candidate);
+		const existing = await db.rpc("bookmark_lookup", { p_url: candidate }).maybeSingle();
 		expect(existing.error).toBeNull();
-		if (!existing.data?.length) return candidate;
+		if (!existing.data) return candidate;
 	}
 	const seeded = await seedBookmarkUXSource();
 	await page.goto("/main");
@@ -33,8 +110,9 @@ test("호스트와 일치하는 컬렉션은 팝업에서 바로 선택되고 �
 	const db = await bookmarkOwner();
 	const before = await db.rpc("bookmark_ai_usage");
 	expect(before.error).toBeNull();
+	const seeded = await seedBookmarkUXSource("https://www.fmkorea.com/");
 	await page.goto("/main");
-	const card = page.locator('[data-thread-url^="https://www.fmkorea.com/"]').first();
+	const card = page.locator(`[data-thread-url=${JSON.stringify(seeded.url)}]`);
 	await expect(card).toBeVisible();
 	await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 	const dialog = page.getByRole("alertdialog");
@@ -52,16 +130,14 @@ test("작업 기록의 추천 조회 실패는 조회만 재시도하고 실제 
 	page,
 }) => {
 	const db = await bookmarkOwner();
-	const completed = await db
-		.from("bookmark_jobs")
-		.select("*")
-		.eq("kind", "recommend")
-		.eq("state", "succeeded")
-		.order("created_at", { ascending: false })
-		.limit(1)
-		.single();
-	expect(completed.error).toBeNull();
-	const job = bookmarkJobSchema.parse(completed.data);
+	const completed = (await completedRecommendations(db))
+		.filter((result) => !result.bookmark)
+		.map((result) => result.job);
+	test.skip(
+		completed.length === 0,
+		"추천 재시도 검증에는 아직 저장하지 않은 실제 추천 결과가 필요합니다."
+	);
+	const job = bookmarkJobSchema.parse(completed[0]);
 	const result = bookmarkRecommendationSchema.parse(job.progress.recommendation);
 	const collections = await db.from("bookmark_collections").select("*").is("archived_at", null);
 	const before = await db.rpc("bookmark_ai_usage");
@@ -113,6 +189,7 @@ test("작업 기록의 추천 조회 실패는 조회만 재시도하고 실제 
 test("컬렉션 조회가 실패한 뒤 늦게 복구돼도 호스트 추천은 유료 요청을 보내지 않는다", async ({
 	page,
 }) => {
+	const seeded = await seedBookmarkUXSource("https://www.fmkorea.com/");
 	let release = () => {};
 	const gate = new Promise<void>((resolve) => {
 		release = resolve;
@@ -146,8 +223,7 @@ test("컬렉션 조회가 실패한 뒤 늦게 복구돼도 호스트 추천은 
 	try {
 		await page.goto("/main");
 		await page
-			.locator('[data-thread-url^="https://www.fmkorea.com/"]')
-			.first()
+			.locator(`[data-thread-url=${JSON.stringify(seeded.url)}]`)
 			.getByRole("button", { name: "Bookmark", exact: true })
 			.click();
 		const dialog = page.getByRole("alertdialog");
@@ -161,8 +237,9 @@ test("컬렉션 조회가 실패한 뒤 늦게 복구돼도 호스트 추천은 
 });
 
 test("Main 저장 팝업은 자동 추천 뒤 컬렉션 트리의 수동 선택을 제공한다", async ({ page }) => {
+	const seeded = await seedBookmarkUXSource();
 	await page.goto("/main");
-	const card = page.getByTestId("thread-card").first();
+	const card = page.locator(`[data-thread-url=${JSON.stringify(seeded.url)}]`);
 	await expect(card).toBeVisible();
 	await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 	const dialog = page.getByRole("alertdialog");
@@ -183,16 +260,15 @@ test("Main 저장 팝업은 자동 추천 뒤 컬렉션 트리의 수동 선택�
 test("실제 추천 결과가 늦게 도착해도 그 사이 바꾼 제목에 적용하지 않는다", async ({ page }) => {
 	const db = await bookmarkOwner();
 	const before = await db.rpc("bookmark_ai_usage");
-	const completed = await db
-		.from("bookmark_jobs")
-		.select("*")
-		.eq("kind", "recommend")
-		.eq("state", "succeeded")
-		.order("created_at", { ascending: false })
-		.limit(2);
-	expect(completed.error).toBeNull();
-	const job = bookmarkJobSchema.parse(completed.data?.[0]);
-	const previousJob = bookmarkJobSchema.parse(completed.data?.[1]);
+	const completed = (await completedRecommendations(db))
+		.filter((result) => !result.bookmark)
+		.map((result) => result.job);
+	test.skip(
+		completed.length < 2,
+		"늦은 실제 추천 검증에는 아직 저장하지 않은 실제 추천 결과 2개가 필요합니다."
+	);
+	const job = bookmarkJobSchema.parse(completed[0]);
+	const previousJob = bookmarkJobSchema.parse(completed[1]);
 	let release = () => {};
 	let deferred = false;
 	const gate = new Promise<void>((resolve) => {
@@ -263,8 +339,9 @@ async function restoreQuickSource(db: Awaited<ReturnType<typeof bookmarkOwner>>,
 }
 
 test("저장 처리가 시작되면 이미 열린 컬렉션 트리도 선택할 수 없다", async ({ page }) => {
+	const seeded = await seedBookmarkUXSource();
 	await page.goto("/main");
-	const card = page.getByTestId("thread-card").first();
+	const card = page.locator(`[data-thread-url=${JSON.stringify(seeded.url)}]`);
 	await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 	const dialog = page.getByRole("alertdialog");
 	await dialog.getByLabel("컬렉션", { exact: true }).click();
@@ -291,8 +368,9 @@ test("저장 처리가 시작되면 이미 열린 컬렉션 트리도 선택할 
 
 test("Quick에서도 같은 트리 팝업을 사용하고 취소 시 수집 글을 보존한다", async ({ page }) => {
 	const db = await bookmarkOwner();
+	const seeded = await seedBookmarkUXSource();
 	await page.goto("/main");
-	const first = page.getByTestId("thread-card").first();
+	const first = page.locator(`[data-thread-url=${JSON.stringify(seeded.url)}]`);
 	await expect(first).toBeVisible();
 	const url = await first.getAttribute("data-thread-url");
 	const card = page.locator(`[data-thread-url=${JSON.stringify(url)}]`);
