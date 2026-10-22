@@ -1,23 +1,31 @@
 "use client";
+import { Bookmark } from "lucide-react";
 import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { Source } from "./bookmark-save-form";
+import { useBookmarkDialogMotion } from "./use-bookmark-dialog-motion";
 
 const BookmarkSaveForm = lazy(() => import("./bookmark-save-form"));
-function SaveLoading({ close }: { close: () => void }) {
-	const dialog = useRef<HTMLDialogElement>(null);
+function SaveLoading({ close, openedAt }: { close: () => void; openedAt: number }) {
+	const {
+		content,
+		element: dialog,
+		dismiss,
+	} = useBookmarkDialogMotion<HTMLDialogElement>(close, openedAt);
 	const title = useId();
 	useEffect(() => {
-		const element = dialog.current;
-		element?.showModal();
-		return () => element?.close();
-	}, []);
+		dialog?.showModal();
+		return () => dialog?.close();
+	}, [dialog]);
 	return (
 		<dialog
-			ref={dialog}
+			ref={content}
 			aria-labelledby={title}
 			aria-busy="true"
-			onCancel={close}
+			onCancel={(event) => {
+				event.preventDefault();
+				dismiss();
+			}}
 			className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-lg space-y-4 rounded-lg border bg-background p-6 text-foreground shadow-lg backdrop:bg-black/80"
 		>
 			<h2 id={title} className="m-0 border-0 p-0 font-semibold text-lg">
@@ -31,7 +39,7 @@ function SaveLoading({ close }: { close: () => void }) {
 				<div className="h-10 rounded-md bg-muted" />
 				<div className="h-10 rounded-md bg-muted" />
 			</div>
-			<Button variant="outline" onClick={close}>
+			<Button variant="outline" onClick={dismiss}>
 				취소
 			</Button>
 		</dialog>
@@ -45,7 +53,7 @@ export function BookmarkSaveDialog({
 	source: Source;
 	recommendationId?: string;
 }) {
-	const [open, setOpen] = useState(false);
+	const [openedAt, setOpenedAt] = useState<number | null>(null);
 	const [ready, setReady] = useState(false);
 	const trigger = useRef<HTMLButtonElement>(null);
 	useEffect(() => setReady(true), []);
@@ -56,16 +64,18 @@ export function BookmarkSaveDialog({
 				variant="outline"
 				size="sm"
 				disabled={!ready}
-				onClick={() => setOpen(true)}
+				onClick={() => setOpenedAt(performance.now())}
 			>
-				{recommendationId ? "추천 확인·저장" : "북마크 저장"}
+				<Bookmark aria-hidden="true" className="mr-1 size-3.5" />
+				{recommendationId ? "Review & Save" : "Bookmark"}
 			</Button>
-			{open && (
+			{openedAt !== null && (
 				<Suspense
 					fallback={
 						<SaveLoading
+							openedAt={openedAt}
 							close={() => {
-								setOpen(false);
+								setOpenedAt(null);
 								requestAnimationFrame(() => trigger.current?.focus());
 							}}
 						/>
@@ -74,7 +84,8 @@ export function BookmarkSaveDialog({
 					<BookmarkSaveForm
 						source={source}
 						recommendationId={recommendationId}
-						close={() => setOpen(false)}
+						openedAt={openedAt}
+						close={() => setOpenedAt(null)}
 						returnFocus={() => trigger.current?.focus()}
 					/>
 				</Suspense>

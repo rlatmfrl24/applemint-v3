@@ -760,7 +760,7 @@ function Results({ m }: { m: Manager }) {
 						</Button>
 					) : view === "library" ? (
 						<>
-							<p className="m-0 text-xs">Main·Quick에서 북마크 저장을 눌러 추가하세요.</p>
+							<p className="m-0 text-xs">Main·Quick에서 Bookmark를 눌러 추가하세요.</p>
 							<Button variant="ghost" size="sm" onClick={() => m.updateURL({ collection: null })}>
 								전체 보기
 							</Button>

@@ -36,7 +36,7 @@ test("호스트와 일치하는 컬렉션은 팝업에서 바로 선택되고 �
 	await page.goto("/main");
 	const card = page.locator('[data-thread-url^="https://www.fmkorea.com/"]').first();
 	await expect(card).toBeVisible();
-	await card.getByRole("button", { name: "북마크 저장", exact: true }).click();
+	await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 	const dialog = page.getByRole("alertdialog");
 	await expect(dialog.getByLabel("컬렉션", { exact: true })).toContainText("fmkorea");
 	await dialog.getByRole("button", { name: /다시 추천|요청 다시 확인/u }).click();
@@ -81,7 +81,7 @@ test("작업 기록의 추천 조회 실패는 조회만 재시도하고 실제 
 	await page.goto("/main/bookmarks/activity");
 	await page
 		.locator(`[data-bookmark-job-id="${job.id}"]`)
-		.getByRole("button", { name: "추천 확인·저장", exact: true })
+		.getByRole("button", { name: "Review & Save", exact: true })
 		.click();
 	const dialog = page.getByRole("alertdialog");
 	await expect(
@@ -98,7 +98,7 @@ test("작업 기록의 추천 조회 실패는 조회만 재시도하고 실제 
 	await dialog.getByRole("button", { name: "취소", exact: true }).click();
 	await page
 		.locator(`[data-bookmark-job-id="${job.id}"]`)
-		.getByRole("button", { name: "추천 확인·저장", exact: true })
+		.getByRole("button", { name: "Review & Save", exact: true })
 		.click();
 	await expect(dialog.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
 	await expect(dialog.getByLabel("컬렉션", { exact: true })).toHaveText(
@@ -148,7 +148,7 @@ test("컬렉션 조회가 실패한 뒤 늦게 복구돼도 호스트 추천은 
 		await page
 			.locator('[data-thread-url^="https://www.fmkorea.com/"]')
 			.first()
-			.getByRole("button", { name: "북마크 저장", exact: true })
+			.getByRole("button", { name: "Bookmark", exact: true })
 			.click();
 		const dialog = page.getByRole("alertdialog");
 		release();
@@ -164,7 +164,7 @@ test("Main 저장 팝업은 자동 추천 뒤 컬렉션 트리의 수동 선택�
 	await page.goto("/main");
 	const card = page.getByTestId("thread-card").first();
 	await expect(card).toBeVisible();
-	await card.getByRole("button", { name: "북마크 저장", exact: true }).click();
+	await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 	const dialog = page.getByRole("alertdialog");
 	await expect(dialog.getByLabel("제목 (선택)")).toBeFocused();
 	await expect(dialog.getByRole("button", { name: /다시 추천|요청 다시 확인/u })).toBeVisible();
@@ -177,7 +177,7 @@ test("Main 저장 팝업은 자동 추천 뒤 컬렉션 트리의 수동 선택�
 	await tree.getByRole("treeitem", { name: "study", exact: true }).click();
 	await expect(dialog.getByLabel("컬렉션", { exact: true })).toContainText("study");
 	await dialog.getByRole("button", { name: "취소", exact: true }).click();
-	await expect(card.getByRole("button", { name: "북마크 저장", exact: true })).toBeFocused();
+	await expect(card.getByRole("button", { name: "Bookmark", exact: true })).toBeFocused();
 });
 
 test("실제 추천 결과가 늦게 도착해도 그 사이 바꾼 제목에 적용하지 않는다", async ({ page }) => {
@@ -201,7 +201,7 @@ test("실제 추천 결과가 늦게 도착해도 그 사이 바꾼 제목에 �
 	await page.goto("/main/bookmarks/activity");
 	await page
 		.locator(`[data-bookmark-job-id="${previousJob.id}"]`)
-		.getByRole("button", { name: "추천 확인·저장", exact: true })
+		.getByRole("button", { name: "Review & Save", exact: true })
 		.click();
 	const preload = page.getByRole("alertdialog");
 	await expect(preload.getByText("AI 추천", { exact: true })).toBeVisible();
@@ -219,7 +219,7 @@ test("실제 추천 결과가 늦게 도착해도 그 사이 바꾼 제목에 �
 	try {
 		await page
 			.locator(`[data-bookmark-job-id="${job.id}"]`)
-			.getByRole("button", { name: "추천 확인·저장", exact: true })
+			.getByRole("button", { name: "Review & Save", exact: true })
 			.click();
 		const dialog = page.getByRole("alertdialog");
 		await expect.poll(() => deferred).toBe(true);
@@ -265,7 +265,7 @@ async function restoreQuickSource(db: Awaited<ReturnType<typeof bookmarkOwner>>,
 test("저장 처리가 시작되면 이미 열린 컬렉션 트리도 선택할 수 없다", async ({ page }) => {
 	await page.goto("/main");
 	const card = page.getByTestId("thread-card").first();
-	await card.getByRole("button", { name: "북마크 저장", exact: true }).click();
+	await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 	const dialog = page.getByRole("alertdialog");
 	await dialog.getByLabel("컬렉션", { exact: true }).click();
 	const tree = dialog.getByRole("tree", { name: "컬렉션 선택", exact: true });
@@ -305,7 +305,7 @@ test("Quick에서도 같은 트리 팝업을 사용하고 취소 시 수집 글�
 		await page.goto("/main/quick");
 		await page
 			.locator(`[data-thread-url=${JSON.stringify(url)}]`)
-			.getByRole("button", { name: "북마크 저장", exact: true })
+			.getByRole("button", { name: "Bookmark", exact: true })
 			.click();
 		const dialog = page.getByRole("alertdialog");
 		await expect(dialog.getByRole("button", { name: /다시 추천|요청 다시 확인/u })).toBeVisible();
@@ -344,7 +344,7 @@ for (const screen of ["Main", "Quick"]) {
 		}
 		try {
 			const started = new Date().toISOString();
-			await card.getByRole("button", { name: "북마크 저장", exact: true }).click();
+			await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 			const dialog = page.getByRole("alertdialog");
 			const title = await dialog.getByLabel("제목 (선택)").inputValue();
 
@@ -507,7 +507,7 @@ for (const failure of ["missing-key", "budget"] as const) {
 		});
 		await page
 			.locator(`[data-thread-url=${JSON.stringify(url)}]`)
-			.getByRole("button", { name: "북마크 저장", exact: true })
+			.getByRole("button", { name: "Bookmark", exact: true })
 			.click();
 		const dialog = page.getByRole("alertdialog");
 		await expect(

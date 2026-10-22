@@ -2,7 +2,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import { type Ref, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	AlertDialog,
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { collectionForHost } from "@/lib/bookmark-host";
 import { useTRPCClient } from "@/trpc/client";
 import { BookmarkCollectionPicker, bookmarkFieldClass } from "./bookmark-collection-picker";
+import { useBookmarkDialogMotion } from "./use-bookmark-dialog-motion";
 import { useBookmarkSaveRecommendation } from "./use-bookmark-save-recommendation";
 
 export type Source = { id: string; url: string; title: string };
@@ -67,12 +68,16 @@ function BookmarkSaveForm({
 	recommendationId,
 	returnFocus,
 	onSavingChange,
+	contentRef,
+	overlayRef,
 }: {
 	source: Source;
 	close: () => void;
 	recommendationId?: string;
 	returnFocus: () => void;
 	onSavingChange: (saving: boolean) => void;
+	contentRef: Ref<HTMLDivElement>;
+	overlayRef: Ref<HTMLDivElement>;
 }) {
 	const trpc = useTRPCClient();
 	const router = useRouter();
@@ -129,7 +134,10 @@ function BookmarkSaveForm({
 	const error = save.error?.message ?? message ?? recommendation.error?.message;
 	return (
 		<AlertDialogContent
-			className="max-h-[90dvh] overflow-y-auto pb-[max(24px,env(safe-area-inset-bottom))] motion-reduce:animate-none"
+			ref={contentRef}
+			overlayRef={overlayRef}
+			overlayClassName="animate-none!"
+			className="max-h-[90dvh] animate-none! overflow-y-auto pb-[max(24px,env(safe-area-inset-bottom))]"
 			onOpenAutoFocus={(event) => {
 				event.preventDefault();
 				titleInput.current?.focus();
@@ -288,16 +296,27 @@ export default function BookmarkSaveRoot(props: {
 	recommendationId?: string;
 	close: () => void;
 	returnFocus: () => void;
+	openedAt?: number;
 }) {
 	const [saving, setSaving] = useState(false);
+	const { content, overlay, dismiss } = useBookmarkDialogMotion<HTMLDivElement>(
+		props.close,
+		props.openedAt
+	);
 	return (
 		<AlertDialog
 			open
 			onOpenChange={(open) => {
-				if (!open && !saving) props.close();
+				if (!open && !saving) dismiss();
 			}}
 		>
-			<BookmarkSaveForm {...props} onSavingChange={setSaving} />
+			<BookmarkSaveForm
+				{...props}
+				close={dismiss}
+				contentRef={content}
+				overlayRef={overlay}
+				onSavingChange={setSaving}
+			/>
 		</AlertDialog>
 	);
 }

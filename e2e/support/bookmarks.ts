@@ -36,7 +36,7 @@ export async function saveSourceBookmark(
 		if (existing.data?.length) continue;
 		const source = await db.from("threads").select("id,state").eq("url", url).single();
 		expect(source.error).toBeNull();
-		await card.getByRole("button", { name: "북마크 저장", exact: true }).click();
+		await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 		const dialog = page.getByRole("alertdialog");
 		await expect(dialog.getByLabel("URL", { exact: true })).toHaveValue(url as string);
 		await expect(dialog.getByLabel("URL", { exact: true })).toHaveAttribute("readonly");
