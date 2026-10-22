@@ -113,6 +113,8 @@ select is(
 	array[
 		'acknowledge_web_push_inbox(text)',
 		'bookmark_command(text,jsonb)',
+		'bookmark_health_settings()',
+		'bookmark_health_update_settings(boolean,integer)',
 		'bookmark_snapshot(jsonb)',
 		'bulk_move_inbox_to_trash()',
 		'disable_web_push_subscription(text)',

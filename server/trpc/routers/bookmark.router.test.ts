@@ -49,6 +49,15 @@ function createContext(
 		configuration: vi.fn().mockReturnValue({ raindrop: true, openrouter: true, worker: false }),
 		jobs: vi.fn().mockResolvedValue([job]),
 		start: vi.fn().mockResolvedValue(job),
+		startHealth: vi
+			.fn()
+			.mockResolvedValue({
+				job,
+				requestedCount: 2,
+				queuedCount: 2,
+				reusedCount: 0,
+				activeJobIds: [],
+			}),
 		resume: vi.fn().mockResolvedValue(job),
 		aiUsage: vi.fn().mockResolvedValue({ requestCount: 2 }),
 		recommend: vi.fn().mockResolvedValue(job),
@@ -76,6 +85,11 @@ function createContext(
 }
 
 const protectedCalls: [string, (caller: Caller) => Promise<unknown>][] = [
+	["bookmarkCheck.settings", (caller) => caller.bookmarkCheck.settings()],
+	[
+		"bookmarkCheck.updateSettings",
+		(caller) => caller.bookmarkCheck.updateSettings({ enabled: true, dailyLimit: 500 }),
+	],
 	[
 		"bookmark.lookup",
 		(caller) => caller.bookmark.lookup({ url: "https://example.com/", threadId: "1" }),
@@ -345,7 +359,7 @@ describe("bookmark caller input contracts", () => {
 		const { caller, bookmark } = createContext();
 
 		await caller.bookmarkCheck.start({ scope: "selected", ids: [id, otherId] });
-		expect(bookmark.start).toHaveBeenCalledWith("check", { scope: "selected", ids: [id, otherId] });
+		expect(bookmark.startHealth).toHaveBeenCalledWith({ scope: "selected", ids: [id, otherId] });
 		await caller.bookmarkAI.classify({ scope: "collection", collectionId: null });
 		expect(bookmark.start).toHaveBeenCalledWith("classify", {
 			scope: "collection",
@@ -545,4 +559,21 @@ describe("bookmark RPC errors through the HTTP boundary", () => {
 		});
 		expect((error as Error).message).not.toContain("private database credential");
 	});
+});
+it("health settings require the owner and validate daily bounds", async () => {
+	const { caller, bookmark } = createContext();
+	Object.assign(bookmark, {
+		healthSettings: vi.fn().mockResolvedValue({ enabled: false, dailyLimit: 500 }),
+		updateHealthSettings: vi.fn().mockResolvedValue({ enabled: true, dailyLimit: 500 }),
+	});
+	await expect(caller.bookmarkCheck.settings()).resolves.toEqual({
+		enabled: false,
+		dailyLimit: 500,
+	});
+	for (const dailyLimit of [0, 1001])
+		await expect(
+			caller.bookmarkCheck.updateSettings({ enabled: true, dailyLimit })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	const denied = createContext({ kind: "forbidden", status: 403, message: "Denied" });
+	await expect(denied.caller.bookmarkCheck.settings()).rejects.toMatchObject({ code: "FORBIDDEN" });
 });

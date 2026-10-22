@@ -1,5 +1,8 @@
 import { z } from "zod";
 import {
+	type BookmarkScope,
+	bookmarkHealthSettingsSchema,
+	bookmarkHealthStartResultSchema,
 	bookmarkJobSchema,
 	bookmarkLookupSchema,
 	bookmarkRecommendationSchema,
@@ -53,6 +56,22 @@ export class BookmarkRepository {
 			return parsed.data;
 		};
 		return this.metrics?.measureRepository("bookmark.snapshot", run) ?? run();
+	}
+	async healthSettings() {
+		const { data, error } = await this.supabase.rpc("bookmark_health_settings");
+		if (error) throw mapPostgrestError(error, "자동 검사 설정을 불러오지 못했습니다.");
+		return bookmarkHealthSettingsSchema.parse(data);
+	}
+	async updateHealthSettings(input: { enabled: boolean; dailyLimit: number }) {
+		const { data, error } = await this.supabase.rpc("bookmark_health_update_settings", {
+			p_enabled: input.enabled,
+			p_daily_limit: input.dailyLimit,
+		});
+		if (error) throw mapPostgrestError(error, "자동 검사 설정을 저장하지 못했습니다.");
+		return bookmarkHealthSettingsSchema.parse(data);
+	}
+	startHealth(scope: BookmarkScope) {
+		return this.command("start", { ...scope, kind: "check" }, bookmarkHealthStartResultSchema);
 	}
 	async aiUsage() {
 		const { data, error } = await this.supabase.rpc("bookmark_ai_usage");

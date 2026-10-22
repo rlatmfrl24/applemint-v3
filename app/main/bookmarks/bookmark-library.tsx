@@ -338,7 +338,7 @@ function useBookmarkManager(screen: BookmarkView) {
 		}
 	}, [selectionKey]);
 	const job = useMutation({
-		mutationFn: (kind: "check" | "classify" | "review") => {
+		mutationFn: async (kind: "check" | "classify" | "review") => {
 			const input = selectedScope(scope, collection, selectedIds);
 			return kind === "check"
 				? trpc.bookmarkCheck.start.mutate(input)

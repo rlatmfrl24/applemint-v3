@@ -1362,6 +1362,11 @@ export type Database = {
 				Args: { p_host: string; p_retry_at: string; p_token: string };
 				Returns: boolean;
 			};
+			bookmark_health_settings: { Args: never; Returns: Json };
+			bookmark_health_update_settings: {
+				Args: { p_daily_limit: number; p_enabled: boolean };
+				Returns: Json;
+			};
 			bookmark_lookup: {
 				Args: { p_url: string };
 				Returns: {
@@ -1452,6 +1457,7 @@ export type Database = {
 			dispatch_due_crawl_sources: { Args: never; Returns: Json };
 			dispatch_due_media_enrichment_workers: { Args: never; Returns: Json };
 			dispatch_due_web_push_notifications: { Args: never; Returns: Json };
+			enqueue_bookmark_health_daily: { Args: never; Returns: string };
 			evaluate_crawl_alerts: { Args: { p_now?: string }; Returns: Json };
 			fail_media_enrichment_job: {
 				Args: {

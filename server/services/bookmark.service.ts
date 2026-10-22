@@ -21,6 +21,15 @@ export class BookmarkService {
 	configuration() {
 		return getBookmarkConfiguration();
 	}
+	healthSettings() {
+		return this.store.healthSettings();
+	}
+	updateHealthSettings(input: { enabled: boolean; dailyLimit: number }) {
+		return this.store.updateHealthSettings(input);
+	}
+	startHealth(scope: BookmarkScope) {
+		return this.store.startHealth(scope);
+	}
 	aiUsage() {
 		return this.store.aiUsage();
 	}

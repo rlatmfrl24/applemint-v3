@@ -182,60 +182,9 @@ export async function processHealthClaim(
 		}
 		return commit("done");
 	}
-	try {
-		if (!["page", "media", "decision", "confirm", "done"].includes(work.phase))
-			return commit("failed", undefined, "검사 진행 정보가 올바르지 않습니다.");
-		if (work.phase === "confirm") {
-			if (work.confirmAfter && Date.parse(work.confirmAfter) > Date.now())
-				return commit("waiting", work.confirmAfter);
-			work.confirmationAttempts = 1;
-			work.mediaCursor = 0;
-			work.reservationId = null;
-			work.evidenceKey = null;
-			work.phase = "page";
-		}
-		if (work.phase === "page") {
-			work.observation = await inspectBookmarkPage(
-				{
-					bookmarkId: item.id,
-					url: item.url,
-					title: item.title,
-					version: item.expected_version,
-					baseline: claim.baseline,
-					decisionSample: Boolean(job.progress.decisionSample),
-				},
-				io
-			);
-			if (work.observation.reachability.status !== "healthy") return finish();
-			work.phase = work.observation.mediaRefs.length ? "media" : "decision";
-			return commit("pending");
-		}
+	async function decide(): Promise<HealthCommit> {
 		const obs = work.observation;
-		if (!obs || obs.input.url !== item.url || obs.input.version !== item.expected_version)
-			return commit("failed", undefined, "검사 URL 또는 버전이 변경되었습니다.");
-		if (work.phase === "media") {
-			for (let n = 0; n < 2 && work.mediaCursor < obs.mediaRefs.length && !io.signal.aborted; n++) {
-				const result = await probeHealthMedia(obs.mediaRefs[work.mediaCursor], io);
-				obs.evidence.media.items.push(result);
-				obs.evidence.media.checked++;
-				obs.evidence.media[result.state]++;
-				work.mediaCursor++;
-			}
-			const media = obs.evidence.media;
-			media.status =
-				media.missing > 0
-					? media.reachable > 0
-						? "partial"
-						: "missing_suspected"
-					: media.restricted + media.unknown > 0
-						? "unknown"
-						: media.checked === media.discovered && obs.evidence.coverage === "complete"
-							? "present"
-							: "unknown";
-			if (work.mediaCursor >= obs.mediaRefs.length) work.phase = "decision";
-			return commit("pending");
-		}
-		if (work.phase !== "decision") return finish();
+		if (!obs) return commit("failed", undefined, "검사 근거가 없습니다.");
 		const needed =
 			obs.evidence.content.applicable &&
 			(["unknown", "deleted_suspected", "changed_suspected"].includes(
@@ -361,6 +310,65 @@ export async function processHealthClaim(
 							? "restricted"
 							: "unknown";
 		return finish();
+	}
+
+	try {
+		if (!["page", "media", "decision", "confirm", "done"].includes(work.phase))
+			return commit("failed", undefined, "검사 진행 정보가 올바르지 않습니다.");
+		if (work.phase === "confirm") {
+			if (work.confirmAfter && Date.parse(work.confirmAfter) > Date.now())
+				return commit("waiting", work.confirmAfter);
+			work.confirmationAttempts = 1;
+			work.mediaCursor = 0;
+			work.reservationId = null;
+			work.evidenceKey = null;
+			work.phase = "page";
+		}
+		if (work.phase === "page") {
+			work.observation = await inspectBookmarkPage(
+				{
+					bookmarkId: item.id,
+					url: item.url,
+					title: item.title,
+					version: item.expected_version,
+					baseline: claim.baseline,
+					decisionSample:
+						Array.isArray(job.scope.decisionSampleIds) &&
+						job.scope.decisionSampleIds.includes(item.id),
+				},
+				io
+			);
+			if (work.observation.reachability.status !== "healthy") return finish();
+			work.phase = work.observation.mediaRefs.length ? "media" : "decision";
+			return commit("pending");
+		}
+		const obs = work.observation;
+		if (!obs || obs.input.url !== item.url || obs.input.version !== item.expected_version)
+			return commit("failed", undefined, "검사 URL 또는 버전이 변경되었습니다.");
+		if (work.phase === "media") {
+			for (let n = 0; n < 2 && work.mediaCursor < obs.mediaRefs.length && !io.signal.aborted; n++) {
+				const result = await probeHealthMedia(obs.mediaRefs[work.mediaCursor], io);
+				obs.evidence.media.items.push(result);
+				obs.evidence.media.checked++;
+				obs.evidence.media[result.state]++;
+				work.mediaCursor++;
+			}
+			const media = obs.evidence.media;
+			media.status =
+				media.missing > 0
+					? media.reachable > 0
+						? "partial"
+						: "missing_suspected"
+					: media.restricted + media.unknown > 0
+						? "unknown"
+						: media.checked === media.discovered && obs.evidence.coverage === "complete"
+							? "present"
+							: "unknown";
+			if (work.mediaCursor >= obs.mediaRefs.length) work.phase = "decision";
+			return commit("pending");
+		}
+		if (work.phase !== "decision") return finish();
+		return decide();
 	} catch (error) {
 		if (error instanceof HealthRequestDeferred) return commit("waiting", error.retryAt);
 		return commit(

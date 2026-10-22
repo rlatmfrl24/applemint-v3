@@ -10,6 +10,7 @@ import {
 	bookmarkScopeInputSchema,
 	bookmarkVersionInputSchema,
 } from "@/contracts/bookmark.schema";
+import { bookmarkHealthSettingsInputSchema } from "@/contracts/bookmark-health.schema";
 import { createTRPCRouter, ownerProcedure } from "../init";
 
 const idInput = z.object({ id: z.uuid() });
@@ -104,9 +105,13 @@ export const bookmarkImportRouter = createTRPCRouter({
 		.mutation(({ ctx, input }) => ctx.services.bookmark.resume(input)),
 });
 export const bookmarkCheckRouter = createTRPCRouter({
+	settings: ownerProcedure.query(({ ctx }) => ctx.services.bookmark.healthSettings()),
+	updateSettings: ownerProcedure
+		.input(bookmarkHealthSettingsInputSchema)
+		.mutation(({ ctx, input }) => ctx.services.bookmark.updateHealthSettings(input)),
 	start: ownerProcedure
 		.input(bookmarkScopeInputSchema)
-		.mutation(({ ctx, input }) => ctx.services.bookmark.start("check", input)),
+		.mutation(({ ctx, input }) => ctx.services.bookmark.startHealth(input)),
 });
 export const bookmarkAIRouter = createTRPCRouter({
 	usage: ownerProcedure.query(({ ctx }) => ctx.services.bookmark.aiUsage()),
