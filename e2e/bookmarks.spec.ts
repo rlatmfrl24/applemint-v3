@@ -11,7 +11,7 @@ test("수집 글 저장·수정·열기·휴지통·복원과 컬렉션 삭제�
 	await page.goto("/main");
 	await page
 		.locator(`[data-thread-url=${JSON.stringify(saved.url)}]`)
-		.getByRole("button", { name: "북마크 저장", exact: true })
+		.getByRole("button", { name: "Bookmark", exact: true })
 		.click();
 	await page.getByRole("alertdialog").getByRole("button", { name: "저장", exact: true }).click();
 	await expect(

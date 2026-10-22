@@ -136,7 +136,7 @@ test("컬렉션과 항목 메뉴를 Escape로 닫으면 트리거에 키보드 �
 
 test("관리자는 계층과 팝업을 제공하고 저장·설정 바로가기를 표시하지 않는다", async ({ page }) => {
 	await page.goto("/main/bookmarks");
-	await expect(page.getByRole("button", { name: "북마크 저장", exact: true })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "Bookmark", exact: true })).toHaveCount(0);
 	await expect(page.getByRole("link", { name: "북마크 설정", exact: true })).toHaveCount(0);
 	await expect(
 		page

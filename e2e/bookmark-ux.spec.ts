@@ -505,7 +505,7 @@ test("저장 팝업은 자동 추천 중 위치와 저장만 잠그고 요청 �
 		await page.goto("/main");
 		await page
 			.locator(`[data-thread-url=${JSON.stringify(source.url)}]`)
-			.getByRole("button", { name: "북마크 저장", exact: true })
+			.getByRole("button", { name: "Bookmark", exact: true })
 			.click();
 		const dialog = page.getByRole("alertdialog", { name: "북마크 저장", exact: true });
 		await expect(
@@ -754,7 +754,7 @@ async function captureBookmarkQA(
 	}
 	await page.goto("/main");
 	const card = page.locator('[data-thread-url^="https://www.fmkorea.com/"]').first();
-	await card.getByRole("button", { name: "북마크 저장", exact: true }).click();
+	await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 	const save = page.getByRole("alertdialog");
 	await expect(save.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
 	await expect(save.getByText("사이트 일치", { exact: true })).toBeVisible();
@@ -793,6 +793,57 @@ test("200%에 해당하는 CSS 화면과 모션 감소에서 패널과 키보드
 	}
 });
 
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+	test(`저장 팝업은 전환을 끝낸 뒤 닫고 초점을 복원한다 (${reducedMotion})`, async ({ page }) => {
+		await page.emulateMedia({ reducedMotion });
+		await page.goto("/main");
+		const trigger = page
+			.locator('[data-thread-url^="https://www.fmkorea.com/"]')
+			.first()
+			.getByRole("button", { name: "Bookmark", exact: true });
+		await trigger.click();
+		const dialog = page.getByRole("alertdialog", { name: "북마크 저장", exact: true });
+		await expect(dialog.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
+		await dialog.getByRole("button", { name: "취소", exact: true }).click();
+		await expect(dialog).not.toBeVisible();
+		await expect(trigger).toBeFocused();
+
+		await trigger.click();
+		const entrance = await dialog.evaluate((element) => {
+			const animation = element.getAnimations()[0];
+			animation.pause();
+			animation.currentTime = 80;
+			return {
+				opacity: Number(getComputedStyle(element).opacity),
+				duration: animation.effect?.getTiming().duration,
+				transforms: (animation.effect as KeyframeEffect)
+					.getKeyframes()
+					.map((frame) => frame.transform),
+			};
+		});
+		expect(entrance.duration).toBe(250);
+		expect(entrance.opacity).toBeGreaterThan(0);
+		expect(entrance.opacity).toBeLessThan(1);
+		expect(entrance.transforms).toEqual(
+			reducedMotion === "reduce" ? [undefined, undefined] : ["scale(0.96)", "scale(1)"]
+		);
+		await dialog.getByRole("button", { name: "취소", exact: true }).click();
+		const exit = await dialog.evaluate((element) => {
+			const animation = element.getAnimations()[0];
+			return {
+				inert: (element as HTMLElement).inert,
+				duration: animation.effect?.getTiming().duration,
+				opacity: Number((animation.effect as KeyframeEffect).getKeyframes()[0].opacity),
+			};
+		});
+		expect(exit.inert).toBe(true);
+		expect(exit.duration).toBe(200);
+		expect(exit.opacity).toBeCloseTo(entrance.opacity, 3);
+		await expect(dialog).not.toBeVisible();
+		await expect(trigger).toBeFocused();
+	});
+}
+
 test("폼 코드가 늦게 도착해도 저장 팝업 골격과 취소가 즉시 동작한다", async ({ page }) => {
 	let release = () => {};
 	const gate = new Promise<void>((resolve) => {
@@ -810,16 +861,16 @@ test("폼 코드가 늦게 도착해도 저장 팝업 골격과 취소가 즉시
 	try {
 		await page.goto("/main");
 		const card = page.locator('[data-thread-url^="https://www.fmkorea.com/"]').first();
-		await expect(card.getByRole("button", { name: "북마크 저장", exact: true })).toBeEnabled();
+		await expect(card.getByRole("button", { name: "Bookmark", exact: true })).toBeEnabled();
 		armed = true;
-		await card.getByRole("button", { name: "북마크 저장", exact: true }).click();
+		await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 		await expect.poll(() => held).toBe(true);
 		const dialog = page.getByRole("dialog", { name: "북마크 저장", exact: true });
 		await expect(dialog).toBeVisible();
 		await expect(dialog).toHaveAttribute("aria-busy", "true");
 		await dialog.getByRole("button", { name: "취소", exact: true }).press("Escape");
 		await expect(dialog).not.toBeVisible();
-		await expect(card.getByRole("button", { name: "북마크 저장", exact: true })).toBeFocused();
+		await expect(card.getByRole("button", { name: "Bookmark", exact: true })).toBeFocused();
 	} finally {
 		release();
 	}
@@ -841,7 +892,7 @@ test("30초 이후 수동 선택 전환은 진행 중 요청을 취소나 실패
 	try {
 		await page.goto("/main");
 		const card = page.locator(`[data-thread-url=${JSON.stringify(source.url)}]`);
-		await card.getByRole("button", { name: "북마크 저장", exact: true }).click();
+		await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 		const dialog = page.getByRole("alertdialog");
 		await expect(
 			dialog.getByText("저장할 컬렉션을 추천하고 있어요", { exact: true })
