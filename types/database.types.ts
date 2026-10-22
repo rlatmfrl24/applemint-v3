@@ -1343,6 +1343,25 @@ export type Database = {
 				Args: { p_action: string; p_input?: Json };
 				Returns: Json;
 			};
+			bookmark_health_ai_reserve: {
+				Args: {
+					p_bookmark: string;
+					p_evidence_key: string;
+					p_job: string;
+					p_lease: string;
+					p_reservation: string;
+				};
+				Returns: Json;
+			};
+			bookmark_health_ai_settle: {
+				Args: { p_reservation: string; p_result: Json };
+				Returns: boolean;
+			};
+			bookmark_health_host_claim: { Args: { p_host: string }; Returns: Json };
+			bookmark_health_host_release: {
+				Args: { p_host: string; p_retry_at: string; p_token: string };
+				Returns: boolean;
+			};
 			bookmark_lookup: {
 				Args: { p_url: string };
 				Returns: {

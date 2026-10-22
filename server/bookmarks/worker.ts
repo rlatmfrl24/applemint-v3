@@ -18,7 +18,7 @@ import {
 	reserveNano,
 	validateAIItems,
 } from "./ai";
-import { checkBookmarkLink, type LinkResult } from "./health";
+import { type HealthWork, processHealthClaim } from "./health-worker";
 import { collectionDigest, importVerified } from "./import-verification";
 import { parseRaindropPage, raindropManifest, readRaindrop } from "./raindrop";
 import {
@@ -35,6 +35,19 @@ const claimSchema = z.object({
 			expected_version: z.number().int(),
 			duplicate_count: z.number().int().optional(),
 			previous: z.unknown().nullable(),
+			work: z.custom<HealthWork>().nullable().optional(),
+			baseline: z
+				.object({
+					checkId: z.uuid(),
+					url: z.string(),
+					observedAt: z.string(),
+					title: z.string(),
+					textHash: z.string(),
+					textLength: z.number(),
+					mediaReachable: z.number(),
+				})
+				.nullable()
+				.optional(),
 		})
 	),
 	collections: z.array(bookmarkCollectionSchema),
@@ -172,19 +185,6 @@ async function importPage(
 		},
 		state: "retry",
 	};
-}
-
-async function processLink(claim: Claim): Promise<Commit> {
-	const item = claim.items[0];
-	if (!item) return {};
-	const result = { ...(await checkBookmarkLink(item.url)), checkedAt: new Date().toISOString() };
-	const previous = item.previous as LinkResult | null;
-	if (result.status === "dead" && previous?.status !== "dead") {
-		return { items: [{ id: item.id, version: item.version, state: "waiting", result }] };
-	}
-	if (result.status === "dead" && previous?.status === "dead")
-		result.reason = `${previous.reason} → 1분 뒤 재검사: ${result.reason}`;
-	return { items: [{ id: item.id, version: item.version, check: result, state: "done" }] };
 }
 
 async function enrich(claim: Claim): Promise<Commit> {
@@ -504,7 +504,13 @@ async function processClaim(
 				result = await importPage(db, claim, await getAccount(), token);
 				break;
 			case "check":
-				result = await processLink(claim);
+				result = claim.items[0]
+					? await processHealthClaim(db, {
+							job: claim.job,
+							item: { ...claim.items[0], work: claim.items[0].work ?? null },
+							baseline: claim.items[0].baseline ?? null,
+						})
+					: {};
 				break;
 			case "metadata":
 				result = await enrich(claim);
@@ -554,6 +560,7 @@ export async function runBookmarkWorker(db: AppSupabaseClient) {
 		if (claim.job.kind === "import") await new Promise((resolve) => setTimeout(resolve, 1200));
 		// A single AI call can consume the route deadline; durable pending items remain for the next dispatch.
 		if (["classify", "review", "interests", "recommend"].includes(claim.job.kind)) break;
+		if (claim.job.kind === "check" && claim.items[0]?.work?.phase === "decision") break;
 	}
 	return { claimedCount: claimed, leaseRejectedCount: leaseRejected };
 }

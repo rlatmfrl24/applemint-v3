@@ -43,7 +43,7 @@ export function extractHealthContent(input: {
 	};
 	evidence.coverage = candidates.length ? "complete" : "unknown";
 	const removed =
-		/삭제된 게시물|게시물[이가은는\s]*(?:삭제|존재하지)|게시글[이가은는\s]*(?:삭제|존재하지)|글[이가은는\s]*삭제|page (?:not found|has been removed)|content (?:deleted|removed|unavailable)|post (?:deleted|removed)|this (?:post|page) (?:was|has been) (?:deleted|removed)/iu;
+		/삭제된 게시물|게시물[이가은는\s]*(?:삭제|존재하지)|게시글[이가은는\s]*(?:삭제|존재하지)|(?:글|내용)[이가은는\s]*삭제|page (?:not found|has been removed)|content (?:deleted|removed|unavailable)|post (?:deleted|removed)|this (?:post|page) (?:was|has been) (?:deleted|removed)/iu;
 	if (accessWall) {
 		evidence.content.status = "restricted";
 		evidence.content.reasonCodes.push("ACCESS_WALL");
