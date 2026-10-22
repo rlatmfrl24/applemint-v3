@@ -7,6 +7,9 @@ export type Database = {
 				Row: {
 					charged_nano: number | null;
 					created_at: string;
+					health_bookmark_id: string | null;
+					health_decision: Json | null;
+					health_evidence_key: string | null;
 					id: string;
 					input_tokens: number;
 					job_id: string;
@@ -20,6 +23,9 @@ export type Database = {
 				Insert: {
 					charged_nano?: number | null;
 					created_at?: string;
+					health_bookmark_id?: string | null;
+					health_decision?: Json | null;
+					health_evidence_key?: string | null;
 					id: string;
 					input_tokens: number;
 					job_id: string;
@@ -33,6 +39,9 @@ export type Database = {
 				Update: {
 					charged_nano?: number | null;
 					created_at?: string;
+					health_bookmark_id?: string | null;
+					health_decision?: Json | null;
+					health_evidence_key?: string | null;
 					id?: string;
 					input_tokens?: number;
 					job_id?: string;
@@ -44,6 +53,13 @@ export type Database = {
 					state?: string;
 				};
 				Relationships: [
+					{
+						foreignKeyName: "bookmark_ai_reservations_health_bookmark_id_fkey";
+						columns: ["health_bookmark_id"];
+						isOneToOne: false;
+						referencedRelation: "bookmarks";
+						referencedColumns: ["id"];
+					},
 					{
 						foreignKeyName: "bookmark_ai_reservations_job_id_fkey";
 						columns: ["job_id"];
@@ -58,6 +74,9 @@ export type Database = {
 					bookmark_id: string;
 					bookmark_version: number;
 					checked_at: string;
+					checked_url: string | null;
+					evidence: Json | null;
+					evidence_revision: number;
 					final_url: string | null;
 					http_status: number | null;
 					id: string;
@@ -70,6 +89,9 @@ export type Database = {
 					bookmark_id: string;
 					bookmark_version: number;
 					checked_at?: string;
+					checked_url?: string | null;
+					evidence?: Json | null;
+					evidence_revision?: number;
 					final_url?: string | null;
 					http_status?: number | null;
 					id?: string;
@@ -82,6 +104,9 @@ export type Database = {
 					bookmark_id?: string;
 					bookmark_version?: number;
 					checked_at?: string;
+					checked_url?: string | null;
+					evidence?: Json | null;
+					evidence_revision?: number;
 					final_url?: string | null;
 					http_status?: number | null;
 					id?: string;
@@ -218,6 +243,7 @@ export type Database = {
 					job_id: string;
 					result: Json | null;
 					state: string;
+					work: Json | null;
 				};
 				Insert: {
 					available_at?: string;
@@ -227,6 +253,7 @@ export type Database = {
 					job_id: string;
 					result?: Json | null;
 					state?: string;
+					work?: Json | null;
 				};
 				Update: {
 					available_at?: string;
@@ -236,6 +263,7 @@ export type Database = {
 					job_id?: string;
 					result?: Json | null;
 					state?: string;
+					work?: Json | null;
 				};
 				Relationships: [
 					{
@@ -380,6 +408,8 @@ export type Database = {
 			};
 			bookmark_settings: {
 				Row: {
+					health_auto_enabled: boolean;
+					health_daily_limit: number;
 					id: boolean;
 					interest_version: number;
 					interests: string[];
@@ -389,6 +419,8 @@ export type Database = {
 					suggestions_job_id: string | null;
 				};
 				Insert: {
+					health_auto_enabled?: boolean;
+					health_daily_limit?: number;
 					id?: boolean;
 					interest_version?: number;
 					interests?: string[];
@@ -398,6 +430,8 @@ export type Database = {
 					suggestions_job_id?: string | null;
 				};
 				Update: {
+					health_auto_enabled?: boolean;
+					health_daily_limit?: number;
 					id?: boolean;
 					interest_version?: number;
 					interests?: string[];
