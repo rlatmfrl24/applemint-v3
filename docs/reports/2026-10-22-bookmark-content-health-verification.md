@@ -62,3 +62,5 @@ Tonematrix를 실제 원문 열기 버튼으로 열어 JS 기반 화면을 확�
 검증 종료 후 만든 대기 작업 2개만 pause했다(수동 29/30, 자동 5/346). 원래 로컬 Vault 주소를 복구하고 소유한 3001 서버를 종료해 3000의 구형 worker가 새 checkpoint를 소비하지 않게 했다. 근거 64개·health 영수증 11개 보존, 자동 false/500, Vault 복구를 권위 DB로 확인했다. 해당 로컬 검증 작업을 이어 보려면 갱신한 앱을 시작한 뒤 같은 작업을 재개해야 한다. 3000 서버는 종료 명령의 대상에 포함하지 않았으며 최종 확인 시 3000/3001 수신 프로세스는 없었다. 원본 checkout의 기존 미추적 문서는 그대로 뒀다.
 
 증거 파일(로컬 ignored): Settings/상세 PNG, `bookmark-health-final-readback-20261022.json`, `bookmark-health-browser-labels-20261022.json`, 읽기 전용 원본 목록 3개 JSON, 전체 DB 백업. 앱 비밀키와 원본 URL query는 이 보고서에 싣지 않는다.
+
+실행 ledger와 로그는 `reports/bookmark-health-validation-20261022/`에도 보존했다. 스킬이 지시한 임시 작업공간 삭제는 자동 승인 검토가 재귀 삭제와 파일별 삭제 모두 `blocked by policy`로 거절해 수행하지 못했다. 상세 거절 사유는 반환되지 않았다. `.superpowers/sdd/2026-10-22-bookmark-content-health/`는 git ignored 상태로 남았으며 구현·테스트·작업트리의 추적 파일에는 영향이 없다.
