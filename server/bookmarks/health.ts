@@ -16,6 +16,7 @@ export type HealthBaseline = {
 	mediaReachable: number;
 };
 export type HealthInput = {
+	title?: string;
 	bookmarkId: string;
 	url: string;
 	version: number;
