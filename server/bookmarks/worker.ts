@@ -559,8 +559,14 @@ export async function runBookmarkWorker(db: AppSupabaseClient) {
 		claimed++;
 		if (claim.job.kind === "import") await new Promise((resolve) => setTimeout(resolve, 1200));
 		// A single AI call can consume the route deadline; durable pending items remain for the next dispatch.
-		if (["classify", "review", "interests", "recommend"].includes(claim.job.kind)) break;
-		if (claim.job.kind === "check" && claim.items[0]?.work?.phase === "decision") break;
+		if (endsWorkerInvocation(claim)) break;
 	}
 	return { claimedCount: claimed, leaseRejectedCount: leaseRejected };
+}
+
+function endsWorkerInvocation(claim: Claim) {
+	return (
+		["classify", "review", "interests", "recommend"].includes(claim.job.kind) ||
+		(claim.job.kind === "check" && claim.items[0]?.work?.phase === "decision")
+	);
 }

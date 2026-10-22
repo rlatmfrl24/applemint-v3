@@ -49,15 +49,13 @@ function createContext(
 		configuration: vi.fn().mockReturnValue({ raindrop: true, openrouter: true, worker: false }),
 		jobs: vi.fn().mockResolvedValue([job]),
 		start: vi.fn().mockResolvedValue(job),
-		startHealth: vi
-			.fn()
-			.mockResolvedValue({
-				job,
-				requestedCount: 2,
-				queuedCount: 2,
-				reusedCount: 0,
-				activeJobIds: [],
-			}),
+		startHealth: vi.fn().mockResolvedValue({
+			job,
+			requestedCount: 2,
+			queuedCount: 2,
+			reusedCount: 0,
+			activeJobIds: [],
+		}),
 		resume: vi.fn().mockResolvedValue(job),
 		aiUsage: vi.fn().mockResolvedValue({ requestCount: 2 }),
 		recommend: vi.fn().mockResolvedValue(job),

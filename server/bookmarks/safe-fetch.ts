@@ -4,12 +4,17 @@ import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import { brotliDecompressSync, gunzipSync, inflateSync } from "node:zlib";
+export type HealthFetchContinuation = { url: string; redirects: number };
 export class HealthRequestDeferred extends Error {
-	constructor(public readonly retryAt: string) {
+	constructor(
+		public readonly retryAt: string,
+		public readonly continuation?: HealthFetchContinuation
+	) {
 		super("HEALTH_HOST_WAIT");
 	}
 }
 export type HealthFetchOptions = {
+	continuation?: HealthFetchContinuation;
 	maxBytes?: number;
 	signal?: AbortSignal;
 	referrer?: string;
@@ -134,12 +139,13 @@ type HttpResult = {
 	contentEncoding: string | null;
 };
 function decodeBody(
-	bytes: Buffer,
+	inputBytes: Buffer,
 	contentType: string,
 	encoding: string | null,
 	maxBytes: number,
 	truncated: boolean
 ) {
+	let bytes = inputBytes;
 	try {
 		const options = { maxOutputLength: Math.max(1, maxBytes) };
 		if (bytes.length && encoding === "gzip") bytes = gunzipSync(bytes, options);
@@ -250,28 +256,15 @@ export async function safeFetch(value: string, options: HealthFetchOptions = {})
 		source.hash = "";
 		referrer = source.toString();
 	}
-	let url = safeUrl(value);
-	for (let redirects = 0; redirects <= 5; redirects++) {
+	let url = safeUrl(options.continuation?.url ?? value);
+	for (let redirects = options.continuation?.redirects ?? 0; redirects <= 5; redirects++) {
 		const address = await publicAddress(url, signal);
-		const release = await options.beforeRequest?.(url);
+		const release = await claimHealthHost(options.beforeRequest, url, redirects);
 		let result: HttpResult | undefined;
 		try {
 			result = await requestPinned(url, address, signal, options.maxBytes ?? 0, referrer);
 		} finally {
-			let retryAt: string | undefined;
-			if (result && [429, 503].includes(result.status)) {
-				const now = Date.now();
-				const raw = result.retryAfter;
-				const requested =
-					raw && /^\d+$/u.test(raw) ? now + Number(raw) * 1000 : raw ? Date.parse(raw) : Number.NaN;
-				retryAt = new Date(
-					Math.min(
-						now + 86400000,
-						Number.isFinite(requested) ? Math.max(now + 2000, requested) : now + 900000
-					)
-				).toISOString();
-			}
-			await release?.(retryAt);
+			await release?.(healthBackoff(result));
 		}
 		if ([301, 302, 303, 307, 308].includes(result.status) && result.location) {
 			if (redirects === 5) throw new BookmarkFetchError("REDIRECT_LIMIT");
@@ -281,4 +274,31 @@ export async function safeFetch(value: string, options: HealthFetchOptions = {})
 		return { ...result, finalUrl: url.toString() };
 	}
 	throw new BookmarkFetchError("REDIRECT_LIMIT");
+}
+
+function healthBackoff(result: HttpResult | undefined): string | undefined {
+	if (!result || ![429, 503].includes(result.status)) return undefined;
+	const now = Date.now();
+	const raw = result.retryAfter;
+	const requested = raw && /^\d+$/u.test(raw) ? now + Number(raw) * 1000 : Date.parse(raw ?? "");
+	return new Date(
+		Math.min(
+			now + 86400000,
+			Number.isFinite(requested) ? Math.max(now + 2000, requested) : now + 900000
+		)
+	).toISOString();
+}
+
+async function claimHealthHost(
+	beforeRequest: HealthFetchOptions["beforeRequest"],
+	url: URL,
+	redirects: number
+) {
+	try {
+		return await beforeRequest?.(url);
+	} catch (error) {
+		if (error instanceof HealthRequestDeferred)
+			throw new HealthRequestDeferred(error.retryAt, { url: url.toString(), redirects });
+		throw error;
+	}
 }

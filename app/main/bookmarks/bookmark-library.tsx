@@ -28,6 +28,7 @@ import type {
 	BookmarkScope,
 } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
+import { healthReviewInput } from "@/lib/bookmark-health";
 import {
 	bookmarkHistoryPosition,
 	guardBookmarkHistory,
@@ -73,6 +74,9 @@ const viewInfo = {
 const reviewTypes = {
 	all: "전체",
 	dead: "죽은 링크",
+	content: "본문 삭제·변경 의심",
+	media: "미디어 소실·일부 실패",
+	uncheckable: "접근 제한·판단 불가",
 	unused: "미사용 후보",
 	classify: "컬렉션 변경안",
 };
@@ -344,28 +348,35 @@ function useBookmarkManager(screen: BookmarkView) {
 				? trpc.bookmarkCheck.start.mutate(input)
 				: trpc.bookmarkAI[kind].mutate(input);
 		},
-		onSuccess: async () => {
+		onSuccess: async (result) => {
 			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.success("작업을 등록했습니다. 검토 화면에서 결과를 확인하세요.");
+			toast.success(
+				"queuedCount" in result
+					? `새 검사 ${result.queuedCount}개 · 진행 중 ${result.reusedCount}개 재사용`
+					: "작업을 등록했습니다. 검토 화면에서 결과를 확인하세요."
+			);
 		},
 		onError: (error) => toast.error(error.message),
 	});
 	const classifications = latestClassificationProposals(selectedItems);
 	const keep = useMutation({
-		mutationFn: (items: { id: string; version: number }[]) =>
+		mutationFn: (items: ReturnType<typeof healthReviewInput>[]) =>
 			trpc.bookmark.bulk.mutate({ action: "keep", items }),
 		onSuccess: async () => {
 			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
 			toast.success("선택 항목을 유지했습니다.");
 		},
-		onError: (error) => toast.error(error.message),
+		onError: async (error) => {
+			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
+			toast.error(`${error.message} 최신 검사 근거를 다시 확인해주세요.`);
+		},
 	});
 	const bulk = {
 		isPending: keep.isPending || bookmarkChange.isPending,
 		mutate: (action: "keep" | "trash" | "restore") => {
 			const items = selectedItems;
 			setSelected([]);
-			if (action === "keep") keep.mutate(items.map(({ id, version }) => ({ id, version })));
+			if (action === "keep") keep.mutate(items.map(healthReviewInput));
 			else bookmarkChange.mutate({ action, items });
 		},
 	};
@@ -550,6 +561,14 @@ function JobControls({ m }: { m: Manager }) {
 			>
 				링크 검사
 			</Button>
+			{m.job.data && "queuedCount" in m.job.data && (
+				<p role="status" className="text-xs">
+					새 검사 {m.job.data.queuedCount}개 · 진행 중 {m.job.data.reusedCount}개 재사용{" "}
+					<Link className="underline" href="/main/bookmarks/activity">
+						진행 작업 보기
+					</Link>
+				</p>
+			)}
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
 					<Button size="sm" variant="outline" disabled={m.disabled}>

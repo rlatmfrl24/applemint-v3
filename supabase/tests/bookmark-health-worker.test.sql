@@ -1,5 +1,5 @@
 begin;
-select plan(23);
+select plan(25);
 insert into public.bookmarks(id,url,url_key,title) values ('bbbbbbbb-9800-4000-8000-000000000001','https://example.com/worker','https://example.com/worker','Worker');
 insert into public.bookmark_jobs(id,kind,state,lease_token,lease_expires_at,total) values ('aaaaaaaa-9800-4000-8000-000000000001','check','processing','cccccccc-9800-4000-8000-000000000001',now()+interval '90 seconds',1);
 insert into public.bookmark_job_items(job_id,bookmark_id,expected_version) values ('aaaaaaaa-9800-4000-8000-000000000001','bbbbbbbb-9800-4000-8000-000000000001',1);
@@ -39,4 +39,15 @@ select ok(public.bookmark_health_ai_settle('eeeeeeee-9800-4000-8000-000000000004
 select is((select charged_nano from public.bookmark_ai_reservations where id='eeeeeeee-9800-4000-8000-000000000004'),3000000::bigint,'overrun keeps actual charge');
 select is((select state from public.bookmark_ai_reservations where id='eeeeeeee-9800-4000-8000-000000000004'),'uncertain','overrun blocks further AI budget use');
 select is((select health_decision from public.bookmark_ai_reservations where id='eeeeeeee-9800-4000-8000-000000000004'),null::jsonb,'overrun cannot cache a decision');
+
+insert into public.bookmark_jobs(id,kind,state,total,completed) values('aaaaaaaa-9800-4000-8000-000000000002','check','succeeded',1,1);
+insert into public.bookmark_job_items(job_id,bookmark_id,expected_version,state) values('aaaaaaaa-9800-4000-8000-000000000002','bbbbbbbb-9800-4000-8000-000000000002',1,'done');
+insert into public.bookmark_checks(id,bookmark_id,job_id,bookmark_version,status,reason,checked_url,evidence,checked_at) values
+ ('dddddddd-9800-4000-8000-000000000001','bbbbbbbb-9800-4000-8000-000000000002','aaaaaaaa-9800-4000-8000-000000000002',1,'healthy','normal','https://example.com/next','{"coverage":"complete","content":{"status":"present","title":"Normal","textHash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","textLength":100},"media":{"status":"present","reachable":1}}',now()-interval '1 day'),
+ ('dddddddd-9800-4000-8000-000000000002','bbbbbbbb-9800-4000-8000-000000000002','aaaaaaaa-9800-4000-8000-000000000001',1,'healthy','provisional','https://example.com/next','{"coverage":"complete","content":{"status":"present","title":"Current","textHash":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","textLength":100},"media":{"status":"not_checked","reachable":0}}',now());
+update public.bookmark_jobs set state='retry',available_at=now(),lease_token=null,lease_expires_at=null where id='aaaaaaaa-9800-4000-8000-000000000001';
+select is(public.bookmark_worker_claim()->'items'->0->'baseline'->>'checkId','dddddddd-9800-4000-8000-000000000001','an unfinished page observation cannot replace the previous normal media baseline');
+update public.bookmark_checks set evidence=jsonb_set(evidence,'{media,status}','"missing_suspected"') where id='dddddddd-9800-4000-8000-000000000002';
+update public.bookmark_jobs set state='retry',available_at=now(),lease_token=null,lease_expires_at=null where id='aaaaaaaa-9800-4000-8000-000000000001';
+select is(public.bookmark_worker_claim()->'items'->0->'baseline'->>'checkId','dddddddd-9800-4000-8000-000000000001','suspected media loss does not erase the last known normal baseline');
 select * from finish(); rollback;

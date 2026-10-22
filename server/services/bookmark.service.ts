@@ -21,11 +21,19 @@ export class BookmarkService {
 	configuration() {
 		return getBookmarkConfiguration();
 	}
-	healthSettings() {
-		return this.store.healthSettings();
+	async healthSettings() {
+		const settings = await this.store.healthSettings();
+		return {
+			...settings,
+			workerConfigured: settings.workerConfigured && getBookmarkConfiguration().worker,
+		};
 	}
-	updateHealthSettings(input: { enabled: boolean; dailyLimit: number }) {
-		return this.store.updateHealthSettings(input);
+	async updateHealthSettings(input: { enabled: boolean; dailyLimit: number }) {
+		const settings = await this.store.updateHealthSettings(input);
+		return {
+			...settings,
+			workerConfigured: settings.workerConfigured && getBookmarkConfiguration().worker,
+		};
 	}
 	startHealth(scope: BookmarkScope) {
 		return this.store.startHealth(scope);

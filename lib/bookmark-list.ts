@@ -14,13 +14,14 @@ export function flattenBookmarkPages(pages: { items: BookmarkItem[] }[] | undefi
 	return [...items.values()];
 }
 
-type JobResult = { id: string; state: string; updated_at: string };
+type JobResult = { id: string; kind?: string; state: string; updated_at: string };
 export function bookmarkResultsChanged(previous: JobResult[] | undefined, current: JobResult[]) {
 	return (
 		previous !== undefined &&
 		current.some(
 			(job) =>
-				["succeeded", "partial", "paused", "failed"].includes(job.state) &&
+				(["succeeded", "partial", "paused", "failed"].includes(job.state) ||
+					job.kind === "check") &&
 				previous.find((old) => old.id === job.id)?.updated_at !== job.updated_at
 		)
 	);

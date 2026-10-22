@@ -69,9 +69,10 @@ select is(public.enqueue_bookmark_health_daily(),null::uuid,'prior page/media/co
 update public.bookmark_job_items i set state='waiting',available_at=now()+interval '1 month',work='{"phase":"decision"}' from public.bookmark_jobs j where j.id=i.job_id and j.scope->>'origin'='automatic';
 update public.bookmark_jobs set available_at=now()+interval '1 month' where scope->>'origin'='automatic';
 insert into public.bookmark_jobs(id,kind,state) values('aaaaaaaa-9900-4000-8000-000000000021','check','succeeded'),('aaaaaaaa-9900-4000-8000-000000000022','check','succeeded'),('aaaaaaaa-9900-4000-8000-000000000023','check','succeeded');
+insert into public.bookmark_job_items(job_id,bookmark_id,expected_version,state) values('aaaaaaaa-9900-4000-8000-000000000022',md5('health-schedule-1')::uuid,1,'done');
 insert into public.bookmark_checks(id,bookmark_id,job_id,bookmark_version,status,reason,checked_url,evidence,checked_at) values
 ('dddddddd-9900-4000-8000-000000000021',md5('health-schedule-1')::uuid,'aaaaaaaa-9900-4000-8000-000000000021',1,'healthy','old observation','https://site1.example/1','{"coverage":"complete","content":{"status":"unknown"}}',now()-interval '70 days'),
-('dddddddd-9900-4000-8000-000000000022',md5('health-schedule-1')::uuid,'aaaaaaaa-9900-4000-8000-000000000022',1,'healthy','normal baseline','https://site1.example/1','{"coverage":"complete","content":{"status":"present"}}',now()-interval '50 days'),
+('dddddddd-9900-4000-8000-000000000022',md5('health-schedule-1')::uuid,'aaaaaaaa-9900-4000-8000-000000000022',1,'healthy','normal baseline','https://site1.example/1','{"coverage":"complete","content":{"status":"present"},"media":{"status":"present","reachable":1}}',now()-interval '50 days'),
 ('dddddddd-9900-4000-8000-000000000023',md5('health-schedule-1')::uuid,'aaaaaaaa-9900-4000-8000-000000000023',1,'healthy','event observation','https://site1.example/1','{"coverage":"complete","content":{"status":"unknown"}}',now()-interval '80 days');
 insert into public.bookmark_events(bookmark_id,kind,evidence_id) values(md5('health-schedule-1')::uuid,'keep','dddddddd-9900-4000-8000-000000000023');
 select ok(public.enqueue_bookmark_health_daily() is not null,'future AI-only wait permits a new current-day page job');

@@ -69,3 +69,26 @@ it("validates every redirect before its host permit", async () => {
 	expect(network.request).toHaveBeenCalledTimes(1);
 	expect(permit).toHaveBeenCalledTimes(1);
 });
+it("resumes a redirect after the host cooldown without re-requesting the original URL", async () => {
+	const { HealthRequestDeferred } = await import("./safe-fetch");
+	reply(new Uint8Array(), { location: "https://example.com/final" }, 301);
+	const permit = vi
+		.fn()
+		.mockResolvedValueOnce(vi.fn())
+		.mockRejectedValueOnce(new HealthRequestDeferred("2026-10-22T04:00:02Z"));
+	const deferred = await safeFetch("http://example.com/start", { beforeRequest: permit }).catch(
+		(error) => error
+	);
+	expect(deferred).toMatchObject({
+		continuation: { url: "https://example.com/final", redirects: 1 },
+	});
+	reply(Buffer.from("final body"), { "content-type": "text/html" });
+	const result = await safeFetch("http://example.com/start", {
+		maxBytes: 128,
+		beforeRequest: async () => async () => {},
+		continuation: deferred.continuation,
+	});
+	expect(result.body).toBe("final body");
+	expect(String(network.request.mock.calls[1][0])).toBe("https://example.com/final");
+	expect(network.request).toHaveBeenCalledTimes(2);
+});

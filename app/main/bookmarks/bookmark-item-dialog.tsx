@@ -18,18 +18,115 @@ import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent } from "@/components/ui/drawer";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { BookmarkCollection, BookmarkItem } from "@/contracts/bookmark.schema";
+import type { BookmarkHealthEvidence } from "@/contracts/bookmark-health.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
+import {
+	aiHealthLabels,
+	contentHealthLabels,
+	healthReviewInput,
+	healthSummary,
+	mediaHealthLabels,
+} from "@/lib/bookmark-health";
 import { useTRPCClient } from "@/trpc/client";
 import styles from "./bookmark-detail.module.css";
 import { useBookmarkChange, useBookmarkDisplayChanges } from "./use-bookmark-actions";
 
 const healthLabels = {
-	healthy: "정상",
+	healthy: "접속 확인",
 	dead: "죽은 링크 의심",
 	restricted: "접근 제한",
 	temporary: "일시 오류",
 	uncheckable: "검사 불가",
 };
+
+function BookmarkHealthDetail({ item }: { item: BookmarkItem }) {
+	const check = item.check;
+	if (!check) return <p className="text-muted-foreground text-xs">아직 검사하지 않았습니다.</p>;
+	const evidence = check.evidence;
+	const summary = healthSummary(item);
+	return (
+		<section aria-label="북마크 검사 근거" className="space-y-2 rounded-md border p-3 text-xs">
+			<strong>{summary?.label ?? "이전 검사 근거"}</strong>
+			{!summary && (
+				<p>
+					수정 전 URL·버전 또는 이미 검토한 근거입니다. 현재 상태를 판정하는 데 사용하지 않습니다.
+				</p>
+			)}
+			<p>접속: {healthLabels[check.status]}</p>
+			<p>{check.reason}</p>
+			<p className="break-all">최종 주소: {check.final_url || "확인 불가"}</p>
+			<p>관측 {new Date(check.checked_at).toLocaleString("ko-KR")}</p>
+			{evidence ? (
+				<BookmarkContentEvidence evidence={evidence} />
+			) : (
+				<p>과거 접속 검사만 있습니다. 본문·미디어는 미검사입니다.</p>
+			)}
+		</section>
+	);
+}
+
+function BookmarkContentEvidence({ evidence }: { evidence: BookmarkHealthEvidence }) {
+	return (
+		<>
+			<p>
+				본문:{" "}
+				{evidence.content.applicable
+					? contentHealthLabels[evidence.content.status]
+					: "직접 미디어 URL · 본문 해당 없음"}
+			</p>
+			<p>
+				미디어: {mediaHealthLabels[evidence.media.status]} · {evidence.media.checked}/
+				{evidence.media.discovered}개 검사 · 응답 {evidence.media.reachable}개 · 소실 의심{" "}
+				{evidence.media.missing}개 · 제한 {evidence.media.restricted}개 · 불명{" "}
+				{evidence.media.unknown}개
+			</p>
+			<p>
+				검사 범위:{" "}
+				{evidence.coverage === "complete" ? "추출 범위 확인" : "제한됨 · 전체를 확인하지 못함"} ·
+				제외 {evidence.media.excludedCount}개 · 중복 {evidence.media.duplicateCount}개 · 상한으로
+				생략 {evidence.media.omittedCount}개
+			</p>
+			<p>
+				{aiHealthLabels[evidence.ai.state]}
+				{evidence.ai.choice && ` · ${evidence.ai.choice}`}
+				{evidence.ai.confidence !== null &&
+					` · 신뢰 점수 ${Math.round(evidence.ai.confidence * 100)}% (정확도 보장 아님)`}
+			</p>
+			<p>
+				{evidence.confirmation === "pending"
+					? "재확인 예정 · 아직 확정하지 않음"
+					: evidence.confirmation === "repeated"
+						? "재확인에서도 같은 의심 근거 관측"
+						: "단일 관측"}
+			</p>
+			{evidence.confirmationEvidence.firstObservedAt && (
+				<p>
+					최초 {new Date(evidence.confirmationEvidence.firstObservedAt).toLocaleString("ko-KR")}
+					{evidence.confirmationEvidence.confirmedAt &&
+						` · 재확인 ${new Date(evidence.confirmationEvidence.confirmedAt).toLocaleString("ko-KR")}`}
+				</p>
+			)}
+			{evidence.content.excerpt && (
+				<p className="whitespace-pre-wrap break-words">본문 발췌: {evidence.content.excerpt}</p>
+			)}
+			{evidence.media.items.length > 0 && (
+				<ul className="space-y-1">
+					{evidence.media.items.map((media) => (
+						<li className="break-all" key={media.urlHash}>
+							{media.kind} · {media.label} · {media.state}
+							{media.httpStatus && ` · HTTP ${media.httpStatus}`}
+						</li>
+					))}
+				</ul>
+			)}
+			<p className="text-muted-foreground">
+				미디어의 응답 일부를 확인했습니다. 실제 재생·시각적 내용은 직접 열어 확인해주세요. 미디어
+				미검출은 소실 확정이 아닙니다.
+			</p>
+		</>
+	);
+}
+
 function proposalIsStale(item: BookmarkItem, proposal: BookmarkItem["proposals"][number]) {
 	return (
 		item.version !== proposal.expected_version ||
@@ -165,13 +262,16 @@ function BookmarkItemDetail({
 	const changes = useBookmarkDisplayChanges();
 	const fieldId = useId();
 	const keep = useMutation({
-		mutationFn: () => trpc.bookmark.keep.mutate({ id: item.id, version: item.version }),
+		mutationFn: () => trpc.bookmark.keep.mutate(healthReviewInput(item)),
 		onSuccess: async () => {
 			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
 			onDone();
 			toast.success("유지 검토를 기록했습니다.");
 		},
-		onError: (e) => toast.error(e.message),
+		onError: async (e) => {
+			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
+			toast.error(`${e.message} 최신 검사 근거를 다시 확인해주세요.`);
+		},
 	});
 	const edit = useMutation({
 		mutationFn: (input: Parameters<typeof trpc.bookmark.edit.mutate>[0]) =>
@@ -245,17 +345,7 @@ function BookmarkItemDetail({
 			)}
 			{item.note && <p className="whitespace-pre-wrap break-words text-sm">{item.note}</p>}
 			<BookmarkUsage item={item} />
-			{item.check && (
-				<div className="rounded-md bg-muted p-2 text-sm">
-					<strong>{healthLabels[item.check.status]}</strong>
-					{item.check.bookmark_version !== item.version && " (수정 전 검사)"}
-					<p>{item.check.reason}</p>
-					<p className="break-all text-xs">
-						최종 주소: {item.check.final_url || "확인 불가"} ·{" "}
-						{new Date(item.check.checked_at).toLocaleString("ko-KR")}
-					</p>
-				</div>
-			)}
+			<BookmarkHealthDetail item={item} />
 			<div className="flex flex-wrap gap-2">
 				<Button
 					variant="outline"

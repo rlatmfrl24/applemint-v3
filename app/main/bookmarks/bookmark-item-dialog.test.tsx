@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { bookmarkHealthEvidenceSchema } from "@/contracts/bookmark-health.schema";
 import {
 	bookmarkItem,
 	collectionB,
@@ -306,7 +307,9 @@ describe("bookmark item dialog", () => {
 		backend.client.bookmark.keep.mutate.mockRejectedValueOnce(new Error("Keep failed"));
 		const { props } = mount();
 		fireEvent.click(await screen.findByRole("button", { name: "유지" }));
-		await waitFor(() => expect(backend.error).toHaveBeenCalledWith("Keep failed"));
+		await waitFor(() =>
+			expect(backend.error).toHaveBeenCalledWith(expect.stringContaining("Keep failed"))
+		);
 		expect(props.close).not.toHaveBeenCalled();
 		fireEvent.click(screen.getByRole("button", { name: "유지" }));
 		await waitFor(() => expect(props.close).toHaveBeenCalled());
@@ -348,7 +351,7 @@ describe("bookmark item dialog", () => {
 		backend.client.bookmark.detail.query.mockResolvedValue({ items: [item] });
 		const { props } = mount();
 		await screen.findByText("Page returned 404");
-		expect(screen.getByText(/수정 전 검사/u)).toBeDefined();
+		expect(screen.getByText(/수정 전 URL/u)).toBeDefined();
 		fireEvent.click(screen.getByRole("button", { name: "휴지통 이동" }));
 		await waitFor(() => expect(props.close).toHaveBeenCalled());
 		expect(backend.client.bookmark.trash.mutate).toHaveBeenCalledWith({ id: item.id, version: 4 });
@@ -389,4 +392,39 @@ describe("bookmark item dialog", () => {
 			await waitFor(() => expect(props.close).toHaveBeenCalled());
 		}
 	);
+});
+it("detail keep passes the seen check revision and refreshes a conflict without closing", async () => {
+	const item = bookmarkItem();
+	item.check = {
+		id: "99999999-9999-4999-8999-999999999999",
+		job_id: "66666666-6666-4666-8666-666666666666",
+		bookmark_id: item.id,
+		bookmark_version: item.version,
+		status: "healthy",
+		reason: "HTTP 200",
+		final_url: item.url,
+		http_status: 200,
+		checked_at: "2026-10-22T00:00:00Z",
+		checked_url: item.url,
+		evidence: bookmarkHealthEvidenceSchema.parse({ observedAt: "2026-10-22T00:00:00Z" }),
+		evidence_revision: 5,
+		reviewed_at: null,
+	};
+	backend.client.bookmark.detail.query.mockResolvedValue({ items: [item] });
+	backend.client.bookmark.keep.mutate.mockRejectedValueOnce(new Error("health evidence changed"));
+	const { props } = mount();
+	fireEvent.click(await screen.findByRole("button", { name: "유지" }));
+	await waitFor(() =>
+		expect(backend.client.bookmark.keep.mutate).toHaveBeenCalledWith({
+			id: item.id,
+			version: item.version,
+			evidenceId: item.check?.id,
+			evidenceRevision: 5,
+		})
+	);
+	await waitFor(() =>
+		expect(backend.error).toHaveBeenCalledWith(expect.stringContaining("최신 검사 근거"))
+	);
+	expect(props.close).not.toHaveBeenCalled();
+	expect(screen.getByText("내용 판단 불가")).toBeTruthy();
 });

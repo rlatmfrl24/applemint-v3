@@ -7,6 +7,7 @@ import type { HealthMediaReference } from "./health-content";
 import { type HealthFetchOptions, HealthRequestDeferred, safeFetch } from "./safe-fetch";
 
 export type HealthIO = {
+	continuation?: HealthFetchOptions["continuation"];
 	signal: AbortSignal;
 	beforeRequest: NonNullable<HealthFetchOptions["beforeRequest"]>;
 };
@@ -56,36 +57,14 @@ export async function probeHealthMedia(
 	const target = normalizeYouTubeUrl(ref.url);
 	const key = getYouTubeApiKey();
 	if (target.videoId && key) {
-		const base = { kind: ref.kind, label: ref.label, urlHash: ref.urlHash, httpStatus: null };
-		try {
-			const release = await io.beforeRequest(
-				new URL("https://www.googleapis.com/youtube/v3/videos")
-			);
-			try {
-				const videos = await listYouTubeVideos([target.videoId], {
-					apiKey: key,
-					timeoutMs: Math.min(10000, io.signal.aborted ? 1 : 10000),
-				});
-				const video = videos.get(target.videoId);
-				return {
-					...base,
-					state: video && "liveStatus" in video ? "reachable" : "unknown",
-					reasonCode:
-						video && "liveStatus" in video ? "PLAYBACK_UNVERIFIED" : "PROVIDER_UNAVAILABLE",
-				};
-			} finally {
-				await release();
-			}
-		} catch (error) {
-			if (error instanceof HealthRequestDeferred) throw error;
-			return { ...base, state: "unknown", reasonCode: "PROVIDER_UNAVAILABLE" };
-		}
+		return probeYouTube(ref, io, target.videoId, key);
 	}
 	try {
 		return classifyHealthMedia(
 			ref,
 			await safeFetch(ref.url, {
 				maxBytes: 65536,
+				continuation: io.continuation,
 				signal: io.signal,
 				beforeRequest: io.beforeRequest,
 				referrer: ref.sourceUrl,
@@ -101,5 +80,34 @@ export async function probeHealthMedia(
 			state: "unknown",
 			reasonCode: "MEDIA_NETWORK_UNCERTAIN",
 		};
+	}
+}
+
+async function probeYouTube(
+	ref: HealthMediaReference,
+	io: HealthIO,
+	videoId: string,
+	key: string
+): Promise<MediaResult> {
+	const base = { kind: ref.kind, label: ref.label, urlHash: ref.urlHash, httpStatus: null };
+	try {
+		const release = await io.beforeRequest(new URL("https://www.googleapis.com/youtube/v3/videos"));
+		try {
+			const videos = await listYouTubeVideos([videoId], {
+				apiKey: key,
+				timeoutMs: Math.min(10000, io.signal.aborted ? 1 : 10000),
+			});
+			const video = videos.get(videoId);
+			return {
+				...base,
+				state: video && "liveStatus" in video ? "reachable" : "unknown",
+				reasonCode: video && "liveStatus" in video ? "PLAYBACK_UNVERIFIED" : "PROVIDER_UNAVAILABLE",
+			};
+		} finally {
+			await release();
+		}
+	} catch (error) {
+		if (error instanceof HealthRequestDeferred) throw error;
+		return { ...base, state: "unknown", reasonCode: "PROVIDER_UNAVAILABLE" };
 	}
 }

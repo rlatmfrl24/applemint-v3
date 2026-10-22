@@ -134,44 +134,12 @@ export async function callHealthDecision(
 		})
 		.safeParse(raw.usage);
 	const answers = z.object({ pageState: choiceSchema, basis: choiceSchema }).safeParse(raw.answers);
-	let outputError: string | null =
-		chargedNano === null
-			? "USAGE_COST_MISSING"
-			: !usage.success
-				? "INVALID_USAGE"
-				: raw.model !== RESOLVED_MODEL
-					? "UNEXPECTED_MODEL"
-					: !answers.success
-						? "INVALID_ANSWERS"
-						: null;
-	let choice: HealthDecisionOutcome["choice"] = null,
-		basis: HealthDecisionOutcome["basis"] = null,
-		confidence: number | null = null;
-	if (!outputError && answers.success) {
-		const a = answers.data;
-		if (!validChoice(a.pageState, pages) || !validChoice(a.basis, bases))
-			outputError = "INVALID_PROBABILITIES";
-		else {
-			basis = a.basis.choice as NonNullable<HealthDecisionOutcome["basis"]>;
-			confidence = a.pageState.confidence;
-			const compatible: Record<string, string> = {
-				present: "content_match",
-				deleted: "deletion_notice",
-				restricted: "auth_notice",
-				unrelated: "content_mismatch",
-				unknown: "insufficient",
-			};
-			choice =
-				confidence >= 0.9 &&
-				a.pageState.probabilities[a.pageState.choice] >= 0.9 &&
-				a.basis.confidence >= 0.9 &&
-				a.basis.probabilities[a.basis.choice] >= 0.9 &&
-				compatible[a.pageState.choice] === basis
-					? (a.pageState.choice as NonNullable<HealthDecisionOutcome["choice"]>)
-					: "unknown";
-			if (request.state.coverage !== "complete" && choice !== "restricted") choice = "unknown";
-		}
-	}
+	const outputError = decisionError(chargedNano, usage.success, raw.model, answers.success);
+	const decision =
+		!outputError && answers.success
+			? validateDecision(answers.data, request.state.coverage)
+			: { choice: null, basis: null, confidence: null, outputError };
+	const { choice, basis, confidence } = decision;
 	return {
 		choice,
 		basis,
@@ -179,6 +147,43 @@ export async function callHealthDecision(
 		chargedNano,
 		inputTokens: usage.success ? usage.data.input_tokens : null,
 		outputTokens: usage.success ? usage.data.output_tokens : null,
-		outputError,
+		outputError: decision.outputError,
 	};
+}
+
+function decisionError(
+	chargedNano: number | null,
+	validUsage: boolean,
+	model: unknown,
+	validAnswers: boolean
+) {
+	if (chargedNano === null) return "USAGE_COST_MISSING";
+	if (!validUsage) return "INVALID_USAGE";
+	if (model !== RESOLVED_MODEL) return "UNEXPECTED_MODEL";
+	return validAnswers ? null : "INVALID_ANSWERS";
+}
+function validateDecision(
+	a: { pageState: z.infer<typeof choiceSchema>; basis: z.infer<typeof choiceSchema> },
+	coverage: string
+): Pick<HealthDecisionOutcome, "choice" | "basis" | "confidence" | "outputError"> {
+	if (!validChoice(a.pageState, pages) || !validChoice(a.basis, bases))
+		return { choice: null, basis: null, confidence: null, outputError: "INVALID_PROBABILITIES" };
+	const basis = a.basis.choice as NonNullable<HealthDecisionOutcome["basis"]>;
+	const compatible: Record<string, string> = {
+		present: "content_match",
+		deleted: "deletion_notice",
+		restricted: "auth_notice",
+		unrelated: "content_mismatch",
+		unknown: "insufficient",
+	};
+	let choice: HealthDecisionOutcome["choice"] =
+		a.pageState.confidence >= 0.9 &&
+		a.pageState.probabilities[a.pageState.choice] >= 0.9 &&
+		a.basis.confidence >= 0.9 &&
+		a.basis.probabilities[a.basis.choice] >= 0.9 &&
+		compatible[a.pageState.choice] === basis
+			? (a.pageState.choice as NonNullable<HealthDecisionOutcome["choice"]>)
+			: "unknown";
+	if (coverage !== "complete" && choice !== "restricted") choice = "unknown";
+	return { choice, basis, confidence: a.pageState.confidence, outputError: null };
 }

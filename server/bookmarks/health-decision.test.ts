@@ -65,7 +65,12 @@ it("reserves a fixed bound and minimizes the provider input", () => {
 	).not.toBe(healthEvidenceKey(observation));
 });
 it("rejects oversized requests before reserving or calling the provider", () => {
-	expect(() => buildHealthDecisionRequest({...observation,input:{...observation.input,title:"x".repeat(12000)}})).toThrow("HEALTH_INPUT_TOO_LARGE");
+	expect(() =>
+		buildHealthDecisionRequest({
+			...observation,
+			input: { ...observation.input, title: "x".repeat(12000) },
+		})
+	).toThrow("HEALTH_INPUT_TOO_LARGE");
 });
 it("keeps a known charge even when the model or output is invalid", async () => {
 	const data = raw();

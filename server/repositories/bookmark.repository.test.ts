@@ -253,10 +253,13 @@ describe("BookmarkRepository table queries", () => {
 			error: null,
 		});
 
-		await expect(repository.jobDetails(otherId, 50)).resolves.toEqual({ items: [item], total: 51 });
+		await expect(repository.jobDetails(otherId, 50)).resolves.toEqual({
+			items: [{ ...item, phase: null, waitingReason: "retry" }],
+			total: 51,
+		});
 		expect(from).toHaveBeenCalledWith("bookmark_job_items");
 		expect(builder.select).toHaveBeenCalledWith(
-			"bookmark_id,state,error,available_at,bookmarks(url,title)",
+			"bookmark_id,state,error,available_at,phase:work->>phase,bookmarks(url,title)",
 			{ count: "exact" }
 		);
 		expect(builder.eq).toHaveBeenCalledWith("job_id", otherId);

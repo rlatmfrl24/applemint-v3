@@ -11,6 +11,7 @@ import type { BookmarkJob } from "@/contracts/bookmark.schema";
 import { useTRPCClient } from "@/trpc/client";
 import { SettingsPageHeader, SettingsSurface } from "../admin-ui";
 import { BookmarkAIUsagePanel } from "./bookmark-ai-usage";
+import { BookmarkHealthSettingsPanel } from "./bookmark-health-settings";
 import { BookmarkInterestEditor } from "./bookmark-interest-editor";
 
 function ImportSettings({
@@ -161,6 +162,7 @@ export default function BookmarkSettingsPage() {
 					<span>AI 사용을 위해 서버 OPENROUTER_API_KEY를 설정해주세요.</span>
 				)}
 			</div>
+			<BookmarkHealthSettingsPanel />
 			<section aria-label="이번 달 AI 사용량" className="min-w-0 rounded-xl border bg-card">
 				<h2 className="sr-only">AI 사용량</h2>
 				<BookmarkAIUsagePanel />
@@ -229,7 +231,7 @@ export default function BookmarkSettingsPage() {
 			)}
 			<p className="max-w-prose text-muted-foreground text-xs leading-5">
 				청구 여부가 불명확한 요청은 예약액을 유지합니다. 세금·환율·다른 앱의 사용량은 포함하지
-				않습니다. AI에는 메타데이터만 전송합니다.
+				않습니다. 내용 점검 시에는 제목·본문 발췌와 검사 지표만 AI에 전송합니다.
 			</p>
 		</div>
 	);

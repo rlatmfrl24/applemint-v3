@@ -283,3 +283,49 @@ it("confirms only after the full interval and finishes a restricted response tha
 		(await processHealthClaim(db().client, next)).items[0].check?.evidence.content.status
 	).toBe("present");
 });
+it("bounds multibyte evidence without losing media counts", async () => {
+	const obs = observation(
+		"<article><h1>Healthy</h1>" + "가".repeat(600) + '<img src="/1.jpg"></article>'
+	);
+	obs.evidence.content.title = "가".repeat(1000);
+	obs.evidence.content.excerpt = "나".repeat(500);
+	obs.mediaRefs = [];
+	obs.evidence.media = {
+		...obs.evidence.media,
+		discovered: 20,
+		checked: 20,
+		reachable: 20,
+		status: "present",
+		items: Array.from({ length: 20 }, (_, i) => ({
+			kind: "image" as const,
+			label: "미디어".repeat(53),
+			urlHash: i.toString(16).padStart(64, "0"),
+			state: "reachable" as const,
+			httpStatus: 200,
+			reasonCode: "MEDIA_SEMANTICS_UNVERIFIED",
+		})),
+	};
+	vi.stubEnv("OPENROUTER_API_KEY", "");
+	const result = await processHealthClaim(db().client, claim("decision", obs));
+	expect(result.items[0].state).toBe("done");
+	expect(Buffer.byteLength(JSON.stringify(result.items[0].check?.evidence))).toBeLessThanOrEqual(
+		8192
+	);
+	expect(result.items[0].check?.evidence.media.checked).toBe(20);
+});
+it("persists a deferred redirect across the next page claim", async () => {
+	const { HealthRequestDeferred } = await import("./safe-fetch");
+	const continuation = { url: "https://example.com/final", redirects: 1 };
+	vi.mocked(inspectBookmarkPage).mockRejectedValueOnce(
+		Object.assign(new HealthRequestDeferred("2026-10-22T00:00:02Z"), { continuation })
+	);
+	const first = await processHealthClaim(db().client, claim());
+	expect(first.items[0].work).toMatchObject({ requestContinuation: continuation });
+	const next = claim();
+	next.item.work = first.items[0].work;
+	await processHealthClaim(db().client, next);
+	expect(inspectBookmarkPage).toHaveBeenLastCalledWith(
+		expect.anything(),
+		expect.objectContaining({ continuation })
+	);
+});

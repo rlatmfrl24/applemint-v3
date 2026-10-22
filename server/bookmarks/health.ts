@@ -80,6 +80,7 @@ export async function inspectBookmarkPage(
 	try {
 		response = await safeFetch(input.url, {
 			maxBytes: 524288,
+			continuation: io.continuation,
 			signal: io.signal,
 			beforeRequest: io.beforeRequest,
 		});
@@ -99,29 +100,7 @@ export async function inspectBookmarkPage(
 	const reachability = classifyResponse(response);
 	if (reachability.status !== "healthy") return { input, evidence, mediaRefs: [], reachability };
 	if (/^(?:image|video)\//iu.test(response.contentType)) {
-		const url = new URL(input.url);
-		const ref: HealthMediaReference = {
-			kind: response.contentType.startsWith("image/") ? "image" : "video",
-			url: input.url,
-			sourceUrl: `${url.origin}${url.pathname}`,
-			label: `${url.host}${url.pathname}`.slice(0, 160),
-			urlHash: createHash("sha256").update(input.url).digest("hex"),
-		};
-		const result = classifyHealthMedia(ref, response);
-		evidence.content.applicable = false;
-		evidence.coverage = "complete";
-		evidence.media = {
-			...evidence.media,
-			discovered: 1,
-			checked: 1,
-			reachable: result.state === "reachable" ? 1 : 0,
-			unknown: result.state === "unknown" ? 1 : 0,
-			missing: result.state === "missing" ? 1 : 0,
-			restricted: result.state === "restricted" ? 1 : 0,
-			items: [result],
-			status: result.state === "reachable" ? "present" : "unknown",
-		};
-		return { input, reachability, evidence, mediaRefs: [] };
+		return inspectDirectMedia(input, response, evidence, reachability);
 	}
 	if (!/html/iu.test(response.contentType)) {
 		evidence.content.status = "unknown";
@@ -142,4 +121,35 @@ export async function inspectBookmarkPage(
 	)
 		parsed.evidence.media.status = "missing_suspected";
 	return { input, reachability, ...parsed };
+}
+
+function inspectDirectMedia(
+	input: HealthInput,
+	response: Awaited<ReturnType<typeof safeFetch>>,
+	evidence: BookmarkHealthEvidence,
+	reachability: LinkResult
+): HealthObservation {
+	const url = new URL(input.url);
+	const ref: HealthMediaReference = {
+		kind: response.contentType.startsWith("image/") ? "image" : "video",
+		url: input.url,
+		sourceUrl: `${url.origin}${url.pathname}`,
+		label: `${url.host}${url.pathname}`.slice(0, 160),
+		urlHash: createHash("sha256").update(input.url).digest("hex"),
+	};
+	const result = classifyHealthMedia(ref, response);
+	evidence.content.applicable = false;
+	evidence.coverage = "complete";
+	evidence.media = {
+		...evidence.media,
+		discovered: 1,
+		checked: 1,
+		reachable: result.state === "reachable" ? 1 : 0,
+		unknown: result.state === "unknown" ? 1 : 0,
+		missing: result.state === "missing" ? 1 : 0,
+		restricted: result.state === "restricted" ? 1 : 0,
+		items: [result],
+		status: result.state === "reachable" ? "present" : "unknown",
+	};
+	return { input, reachability, evidence, mediaRefs: [] };
 }

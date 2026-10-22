@@ -362,3 +362,18 @@ it("delegates health settings and the check-specific start envelope", async () =
 		queuedCount: 0,
 	});
 });
+it("health settings require both the server worker secret and Vault configuration", async () => {
+	const data = {
+		enabled: false,
+		dailyLimit: 500,
+		timeZone: "Asia/Seoul",
+		hour: 9,
+		lastAutomaticJob: null,
+		workerConfigured: true,
+	};
+	const { service } = createService(data);
+	vi.stubEnv("CRAWL_INTERNAL_SECRET", "");
+	expect((await service.healthSettings()).workerConfigured).toBe(false);
+	vi.stubEnv("CRAWL_INTERNAL_SECRET", "fixture-only");
+	expect((await service.healthSettings()).workerConfigured).toBe(true);
+});
