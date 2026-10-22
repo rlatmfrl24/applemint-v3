@@ -537,6 +537,7 @@ export async function runBookmarkWorker(db: AppSupabaseClient) {
 	const started = Date.now();
 	let claimed = 0;
 	let leaseRejected = 0;
+	let retryAt: number | undefined;
 	let account: Promise<string> | undefined;
 	const token = process.env.RAINDROP_IMPORT_TOKEN?.trim();
 	const getAccount = () =>
@@ -546,22 +547,55 @@ export async function runBookmarkWorker(db: AppSupabaseClient) {
 	while (claimed < 20 && Date.now() - started < 20000) {
 		const { data, error } = await db.rpc("bookmark_worker_claim");
 		if (error) throw new Error("BOOKMARK_CLAIM_FAILED");
-		if (!data) break;
+		if (!data) {
+			if (!(await waitForHealthRetry(retryAt, started + 20000))) break;
+			retryAt = undefined;
+			continue;
+		}
 		const claim = claimSchema.parse(data);
 		const result = await processClaim(db, claim, getAccount, token);
-		const { data: committed, error: commitError } = await db.rpc("bookmark_worker_commit", {
-			p_job: claim.job.id,
-			p_lease: claim.job.lease_token ?? "",
-			p_result: result as Json,
-		});
-		if (commitError) throw new Error("BOOKMARK_COMMIT_FAILED");
-		if (!committed) leaseRejected++;
+		const committed = await commitClaim(db, claim, result);
+		leaseRejected += committed ? 0 : 1;
+		retryAt = nextHealthRetry(claim, result, retryAt, Boolean(committed));
 		claimed++;
 		if (claim.job.kind === "import") await new Promise((resolve) => setTimeout(resolve, 1200));
 		// A single AI call can consume the route deadline; durable pending items remain for the next dispatch.
 		if (endsWorkerInvocation(claim)) break;
 	}
 	return { claimedCount: claimed, leaseRejectedCount: leaseRejected };
+}
+
+async function commitClaim(db: AppSupabaseClient, claim: Claim, result: Commit) {
+	const { data, error } = await db.rpc("bookmark_worker_commit", {
+		p_job: claim.job.id,
+		p_lease: claim.job.lease_token ?? "",
+		p_result: result as Json,
+	});
+	if (error) throw new Error("BOOKMARK_COMMIT_FAILED");
+	return data;
+}
+
+async function waitForHealthRetry(retryAt: number | undefined, deadline: number) {
+	const waitMs = retryAt === undefined ? 0 : retryAt - Date.now();
+	if (waitMs <= 0 || Date.now() + waitMs >= deadline) return false;
+	await new Promise((resolve) => setTimeout(resolve, waitMs));
+	return true;
+}
+
+function nextHealthRetry(
+	claim: Claim,
+	result: Commit,
+	previous: number | undefined,
+	committed: boolean
+) {
+	if (!committed || claim.job.kind !== "check") return previous;
+	let retryAt = previous && previous > Date.now() ? previous : undefined;
+	for (const item of result.items ?? []) {
+		if (!("availableAt" in item) || typeof item.availableAt !== "string") continue;
+		const ready = Date.parse(item.availableAt);
+		if (ready > Date.now()) retryAt = Math.min(retryAt ?? Number.POSITIVE_INFINITY, ready);
+	}
+	return retryAt;
 }
 
 function endsWorkerInvocation(claim: Claim) {
