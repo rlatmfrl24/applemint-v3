@@ -1,4 +1,33 @@
-import { BookmarkFetchError, safeFetch } from "./safe-fetch";
+import { createHash } from "node:crypto";
+import {
+	type BookmarkHealthEvidence,
+	bookmarkHealthEvidenceSchema,
+} from "@/contracts/bookmark-health.schema";
+import { extractHealthContent, type HealthMediaReference } from "./health-content";
+import { classifyHealthMedia, type HealthIO } from "./health-media";
+import { BookmarkFetchError, HealthRequestDeferred, safeFetch } from "./safe-fetch";
+export type HealthBaseline = {
+	checkId: string;
+	url: string;
+	observedAt: string;
+	title: string;
+	textHash: string;
+	textLength: number;
+	mediaReachable: number;
+};
+export type HealthInput = {
+	bookmarkId: string;
+	url: string;
+	version: number;
+	baseline: HealthBaseline | null;
+	decisionSample: boolean;
+};
+export type HealthObservation = {
+	input: HealthInput;
+	reachability: LinkResult;
+	evidence: BookmarkHealthEvidence;
+	mediaRefs: HealthMediaReference[];
+};
 export interface LinkResult {
 	status: "healthy" | "dead" | "restricted" | "temporary" | "uncheckable";
 	reason: string;
@@ -37,4 +66,79 @@ export async function checkBookmarkLink(url: string): Promise<LinkResult> {
 			httpStatus: null,
 		};
 	}
+}
+export async function inspectBookmarkPage(
+	input: HealthInput,
+	io: HealthIO
+): Promise<HealthObservation> {
+	const evidence = bookmarkHealthEvidenceSchema.parse({
+		observedAt: new Date().toISOString(),
+		baselineCheckId: input.baseline?.checkId ?? null,
+	});
+	let response: Awaited<ReturnType<typeof safeFetch>>;
+	try {
+		response = await safeFetch(input.url, {
+			maxBytes: 524288,
+			signal: io.signal,
+			beforeRequest: io.beforeRequest,
+		});
+	} catch (error) {
+		if (error instanceof HealthRequestDeferred) throw error;
+		return {
+			input,
+			evidence,
+			mediaRefs: [],
+			reachability: {
+				...failures[error instanceof BookmarkFetchError ? error.code : "NETWORK"],
+				finalUrl: null,
+				httpStatus: null,
+			},
+		};
+	}
+	const reachability = classifyResponse(response);
+	if (reachability.status !== "healthy") return { input, evidence, mediaRefs: [], reachability };
+	if (/^(?:image|video)\//iu.test(response.contentType)) {
+		const url = new URL(input.url);
+		const ref: HealthMediaReference = {
+			kind: response.contentType.startsWith("image/") ? "image" : "video",
+			url: input.url,
+			sourceUrl: `${url.origin}${url.pathname}`,
+			label: `${url.host}${url.pathname}`.slice(0, 160),
+			urlHash: createHash("sha256").update(input.url).digest("hex"),
+		};
+		const result = classifyHealthMedia(ref, response);
+		evidence.content.applicable = false;
+		evidence.coverage = "complete";
+		evidence.media = {
+			...evidence.media,
+			discovered: 1,
+			checked: 1,
+			reachable: result.state === "reachable" ? 1 : 0,
+			unknown: result.state === "unknown" ? 1 : 0,
+			missing: result.state === "missing" ? 1 : 0,
+			restricted: result.state === "restricted" ? 1 : 0,
+			items: [result],
+			status: result.state === "reachable" ? "present" : "unknown",
+		};
+		return { input, reachability, evidence, mediaRefs: [] };
+	}
+	if (!/html/iu.test(response.contentType)) {
+		evidence.content.status = "unknown";
+		evidence.content.reasonCodes.push("CONTENT_TYPE_UNSUPPORTED");
+		return { input, evidence, reachability, mediaRefs: [] };
+	}
+	const parsed = extractHealthContent({
+		body: response.body,
+		finalUrl: response.finalUrl,
+		truncated: response.truncated,
+	});
+	parsed.evidence.baselineCheckId = input.baseline?.checkId ?? null;
+	if (
+		parsed.evidence.media.status === "none_detected" &&
+		input.baseline &&
+		input.baseline.mediaReachable > 0 &&
+		parsed.evidence.content.status === "present"
+	)
+		parsed.evidence.media.status = "missing_suspected";
+	return { input, reachability, ...parsed };
 }
