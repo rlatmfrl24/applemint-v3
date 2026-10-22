@@ -48,6 +48,37 @@ function createContext(): TRPCContext {
 }
 
 describe("tRPC route", () => {
+	it("accepts bookmark query bodies while preserving owner checks and other query methods", async () => {
+		const context = createContext();
+		const lookup = vi.fn().mockResolvedValue(null);
+		context.services.bookmark = { lookup } as unknown as TRPCContext["services"]["bookmark"];
+		createContextMock.mockResolvedValue(context);
+		const request = () =>
+			new Request("http://localhost/api/trpc/bookmark.lookup", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ url: "https://example.com/".padEnd(8192, "x") }),
+			});
+		expect((await POST(request())).status).toBe(200);
+		vi.mocked(context.getOwnerAccess).mockResolvedValue({
+			kind: "forbidden",
+			status: 403,
+			message: "Owner only",
+		});
+		expect((await POST(request())).status).toBe(403);
+		expect(lookup).toHaveBeenCalledTimes(1);
+		expect(
+			(
+				await POST(
+					new Request("http://localhost/api/trpc/thread.stats", {
+						method: "POST",
+						headers: { "content-type": "application/json" },
+						body: JSON.stringify({ state: "inbox" }),
+					})
+				)
+			).status
+		).toBe(405);
+	});
 	beforeEach(() => {
 		createContextMock.mockReset();
 		vi.spyOn(console, "info").mockImplementation(() => undefined);

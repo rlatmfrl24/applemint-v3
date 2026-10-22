@@ -41,6 +41,35 @@ const snapshot = {
 	budget: { month: "2026-10", limit_nano: 100, used_nano: 0 },
 };
 
+it.each([
+	null,
+	{ id, url: "https://example.com/", title: "Saved", state: "library" },
+	{ id, url: "https://example.com/", title: "Trashed", state: "trash" },
+])("looks up a minimal bookmark with indexed exact equality: %j", async (data) => {
+	const builder = query({ data, error: null });
+	const rpc = vi.fn().mockReturnValue(builder);
+	const metrics = new RequestMetrics();
+	const repository = new BookmarkRepository({ rpc } as unknown as AppSupabaseClient, metrics);
+	await expect(repository.lookup("https://example.com/")).resolves.toEqual(data);
+	expect(rpc).toHaveBeenCalledExactlyOnceWith("bookmark_lookup", { p_url: "https://example.com/" });
+	expect(metrics.snapshot().repositoryCalls).toMatchObject([
+		{ operation: "bookmark.lookup", callCount: 1 },
+	]);
+});
+it("reports lookup DB errors and malformed data instead of treating them as a new URL", async () => {
+	const builder = query({ data: null, error: { code: "42501", message: "Denied" } });
+	const repository = new BookmarkRepository({
+		rpc: vi.fn().mockReturnValue(builder),
+	} as unknown as AppSupabaseClient);
+	await expect(repository.lookup("https://example.com/")).rejects.toMatchObject({
+		code: "Forbidden",
+	});
+	builder.maybeSingle.mockResolvedValue({ data: { id, state: "deleted" }, error: null });
+	await expect(repository.lookup("https://example.com/")).rejects.toMatchObject({
+		code: "UnexpectedFailure",
+	});
+});
+
 function query(result: object) {
 	const builder = Object.assign(Promise.resolve(result), {
 		select: vi.fn().mockReturnThis(),

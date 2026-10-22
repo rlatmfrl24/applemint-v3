@@ -65,6 +65,34 @@ function createService(data: object) {
 
 afterEach(() => vi.unstubAllEnvs());
 
+it("looks up the normalized source URL without issuing a mutation", async () => {
+	const store = {
+		sourceThread: vi.fn().mockResolvedValue({ url: "https://example.com/?q=1#s", title: "Source" }),
+		lookup: vi.fn().mockResolvedValue(null),
+		command: vi.fn(),
+	};
+	const service = new BookmarkService(store as unknown as BookmarkRepository);
+	await expect(
+		service.lookup({ url: " HTTPS://EXAMPLE.com:443/?q=1#s ", threadId: "1" })
+	).resolves.toBeNull();
+	expect(store.lookup).toHaveBeenCalledExactlyOnceWith("https://example.com/?q=1#s");
+	expect(store.command).not.toHaveBeenCalled();
+});
+it("rejects a changed source or unsafe standalone URL before duplicate lookup", async () => {
+	const store = {
+		sourceThread: vi.fn().mockResolvedValue({ url: "https://example.com/changed" }),
+		lookup: vi.fn(),
+	};
+	const service = new BookmarkService(store as unknown as BookmarkRepository);
+	await expect(
+		service.lookup({ url: "https://example.com/old", threadId: "1" })
+	).rejects.toMatchObject({ code: "StateConflict" });
+	await expect(service.lookup({ url: "https://user:password@example.com" })).rejects.toMatchObject({
+		code: "InvalidInput",
+	});
+	expect(store.lookup).not.toHaveBeenCalled();
+});
+
 it("rejects an old popup URL instead of silently saving a changed source URL", async () => {
 	const store = {
 		sourceThread: vi

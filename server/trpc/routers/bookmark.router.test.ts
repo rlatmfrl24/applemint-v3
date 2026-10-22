@@ -33,6 +33,7 @@ function createContext(
 	access: { kind: string; status?: number; message?: string } = { kind: "owner" }
 ) {
 	const bookmark = {
+		lookup: vi.fn().mockResolvedValue(null),
 		snapshot: vi
 			.fn()
 			.mockResolvedValue({ items: [], collections: [{ id: otherId, name: "Reading" }] }),
@@ -75,6 +76,10 @@ function createContext(
 }
 
 const protectedCalls: [string, (caller: Caller) => Promise<unknown>][] = [
+	[
+		"bookmark.lookup",
+		(caller) => caller.bookmark.lookup({ url: "https://example.com/", threadId: "1" }),
+	],
 	["bookmark.list", (caller) => caller.bookmark.list({})],
 	["bookmark.detail", (caller) => caller.bookmark.detail({ id })],
 	["bookmark.save", (caller) => caller.bookmark.save({ url: "https://example.com" })],
@@ -182,6 +187,22 @@ describe("bookmark owner authorization", () => {
 });
 
 describe("bookmark caller input contracts", () => {
+	it("validates lookup input and forwards only URL and optional source", async () => {
+		const { caller, bookmark } = createContext();
+		await expect(
+			caller.bookmark.lookup({ url: " https://example.com/ ", threadId: "123" })
+		).resolves.toBeNull();
+		expect(bookmark.lookup).toHaveBeenCalledExactlyOnceWith({
+			url: "https://example.com/",
+			threadId: "123",
+		});
+		await expect(caller.bookmark.lookup({ url: " " })).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+		});
+		await expect(
+			caller.bookmark.lookup({ url: "https://example.com/", threadId: "0" })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	});
 	it("applies listing defaults and projects collections from the snapshot", async () => {
 		const { caller, bookmark, getOwnerAccess } = createContext();
 

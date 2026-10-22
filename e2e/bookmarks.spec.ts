@@ -1,5 +1,46 @@
 import { expect, test } from "@playwright/test";
 import { bookmarkOwner, removeCollectionUI, saveSourceBookmark } from "./support/bookmarks";
+import { seedBookmarkUXSource } from "./support/database";
+
+for (const fill of ["x", "%2F"]) {
+	test(`8192자 URL (${fill})도 조회·저장·중복 안내와 기존 북마크 이동을 완료한다`, async ({
+		page,
+	}) => {
+		const base = "https://example.com/?q=";
+		const capacity = 8192 - base.length - "&applemint_ux_qa=".length - 36;
+		const source = await seedBookmarkUXSource(
+			base + fill.repeat(Math.floor(capacity / fill.length)).padEnd(capacity, "x")
+		);
+		expect(source.url).toHaveLength(8192);
+		const db = await bookmarkOwner();
+		await page.goto("/main");
+		const card = page.locator(`[data-thread-url=${JSON.stringify(source.url)}]`);
+		await card.getByRole("button", { name: "Bookmark", exact: true }).click();
+		const dialog = page.getByRole("alertdialog");
+		await dialog.getByLabel("제목 (선택)").fill("긴 URL 북마크 검증");
+		await dialog.getByRole("button", { name: "저장", exact: true }).click();
+		await expect(dialog).not.toBeVisible();
+		const saved = await db
+			.from("bookmarks")
+			.select("id")
+			.eq("source_thread_id", source.id)
+			.single();
+		expect(saved.error).toBeNull();
+		await card.getByRole("button", { name: "Bookmark", exact: true }).click();
+		await dialog.getByRole("button", { name: "기존 북마크 보기", exact: true }).click();
+		await expect(
+			page.getByRole("complementary", { name: "북마크 상세", exact: true })
+		).toContainText("긴 URL 북마크 검증");
+		await expect(page).toHaveURL(`/main/bookmarks?state=library&bookmark=${saved.data?.id}`);
+		await page
+			.getByRole("navigation", { name: "북마크 보기", exact: true })
+			.getByRole("link", { name: "북마크", exact: true })
+			.click();
+		await expect(page.getByRole("complementary", { name: "북마크 상세", exact: true })).toHaveCount(
+			0
+		);
+	});
+}
 
 test("수집 글 저장·수정·열기·휴지통·복원과 컬렉션 삭제를 UI와 DB에서 확인한다", async ({
 	page,
@@ -8,18 +49,46 @@ test("수집 글 저장·수정·열기·휴지통·복원과 컬렉션 삭제�
 	const db = await bookmarkOwner();
 	const title = `수집 글 관리자 검증 ${Date.now()}`;
 	const saved = await saveSourceBookmark(page, db, title);
+	const beforeLookup = await db
+		.from("bookmarks")
+		.select("title,note,tags,collection_id,version")
+		.eq("id", saved.id)
+		.single();
+	expect(beforeLookup.error).toBeNull();
+	const recommendationCount = () =>
+		db
+			.from("bookmark_jobs")
+			.select("id", { count: "exact", head: true })
+			.eq("kind", "recommend")
+			.filter("scope->>threadId", "eq", String(saved.source_thread_id));
+	const beforeRecommendations = await recommendationCount();
+	expect(beforeRecommendations.error).toBeNull();
+	const aiRequests: string[] = [];
+	page.on("request", (request) => {
+		if (request.url().includes("bookmarkAI.recommend")) aiRequests.push(request.url());
+	});
 	await page.goto("/main");
 	await page
 		.locator(`[data-thread-url=${JSON.stringify(saved.url)}]`)
 		.getByRole("button", { name: "Bookmark", exact: true })
 		.click();
-	await page.getByRole("alertdialog").getByRole("button", { name: "저장", exact: true }).click();
 	await expect(
 		page.getByText("이미 저장한 URL입니다. 기존 북마크를 확인해주세요.", { exact: true })
 	).toBeVisible();
+	await expect(
+		page.getByRole("alertdialog").getByRole("button", { name: "저장", exact: true })
+	).toHaveCount(0);
+	await page.getByRole("button", { name: "기존 북마크 보기", exact: true }).click();
+	await expect(page).toHaveURL(`/main/bookmarks?state=library&bookmark=${saved.id}`);
 	expect(
 		(await db.from("bookmarks").select("id", { count: "exact" }).eq("url", saved.url)).count
 	).toBe(1);
+	const afterLookup = await db
+		.from("bookmarks")
+		.select("title,note,tags,collection_id,version")
+		.eq("id", saved.id)
+		.single();
+	expect(afterLookup.data).toEqual(beforeLookup.data);
 	await page.goto(`/main/bookmarks?search=${encodeURIComponent(title)}`);
 	const row = page.locator(`[data-bookmark-id="${saved.id}"]`);
 	await expect(row).toBeVisible();
@@ -53,6 +122,22 @@ test("수집 글 저장·수정·열기·휴지통·복원과 컬렉션 삭제�
 	await row.getByRole("checkbox").check();
 	await page.getByRole("button", { name: "선택 항목 휴지통 이동", exact: true }).click();
 	await expect(row).toHaveCount(0);
+	await page.goto("/main");
+	await page
+		.locator(`[data-thread-url=${JSON.stringify(saved.url)}]`)
+		.getByRole("button", { name: "Bookmark", exact: true })
+		.click();
+	await expect(page.getByRole("alertdialog")).toContainText("휴지통에 이미 저장한 URL");
+	await page.getByRole("button", { name: "휴지통에서 보기", exact: true }).click();
+	await expect(page).toHaveURL(/state=trash&bookmark=/u);
+	await expect(row).toBeVisible();
+	expect(
+		(await db.from("bookmarks").select("id", { count: "exact" }).eq("url_key", saved.url)).count
+	).toBe(1);
+	const afterRecommendations = await recommendationCount();
+	expect(afterRecommendations.error).toBeNull();
+	expect(afterRecommendations.count).toBe(beforeRecommendations.count);
+	expect(aiRequests).toEqual([]);
 	await page.goto(`/main/bookmarks/trash?search=${encodeURIComponent(title)}`);
 	await expect(row).toContainText(title);
 	await removeCollectionUI(page, title);

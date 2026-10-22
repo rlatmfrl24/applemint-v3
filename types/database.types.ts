@@ -1309,6 +1309,15 @@ export type Database = {
 				Args: { p_action: string; p_input?: Json };
 				Returns: Json;
 			};
+			bookmark_lookup: {
+				Args: { p_url: string };
+				Returns: {
+					id: string;
+					state: string;
+					title: string;
+					url: string;
+				}[];
+			};
 			bookmark_review_due: {
 				Args: { p_bookmark: Database["public"]["Tables"]["bookmarks"]["Row"] };
 				Returns: boolean;

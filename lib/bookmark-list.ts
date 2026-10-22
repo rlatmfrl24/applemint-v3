@@ -1,5 +1,9 @@
 import type { BookmarkItem } from "@/contracts/bookmark.schema";
 
+export function bookmarkItemLocation(item: Pick<BookmarkItem, "id" | "state">) {
+	return `/main/bookmarks?state=${item.state}&bookmark=${item.id}`;
+}
+
 export function nextBookmarkOffset(page: { items: unknown[]; total: number }, offset: number) {
 	const next = offset + page.items.length;
 	return page.items.length > 0 && next < page.total ? next : undefined;

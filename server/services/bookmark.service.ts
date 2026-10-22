@@ -4,6 +4,7 @@ import {
 	type BookmarkScope,
 	bookmarkCollectionSchema,
 	bookmarkJobSchema,
+	type bookmarkLookupInputSchema,
 	type bookmarkRecommendationInputSchema,
 	bookmarkSchema,
 } from "@/contracts/bookmark.schema";
@@ -23,13 +24,21 @@ export class BookmarkService {
 	aiUsage() {
 		return this.store.aiUsage();
 	}
-	async save(input: BookmarkSaveInput) {
+	private async source(input: z.infer<typeof bookmarkLookupInputSchema>) {
 		const source = input.threadId ? await this.store.sourceThread(input.threadId) : null;
 		if (source && normalizeBookmarkUrl(source.url) !== normalizeBookmarkUrl(input.url))
 			throw new DomainError(
 				"StateConflict",
 				"원본 URL이 변경되었습니다. 수집 글 화면에서 저장 팝업을 다시 열어주세요."
 			);
+		return source;
+	}
+	async lookup(input: z.infer<typeof bookmarkLookupInputSchema>) {
+		const source = await this.source(input);
+		return this.store.lookup(normalizeBookmarkUrl(source?.url ?? input.url));
+	}
+	async save(input: BookmarkSaveInput) {
+		const source = await this.source(input);
 		return this.store.command(
 			"save",
 			{

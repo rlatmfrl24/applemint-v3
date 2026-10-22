@@ -92,6 +92,11 @@ export function recommendationStatus(
 export function formTransport() {
 	return {
 		bookmark: {
+			lookup: {
+				query: vi
+					.fn<() => Promise<Pick<BookmarkItem, "id" | "url" | "title" | "state"> | null>>()
+					.mockResolvedValue(null),
+			},
 			detail: { query: vi.fn().mockResolvedValue({ items: [bookmarkItem()] }) },
 			edit: { mutate: vi.fn().mockResolvedValue(bookmarkItem({ version: 5 })) },
 			keep: { mutate: vi.fn().mockResolvedValue(bookmarkItem({ version: 5 })) },

@@ -134,6 +134,16 @@ export const bookmarkSaveInputSchema = z.object({
 		.regex(/^[1-9][0-9]*$/u)
 		.optional(),
 });
+export const bookmarkLookupInputSchema = bookmarkSaveInputSchema.pick({
+	url: true,
+	threadId: true,
+});
+export const bookmarkLookupSchema = bookmarkSchema.pick({
+	id: true,
+	url: true,
+	title: true,
+	state: true,
+});
 export const bookmarkRecommendationInputSchema = z.object({
 	threadId: z.string().regex(/^[1-9][0-9]*$/u),
 	title: z.string().trim().max(1000),

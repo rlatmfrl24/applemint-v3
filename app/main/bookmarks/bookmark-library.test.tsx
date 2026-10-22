@@ -115,7 +115,7 @@ vi.mock("./bookmark-collection-tree", () => ({
 vi.mock("./bookmark-item-dialog", () => ({
 	BookmarkItemDialog: (p: ComponentProps<typeof BookmarkItemDialog>) =>
 		p.selection && (
-			<section aria-label="Item editor">
+			<section aria-label="Item editor" data-item-id={p.selection.id}>
 				<label>
 					Draft
 					<input onChange={() => p.onDirtyChange(true)} />
@@ -238,6 +238,43 @@ afterEach(() => {
 });
 
 describe("bookmark library navigation and results", () => {
+	it("closes the linked panel when navigation removes its bookmark parameter", async () => {
+		window.history.replaceState(null, "", "/main/bookmarks?bookmark=linked-id");
+		const { rerender } = mount();
+		await screen.findByRole("region", { name: "Item editor" });
+		window.history.replaceState(null, "", "/main/bookmarks");
+		rerender(
+			<QueryClientProvider client={cache}>
+				<BookmarkLibrary />
+			</QueryClientProvider>
+		);
+		await waitFor(() => expect(screen.queryByRole("region", { name: "Item editor" })).toBeNull());
+	});
+	it("confirms linked navigation before replacing a dirty item draft", async () => {
+		const { rerender } = mount();
+		await screen.findByLabelText("Select Alpha");
+		fireEvent.click(screen.getByRole("button", { name: "Edit Alpha" }));
+		fireEvent.change(screen.getByLabelText("Draft"), { target: { value: "Unsaved" } });
+		window.history.replaceState(null, "", "/main/bookmarks?bookmark=linked-id");
+		rerender(
+			<QueryClientProvider client={cache}>
+				<BookmarkLibrary />
+			</QueryClientProvider>
+		);
+		await screen.findByText("편집 내용을 버릴까요?");
+		expect(document.querySelector('[data-item-id="Alpha"]')).not.toBeNull();
+		fireEvent.click(screen.getByRole("button", { name: "계속 편집" }));
+		expect((screen.getByLabelText("Draft") as HTMLInputElement).value).toBe("Unsaved");
+	});
+	it("opens a linked bookmark through its existing detail panel and clears the link when closed", async () => {
+		window.history.replaceState(null, "", "/main/bookmarks?state=trash&bookmark=linked-id");
+		mount();
+		await screen.findByRole("region", { name: "Item editor" });
+		fireEvent.click(screen.getByRole("button", { name: "Close editor" }));
+		await waitFor(() => expect(screen.queryByRole("region", { name: "Item editor" })).toBeNull());
+		expect(new URLSearchParams(window.location.search).get("bookmark")).toBeNull();
+		expect(new URLSearchParams(window.location.search).get("state")).toBe("trash");
+	});
 	it("loads pages without duplicate rows and retries a failed next page without losing earlier items", async () => {
 		api.bookmark.list.query
 			.mockResolvedValueOnce(page([items[0]], 2))

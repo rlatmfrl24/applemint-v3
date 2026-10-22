@@ -31,9 +31,9 @@ export async function saveSourceBookmark(
 		const card = cards.nth(index);
 		const url = await card.getAttribute("data-thread-url");
 		expect(url).toBeTruthy();
-		const existing = await db.from("bookmarks").select("id").eq("url", url);
+		const existing = await db.rpc("bookmark_lookup", { p_url: url as string }).maybeSingle();
 		expect(existing.error).toBeNull();
-		if (existing.data?.length) continue;
+		if (existing.data) continue;
 		const source = await db.from("threads").select("id,state").eq("url", url).single();
 		expect(source.error).toBeNull();
 		await card.getByRole("button", { name: "Bookmark", exact: true }).click();
