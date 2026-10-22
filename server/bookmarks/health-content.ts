@@ -34,6 +34,8 @@ export function extractHealthContent(input: {
 	candidates.sort((a, b) => $(b).text().length - $(a).text().length);
 	const root = candidates[0] ? $(candidates[0]) : $("body");
 	const text = root.text().replace(/\s+/gu, " ").trim();
+	const heading = root.find("h1").first().text().trim();
+	const bodyText = root.clone().find("h1,h2,h3,h4,h5,h6").remove().end().text().trim();
 	evidence.content = {
 		...evidence.content,
 		title: (root.find("h1").first().text().trim() || title).slice(0, 1000),
@@ -42,16 +44,17 @@ export function extractHealthContent(input: {
 		excerpt: text.slice(0, 500),
 	};
 	evidence.coverage = candidates.length ? "complete" : "unknown";
+	const mediaRefs = collectHealthMedia($, root, evidence, input.finalUrl);
 	classifyContent(evidence, {
 		title,
 		text,
 		accessWall,
 		truncated: input.truncated,
 		hasMain: candidates.length > 0,
-		hasHeading: root.find("h1").length > 0,
-		hasMedia: root.find("img,video,iframe,picture").length > 0,
+		heading,
+		bodyText,
+		hasMedia: mediaRefs.length > 0,
 	});
-	const mediaRefs = collectHealthMedia($, root, evidence, input.finalUrl);
 	if (evidence.media.omittedCount || input.truncated) evidence.coverage = "limited";
 	evidence.media.status =
 		evidence.media.discovered > 0
@@ -145,7 +148,8 @@ function classifyContent(
 		accessWall,
 		truncated,
 		hasMain,
-		hasHeading,
+		heading,
+		bodyText,
 		hasMedia,
 	}: {
 		title: string;
@@ -153,26 +157,41 @@ function classifyContent(
 		accessWall: boolean;
 		truncated: boolean;
 		hasMain: boolean;
-		hasHeading: boolean;
+		heading: string;
+		bodyText: string;
 		hasMedia: boolean;
 	}
 ) {
 	const removed =
 		/삭제된 게시물|게시물[이가은는\s]*(?:삭제|존재하지)|게시글[이가은는\s]*(?:삭제|존재하지)|(?:글|내용)[이가은는\s]*삭제|page (?:not found|has been removed)|content (?:deleted|removed|unavailable)|post (?:deleted|removed)|this (?:post|page) (?:was|has been) (?:deleted|removed)/iu;
-	if (accessWall) {
+	const accessNotice =
+		text.length < 160 &&
+		/^(?:sign in|log in|login) to (?:continue|view|access)|^(?:로그인[이을\s]*(?:필요|해주세요|해 주세요)|로그인 후)/iu.test(
+			text
+		);
+	const loading =
+		/^(?:loading(?: content)?|please wait|잠시만?\s*기다려\s*주세?요|불러오는\s*중|로딩\s*중)[.\s…!]*$/iu.test(
+			text
+		);
+	if (accessWall || accessNotice) {
 		evidence.content.status = "restricted";
 		evidence.content.reasonCodes.push("ACCESS_WALL");
 	} else if (truncated) {
 		evidence.content.status = "unknown";
 		evidence.content.reasonCodes.push("DOCUMENT_INCOMPLETE");
 		evidence.coverage = "limited";
-	} else if (removed.test(title) || (text.length < 160 && !hasHeading && removed.test(text))) {
+	} else if (
+		text.length < 160 &&
+		(removed.test(title) || removed.test(heading) || (!heading && removed.test(text)))
+	) {
 		evidence.content.status = "deleted_suspected";
 		evidence.content.reasonCodes.push("REMOVAL_NOTICE");
-	} else if (hasMain && (text.length > 0 || hasMedia)) evidence.content.status = "present";
+	} else if (hasMain && !loading && (bodyText.length > 0 || hasMedia))
+		evidence.content.status = "present";
 	else {
 		evidence.content.status = "unknown";
 		evidence.content.reasonCodes.push("MAIN_CONTENT_UNCERTAIN");
+		evidence.coverage = "unknown";
 	}
 }
 

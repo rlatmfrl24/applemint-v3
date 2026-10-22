@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { BookmarkItem, BookmarkJob } from "@/contracts/bookmark.schema";
 import {
 	type BookmarkHealthEvidence,
+	bookmarkHealthEvidenceBytes,
 	bookmarkHealthEvidenceSchema,
 } from "@/contracts/bookmark-health.schema";
 import type { Json } from "@/types/database.types";
@@ -62,11 +63,11 @@ const decisionSchema = z.object({
 	confidence: z.number().min(0).max(1).nullable(),
 });
 function compactEvidence(e: BookmarkHealthEvidence) {
-	if (Buffer.byteLength(JSON.stringify(e)) > 7200) {
+	if (bookmarkHealthEvidenceBytes(e) > 8192) {
 		e.content.title = e.content.title.slice(0, 300);
 		e.content.excerpt = e.content.excerpt.slice(0, 200);
 		for (const width of [80, 40, 20, 0]) {
-			if (Buffer.byteLength(JSON.stringify(e)) <= 8192) break;
+			if (bookmarkHealthEvidenceBytes(e) <= 8192) break;
 			e.media.items = e.media.items.map((item) => ({ ...item, label: item.label.slice(0, width) }));
 		}
 	}

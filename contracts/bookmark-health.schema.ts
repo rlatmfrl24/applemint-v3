@@ -3,6 +3,19 @@ import { z } from "zod";
 const count = z.number().int().nonnegative();
 const time = z.iso.datetime({ offset: true });
 const reasons = z.array(z.string().max(160)).max(32).default([]);
+export function bookmarkHealthEvidenceBytes(evidence: unknown) {
+	const json = JSON.stringify(evidence);
+	let overhead = 0;
+	// PostgreSQL jsonb::text adds separator spaces and expands exponent notation.
+	for (const [token] of json.matchAll(/"(?:[^"\\]|\\.)*"|[:,]|-?\d+(?:\.\d+)?[eE][+-]?\d+/gu)) {
+		if (token === ":" || token === ",") overhead++;
+		else if (!token.startsWith('"') && /e/iu.test(token)) {
+			const [mantissa, exponent] = token.toLowerCase().split("e");
+			overhead += Math.max(0, Math.abs(Number(exponent)) + mantissa.length + 3 - token.length);
+		}
+	}
+	return new TextEncoder().encode(json).byteLength + overhead;
+}
 export const bookmarkHealthSettingsInputSchema = z.object({
 	enabled: z.boolean(),
 	dailyLimit: z.number().int().min(1).max(1000),
@@ -113,7 +126,7 @@ export const bookmarkHealthEvidenceSchema = z
 				message: "Media confirmation requires complete response coverage",
 				path: ["media", "status"],
 			});
-		if (new TextEncoder().encode(JSON.stringify(evidence)).byteLength > 8192)
+		if (bookmarkHealthEvidenceBytes(evidence) > 8192)
 			ctx.addIssue({ code: "custom", message: "Health evidence exceeds 8192 bytes" });
 	});
 export type BookmarkHealthEvidence = z.infer<typeof bookmarkHealthEvidenceSchema>;

@@ -34,6 +34,7 @@ it("settings default is off with 500 per day and disable preserves in-flight res
 	);
 	const enabled = await screen.findByRole("checkbox", { name: "매일 자동 점검" });
 	expect((enabled as HTMLInputElement).checked).toBe(false);
+	expect(screen.getByText(/원문 발췌가 기존 AI 공급자로 전송/)).toBeTruthy();
 	expect(
 		(screen.getByRole("spinbutton", { name: "하루 점검 개수" }) as HTMLInputElement).value
 	).toBe("500");

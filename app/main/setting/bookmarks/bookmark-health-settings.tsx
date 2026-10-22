@@ -63,7 +63,7 @@ function HealthForm({ settings }: { settings: BookmarkHealthSettings }) {
 			</p>
 			<p className="text-muted-foreground text-xs">
 				자동 삭제 없이 검토 화면에서 상태와 근거를 보고 직접 정리합니다. AI는 기존 월 $1 예산을 함께
-				사용합니다.
+				사용합니다. 판단이 불명확하면 원문 발췌가 기존 AI 공급자로 전송될 수 있습니다.
 			</p>
 			{!settings.workerConfigured && (
 				<p role="status" className="text-destructive text-xs">

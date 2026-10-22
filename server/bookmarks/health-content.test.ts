@@ -14,6 +14,25 @@ it("JS shell remains unknown", () => {
 		extract('<div id="app"></div><script src="/app.js"></script>').evidence.content.status
 	).toBe("unknown");
 });
+it.each([
+	'<title>Saved article</title><main><div>Loading...</div></main><script src="app.js"></script>',
+	'<main><h1>잠시만 기다려 주세요</h1><div id="app"></div></main>',
+])("a structured loading shell does not prove content presence: %s", (body) => {
+	const { evidence } = extract(body);
+	expect(evidence.content.status).toBe("unknown");
+	expect(evidence.coverage).toBe("unknown");
+});
+it("recognizes standalone headed removal and OAuth screens", () => {
+	expect(
+		extract("<title>Article</title><main><h1>This post has been deleted</h1></main>").evidence
+			.content.status
+	).toBe("deleted_suspected");
+	expect(
+		extract(
+			'<title>Article</title><main><h1>Sign in to continue</h1><a href="/oauth">Continue with Google</a></main>'
+		).evidence.content.status
+	).toBe("restricted");
+});
 it("signed lazy media preserves its query and coverage", () => {
 	const result = extract(
 		'<article><p>Photo</p><img src="data:image/gif;base64,a" data-src="https://cdn.example.com/a.jpg?token=keep-this"></article>'

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { bookmarkJobSchema } from "@/contracts/bookmark.schema";
+import { bookmarkHealthEvidenceSchema } from "@/contracts/bookmark-health.schema";
 import type { AppSupabaseClient } from "@/types/supabase";
 import { type HealthObservation, inspectBookmarkPage } from "./health";
 import { extractHealthContent } from "./health-content";
@@ -328,4 +329,35 @@ it("persists a deferred redirect across the next page claim", async () => {
 		expect.anything(),
 		expect.objectContaining({ continuation })
 	);
+});
+it("compacts evidence for PostgreSQL separators and preserves quoted punctuation", async () => {
+	const obs = observation("<article><p>Actual content.</p></article>");
+	obs.evidence.content.title = "t".repeat(1000);
+	obs.evidence.content.excerpt = "e".repeat(500);
+	obs.evidence.media = {
+		...obs.evidence.media,
+		status: "present",
+		discovered: 20,
+		checked: 20,
+		reachable: 20,
+		items: Array.from({ length: 20 }, (_, i) => ({
+			kind: "image",
+			label: 'label: a,b "quoted" '.padEnd(160, "x"),
+			urlHash: i.toString(16).padStart(64, "0"),
+			state: "reachable",
+			httpStatus: 200,
+			reasonCode: "MEDIA_SEMANTICS_UNVERIFIED",
+		})),
+	};
+	vi.stubEnv("OPENROUTER_API_KEY", "");
+	const result = await processHealthClaim(db().client, claim("decision", obs));
+	const stored = JSON.stringify(result.items[0].check?.evidence).replace(
+		/"(?:[^"\\]|\\.)*"|[:,]/gu,
+		(token) => (token.startsWith('"') ? token : `${token} `)
+	);
+	expect(Buffer.byteLength(stored)).toBeLessThanOrEqual(8192);
+	expect(bookmarkHealthEvidenceSchema.safeParse(result.items[0].check?.evidence).success).toBe(
+		true
+	);
+	expect(result.items[0].check?.evidence.media.checked).toBe(20);
 });

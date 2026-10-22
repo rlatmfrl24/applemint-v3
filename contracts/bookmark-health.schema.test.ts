@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import { bookmarkListInputSchema, bookmarkSnapshotSchema } from "./bookmark.schema";
 import {
+	bookmarkHealthEvidenceBytes,
 	bookmarkHealthEvidenceSchema,
 	bookmarkHealthSettingsInputSchema,
 } from "./bookmark-health.schema";
@@ -64,4 +65,10 @@ it("rejects oversized evidence and invalid confirmation timestamps", () => {
 			reasonCodes: Array(100).fill("x".repeat(160)),
 		}).success
 	).toBe(false);
+});
+it("counts PostgreSQL separator whitespace without changing strings and reserves exponent expansion", () => {
+	expect(bookmarkHealthEvidenceBytes({ label: '한글: a,b "quoted"', count: 2 })).toBe(
+		new TextEncoder().encode('{"label": "한글: a,b \\"quoted\\"", "count": 2}').byteLength
+	);
+	expect(bookmarkHealthEvidenceBytes({ confidence: 1e-100 })).toBeGreaterThanOrEqual(120);
 });
