@@ -18,6 +18,7 @@ const { api, push, notice } = vi.hoisted(() => {
 			bookmark: {
 				list: endpoint(),
 				bulk: endpoint(),
+				keep: endpoint(),
 				trash: endpoint(),
 				restore: endpoint(),
 			},
@@ -516,10 +517,7 @@ describe("bookmark manager actions", () => {
 		fireEvent.click(screen.getByLabelText("Select Alpha"));
 		fireEvent.click(screen.getByRole("button", { name: "선택 항목 유지" }));
 		await waitFor(() =>
-			expect(api.bookmark.bulk.mutate).toHaveBeenCalledWith({
-				action: "keep",
-				items: [{ id: "Alpha", version: 3 }],
-			})
+			expect(api.bookmark.keep.mutate).toHaveBeenCalledWith({ id: "Alpha", version: 3 })
 		);
 	});
 	it("restores selected trash items with their current server version", async () => {
@@ -701,9 +699,10 @@ it("bulk keep includes each displayed check revision", async () => {
 		evidence_revision: 4,
 		reviewed_at: null,
 	};
-	api.bookmark.list.query.mockResolvedValue(page([current]));
+	api.bookmark.list.query.mockResolvedValue(page([current, items[0]]));
 	mount("review");
 	fireEvent.click(await screen.findByRole("checkbox", { name: "Select Health" }));
+	fireEvent.click(screen.getByRole("checkbox", { name: "Select Alpha" }));
 	fireEvent.click(screen.getByRole("button", { name: "선택 항목 유지" }));
 	await waitFor(() =>
 		expect(api.bookmark.bulk.mutate).toHaveBeenCalledWith({
@@ -715,6 +714,7 @@ it("bulk keep includes each displayed check revision", async () => {
 					evidenceId: current.check?.id,
 					evidenceRevision: 4,
 				},
+				{ id: "Alpha", version: 3 },
 			],
 		})
 	);

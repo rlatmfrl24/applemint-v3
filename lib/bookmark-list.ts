@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { BookmarkItem } from "@/contracts/bookmark.schema";
+import { refreshBookmarkChanges } from "./bookmark-optimistic";
 
 export function bookmarkItemLocation(item: Pick<BookmarkItem, "id" | "state">) {
 	return `/main/bookmarks?state=${item.state}&bookmark=${item.id}`;
@@ -65,6 +66,7 @@ export function refreshBookmarkResults(cache: QueryClient) {
 					cache.invalidateQueries({ queryKey: ["bookmarks", key] }, { cancelRefetch: false })
 				)
 			);
+			await refreshBookmarkChanges(cache).catch(() => undefined);
 		} while (refresh.pending);
 	})().finally(() => resultRefreshes.delete(cache));
 	return refresh.promise;

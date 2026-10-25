@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { BookmarkCollection, BookmarkItem } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
-import { healthReviewInput, healthSummary } from "@/lib/bookmark-health";
+import { healthSummary } from "@/lib/bookmark-health";
 import { useTRPCClient } from "@/trpc/client";
 import type { BookmarkDetailSelection } from "./bookmark-item-dialog";
 import { useBookmarkChange } from "./use-bookmark-actions";
@@ -51,26 +51,12 @@ export function BookmarkRow({
 		openingDialog.current = true;
 		detail({ id: item.id, mode, trigger: menuTrigger.current });
 	}
-	const action = useMutation({
-		mutationFn: (kind: "keep" | "trash" | "restore") =>
-			trpc.bookmark[kind].mutate(
-				kind === "keep" ? healthReviewInput(item) : { id: item.id, version: item.version }
-			),
-		onSuccess: async () => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.success("항목을 처리했습니다.");
-		},
-		onError: async (error) => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.error(`${error.message} 최신 검사 근거를 다시 확인해주세요.`);
-		},
-	});
 	const open = useMutation({
 		mutationFn: () => trpc.bookmark.open.mutate({ id: item.id }),
 		onSuccess: () => cache.invalidateQueries({ queryKey: ["bookmarks"] }),
 		onError: (error) => toast.error(error.message),
 	});
-	const rowPending = action.isPending || selectionDisabled;
+	const rowPending = change.isPending || selectionDisabled;
 	const path = collectionPath(item.collection_id, collections);
 	const dead =
 		item.check?.status === "dead" &&
@@ -140,9 +126,18 @@ export function BookmarkRow({
 							variant="ghost"
 							size="sm"
 							disabled={rowPending}
-							onClick={() => action.mutate("keep")}
+							onClick={() => change.mutate({ action: "keep", items: [item] })}
 						>
 							유지
+						</Button>
+						<Button
+							variant="destructive"
+							size="sm"
+							disabled={rowPending}
+							title="휴지통으로 이동 (실행 취소 가능)"
+							onClick={() => change.mutate({ action: "trash", items: [item] })}
+						>
+							삭제
 						</Button>
 						<Button
 							variant="outline"

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BookmarkItem } from "@/contracts/bookmark.schema";
@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 	restore: vi.fn(),
 	open: vi.fn(),
 	change: vi.fn(),
+	pending: vi.fn(),
 	success: vi.fn(),
 	error: vi.fn(),
 }));
@@ -27,7 +28,9 @@ vi.mock("@/trpc/client", () => ({
 		},
 	}),
 }));
-vi.mock("./use-bookmark-actions", () => ({ useBookmarkChange: () => ({ mutate: mocks.change }) }));
+vi.mock("./use-bookmark-actions", () => ({
+	useBookmarkChange: () => ({ mutate: mocks.change, isPending: mocks.pending() }),
+}));
 vi.mock("sonner", () => ({ toast: { success: mocks.success, error: mocks.error } }));
 
 type Props = ComponentProps<typeof BookmarkRow>;
@@ -120,6 +123,13 @@ function deadCheck(
 }
 
 describe("BookmarkRow", () => {
+	it("offers delete directly on each review row without opening details or the menu", () => {
+		const { props } = setup({ view: "review" });
+		fireEvent.click(screen.getByRole("button", { name: "삭제" }));
+		expect(mocks.change).toHaveBeenCalledExactlyOnceWith({ action: "trash", items: [props.item] });
+		expect(props.detail).not.toHaveBeenCalled();
+		expect(screen.queryByRole("menu")).toBeNull();
+	});
 	it("separates checkbox selection, details, and dragging and exposes collection context", () => {
 		const { props } = setup({ checked: true, detailed: true });
 		const checkbox = screen.getByRole("checkbox", { name: "React guide 선택" });
@@ -225,47 +235,20 @@ describe("BookmarkRow", () => {
 		expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["상세"]);
 	});
 
-	it("keeps a review item, disables repeat actions while pending, and refreshes data", async () => {
-		const deferred = Promise.withResolvers<void>();
-		mocks.keep.mockReturnValue(deferred.promise);
-		const { props, client } = setup({ view: "review" });
-		const keep = screen.getByRole("button", { name: "유지" });
-		fireEvent.click(keep);
-		await waitFor(() => expect((keep as HTMLButtonElement).disabled).toBe(true));
-		expect(mocks.keep).toHaveBeenCalledExactlyOnceWith({
-			id: props.item.id,
-			version: props.item.version,
-		});
-		fireEvent.click(keep);
-		expect(mocks.keep).toHaveBeenCalledOnce();
-		await menu();
-		expect(
-			screen.getByRole("menuitem", { name: "휴지통 이동" }).getAttribute("aria-disabled")
-		).toBe("true");
-		fireEvent.click(screen.getByRole("menuitem", { name: "휴지통 이동" }));
-		expect(mocks.change).not.toHaveBeenCalled();
-		await act(async () => deferred.resolve());
-		await waitFor(() =>
-			expect(mocks.success).toHaveBeenCalledExactlyOnceWith("항목을 처리했습니다.")
-		);
-		expect(client.getQueryState(["bookmarks", "list"])?.isInvalidated).toBe(true);
-		expect((keep as HTMLButtonElement).disabled).toBe(false);
+	it("keeps a review item through the shared optimistic boundary", () => {
+		const { props } = setup({ view: "review" });
+		fireEvent.click(screen.getByRole("button", { name: "유지" }));
+		expect(mocks.change).toHaveBeenCalledExactlyOnceWith({ action: "keep", items: [props.item] });
 	});
-
-	it("shows a failed review action and lets the user retry", async () => {
-		mocks.keep.mockRejectedValueOnce(new Error("Version conflict"));
+	it("disables keep and delete while the row change is pending", () => {
+		mocks.pending.mockReturnValue(true);
 		setup({ view: "review" });
-		const keep = screen.getByRole("button", { name: "유지" });
-		fireEvent.click(keep);
-		await waitFor(() =>
-			expect(mocks.error).toHaveBeenCalledExactlyOnceWith(
-				expect.stringContaining("Version conflict")
-			)
-		);
-		expect((keep as HTMLButtonElement).disabled).toBe(false);
-		fireEvent.click(keep);
-		await waitFor(() => expect(mocks.success).toHaveBeenCalledOnce());
-		expect(mocks.keep).toHaveBeenCalledTimes(2);
+		for (const name of ["유지", "삭제"]) {
+			const button = screen.getByRole("button", { name });
+			expect((button as HTMLButtonElement).disabled).toBe(true);
+			fireEvent.click(button);
+		}
+		expect(mocks.change).not.toHaveBeenCalled();
 	});
 
 	it.each(["review", "trash"] as const)(
@@ -339,25 +322,15 @@ describe("BookmarkRow", () => {
 		}
 	);
 });
-it("row keep sends the displayed health revision and leaves evidence visible on a conflict", async () => {
+it("row keep forwards current health evidence to the shared command", async () => {
 	const check = deadCheck({
 		checked_url: uiBookmark().url,
 		evidence: bookmarkHealthEvidenceSchema.parse({ observedAt: "2026-10-22T00:00:00Z" }),
 		evidence_revision: 7,
 	});
-	mocks.keep.mockRejectedValueOnce(new Error("health evidence changed"));
 	const { props } = setup({ view: "review", item: uiBookmark({ check }) });
 	fireEvent.click(screen.getByRole("button", { name: "유지" }));
-	await waitFor(() =>
-		expect(mocks.keep).toHaveBeenCalledWith({
-			id: props.item.id,
-			version: props.item.version,
-			evidenceId: check.id,
-			evidenceRevision: 7,
-		})
-	);
-	await waitFor(() =>
-		expect(mocks.error).toHaveBeenCalledWith(expect.stringContaining("최신 검사 근거"))
-	);
+	expect(mocks.change).toHaveBeenCalledWith({ action: "keep", items: [props.item] });
+	expect(props.item.check?.evidence_revision).toBe(7);
 	expect(screen.getByText("죽은 링크 의심")).toBeTruthy();
 });
