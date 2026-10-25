@@ -63,6 +63,20 @@ function createService(data: object) {
 	return { service, rpc };
 }
 
+it("loads collections through the owner collection RPC without a full bookmark snapshot", async () => {
+	const { service, rpc } = createService([collection]);
+	await expect(service.collections()).resolves.toEqual([collection]);
+	expect(rpc).toHaveBeenCalledExactlyOnceWith("bookmark_collections_snapshot");
+});
+
+it("does not hide collection permission errors or malformed responses", async () => {
+	const { service, rpc } = createService([]);
+	rpc.mockResolvedValueOnce({ data: null, error: { code: "42501", message: "owner required" } });
+	await expect(service.collections()).rejects.toMatchObject({ code: "Forbidden" });
+	rpc.mockResolvedValueOnce({ data: [{ ...collection, version: "bad" }], error: null });
+	await expect(service.collections()).rejects.toMatchObject({ code: "UnexpectedFailure" });
+});
+
 afterEach(() => vi.unstubAllEnvs());
 
 it("looks up the normalized source URL without issuing a mutation", async () => {

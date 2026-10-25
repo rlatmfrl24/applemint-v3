@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
 	type BookmarkHealthStartResult,
 	type BookmarkScope,
+	bookmarkCollectionSchema,
 	bookmarkHealthSettingsSchema,
 	bookmarkHealthStartResultSchema,
 	bookmarkJobSchema,
@@ -57,6 +58,13 @@ export class BookmarkRepository {
 			return parsed.data;
 		};
 		return this.metrics?.measureRepository("bookmark.snapshot", run) ?? run();
+	}
+	async collections() {
+		const { data, error } = await this.supabase.rpc("bookmark_collections_snapshot");
+		if (error) throw mapPostgrestError(error, "컬렉션을 불러오지 못했습니다.");
+		const parsed = z.array(bookmarkCollectionSchema).safeParse(data);
+		if (!parsed.success) throw unexpectedFailure("컬렉션 응답이 올바르지 않습니다.", parsed.error);
+		return parsed.data;
 	}
 	async healthSettings() {
 		const { data, error } = await this.supabase.rpc("bookmark_health_settings");

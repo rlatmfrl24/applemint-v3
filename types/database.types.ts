@@ -1339,6 +1339,7 @@ export type Database = {
 			bookmark_ai_usage: { Args: never; Returns: Json };
 			bookmark_assert_collection: { Args: { p_id: string }; Returns: undefined };
 			bookmark_collection_path: { Args: { p_id: string }; Returns: string };
+			bookmark_collections_snapshot: { Args: never; Returns: Json };
 			bookmark_command: {
 				Args: { p_action: string; p_input?: Json };
 				Returns: Json;

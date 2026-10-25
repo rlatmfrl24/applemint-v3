@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BookmarkCollection, BookmarkItem } from "@/contracts/bookmark.schema";
+import type { BookmarkCollection, BookmarkItem, BookmarkJob } from "@/contracts/bookmark.schema";
 import { bookmarkHealthEvidenceSchema } from "@/contracts/bookmark-health.schema";
 import type { BookmarkCollectionDialog } from "./bookmark-collection-dialog";
 import type { BookmarkCollectionTree } from "./bookmark-collection-tree";
@@ -195,7 +195,12 @@ function item(id: string): BookmarkItem {
 	};
 }
 const items = [item("Alpha"), item("Beta")];
-const page = (values = items, total = values.length) => ({ items: values, total, collections });
+const page = (values = items, total = values.length) => ({
+	items: values,
+	total,
+	collections,
+	jobs: [] as BookmarkJob[],
+});
 let cache: QueryClient;
 function mount(view: ComponentProps<typeof BookmarkLibrary>["view"] = "library") {
 	cache = new QueryClient({
@@ -236,6 +241,123 @@ afterEach(() => {
 	cleanup();
 	cache?.clear();
 	vi.unstubAllGlobals();
+});
+
+it("does not abort a slow list fetch when evidence arrives and refreshes after it completes", async () => {
+	mount("review");
+	await screen.findByLabelText("Select Alpha");
+	let resolve!: (value: ReturnType<typeof page>) => void;
+	api.bookmark.list.query.mockImplementationOnce(
+		() =>
+			new Promise((done) => {
+				resolve = done;
+			})
+	);
+	const pending = cache.refetchQueries({ queryKey: ["bookmarks", "list"] });
+	await waitFor(() => expect(api.bookmark.list.query).toHaveBeenCalledTimes(2));
+	const signal = api.bookmark.list.query.mock.calls.at(-1)?.[1].signal as AbortSignal;
+	await act(async () => {
+		cache.setQueryData(
+			["bookmarks", "jobs"],
+			[
+				{
+					id: "check",
+					kind: "check",
+					state: "retry",
+					updated_at: "2",
+					progress: { healthResultRevision: 1 },
+				},
+			]
+		);
+		await new Promise((done) => setTimeout(done, 0));
+	});
+	expect(signal.aborted).toBe(false);
+	resolve(page());
+	await pending;
+	await waitFor(() => expect(api.bookmark.list.query).toHaveBeenCalledTimes(3));
+});
+
+it("refreshes the active detail when a new health result is published", async () => {
+	mount("review");
+	await screen.findByLabelText("Select Alpha");
+	const readDetail = vi.fn().mockResolvedValue({ evidenceRevision: 1 });
+	const observer = new QueryObserver(cache, {
+		queryKey: ["bookmarks", "detail", "Alpha"],
+		queryFn: readDetail,
+	});
+	const unsubscribe = observer.subscribe(() => {});
+	try {
+		await waitFor(() => expect(readDetail).toHaveBeenCalledOnce());
+		await act(async () => {
+			cache.setQueryData(
+				["bookmarks", "jobs"],
+				[
+					{
+						id: "check",
+						kind: "check",
+						state: "retry",
+						updated_at: "2",
+						progress: { healthResultRevision: 1 },
+					},
+				]
+			);
+		});
+		await waitFor(() => expect(readDetail).toHaveBeenCalledTimes(2));
+	} finally {
+		unsubscribe();
+	}
+});
+
+it("shows collections created by an import after its result event", async () => {
+	mount();
+	await screen.findByLabelText("Select Alpha");
+	api.bookmarkCollection.list.query.mockResolvedValue([
+		...collections,
+		{ ...collections[0], id: "imported", name: "Imported" },
+	]);
+	await act(async () => {
+		cache.setQueryData(
+			["bookmarks", "jobs"],
+			[{ id: "import", kind: "import", state: "succeeded", updated_at: "2" }]
+		);
+	});
+	await screen.findByRole("button", { name: "Collection imported" });
+});
+
+it("compares the first job response with the initial list snapshot before discarding a result event", async () => {
+	let finishList!: (value: ReturnType<typeof page>) => void;
+	let finishJobs!: (value: object[]) => void;
+	api.bookmark.list.query.mockImplementationOnce(
+		() =>
+			new Promise((done) => {
+				finishList = done;
+			})
+	);
+	api.bookmarkImport.status.query.mockImplementationOnce(
+		() =>
+			new Promise((done) => {
+				finishJobs = done;
+			})
+	);
+	mount("review");
+	await waitFor(() => expect(api.bookmarkImport.status.query).toHaveBeenCalledOnce());
+	await act(async () => {
+		finishJobs([
+			{
+				id: "check",
+				kind: "check",
+				state: "retry",
+				updated_at: "2",
+				progress: { healthResultRevision: 1 },
+			},
+		]);
+		await new Promise((done) => setTimeout(done, 0));
+	});
+	await act(async () => {
+		finishList(page());
+	});
+	await screen.findByLabelText("Select Alpha");
+	await waitFor(() => expect(api.bookmark.list.query).toHaveBeenCalledTimes(2));
 });
 
 describe("bookmark library navigation and results", () => {

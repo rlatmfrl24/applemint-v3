@@ -38,6 +38,7 @@ import {
 	bookmarkResultsChanged,
 	flattenBookmarkPages,
 	nextBookmarkOffset,
+	refreshBookmarkResults,
 } from "@/lib/bookmark-list";
 import {
 	projectBookmarkItems,
@@ -255,17 +256,23 @@ function useBookmarkManager(screen: BookmarkView) {
 		retry: false,
 	});
 	const previousJobs = useRef<BookmarkJob[] | undefined>(undefined);
+	const initialResultsCompared = useRef(false);
+	const snapshotJobs = query.data?.pages.at(-1)?.jobs;
 	useEffect(() => {
 		if (!jobsQuery.data) return;
-		const changed = bookmarkResultsChanged(previousJobs.current, jobsQuery.data);
+		const compareSnapshot = !initialResultsCompared.current && snapshotJobs !== undefined;
+		const changed = bookmarkResultsChanged(
+			compareSnapshot ? snapshotJobs : previousJobs.current,
+			jobsQuery.data
+		);
+		if (compareSnapshot) initialResultsCompared.current = true;
 		previousJobs.current = jobsQuery.data;
-		if (changed) void cache.invalidateQueries({ queryKey: ["bookmarks", "list"] });
-	}, [jobsQuery.data, cache]);
+		if (changed) void refreshBookmarkResults(cache);
+	}, [jobsQuery.data, snapshotJobs, cache]);
 	const collectionQuery = useQuery({
 		queryKey: ["bookmarks", "collections"],
 		queryFn: () => trpc.bookmarkCollection.list.query(),
 		enabled: view !== "activity",
-		refetchInterval: 10000,
 	});
 	const snapshot = query.data?.pages.at(-1);
 	const collectionChanges = useCollectionDisplayChanges();
