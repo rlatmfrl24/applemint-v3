@@ -12,9 +12,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { BookmarkCollection, BookmarkItem } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
-import { healthReviewInput, healthSummary } from "@/lib/bookmark-health";
+import { healthSummary } from "@/lib/bookmark-health";
 import { useTRPCClient } from "@/trpc/client";
 import type { BookmarkDetailSelection } from "./bookmark-item-dialog";
+import styles from "./bookmark-row.module.css";
 import { useBookmarkChange } from "./use-bookmark-actions";
 
 export function BookmarkRow({
@@ -51,44 +52,27 @@ export function BookmarkRow({
 		openingDialog.current = true;
 		detail({ id: item.id, mode, trigger: menuTrigger.current });
 	}
-	const action = useMutation({
-		mutationFn: (kind: "keep" | "trash" | "restore") =>
-			trpc.bookmark[kind].mutate(
-				kind === "keep" ? healthReviewInput(item) : { id: item.id, version: item.version }
-			),
-		onSuccess: async () => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.success("항목을 처리했습니다.");
-		},
-		onError: async (error) => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.error(`${error.message} 최신 검사 근거를 다시 확인해주세요.`);
-		},
-	});
 	const open = useMutation({
 		mutationFn: () => trpc.bookmark.open.mutate({ id: item.id }),
 		onSuccess: () => cache.invalidateQueries({ queryKey: ["bookmarks"] }),
 		onError: (error) => toast.error(error.message),
 	});
-	const rowPending = action.isPending || selectionDisabled;
+	const rowPending = change.isPending || selectionDisabled;
 	const path = collectionPath(item.collection_id, collections);
-	const dead =
-		item.check?.status === "dead" &&
-		item.check.bookmark_version === item.version &&
-		!item.check.reviewed_at;
 	const proposalLabel = item.proposals.some((proposal) => proposal.kind === "classify")
 		? "변경안"
 		: "근거";
 	const health = healthSummary(item);
-	const reason = reviewReason(item, dead);
+	const reason = reviewReason(item);
 	return (
 		<article
 			data-bookmark-id={item.id}
+			data-view={view}
 			data-detail-selected={detailed}
 			draggable={view === "library" && !moving && !selectionDisabled}
 			onDragStart={(event) => startDrag(event, item)}
 			onDragEnd={endDrag}
-			className={`relative isolate grid min-h-[72px] grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 border-b px-3 py-2 text-sm transition-colors duration-150 last:border-b-0 data-[detail-selected=true]:bg-accent data-[detail-selected=true]:hover:bg-accent motion-reduce:transition-none ${checked ? "bg-accent/60" : "hover:bg-muted/60"}`}
+			className={`relative isolate grid min-h-[72px] grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 border-b px-3 py-2 text-sm transition-colors duration-150 last:border-b-0 data-[detail-selected=true]:bg-accent data-[detail-selected=true]:hover:bg-accent motion-reduce:transition-none ${styles.row} ${checked ? "bg-accent/60" : "hover:bg-muted/60"}`}
 		>
 			<label className="relative z-10 -m-3 flex size-11 items-center justify-center">
 				<input
@@ -100,9 +84,11 @@ export function BookmarkRow({
 					onChange={select}
 				/>
 			</label>
-			<div className="min-w-0">
+			<fieldset className={`m-0 min-w-0 border-0 p-0 ${styles.identity}`} aria-label="링크 정보">
 				<div className="flex min-w-0 items-center gap-2">
-					<h2 className="min-w-0 border-0 p-0 font-semibold text-[15px] leading-5 tracking-normal">
+					<h2
+						className={`min-w-0 border-0 p-0 font-semibold text-[15px] leading-5 tracking-normal ${styles.title}`}
+					>
 						<button
 							type="button"
 							aria-label={`${item.title || item.url} 상세 보기`}
@@ -114,19 +100,29 @@ export function BookmarkRow({
 							<span className="line-clamp-2 break-words">{item.title || item.url}</span>
 						</button>
 					</h2>
-					{health && (
+					{health && view !== "review" && (
 						<span
 							title={health.detail}
-							className={`shrink-0 text-xs ${health.severity === "danger" ? "text-destructive" : "text-muted-foreground"}`}
+							data-severity={health.severity}
+							className={`shrink-0 text-muted-foreground text-xs ${styles.inlineHealth}`}
 						>
 							{health.label}
 						</span>
 					)}
 				</div>
-				<BookmarkMetadata item={item} path={path} onOpen={() => open.mutate()} />
-				<BookmarkRowContext item={item} view={view} reason={reason} />
-			</div>
-			<div className="relative z-10 flex shrink-0 items-center gap-1">
+				<BookmarkMetadata
+					item={item}
+					path={path}
+					review={view === "review"}
+					onOpen={() => open.mutate()}
+				/>
+				{view !== "review" && <BookmarkRowContext item={item} view={view} reason={reason} />}
+			</fieldset>
+			{view === "review" && <BookmarkRowContext item={item} view={view} reason={reason} />}
+			<fieldset
+				className={`relative z-10 m-0 flex min-w-0 shrink-0 items-center gap-1 border-0 p-0 ${styles.actions}`}
+				aria-label="항목 정리"
+			>
 				{view === "library" && (
 					<GripVertical
 						className="hidden size-4 text-muted-foreground md:block"
@@ -140,9 +136,18 @@ export function BookmarkRow({
 							variant="ghost"
 							size="sm"
 							disabled={rowPending}
-							onClick={() => action.mutate("keep")}
+							onClick={() => change.mutate({ action: "keep", items: [item] })}
 						>
 							유지
+						</Button>
+						<Button
+							variant="destructive"
+							size="sm"
+							disabled={rowPending}
+							title="휴지통으로 이동 (실행 취소 가능)"
+							onClick={() => change.mutate({ action: "trash", items: [item] })}
+						>
+							삭제
 						</Button>
 						<Button
 							variant="outline"
@@ -201,7 +206,7 @@ export function BookmarkRow({
 						)}
 					</DropdownMenuContent>
 				</DropdownMenu>
-			</div>
+			</fieldset>
 		</article>
 	);
 }
@@ -214,10 +219,25 @@ function BookmarkRowContext({
 	view: string;
 	reason: string;
 }) {
+	const health = healthSummary(item);
 	return view === "review" ? (
-		<p className="m-0 truncate text-foreground/70 text-xs leading-4" title={reason}>
-			{reason}
-		</p>
+		<fieldset aria-label="검토 사유" className={`m-0 border-0 p-0 ${styles.reviewContext}`}>
+			<span
+				className={`inline-flex rounded-md border px-2 py-1 font-medium text-xs ${health?.severity === "danger" ? "border-destructive/30 bg-destructive/10 text-foreground" : "border-border bg-muted/40 text-foreground"}`}
+				title={health?.detail}
+			>
+				{health?.label ??
+					(item.proposals.some((proposal) => proposal.kind === "classify")
+						? "컬렉션 변경 제안"
+						: "미사용 후보")}
+			</span>
+			<p
+				className="m-0 line-clamp-2 break-words text-foreground/70 text-sm leading-5"
+				title={reason}
+			>
+				{reason}
+			</p>
+		</fieldset>
 	) : (
 		item.tags.length > 0 && (
 			<p className="m-0 hidden truncate text-foreground/70 text-xs leading-4 xl:block">
@@ -226,7 +246,12 @@ function BookmarkRowContext({
 		)
 	);
 }
-function reviewReason(item: BookmarkItem, dead: boolean) {
+function reviewReason(item: BookmarkItem) {
+	const dead =
+		item.check?.status === "dead" &&
+		item.check.bookmark_version === item.version &&
+		!item.check.reviewed_at;
+
 	if (dead && item.check) return item.check.reason;
 	const summary = healthSummary(item);
 	if (item.check?.evidence && summary?.severity !== "neutral")
@@ -240,15 +265,19 @@ function reviewReason(item: BookmarkItem, dead: boolean) {
 function BookmarkMetadata({
 	item,
 	path,
+	review,
 	onOpen,
 }: {
 	item: BookmarkItem;
 	path: string;
+	review: boolean;
 	onOpen: () => void;
 }) {
 	const safe = /^https?:\/\//iu.test(item.url);
 	return (
-		<div className="mt-0.5 min-w-0 space-y-1 text-foreground/70 text-xs leading-4">
+		<div
+			className={`${review ? "mt-1 space-y-3" : "mt-0.5 space-y-1"} min-w-0 text-foreground/70 text-xs leading-4`}
+		>
 			<a
 				draggable={false}
 				href={safe ? item.url : undefined}
@@ -262,18 +291,21 @@ function BookmarkMetadata({
 				<ExternalLink className="size-3 shrink-0" aria-hidden="true" />
 				<span className="truncate">{item.url.replace(/^https?:\/\//iu, "")}</span>
 			</a>
-			<div className="flex min-w-0 items-center gap-2">
+			<div
+				className={`flex min-w-0 items-center ${review ? "flex-wrap gap-x-3 gap-y-2" : "gap-2"}`}
+			>
 				<span
-					className="inline-flex min-w-0 items-center gap-1 rounded-sm bg-muted px-1.5"
+					className={`inline-flex min-w-0 max-w-full items-center gap-1 ${review ? "" : "rounded-sm bg-muted px-1.5"}`}
 					title={path}
 				>
 					<Folder className="size-3 shrink-0" aria-hidden="true" />
 					<span className="truncate">{path}</span>
 				</span>
-				<span className="hidden shrink-0 2xl:inline">
+				<span className={review ? "shrink-0" : "hidden shrink-0 2xl:inline"}>
+					{review && "저장 "}
 					{new Date(item.saved_at).toLocaleDateString("ko-KR")}
 				</span>
-				<span className="hidden shrink-0 2xl:inline">
+				<span className={review ? "shrink-0" : "hidden shrink-0 2xl:inline"}>
 					{item.open_count ? `열기 ${item.open_count}회` : "사용 이력 없음"}
 				</span>
 			</div>

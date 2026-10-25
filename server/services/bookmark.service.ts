@@ -18,6 +18,9 @@ export class BookmarkService {
 	snapshot(input: object) {
 		return this.store.snapshot(input);
 	}
+	collections() {
+		return this.store.collections();
+	}
 	configuration() {
 		return getBookmarkConfiguration();
 	}

@@ -28,7 +28,6 @@ import type {
 	BookmarkScope,
 } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
-import { healthReviewInput } from "@/lib/bookmark-health";
 import {
 	bookmarkHistoryPosition,
 	guardBookmarkHistory,
@@ -38,6 +37,7 @@ import {
 	bookmarkResultsChanged,
 	flattenBookmarkPages,
 	nextBookmarkOffset,
+	refreshBookmarkResults,
 } from "@/lib/bookmark-list";
 import {
 	projectBookmarkItems,
@@ -255,17 +255,23 @@ function useBookmarkManager(screen: BookmarkView) {
 		retry: false,
 	});
 	const previousJobs = useRef<BookmarkJob[] | undefined>(undefined);
+	const initialResultsCompared = useRef(false);
+	const snapshotJobs = query.data?.pages.at(-1)?.jobs;
 	useEffect(() => {
 		if (!jobsQuery.data) return;
-		const changed = bookmarkResultsChanged(previousJobs.current, jobsQuery.data);
+		const compareSnapshot = !initialResultsCompared.current && snapshotJobs !== undefined;
+		const changed = bookmarkResultsChanged(
+			compareSnapshot ? snapshotJobs : previousJobs.current,
+			jobsQuery.data
+		);
+		if (compareSnapshot) initialResultsCompared.current = true;
 		previousJobs.current = jobsQuery.data;
-		if (changed) void cache.invalidateQueries({ queryKey: ["bookmarks", "list"] });
-	}, [jobsQuery.data, cache]);
+		if (changed) void refreshBookmarkResults(cache);
+	}, [jobsQuery.data, snapshotJobs, cache]);
 	const collectionQuery = useQuery({
 		queryKey: ["bookmarks", "collections"],
 		queryFn: () => trpc.bookmarkCollection.list.query(),
 		enabled: view !== "activity",
-		refetchInterval: 10000,
 	});
 	const snapshot = query.data?.pages.at(-1);
 	const collectionChanges = useCollectionDisplayChanges();
@@ -359,25 +365,12 @@ function useBookmarkManager(screen: BookmarkView) {
 		onError: (error) => toast.error(error.message),
 	});
 	const classifications = latestClassificationProposals(selectedItems);
-	const keep = useMutation({
-		mutationFn: (items: ReturnType<typeof healthReviewInput>[]) =>
-			trpc.bookmark.bulk.mutate({ action: "keep", items }),
-		onSuccess: async () => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.success("선택 항목을 유지했습니다.");
-		},
-		onError: async (error) => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.error(`${error.message} 최신 검사 근거를 다시 확인해주세요.`);
-		},
-	});
 	const bulk = {
-		isPending: keep.isPending || bookmarkChange.isPending,
+		isPending: bookmarkChange.isPending,
 		mutate: (action: "keep" | "trash" | "restore") => {
 			const items = selectedItems;
 			setSelected([]);
-			if (action === "keep") keep.mutate(items.map(healthReviewInput));
-			else bookmarkChange.mutate({ action, items });
+			bookmarkChange.mutate({ action, items });
 		},
 	};
 

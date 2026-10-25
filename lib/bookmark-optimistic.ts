@@ -4,7 +4,7 @@ import { collectionChildren } from "./bookmark-tree";
 export const BOOKMARK_CHANGES_KEY = ["bookmark-ui-changes"] as const;
 export type BookmarkChange = {
 	id: string;
-	action: "trash" | "restore" | "move";
+	action: "trash" | "restore" | "move" | "keep";
 	items: BookmarkItem[];
 	collectionId?: string | null;
 	acknowledged: boolean;
@@ -19,16 +19,24 @@ export function projectBookmarkItems(
 	filter: { state?: string; collectionId?: string | null; search?: string; review?: boolean }
 ) {
 	const extras = changes.flatMap((change) =>
-		!filter.search && !filter.review
+		change.action !== "keep" && !filter.search && !filter.review
 			? change.items.filter((item) => !items.some((existing) => existing.id === item.id))
 			: []
 	);
 	return [...extras, ...items]
+		.filter(
+			(item) =>
+				!filter.review ||
+				!changes.some(
+					(change) =>
+						change.action === "keep" && change.items.some((candidate) => candidate.id === item.id)
+				)
+		)
 		.map((item) => {
 			const change = changes.find((change) =>
 				change.items.some((candidate) => candidate.id === item.id)
 			);
-			if (!change) return item;
+			if (!change || change.action === "keep") return item;
 			if (change.action === "move") return { ...item, collection_id: change.collectionId ?? null };
 			return {
 				...item,

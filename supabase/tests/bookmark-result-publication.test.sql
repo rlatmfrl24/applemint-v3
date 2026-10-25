@@ -1,0 +1,15 @@
+begin;
+select plan(4);
+insert into public.bookmarks(id,url,url_key,title) values ('bbbbbbbb-9830-4000-8000-000000000001','https://example.com/publication','https://example.com/publication','Publication');
+insert into public.bookmark_jobs(id,kind,state,total,lease_token,lease_expires_at) values ('aaaaaaaa-9830-4000-8000-000000000001','check','processing',1,'cccccccc-9830-4000-8000-000000000001',now()+interval '1 minute');
+insert into public.bookmark_job_items(job_id,bookmark_id,expected_version) values ('aaaaaaaa-9830-4000-8000-000000000001','bbbbbbbb-9830-4000-8000-000000000001',1);
+select public.bookmark_worker_commit('aaaaaaaa-9830-4000-8000-000000000001','cccccccc-9830-4000-8000-000000000001','{"items":[{"id":"bbbbbbbb-9830-4000-8000-000000000001","version":1,"state":"waiting","work":{"phase":"page"}}]}');
+select is((select coalesce((progress->>'healthResultRevision')::bigint,0) from public.bookmark_jobs where id='aaaaaaaa-9830-4000-8000-000000000001'),0::bigint,'checkpoint does not publish a result');
+update public.bookmark_jobs set state='processing',lease_token='cccccccc-9830-4000-8000-000000000001',lease_expires_at=now()+interval '1 minute' where id='aaaaaaaa-9830-4000-8000-000000000001';
+select public.bookmark_worker_commit('aaaaaaaa-9830-4000-8000-000000000001','cccccccc-9830-4000-8000-000000000001','{"items":[{"id":"bbbbbbbb-9830-4000-8000-000000000001","version":1,"state":"waiting","check":{"status":"healthy","reason":"provisional","checkedUrl":"https://example.com/publication","evidence":{}}}]}');
+select is((select (progress->>'healthResultRevision')::bigint from public.bookmark_jobs where id='aaaaaaaa-9830-4000-8000-000000000001'),1::bigint,'published provisional observation increments revision');
+update public.bookmark_jobs set state='processing',lease_token='cccccccc-9830-4000-8000-000000000001',lease_expires_at=now()+interval '1 minute' where id='aaaaaaaa-9830-4000-8000-000000000001';
+select public.bookmark_worker_commit('aaaaaaaa-9830-4000-8000-000000000001','cccccccc-9830-4000-8000-000000000001','{"items":[{"id":"bbbbbbbb-9830-4000-8000-000000000001","version":1,"state":"waiting","check":{"status":"healthy","reason":"late","checkedUrl":"https://example.com/publication","evidence":{"observedAt":"2020-01-01T00:00:00Z"}}}]}');
+select is((select (progress->>'healthResultRevision')::bigint from public.bookmark_jobs where id='aaaaaaaa-9830-4000-8000-000000000001'),1::bigint,'rejected older observation does not publish');
+select is((select count(*) from public.bookmarks where id='bbbbbbbb-9830-4000-8000-000000000001' and state='library'),1::bigint,'publication does not move or delete bookmark');
+select * from finish(); rollback;

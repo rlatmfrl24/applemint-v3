@@ -33,6 +33,7 @@ function createContext(
 	access: { kind: string; status?: number; message?: string } = { kind: "owner" }
 ) {
 	const bookmark = {
+		collections: vi.fn().mockResolvedValue([{ id: otherId, name: "Reading" }]),
 		lookup: vi.fn().mockResolvedValue(null),
 		snapshot: vi
 			.fn()
@@ -215,7 +216,7 @@ describe("bookmark caller input contracts", () => {
 			caller.bookmark.lookup({ url: "https://example.com/", threadId: "0" })
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 	});
-	it("applies listing defaults and projects collections from the snapshot", async () => {
+	it("applies listing defaults and reads collections independently of the snapshot", async () => {
 		const { caller, bookmark, getOwnerAccess } = createContext();
 
 		await expect(caller.bookmark.list({})).resolves.toMatchObject({ items: [] });
@@ -231,7 +232,8 @@ describe("bookmark caller input contracts", () => {
 		await expect(caller.bookmarkCollection.list()).resolves.toEqual([
 			{ id: otherId, name: "Reading" },
 		]);
-		expect(bookmark.snapshot).toHaveBeenNthCalledWith(3, { limit: 1 });
+		expect(bookmark.collections).toHaveBeenCalledOnce();
+		expect(bookmark.snapshot).toHaveBeenCalledTimes(2);
 		expect(getOwnerAccess).toHaveBeenCalledTimes(3);
 	});
 

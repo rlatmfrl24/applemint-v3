@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { expect, it } from "vitest";
 import type { BookmarkCollection, BookmarkItem } from "@/contracts/bookmark.schema";
+import { refreshBookmarkResults } from "./bookmark-list";
 import {
 	BOOKMARK_CHANGES_KEY,
 	type BookmarkChange,
@@ -17,6 +18,45 @@ const change = (id: string, action: BookmarkChange["action"], itemId: string): B
 	items: [item(itemId)],
 	collectionId: "two",
 	acknowledged: false,
+});
+it("keep immediately leaves review, preserves library data, and rolls back on failure", () => {
+	const items = [item("a"), item("b")];
+	const keep = change("keep", "keep", "a");
+	expect(projectBookmarkItems(items, [keep], { review: true })).toEqual([items[1]]);
+	expect(projectBookmarkItems(items, [keep], {})).toEqual(items);
+	expect(projectBookmarkItems([], [keep], {})).toEqual([]);
+	expect(projectBookmarkItems(items, [], { review: true })).toEqual(items);
+});
+it("a successful result refresh clears keep retained after an earlier read failure", async () => {
+	const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+	const seen = { ...item("a"), review_revision: 4 };
+	const kept = { ...change("keep", "keep", "a"), items: [seen], acknowledged: true };
+	const key = ["bookmarks", "list", { review: true }];
+	let fail = false;
+	let server = [seen];
+	await cache.fetchQuery({
+		queryKey: key,
+		queryFn: async () => {
+			if (fail) throw new Error("read failed");
+			return server;
+		},
+	});
+	cache.setQueryData(BOOKMARK_CHANGES_KEY, [kept]);
+	fail = true;
+	await expect(refreshBookmarkChanges(cache)).rejects.toThrow("read failed");
+	expect(cache.getQueryData(BOOKMARK_CHANGES_KEY)).toEqual([kept]);
+	fail = false;
+	server = [{ ...seen, review_revision: 5 }];
+	await refreshBookmarkResults(cache);
+	expect(cache.getQueryData(BOOKMARK_CHANGES_KEY)).toEqual([]);
+	expect(
+		projectBookmarkItems(
+			cache.getQueryData<BookmarkItem[]>(key) ?? [],
+			cache.getQueryData<BookmarkChange[]>(BOOKMARK_CHANGES_KEY) ?? [],
+			{ review: true }
+		)
+	).toEqual(server);
+	cache.clear();
 });
 it("a failed operation can be removed without reversing a different item's pending move or changing page lengths", () => {
 	const items = [item("a"), item("b")];

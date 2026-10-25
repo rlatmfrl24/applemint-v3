@@ -23,7 +23,6 @@ import { collectionPath } from "@/lib/bookmark-collection";
 import {
 	aiHealthLabels,
 	contentHealthLabels,
-	healthReviewInput,
 	healthSummary,
 	mediaHealthLabels,
 } from "@/lib/bookmark-health";
@@ -261,18 +260,6 @@ function BookmarkItemDetail({
 	const change = useBookmarkChange();
 	const changes = useBookmarkDisplayChanges();
 	const fieldId = useId();
-	const keep = useMutation({
-		mutationFn: () => trpc.bookmark.keep.mutate(healthReviewInput(item)),
-		onSuccess: async () => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			onDone();
-			toast.success("유지 검토를 기록했습니다.");
-		},
-		onError: async (e) => {
-			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
-			toast.error(`${e.message} 최신 검사 근거를 다시 확인해주세요.`);
-		},
-	});
 	const edit = useMutation({
 		mutationFn: (input: Parameters<typeof trpc.bookmark.edit.mutate>[0]) =>
 			trpc.bookmark.edit.mutate(input),
@@ -300,7 +287,6 @@ function BookmarkItemDetail({
 		onError: (e) => toast.error(`열기 기록 저장 실패: ${e.message}`),
 	});
 	const pending = [
-		keep.isPending,
 		change.isPending,
 		apply.isPending,
 		edit.isPending,
@@ -370,7 +356,14 @@ function BookmarkItemDetail({
 					</Button>
 				) : (
 					<>
-						<Button size="sm" variant="outline" disabled={pending} onClick={() => keep.mutate()}>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={pending}
+							onClick={() =>
+								change.mutate({ action: "keep", items: [item] }, { onSuccess: onDone })
+							}
+						>
 							유지
 						</Button>
 						<Button

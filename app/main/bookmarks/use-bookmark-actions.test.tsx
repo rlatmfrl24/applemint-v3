@@ -15,6 +15,7 @@ import {
 const { api, notice } = vi.hoisted(() => ({
 	api: {
 		bookmark: {
+			keep: { mutate: vi.fn() },
 			trash: { mutate: vi.fn() },
 			restore: { mutate: vi.fn() },
 			bulk: { mutate: vi.fn() },
@@ -67,6 +68,37 @@ afterEach(() => {
 });
 
 describe("optimistic bookmark commands", () => {
+	it("publishes keep immediately, sends displayed evidence, and rolls back a conflict", async () => {
+		const complete = Promise.withResolvers<{ applied: number }>();
+		api.bookmark.keep.mutate.mockReturnValue(complete.promise);
+		const item = {
+			...first,
+			check: {
+				id: "check",
+				bookmark_version: 3,
+				checked_url: null,
+				evidence: {},
+				evidence_revision: 7,
+			},
+		} as BookmarkItem;
+		const { result } = renderHook(
+			() => ({ action: useBookmarkChange(), changes: useBookmarkDisplayChanges() }),
+			{ wrapper }
+		);
+		act(() => result.current.action.mutate({ action: "keep", items: [item] }));
+		await waitFor(() =>
+			expect(result.current.changes).toMatchObject([{ action: "keep", acknowledged: false }])
+		);
+		expect(api.bookmark.keep.mutate).toHaveBeenCalledWith({
+			id: first.id,
+			version: 3,
+			evidenceId: "check",
+			evidenceRevision: 7,
+		});
+		await act(async () => complete.reject(new Error("health evidence changed")));
+		await waitFor(() => expect(result.current.changes).toEqual([]));
+		expect(notice.error).toHaveBeenCalledWith(expect.stringContaining("health evidence changed"));
+	});
 	it("immediately publishes a pending move and waits for acknowledgment before clearing it", async () => {
 		let complete: (value: { applied: number }) => void = () => {};
 		api.bookmarkCollection.moveMany.mutate.mockImplementation(

@@ -112,6 +112,7 @@ select is(
 	),
 	array[
 		'acknowledge_web_push_inbox(text)',
+		'bookmark_collections_snapshot()',
 		'bookmark_command(text,jsonb)',
 		'bookmark_health_settings()',
 		'bookmark_health_update_settings(boolean,integer)',

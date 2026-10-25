@@ -50,7 +50,9 @@ export function useBookmarkChange() {
 		mutationKey: ["bookmarks", "change"],
 		mutationFn: (input: Command) => {
 			const items = input.items.map((item) =>
-				input.action === "trash" ? healthReviewInput(item) : { id: item.id, version: item.version }
+				input.action === "trash" || input.action === "keep"
+					? healthReviewInput(item)
+					: { id: item.id, version: item.version }
 			);
 			if (input.action === "move")
 				return trpc.bookmarkCollection.moveMany.mutate({
@@ -96,7 +98,9 @@ export function useBookmarkChange() {
 					? `북마크 ${input.items.length}개를 이동했습니다.`
 					: input.action === "trash"
 						? "휴지통으로 이동했습니다."
-						: "북마크를 복원했습니다.",
+						: input.action === "keep"
+							? "유지했습니다. 검토 목록에서 제외했습니다."
+							: "북마크를 복원했습니다.",
 				{ action: undo }
 			);
 			try {
@@ -105,12 +109,16 @@ export function useBookmarkChange() {
 				toast.info("변경은 저장되었습니다. 최신 목록을 다시 확인해주세요.");
 			}
 		},
-		onError: async (error, _input, context) => {
+		onError: async (error, input, context) => {
 			if (context)
 				cache.setQueryData<BookmarkChange[]>(BOOKMARK_CHANGES_KEY, (old) =>
 					(old ?? []).filter((change) => change.id !== context.id)
 				);
-			toast.error(error.message);
+			toast.error(
+				input.action === "keep"
+					? `${error.message} 최신 검사 근거를 다시 확인해주세요.`
+					: error.message
+			);
 			try {
 				await refreshBookmarkChanges(cache, true);
 			} catch {
