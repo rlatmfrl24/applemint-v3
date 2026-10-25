@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BookmarkItem } from "@/contracts/bookmark.schema";
@@ -123,6 +123,26 @@ function deadCheck(
 }
 
 describe("BookmarkRow", () => {
+	it("separates link identity, review evidence, and cleanup controls in reading order", () => {
+		setup({ view: "review", item: uiBookmark({ check: deadCheck() }) });
+		const identity = screen.getByRole("group", { name: "링크 정보" });
+		const evidence = screen.getByRole("group", { name: "검토 사유" });
+		const actions = screen.getByRole("group", { name: "항목 정리" });
+		expect(within(identity).getByRole("heading", { name: "React guide" })).toBeDefined();
+		expect(within(identity).getByRole("link")).toBeDefined();
+		expect(within(identity).getByTitle("Work / Guides / React")).toBeDefined();
+		expect(within(identity).queryByText("죽은 링크 의심")).toBeNull();
+		expect(within(evidence).getByText("죽은 링크 의심")).toBeDefined();
+		expect(within(evidence).getByText("The server returned 404")).toBeDefined();
+		for (const name of ["유지", "삭제", "근거"])
+			expect(within(actions).getByRole("button", { name })).toBeDefined();
+		expect(
+			identity.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING
+		).toBeTruthy();
+		expect(
+			evidence.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING
+		).toBeTruthy();
+	});
 	it("offers delete directly on each review row without opening details or the menu", () => {
 		const { props } = setup({ view: "review" });
 		fireEvent.click(screen.getByRole("button", { name: "삭제" }));

@@ -1,0 +1,65 @@
+.row[data-view="review"] {
+	grid-template-columns: 20px minmax(0, 1fr);
+	grid-template-areas:
+		"select content"
+		". reason"
+		". actions";
+	align-items: start;
+	gap: 16px 12px;
+	padding: 20px 16px;
+}
+.row[data-view="review"] > label {
+	grid-area: select;
+	margin-top: 0;
+}
+.row[data-view="review"] .identity {
+	grid-area: content;
+}
+.reviewContext {
+	grid-area: reason;
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 8px;
+}
+.row[data-view="review"] .actions {
+	grid-area: actions;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+@media (pointer: coarse) {
+	.row[data-view="review"] .actions button {
+		min-width: 44px;
+		min-height: 44px;
+	}
+}
+@container (min-width: 640px) {
+	.row[data-view="review"] {
+		grid-template-columns: 20px minmax(0, 1fr) auto;
+		grid-template-areas:
+			"select content actions"
+			". reason actions";
+		column-gap: 20px;
+	}
+	.row[data-view="review"] .actions {
+		align-self: center;
+		flex-wrap: nowrap;
+	}
+}
+@container (min-width: 1000px) {
+	.row[data-view="review"] {
+		grid-template-columns: 20px minmax(0, 1.2fr) minmax(0, 0.8fr) auto;
+		grid-template-areas: "select content reason actions";
+		align-items: center;
+		column-gap: 24px;
+	}
+}
+
+.row[data-view="review"] .title {
+	font-size: 1rem;
+	line-height: 1.5rem;
+}
+.inlineHealth[data-severity="danger"] {
+	color: hsl(var(--destructive));
+}
