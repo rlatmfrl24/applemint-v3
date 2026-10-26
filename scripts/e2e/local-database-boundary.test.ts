@@ -11,7 +11,8 @@ describe("local E2E database boundary", () => {
 		const source = readWorkspaceFile("e2e/support/database.ts");
 
 		expect(source).not.toContain("@supabase/supabase-js");
-		expect(source).not.toContain(".from(");
+		// Array.from is a standard collection helper, not a Supabase Data API call.
+		expect(source).not.toMatch(/(?<!\bArray)\.from\s*\(/u);
 		expect(source).not.toContain("secretKey");
 		expect(source).toContain('spawnSync(\n\t\t"docker"');
 		expect(source).toContain('"psql"');

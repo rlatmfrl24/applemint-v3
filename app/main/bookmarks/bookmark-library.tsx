@@ -1,5 +1,11 @@
 "use client";
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	isCancelledError,
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { ChevronDown, RefreshCw, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -34,16 +40,13 @@ import {
 	trackBookmarkHistory,
 } from "@/lib/bookmark-history";
 import {
+	bookmarkJobsInterval,
 	bookmarkResultsChanged,
 	flattenBookmarkPages,
 	nextBookmarkOffset,
-	refreshBookmarkResults,
+	refreshBookmarkFirstPage,
 } from "@/lib/bookmark-list";
-import {
-	projectBookmarkItems,
-	projectCollections,
-	refreshBookmarkChanges,
-} from "@/lib/bookmark-optimistic";
+import { projectBookmarkItems, projectCollections } from "@/lib/bookmark-optimistic";
 import { latestClassificationProposals } from "@/lib/bookmark-proposal";
 import { collectionAncestors } from "@/lib/bookmark-tree";
 import { useTRPCClient } from "@/trpc/client";
@@ -71,14 +74,17 @@ const viewInfo = {
 	trash: { label: "휴지통", path: "/main/bookmarks" },
 	activity: { label: "작업 기록", path: "/main/bookmarks/activity" },
 };
+const reviewGroups = {
+	problems: "문제 링크",
+	attention: "확인 필요",
+	organize: "보관 정리",
+	classify: "컬렉션 제안",
+};
 const reviewTypes = {
 	all: "전체",
 	dead: "죽은 링크",
-	content: "본문 삭제·변경 의심",
-	media: "미디어 소실·일부 실패",
-	uncheckable: "접근 제한·판단 불가",
-	unused: "미사용 후보",
-	classify: "컬렉션 변경안",
+	content: "본문 문제",
+	media: "미디어 문제",
 };
 function bookmarkLocation(screen: BookmarkView, params: { get: (name: string) => string | null }) {
 	const view = screen === "library" && params.get("state") === "trash" ? "trash" : screen;
@@ -95,15 +101,35 @@ function bookmarkLocation(screen: BookmarkView, params: { get: (name: string) =>
 	const reviewType = (
 		Object.hasOwn(reviewTypes, rawType) ? rawType : "all"
 	) as keyof typeof reviewTypes;
-	return { view, collection, reviewType };
+	const rawGroup =
+		params.get("group") ??
+		(
+			{ unused: "organize", classify: "classify", uncheckable: "attention" } as Record<
+				string,
+				string
+			>
+		)[rawType] ??
+		"problems";
+	const reviewGroup = (
+		Object.hasOwn(reviewGroups, rawGroup) ? rawGroup : "problems"
+	) as keyof typeof reviewGroups;
+	return {
+		view,
+		collection,
+		reviewType,
+		reviewGroup,
+		searchParam: view === "review" ? "" : (params.get("search") ?? ""),
+	};
 }
 function useBookmarkManager(screen: BookmarkView) {
 	const trpc = useTRPCClient();
 	const cache = useQueryClient();
 	const params = useSearchParams();
 	const router = useRouter();
-	const { view, collection, reviewType } = bookmarkLocation(screen, params);
-	const searchParam = params.get("search") ?? "";
+	const { view, collection, reviewType, reviewGroup, searchParam } = bookmarkLocation(
+		screen,
+		params
+	);
 	const linkedBookmark = params.get("bookmark");
 	const [search, setSearch] = useState(searchParam);
 	const [querySearch, setQuerySearch] = useState(searchParam);
@@ -233,40 +259,51 @@ function useBookmarkManager(screen: BookmarkView) {
 	const filter = {
 		state: view === "trash" ? ("trash" as const) : ("library" as const),
 		review: view === "review",
+		...(view === "review" ? { reviewGroup } : {}),
 		reviewType,
 		search: view === "activity" ? "" : querySearch,
 		limit: view === "activity" ? 1 : 100,
 		...(collection === "all" || collection === "trash" ? {} : { collectionId: collection || null }),
 	};
+	const listKey = ["bookmarks", "list", filter] as const;
+	const currentListKey = useRef("");
+	currentListKey.current = JSON.stringify(listKey);
+	const [resultVersion, setResultVersion] = useState(0);
 	const query = useInfiniteQuery({
-		queryKey: ["bookmarks", "list", filter],
+		queryKey: listKey,
 		queryFn: ({ pageParam, signal }) =>
 			trpc.bookmark.list.query({ ...filter, offset: pageParam }, { signal }),
 		initialPageParam: 0,
 		getNextPageParam: (last, _pages, offset) =>
 			view === "activity" ? undefined : nextBookmarkOffset(last, offset),
 		enabled: view !== "activity",
+		refetchOnWindowFocus: false,
+		refetchOnReconnect: false,
 		retry: false,
 	});
 	const jobsQuery = useQuery({
 		queryKey: ["bookmarks", "jobs"],
 		queryFn: ({ signal }) => trpc.bookmarkImport.status.query(undefined, { signal }),
-		refetchInterval: 5000,
+		refetchInterval: (current) => bookmarkJobsInterval(view === "activity", current.state.data),
+		refetchIntervalInBackground: false,
 		retry: false,
 	});
 	const previousJobs = useRef<BookmarkJob[] | undefined>(undefined);
-	const initialResultsCompared = useRef(false);
-	const snapshotJobs = query.data?.pages.at(-1)?.jobs;
+	const snapshotJobs = query.data?.pages[0]?.jobs;
+	const hasNewResults = bookmarkResultsChanged(snapshotJobs, jobsQuery.data ?? []);
 	useEffect(() => {
-		if (!jobsQuery.data) return;
-		const compareSnapshot = !initialResultsCompared.current && snapshotJobs !== undefined;
-		const changed = bookmarkResultsChanged(
-			compareSnapshot ? snapshotJobs : previousJobs.current,
-			jobsQuery.data
-		);
-		if (compareSnapshot) initialResultsCompared.current = true;
-		previousJobs.current = jobsQuery.data;
-		if (changed) void refreshBookmarkResults(cache);
+		const jobs = jobsQuery.data;
+		if (!jobs) return;
+		const previous = previousJobs.current ?? snapshotJobs;
+		if (bookmarkResultsChanged(previous, jobs)) {
+			void cache.invalidateQueries({ queryKey: ["bookmarks", "detail"] }, { cancelRefetch: false });
+			if (jobs.some((job) => job.kind !== "check" && bookmarkResultsChanged(previous, [job])))
+				void cache.invalidateQueries(
+					{ queryKey: ["bookmarks", "collections"] },
+					{ cancelRefetch: false }
+				);
+		}
+		previousJobs.current = jobs;
 	}, [jobsQuery.data, snapshotJobs, cache]);
 	const collectionQuery = useQuery({
 		queryKey: ["bookmarks", "collections"],
@@ -286,11 +323,17 @@ function useBookmarkManager(screen: BookmarkView) {
 	const collectionChange = useCollectionChange();
 	const total = snapshot ? Math.max(0, snapshot.total + items.length - rawItems.length) : undefined;
 	async function refresh() {
+		const requestedKey = JSON.stringify(listKey);
 		try {
-			if (displayChanges.length) await refreshBookmarkChanges(cache);
-			else await query.refetch();
-		} catch {
-			toast.error("변경은 저장되었습니다. 최신 목록을 확인하지 못했습니다.");
+			await refreshBookmarkFirstPage(cache, listKey, (signal) =>
+				trpc.bookmark.list.query({ ...filter, offset: 0 }, { signal })
+			);
+			if (currentListKey.current !== requestedKey) return;
+			setSelected([]);
+			setResultVersion((version) => version + 1);
+		} catch (error) {
+			if (!isCancelledError(error) && currentListKey.current === requestedKey)
+				toast.error("최신 목록을 불러오지 못했습니다. 기존 목록은 유지됩니다.");
 		}
 	}
 
@@ -320,6 +363,9 @@ function useBookmarkManager(screen: BookmarkView) {
 		},
 		[params, screen]
 	);
+	useEffect(() => {
+		if (view === "review" && params.has("search")) updateURL({ search: null });
+	}, [view, params, updateURL]);
 	const commitSearch = useCallback(
 		(value: string) => {
 			setQuerySearch(value);
@@ -338,7 +384,7 @@ function useBookmarkManager(screen: BookmarkView) {
 		const timer = setTimeout(() => commitSearch(search), 250);
 		return () => clearTimeout(timer);
 	}, [search, querySearch, composing, commitSearch]);
-	const selectionKey = JSON.stringify([view, collection, reviewType, querySearch]);
+	const selectionKey = JSON.stringify([view, collection, reviewGroup, reviewType, querySearch]);
 	const previousSelectionKey = useRef(selectionKey);
 	useEffect(() => {
 		if (previousSelectionKey.current !== selectionKey) {
@@ -486,6 +532,9 @@ function useBookmarkManager(screen: BookmarkView) {
 		collectionQuery,
 		filterKey: selectionKey,
 		reviewType,
+		reviewGroup,
+		hasNewResults,
+		resultVersion,
 		selected: selectedIds,
 		setSelected,
 		scope,
@@ -655,57 +704,102 @@ function Toolbar({ m }: { m: Manager }) {
 	return (
 		<>
 			<div className="flex flex-wrap items-center gap-2">
-				<div className={`${styles.search} relative min-w-0 flex-1`}>
-					<Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted-foreground" />
-					<input
-						id="bookmark-search"
-						aria-label="북마크 검색"
-						className="h-9 w-full rounded-md border bg-background pr-3 pl-9 text-sm"
-						placeholder="제목 또는 URL 검색"
-						value={m.search}
-						onCompositionStart={() => m.setComposing(true)}
-						onCompositionEnd={() => m.setComposing(false)}
-						onKeyDown={(event) => {
-							if (event.key === "Enter" && !event.nativeEvent.isComposing)
-								m.commitSearch(event.currentTarget.value);
-						}}
-						onChange={(event) => {
-							m.setSearch(event.target.value);
-						}}
-					/>
-				</div>
-				{m.view === "library" && <JobControls m={m} />}
-				<Button
-					size="icon"
-					variant="ghost"
-					aria-label="목록 새로고침"
-					disabled={m.query.isFetching}
-					onClick={() => {
-						void m.refresh();
-					}}
-				>
-					<RefreshCw className="size-4" aria-hidden="true" />
-				</Button>
-			</div>
-			{m.view === "review" && (
-				<fieldset className="flex flex-wrap gap-1" aria-label="검토 유형">
-					{Object.entries(reviewTypes).map(([key, label]) => (
-						<Button
-							key={key}
-							size="sm"
-							variant={m.reviewType === key ? "secondary" : "ghost"}
-							aria-pressed={m.reviewType === key}
-							onClick={() => m.updateURL({ type: key === "all" ? null : key, page: null })}
+				{m.view === "review" ? (
+					<>
+						<select
+							aria-label="검토 범위"
+							value={m.reviewGroup}
+							className="h-9 rounded-md border bg-background px-2 text-sm"
+							onChange={(event) =>
+								m.updateURL({
+									group: event.target.value === "problems" ? null : event.target.value,
+									type: null,
+									page: null,
+								})
+							}
 						>
-							{label}
-						</Button>
-					))}
-					<p className="w-full pt-1 text-muted-foreground text-xs">
-						사용 이력이 없으면 과거 사용 여부는 불명입니다. 유지와 컬렉션 변경안 승인은 별도로
-						처리합니다.
-					</p>
-				</fieldset>
-			)}
+							{Object.entries(reviewGroups).map(([key, label]) => (
+								<option key={key} value={key}>
+									{label}
+								</option>
+							))}
+						</select>
+						{m.reviewGroup === "problems" && (
+							<fieldset
+								className="order-3 m-0 flex w-full flex-wrap gap-1 border-0 p-0 sm:order-none sm:w-auto"
+								aria-label="검토 유형"
+							>
+								{Object.entries(reviewTypes).map(([key, label]) => (
+									<Button
+										key={key}
+										size="sm"
+										variant={m.reviewType === key ? "secondary" : "ghost"}
+										aria-pressed={m.reviewType === key}
+										onClick={() => m.updateURL({ type: key === "all" ? null : key, page: null })}
+									>
+										{label}
+									</Button>
+								))}
+							</fieldset>
+						)}
+					</>
+				) : (
+					<div className={`${styles.search} relative min-w-0 flex-1`}>
+						<Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted-foreground" />
+						<input
+							id="bookmark-search"
+							aria-label="북마크 검색"
+							className="h-9 w-full rounded-md border bg-background pr-3 pl-9 text-sm"
+							placeholder="제목 또는 URL 검색"
+							value={m.search}
+							onCompositionStart={() => m.setComposing(true)}
+							onCompositionEnd={() => m.setComposing(false)}
+							onKeyDown={(event) => {
+								if (event.key === "Enter" && !event.nativeEvent.isComposing)
+									m.commitSearch(event.currentTarget.value);
+							}}
+							onChange={(event) => m.setSearch(event.target.value)}
+						/>
+					</div>
+				)}
+				{m.view === "library" && <JobControls m={m} />}
+				<div className="ml-auto flex h-9 shrink-0 items-center gap-2">
+					<Button
+						size="sm"
+						variant="outline"
+						className={m.hasNewResults ? undefined : "invisible"}
+						aria-hidden={!m.hasNewResults}
+						tabIndex={m.hasNewResults ? 0 : -1}
+						disabled={m.query.isFetching || m.displayChanges.some((change) => !change.acknowledged)}
+						onClick={() => {
+							void m.refresh();
+						}}
+					>
+						새 결과 보기
+					</Button>
+					<span
+						role="status"
+						className="inline-flex w-16 items-center justify-end text-muted-foreground text-xs"
+					>
+						{m.query.isFetching && !m.query.isPending
+							? "불러오는 중"
+							: m.query.error && m.items.length
+								? "갱신 실패"
+								: ""}
+					</span>
+					<Button
+						size="icon"
+						variant="ghost"
+						aria-label="목록 새로고침"
+						disabled={m.query.isFetching || m.displayChanges.some((change) => !change.acknowledged)}
+						onClick={() => {
+							void m.refresh();
+						}}
+					>
+						<RefreshCw className="size-4" aria-hidden="true" />
+					</Button>
+				</div>
+			</div>
 			<div className="flex flex-wrap items-center gap-2 text-xs">
 				<label className="flex items-center gap-2">
 					<input
@@ -747,7 +841,7 @@ function Results({ m }: { m: Manager }) {
 			aria-busy={m.query.isFetching}
 		>
 			{m.query.isPending && <BookmarkListSkeleton />}
-			{m.query.error && !m.query.isFetchNextPageError && (
+			{m.query.error && !m.query.isFetchNextPageError && !m.items.length && (
 				<div role="alert" className="sticky top-0 z-10 bg-background py-2 text-destructive text-sm">
 					<p>
 						{m.items.length
@@ -977,28 +1071,21 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 		m.collection === "all" ? "전체 북마크" : collectionPath(m.collection || null, m.collections);
 	return (
 		<div className="w-full min-w-0 space-y-4">
-			<header className="flex items-center justify-between gap-4">
+			<header className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b pb-2">
 				<h1 className="m-0 font-semibold text-xl tracking-tight">북마크 관리자</h1>
-				<span className="text-muted-foreground text-xs">저장 · 검토 · 정리</span>
+				<nav aria-label="북마크 보기" className="flex items-center gap-1">
+					{(["library", "review"] as const).map((key) => (
+						<Link
+							key={key}
+							href={viewInfo[key].path}
+							aria-current={view === key ? "page" : undefined}
+							className={`rounded-md px-3 py-2 text-sm ${view === key ? "bg-accent font-medium text-accent-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+						>
+							{viewInfo[key].label}
+						</Link>
+					))}
+				</nav>
 			</header>
-			<nav aria-label="북마크 보기" className="flex items-center gap-1 border-b pb-2">
-				{(["library", "review", "activity"] as const).map((key) => (
-					<Link
-						key={key}
-						href={viewInfo[key].path}
-						aria-current={view === key ? "page" : undefined}
-						className={[
-							key === "activity" ? "ml-auto text-xs" : "text-sm",
-							"rounded-md px-3 py-2",
-							view === key
-								? "bg-accent font-medium text-accent-foreground"
-								: "text-muted-foreground hover:bg-muted hover:text-foreground",
-						].join(" ")}
-					>
-						{viewInfo[key].label}
-					</Link>
-				))}
-			</nav>
 			{view === "activity" ? (
 				<Activity m={m} />
 			) : (
@@ -1034,17 +1121,13 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 							reorder={m.reorderCollection}
 						/>
 					)}
-					<main className={`${styles.main} min-w-0 space-y-3`}>
+					<main className={`${styles.main} min-w-0 space-y-2`}>
 						{m.view === "trash" && (
 							<h2 className="m-0 border-0 p-0 font-medium text-base">휴지통</h2>
 						)}
 						{m.view === "library" && <CollectionBreadcrumb m={m} title={collectionTitle} />}
 						<Toolbar m={m} />
-						{m.query.isFetching && !m.query.isPending && !m.query.isFetchingNextPage && (
-							<p role="status" className="m-0 text-muted-foreground text-xs">
-								목록 갱신 중…
-							</p>
-						)}
+
 						{m.moving && (
 							<p role="status" className="text-muted-foreground text-xs">
 								{m.move.isPending
@@ -1052,7 +1135,7 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 									: "컬렉션 이동 중…"}
 							</p>
 						)}
-						<Results key={m.filterKey} m={m} />
+						<Results key={`${m.filterKey}:${m.resultVersion}`} m={m} />
 					</main>
 					<BookmarkItemDialog
 						selection={m.itemDialog}

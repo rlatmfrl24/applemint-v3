@@ -141,6 +141,7 @@ export const bookmarkListInputSchema = z.object({
 	search: z.string().max(200).optional(),
 	offset: z.number().int().nonnegative().default(0),
 	review: z.boolean().default(false),
+	reviewGroup: z.enum(["problems", "attention", "organize", "classify"]).optional(),
 	reviewType: z
 		.enum(["all", "dead", "unused", "classify", "content", "media", "uncheckable"])
 		.default("all"),

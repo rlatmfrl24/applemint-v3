@@ -191,15 +191,19 @@ test("검토 유형별 수량·추가 로드가 DB와 일치하고 선택·기�
 }) => {
 	const db = await bookmarkOwner();
 	await page.goto("/main/bookmarks/review");
-	for (const [type, label] of [
-		["dead", "죽은 링크"],
-		["classify", "컬렉션 변경안"],
-		["unused", "미사용 후보"],
-		["all", "전체"],
+	for (const [group, type] of [
+		["problems", "dead"],
+		["classify", "all"],
+		["problems", "all"],
+		["organize", "all"],
 	]) {
-		await page.getByRole("button", { name: label, exact: true }).click();
+		await page.getByRole("combobox", { name: "검토 범위" }).selectOption(group);
+		if (group === "problems")
+			await page
+				.getByRole("button", { name: type === "dead" ? "죽은 링크" : "전체", exact: true })
+				.click();
 		const snapshot = await db.rpc("bookmark_snapshot", {
-			p_filter: { review: true, reviewType: type, limit: 100 },
+			p_filter: { review: true, reviewGroup: group, reviewType: type, limit: 100 },
 		});
 		expect(snapshot.error).toBeNull();
 		await expect(page.locator("article[data-bookmark-id]")).toHaveCount(snapshot.data.items.length);
@@ -207,10 +211,12 @@ test("검토 유형별 수량·추가 로드가 DB와 일치하고 선택·기�
 			page.getByText(`${snapshot.data.total.toLocaleString()}개 · 선택 0개`, { exact: true })
 		).toBeVisible();
 	}
+
 	await page.getByLabel("불러온 항목 선택", { exact: true }).check();
 	await page.getByTestId("bookmark-load-more-sentinel").scrollIntoViewIfNeeded();
 	await expect(page.locator("article[data-bookmark-id]")).toHaveCount(200);
 	await expect(page.getByText(/개 · 선택 100개$/u)).toBeVisible();
+	await page.getByRole("combobox", { name: "검토 범위" }).selectOption("problems");
 	await page.getByRole("button", { name: "죽은 링크", exact: true }).click();
 	await expect(page.getByLabel("불러온 항목 선택", { exact: true })).not.toBeChecked();
 	await page.goto("/main/bookmarks?state=trash&search=legacy-query");
@@ -268,13 +274,20 @@ test("수동 링크 검사 후 검토 유지·휴지통·복원을 실제 UI에�
 			{ timeout: 180000, intervals: [1000, 2000, 5000] }
 		)
 		.not.toBeNull();
-	await expect(row.getByText("죽은 링크 의심", { exact: true })).toBeVisible({ timeout: 180000 });
-	await page.goto(
-		`/main/bookmarks/review?type=dead&search=${encodeURIComponent(sample.data?.url)}`
-	);
-	await expect(row).toContainText("1분 뒤 재검사");
-	await row.getByRole("button", { name: "근거", exact: true }).click();
-	const panel = page.getByRole("complementary", { name: "검토 결과", exact: true });
+	await page.getByRole("button", { name: "목록 새로고침", exact: true }).click({ timeout: 30000 });
+	await expect(row.getByText("죽은 링크 의심", { exact: true })).toBeVisible();
+	const currentCheck = await db
+		.from("bookmark_checks")
+		.select("evidence")
+		.eq("bookmark_id", sample.data?.id)
+		.order("checked_at", { ascending: false })
+		.limit(1)
+		.single();
+	const group = currentCheck.data?.evidence?.confirmation === "repeated" ? "problems" : "attention";
+	await page.goto(`/main/bookmarks/review?group=${group}`);
+	await expect(row).toBeVisible();
+	await row.getByRole("button", { name: / 상세 보기$/u }).click();
+	const panel = page.getByRole("complementary", { name: "북마크 상세", exact: true });
 	await expect(panel).toContainText("404");
 	await panel.getByRole("button", { name: "닫기", exact: true }).click();
 	await row.getByRole("button", { name: "유지", exact: true }).click();

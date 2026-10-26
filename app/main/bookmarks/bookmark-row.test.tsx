@@ -28,7 +28,8 @@ vi.mock("@/trpc/client", () => ({
 		},
 	}),
 }));
-vi.mock("./use-bookmark-actions", () => ({
+vi.mock("./use-bookmark-actions", async (importOriginal) => ({
+	...(await importOriginal<typeof import("./use-bookmark-actions")>()),
 	useBookmarkChange: () => ({ mutate: mocks.change, isPending: mocks.pending() }),
 }));
 vi.mock("sonner", () => ({ toast: { success: mocks.success, error: mocks.error } }));
@@ -39,7 +40,7 @@ const clients: QueryClient[] = [];
 beforeEach(() => {
 	for (const mock of Object.values(mocks)) mock.mockReset();
 	mocks.keep.mockResolvedValue(undefined);
-	mocks.open.mockResolvedValue(undefined);
+	mocks.open.mockResolvedValue(uiBookmark({ open_count: 3, review_revision: 1 }));
 });
 afterEach(() => {
 	cleanup();
@@ -63,7 +64,10 @@ function setup(overrides: Partial<Props> = {}) {
 		...overrides,
 	};
 	const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
-	client.setQueryData(["bookmarks", "list"], []);
+	client.setQueryData(["bookmarks", "list"], {
+		pages: [{ items: [props.item], total: 1 }],
+		pageParams: [0],
+	});
 	clients.push(client);
 	const result = render(
 		<QueryClientProvider client={client}>
@@ -134,7 +138,7 @@ describe("BookmarkRow", () => {
 		expect(within(identity).queryByText("죽은 링크 의심")).toBeNull();
 		expect(within(evidence).getByText("죽은 링크 의심")).toBeDefined();
 		expect(within(evidence).getByText("The server returned 404")).toBeDefined();
-		for (const name of ["유지", "삭제", "근거"])
+		for (const name of ["유지", "삭제"])
 			expect(within(actions).getByRole("button", { name })).toBeDefined();
 		expect(
 			identity.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING
@@ -191,8 +195,14 @@ describe("BookmarkRow", () => {
 				expect(mocks.open).toHaveBeenCalledExactlyOnceWith({ id: props.item.id })
 			);
 			await waitFor(() =>
-				expect(client.getQueryState(["bookmarks", "list"])?.isInvalidated).toBe(true)
+				expect(client.getQueryState(["bookmarks", "list"])?.isInvalidated).toBe(false)
 			);
+			await waitFor(() =>
+				expect(client.getQueryData(["bookmarks", "list"])).toMatchObject({
+					pages: [{ items: [{ open_count: 3 }] }],
+				})
+			);
+			expect(mocks.error).not.toHaveBeenCalled();
 			expect(screen.getByText("열기 2회")).toBeDefined();
 			expect(props.detail).not.toHaveBeenCalled();
 		}
@@ -220,7 +230,9 @@ describe("BookmarkRow", () => {
 		link.addEventListener("click", (event) => event.preventDefault());
 		fireEvent.click(link);
 		await waitFor(() =>
-			expect(mocks.error).toHaveBeenCalledExactlyOnceWith("Unable to record opening")
+			expect(mocks.error).toHaveBeenCalledExactlyOnceWith(
+				"열기 기록 저장 실패: Unable to record opening"
+			)
 		);
 	});
 
@@ -328,7 +340,7 @@ describe("BookmarkRow", () => {
 		});
 		expect(screen.queryByText("죽은 링크 의심")).toBeNull();
 		expect(screen.getByTitle("Fits the notes collection")).toBeDefined();
-		expect(screen.getByRole("button", { name: "근거" })).toBeDefined();
+		expect(screen.queryByRole("button", { name: "근거" })).toBeNull();
 	});
 
 	it.each([
@@ -353,4 +365,13 @@ it("row keep forwards current health evidence to the shared command", async () =
 	expect(mocks.change).toHaveBeenCalledWith({ action: "keep", items: [props.item] });
 	expect(props.item.check?.evidence_revision).toBe(7);
 	expect(screen.getByText("죽은 링크 의심")).toBeTruthy();
+});
+
+it("keeps the title as the evidence entry without a separate evidence action", () => {
+	const { props } = setup({ view: "review", item: uiBookmark({ check: deadCheck() }) });
+	expect(screen.queryByRole("button", { name: "근거" })).toBeNull();
+	fireEvent.click(screen.getByRole("button", { name: "React guide 상세 보기" }));
+	expect(props.detail).toHaveBeenCalledWith(
+		expect.objectContaining({ mode: "details", id: props.item.id })
+	);
 });

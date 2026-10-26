@@ -28,7 +28,11 @@ import {
 } from "@/lib/bookmark-health";
 import { useTRPCClient } from "@/trpc/client";
 import styles from "./bookmark-detail.module.css";
-import { useBookmarkChange, useBookmarkDisplayChanges } from "./use-bookmark-actions";
+import {
+	useBookmarkChange,
+	useBookmarkDisplayChanges,
+	useBookmarkOpen,
+} from "./use-bookmark-actions";
 
 const healthLabels = {
 	healthy: "접속 확인",
@@ -280,12 +284,7 @@ function BookmarkItemDetail({
 		},
 		onError: (e) => toast.error(e.message),
 	});
-	const recordOpen = useMutation({
-		mutationFn: (input: Parameters<typeof trpc.bookmark.open.mutate>[0]) =>
-			trpc.bookmark.open.mutate(input),
-		onSuccess: () => cache.invalidateQueries({ queryKey: ["bookmarks"] }),
-		onError: (e) => toast.error(`열기 기록 저장 실패: ${e.message}`),
-	});
+	const recordOpen = useBookmarkOpen();
 	const pending = [
 		change.isPending,
 		apply.isPending,

@@ -437,7 +437,7 @@ test("AI 변경안의 대상과 새 이름은 패널과 Drawer 전환 및 갱신
 	const target = snapshot.data.collections[0];
 	expect(target).toBeTruthy();
 	try {
-		await page.goto(`/main/bookmarks/review?search=${fixture.id}`);
+		await page.goto("/main/bookmarks/review?group=classify");
 		await page
 			.locator(`[data-bookmark-id="${fixture.id}"]`)
 			.getByRole("button", { name: "변경안", exact: true })
@@ -474,10 +474,13 @@ test("AI 변경안의 대상과 새 이름은 패널과 Drawer 전환 및 갱신
 	}
 });
 
-test("컬렉션 검색은 전체 경로로 구분하고 검색 결과로 바로 이동한다", async ({ page }) => {
+test("검색창 없이 컬렉션 트리를 펼쳐 하위 컬렉션으로 이동한다", async ({ page }) => {
 	await page.goto("/main/bookmarks");
-	await page.getByLabel("컬렉션 검색", { exact: true }).fill("AI");
-	await page.getByRole("button", { name: "study / AI", exact: true }).click();
+	await expect(page.getByLabel("컬렉션 검색", { exact: true })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "study", exact: true })).toBeVisible();
+	const toggle = page.getByRole("button", { name: "study 하위 컬렉션 펼치기", exact: true });
+	if (await toggle.isVisible()) await toggle.click();
+	await page.getByRole("button", { name: "AI", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "study / AI", exact: true })).toBeVisible();
 	await expect(page.getByText("현재 컬렉션의 직접 소속 항목", { exact: true })).toBeVisible();
 });
@@ -743,8 +746,7 @@ async function captureBookmarkQA(
 			await expect(page.getByLabel("관심 주제 이름", { exact: true })).toBeVisible();
 		else if (route.endsWith("activity"))
 			await expect(page.locator("article[data-bookmark-job-id]").first()).toBeVisible();
-		else
-			await expect(page.getByRole("textbox", { name: "북마크 검색", exact: true })).toBeVisible();
+		else await expect(page.getByRole("combobox", { name: "검토 범위", exact: true })).toBeVisible();
 		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
 			true
 		);

@@ -341,7 +341,6 @@ function CollectionNode({
 export function BookmarkCollectionTree(props: Props) {
 	const [expanded, setExpanded] = useState<string[]>([]);
 	const [loaded, setLoaded] = useState(false);
-	const [search, setSearch] = useState("");
 	const [mobileOpen, setMobileOpen] = useState(false);
 	const [mobile, setMobile] = useState(false);
 	useEffect(() => {
@@ -513,17 +512,7 @@ export function BookmarkCollectionTree(props: Props) {
 						</Button>
 					</div>
 				)}
-				<label className="mx-2 mb-2 block">
-					<span className="sr-only">컬렉션 검색</span>
-					<input
-						type="search"
-						aria-label="컬렉션 검색"
-						value={search}
-						onChange={(event) => setSearch(event.target.value)}
-						className="h-10 w-full min-w-0 rounded-md border bg-background px-3 text-xs"
-						placeholder="컬렉션 검색"
-					/>
-				</label>
+
 				<section
 					className={styles.treeScroll}
 					aria-label="컬렉션 트리"
@@ -537,56 +526,32 @@ export function BookmarkCollectionTree(props: Props) {
 							))}
 						</div>
 					)}
-					{search.trim() ? (
-						<div className="space-y-1">
-							{props.collections
-								.filter((collection) =>
-									collectionPath(collection.id, props.collections)
-										.toLocaleLowerCase()
-										.includes(search.trim().toLocaleLowerCase())
-								)
-								.map((collection) => (
-									<button
-										key={collection.id}
-										type="button"
-										className="min-h-11 w-full break-words rounded-md px-3 py-2 text-left text-xs hover:bg-muted focus-visible:outline focus-visible:outline-ring"
-										onClick={() => {
-											select(collection.id);
-											setSearch("");
-										}}
-									>
-										{collectionPath(collection.id, props.collections)}
-									</button>
-								))}
-						</div>
-					) : (
-						<ul className="mt-1">
-							{collectionChildren(null, props.collections).map((collection) => (
-								<CollectionNode
-									key={collection.id}
-									collection={collection}
-									props={{
-										...props,
-										select,
-										manage: (selection) => {
-											setMobileOpen(false);
-											props.manage(selection);
-										},
-									}}
-									expanded={expanded}
-									toggle={(id) =>
-										setExpanded((previous) =>
-											previous.includes(id)
-												? previous.filter((value) => value !== id)
-												: [...previous, id]
-										)
-									}
-									seen={new Set([collection.id])}
-									dropHandlers={dropHandlers}
-								/>
-							))}
-						</ul>
-					)}
+					<ul className="mt-1">
+						{collectionChildren(null, props.collections).map((collection) => (
+							<CollectionNode
+								key={collection.id}
+								collection={collection}
+								props={{
+									...props,
+									select,
+									manage: (selection) => {
+										setMobileOpen(false);
+										props.manage(selection);
+									},
+								}}
+								expanded={expanded}
+								toggle={(id) =>
+									setExpanded((previous) =>
+										previous.includes(id)
+											? previous.filter((value) => value !== id)
+											: [...previous, id]
+									)
+								}
+								seen={new Set([collection.id])}
+								dropHandlers={dropHandlers}
+							/>
+						))}
+					</ul>
 				</section>
 			</section>
 		</nav>
