@@ -31,7 +31,7 @@ export default defineConfig({
 		{
 			name: "bookmarks",
 			testMatch:
-				/bookmark(?:s|-ai|-manager|-move|-drag|-order|-navigation|-recommend|-settings|-p2|-ux)\.spec\.ts/u,
+				/bookmark(?:s|-ai|-manager|-move|-drag|-order|-navigation|-recommend|-settings|-p2|-ux|-review-stability)\.spec\.ts/u,
 			dependencies: ["setup"],
 			use: { storageState: "playwright/.auth/owner.json" },
 		},
