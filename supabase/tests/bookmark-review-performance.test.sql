@@ -1,5 +1,5 @@
 begin;
-select plan(5);
+select plan(7);
 set local track_functions='all';
 insert into public.bookmarks(id,url,url_key,title,saved_at)
 select md5('review-scale-'||n)::uuid,'https://example.com/review-scale/'||n,'https://example.com/review-scale/'||n,'Review scale '||n,now()-interval '1 year'
@@ -20,5 +20,26 @@ select is((select jsonb_array_length(value->'items') from review_scale_response)
 select ok(coalesce((select calls from pg_stat_xact_user_functions where funcid='private.bookmark_health_matches(public.bookmark_checks,text)'::regprocedure),0)<=6000,'classification work scales with latest observations, not unchecked bookmarks or repeated filters');
 select ok(not exists(select 1 from review_scale_response,jsonb_array_elements(value->'items') item where item->'check' is distinct from 'null'::jsonb and not (item->'check' ? 'evidence')),'raw check response retains evidence contract');
 select is((select (value->'budget'->>'limit_nano')::bigint from review_scale_response),1000000000::bigint,'shared monthly AI cap unchanged');
+create temporary table snapshot_classification_counts as
+select coalesce(sum(calls),0)::bigint calls from pg_stat_xact_user_functions
+where funcid in ('private.bookmark_health_matches(public.bookmark_checks,text)'::regprocedure,
+ 'private.bookmark_health_problem_matches(public.bookmark_checks,text)'::regprocedure);
+set local role authenticated;
+select public.bookmark_snapshot('{"search":"Review scale ","limit":100}')->>'total';
+reset role;
+select is((select coalesce(sum(calls),0)::bigint from pg_stat_xact_user_functions
+where funcid in ('private.bookmark_health_matches(public.bookmark_checks,text)'::regprocedure,
+ 'private.bookmark_health_problem_matches(public.bookmark_checks,text)'::regprocedure)),
+(select calls from snapshot_classification_counts),'ordinary lists do not classify the entire health history');
+update snapshot_classification_counts set calls=(select coalesce(sum(calls),0) from pg_stat_xact_user_functions
+where funcid in ('private.bookmark_health_matches(public.bookmark_checks,text)'::regprocedure,
+ 'private.bookmark_health_problem_matches(public.bookmark_checks,text)'::regprocedure));
+set local role authenticated;
+select public.bookmark_snapshot(jsonb_build_object('id',(select id from public.bookmarks where title like 'Review scale %' order by id limit 1)))->>'total';
+reset role;
+select is((select coalesce(sum(calls),0)::bigint from pg_stat_xact_user_functions
+where funcid in ('private.bookmark_health_matches(public.bookmark_checks,text)'::regprocedure,
+ 'private.bookmark_health_problem_matches(public.bookmark_checks,text)'::regprocedure)),
+(select calls from snapshot_classification_counts),'detail reload does not classify unrelated bookmarks');
 select * from finish();
 rollback;

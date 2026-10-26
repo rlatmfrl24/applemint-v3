@@ -89,6 +89,7 @@ select ok((select evidence is not null from public.bookmark_checks where id='ddd
 select is((select reason from public.bookmark_checks where id='dddddddd-9900-4000-8000-000000000021'),'old observation','retention preserves status and reason');
 select public.bookmark_health_update_settings(false,500);
 select is(public.bookmark_worker_claim(),null::jsonb,'disabling automatic checks prevents new automatic claims');
-update public.bookmark_jobs set state='processing',lease_token='cccccccc-9900-4000-8000-000000000001',lease_expires_at=pg_temp.schedule_test_now()+interval '90 seconds' where scope->>'origin'='automatic' and scope->>'automaticDate'=(pg_temp.schedule_test_now() at time zone 'Asia/Seoul')::date::text;
+-- Commit uses the real transaction clock; its lease must remain valid after the pinned noon.
+update public.bookmark_jobs set state='processing',lease_token='cccccccc-9900-4000-8000-000000000001',lease_expires_at=now()+interval '90 seconds' where scope->>'origin'='automatic' and scope->>'automaticDate'=(pg_temp.schedule_test_now() at time zone 'Asia/Seoul')::date::text;
 select ok(public.bookmark_worker_commit((select id from public.bookmark_jobs where scope->>'origin'='automatic' and scope->>'automaticDate'=(pg_temp.schedule_test_now() at time zone 'Asia/Seoul')::date::text),'cccccccc-9900-4000-8000-000000000001','{"items":[]}'),'in-flight commit remains valid after disabling automatic work');
 select * from finish();rollback;

@@ -76,7 +76,7 @@ export async function refreshBookmarkChanges(cache: QueryClient, force = false) 
 		const changes = cache.getQueryData<BookmarkChange[]>(BOOKMARK_CHANGES_KEY) ?? [];
 		if ((!changes.length && !needsRefresh) || changes.some((change) => !change.acknowledged))
 			return;
-		await cache.fetchQuery({
+		const reconciled = await cache.fetchQuery({
 			queryKey: ["bookmark-ui-refresh"],
 			staleTime: 0,
 			gcTime: 0,
@@ -87,20 +87,40 @@ export async function refreshBookmarkChanges(cache: QueryClient, force = false) 
 					.map((change) => change.id);
 				await Promise.all([
 					cache.invalidateQueries(
-						{ queryKey: ["bookmarks", "list"], refetchType: "all" },
+						{ queryKey: ["bookmarks", "list"], refetchType: "active" },
 						{ throwOnError: true }
 					),
 					cache.invalidateQueries(
-						{ queryKey: ["bookmarks", "detail"], refetchType: "all" },
+						{ queryKey: ["bookmarks", "detail"], refetchType: "active" },
 						{ throwOnError: true }
 					),
 				]);
+				if (
+					cache
+						.getQueryCache()
+						.findAll({ queryKey: ["bookmarks"], type: "active" })
+						.some(
+							(query) =>
+								(query.queryKey[1] === "list" || query.queryKey[1] === "detail") &&
+								(query.state.fetchStatus !== "idle" ||
+									query.state.status !== "success" ||
+									query.state.isInvalidated)
+						)
+				)
+					return false;
+				cache.removeQueries({
+					type: "inactive",
+					predicate: (query) =>
+						query.queryKey[0] === "bookmarks" &&
+						(query.queryKey[1] === "list" || query.queryKey[1] === "detail"),
+				});
 				cache.setQueryData<BookmarkChange[]>(BOOKMARK_CHANGES_KEY, (old) =>
 					(old ?? []).filter((change) => !ids.includes(change.id))
 				);
 				return true;
 			},
 		});
+		if (!reconciled) return;
 		needsRefresh = false;
 	}
 }
