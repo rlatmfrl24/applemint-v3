@@ -1,6 +1,13 @@
-import { expect, it } from "vitest";
+import { QueryClient } from "@tanstack/react-query";
+import { expect, it, vi } from "vitest";
 import type { BookmarkItem } from "@/contracts/bookmark.schema";
-import { bookmarkResultsChanged, flattenBookmarkPages, nextBookmarkOffset } from "./bookmark-list";
+import {
+	bookmarkJobsInterval,
+	bookmarkResultsChanged,
+	flattenBookmarkPages,
+	nextBookmarkOffset,
+	refreshBookmarkFirstPage,
+} from "./bookmark-list";
 
 it("continues by the actual returned count and stops at the end or an empty batch", () => {
 	expect(nextBookmarkOffset({ items: Array(100), total: 250 }, 0)).toBe(100);
@@ -49,4 +56,38 @@ it("refreshes published check evidence but ignores claim and checkpoint changes"
 		])
 	).toBe(true);
 	expect(bookmarkResultsChanged(previous, previous)).toBe(false);
+	expect(
+		bookmarkResultsChanged([{ ...previous[0], progress: { healthResultRevision: 3 } }], previous)
+	).toBe(false);
+});
+
+it("polls jobs without turning idle library views into five-second polls", () => {
+	expect(bookmarkJobsInterval(true, [])).toBe(5000);
+	expect(bookmarkJobsInterval(false, undefined)).toBe(60000);
+	for (const state of ["queued", "processing", "retry"] as const)
+		expect(bookmarkJobsInterval(false, [{ state }])).toBe(15000);
+	expect(bookmarkJobsInterval(false, [{ state: "succeeded" }])).toBe(60000);
+});
+
+it("refreshes exactly one first page and preserves all cached pages on failure", async () => {
+	const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+	const key = ["bookmarks", "list", { review: true }];
+	const old = {
+		pages: [
+			{ items: [], total: 200 },
+			{ items: [], total: 200 },
+		],
+		pageParams: [0, 100],
+	};
+	cache.setQueryData(key, old);
+	const read = vi
+		.fn()
+		.mockRejectedValueOnce(new Error("offline"))
+		.mockResolvedValueOnce({ items: [], total: 7 });
+	await expect(refreshBookmarkFirstPage(cache, key, read)).rejects.toThrow("offline");
+	expect(cache.getQueryData(key)).toEqual(old);
+	await refreshBookmarkFirstPage(cache, key, read);
+	expect(read).toHaveBeenCalledTimes(2);
+	expect(cache.getQueryData(key)).toEqual({ pages: [{ items: [], total: 7 }], pageParams: [0] });
+	cache.clear();
 });

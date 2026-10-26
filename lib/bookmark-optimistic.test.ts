@@ -1,7 +1,12 @@
-import { QueryClient } from "@tanstack/react-query";
+import {
+	CancelledError,
+	InfiniteQueryObserver,
+	QueryClient,
+	type QueryKey,
+} from "@tanstack/react-query";
 import { expect, it } from "vitest";
 import type { BookmarkCollection, BookmarkItem } from "@/contracts/bookmark.schema";
-import { refreshBookmarkResults } from "./bookmark-list";
+import { refreshBookmarkFirstPage } from "./bookmark-list";
 import {
 	BOOKMARK_CHANGES_KEY,
 	type BookmarkChange,
@@ -19,6 +24,88 @@ const change = (id: string, action: BookmarkChange["action"], itemId: string): B
 	collectionId: "two",
 	acknowledged: false,
 });
+
+it.each(["switch", "leave"])(
+	"does not accept reverted cache as a successful read after observer %s",
+	async (navigation) => {
+		const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+		const seen = item("a");
+		const kept = { ...change("keep", "keep", "a"), acknowledged: true };
+		const key: QueryKey = ["bookmarks", "list", { review: true }];
+		const oldPage = { items: [seen], total: 1 };
+		cache.setQueryData(key, { pages: [oldPage], pageParams: [0] });
+		cache.setQueryData(BOOKMARK_CHANGES_KEY, [kept]);
+		const options = {
+			queryKey: key,
+			queryFn: async () => oldPage,
+			initialPageParam: 0,
+			getNextPageParam: () => undefined,
+			staleTime: Number.POSITIVE_INFINITY,
+		};
+		const observer = new InfiniteQueryObserver(cache, options);
+		const unsubscribe = observer.subscribe(() => {});
+		const pending = Promise.withResolvers<typeof oldPage>();
+		const started = Promise.withResolvers<void>();
+		const refresh = refreshBookmarkFirstPage(cache, key, () => {
+			started.resolve();
+			return pending.promise;
+		});
+		try {
+			await started.promise;
+			if (navigation === "switch")
+				observer.setOptions({
+					...options,
+					queryKey: ["bookmarks", "list", { review: true, reviewGroup: "attention" }],
+				});
+			else unsubscribe();
+			await expect(refresh).rejects.toBeInstanceOf(CancelledError);
+			expect(cache.getQueryData(BOOKMARK_CHANGES_KEY)).toEqual([kept]);
+		} finally {
+			pending.resolve(oldPage);
+			unsubscribe();
+			cache.clear();
+		}
+	}
+);
+
+it("does not release overlays when an obsolete filter refresh leaves another active list stale", async () => {
+	const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+	const seen = item("a");
+	const kept = { ...change("keep", "keep", "a"), acknowledged: true };
+	const a = ["bookmarks", "list", { review: true, reviewGroup: "problems" }];
+	const b = ["bookmarks", "list", { review: true, reviewGroup: "organize" }];
+	cache.setQueryData(a, { pages: [{ items: [seen], total: 1 }], pageParams: [0] });
+	cache.setQueryData(b, { pages: [{ items: [seen], total: 1 }], pageParams: [0] });
+	cache.setQueryData(BOOKMARK_CHANGES_KEY, [kept]);
+	const pending = Promise.withResolvers<{ items: BookmarkItem[]; total: number }>();
+	const obsoleteRefresh = refreshBookmarkFirstPage(cache, a, () => pending.promise);
+	const observer = new InfiniteQueryObserver(cache, {
+		queryKey: b,
+		queryFn: async () => {
+			throw new Error("offline");
+		},
+		initialPageParam: 0,
+		getNextPageParam: () => undefined,
+	});
+	const unsubscribe = observer.subscribe(() => {});
+	try {
+		pending.resolve({ items: [], total: 0 });
+		await obsoleteRefresh;
+		expect(cache.getQueryData(BOOKMARK_CHANGES_KEY)).toEqual([kept]);
+		expect(
+			projectBookmarkItems(
+				[seen],
+				cache.getQueryData<BookmarkChange[]>(BOOKMARK_CHANGES_KEY) ?? [],
+				{ review: true }
+			)
+		).toEqual([]);
+		await refreshBookmarkFirstPage(cache, b, async () => ({ items: [], total: 0 }));
+		expect(cache.getQueryData(BOOKMARK_CHANGES_KEY)).toEqual([]);
+	} finally {
+		unsubscribe();
+		cache.clear();
+	}
+});
 it("keep immediately leaves review, preserves library data, and rolls back on failure", () => {
 	const items = [item("a"), item("b")];
 	const keep = change("keep", "keep", "a");
@@ -34,11 +121,13 @@ it("a successful result refresh clears keep retained after an earlier read failu
 	const key = ["bookmarks", "list", { review: true }];
 	let fail = false;
 	let server = [seen];
-	await cache.fetchQuery({
+	await cache.fetchInfiniteQuery({
 		queryKey: key,
+		initialPageParam: 0,
+		getNextPageParam: () => undefined,
 		queryFn: async () => {
 			if (fail) throw new Error("read failed");
-			return server;
+			return { items: server, total: server.length };
 		},
 	});
 	cache.setQueryData(BOOKMARK_CHANGES_KEY, [kept]);
@@ -47,11 +136,11 @@ it("a successful result refresh clears keep retained after an earlier read failu
 	expect(cache.getQueryData(BOOKMARK_CHANGES_KEY)).toEqual([kept]);
 	fail = false;
 	server = [{ ...seen, review_revision: 5 }];
-	await refreshBookmarkResults(cache);
+	await refreshBookmarkFirstPage(cache, key, async () => ({ items: server, total: server.length }));
 	expect(cache.getQueryData(BOOKMARK_CHANGES_KEY)).toEqual([]);
 	expect(
 		projectBookmarkItems(
-			cache.getQueryData<BookmarkItem[]>(key) ?? [],
+			cache.getQueryData<{ pages: { items: BookmarkItem[] }[] }>(key)?.pages[0].items ?? [],
 			cache.getQueryData<BookmarkChange[]>(BOOKMARK_CHANGES_KEY) ?? [],
 			{ review: true }
 		)

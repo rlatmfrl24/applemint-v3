@@ -111,9 +111,7 @@ test("실제 AI 관심 주제·분류를 검토 팝업에서 수정·승인하�
 		expect(proposed.error).toBeNull();
 		expect(proposed.data).toHaveLength(2);
 		expect(proposed.data?.every((item) => item.reason.length > 0)).toBe(true);
-		await page.goto(
-			`/main/bookmarks/review?type=classify&search=${encodeURIComponent(sources[0].url)}`
-		);
+		await page.goto("/main/bookmarks/review?group=classify");
 		const name = `AI 관리자 검증 컬렉션 ${Date.now()}`;
 		const first = page.locator(`[data-bookmark-id="${ids[0]}"]`);
 		await first.getByRole("button", { name: "변경안", exact: true }).click();
@@ -128,9 +126,7 @@ test("실제 AI 관심 주제·분류를 검토 팝업에서 수정·승인하�
 			.eq("name", name)
 			.single();
 		expect(created.error).toBeNull();
-		await page.goto(
-			`/main/bookmarks/review?type=classify&search=${encodeURIComponent(sources[1].url)}`
-		);
+		await page.goto("/main/bookmarks/review?group=classify");
 		const second = page.locator(`[data-bookmark-id="${ids[1]}"]`);
 		await second.getByRole("button", { name: "변경안", exact: true }).click();
 		dialog = page.getByRole("complementary", { name: "검토 결과", exact: true });

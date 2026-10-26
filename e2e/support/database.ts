@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { bookmarkHealthEvidenceSchema } from "../../contracts/bookmark-health.schema";
 import { getE2ERuntime } from "./runtime";
 
 export type E2EThreadState = "inbox" | "saved" | "trash";
@@ -22,6 +23,42 @@ interface SeededThread {
 
 const DATABASE_CONTAINER_PATTERN = /^supabase_db_[A-Za-z0-9_.-]+$/u;
 const BIGINT_PATTERN = /^(?:0|[1-9]\d*)$/u;
+
+export function seedBookmarkReviewStability() {
+	const ids = Array.from({ length: 131 }, () => randomUUID());
+	const jobId = randomUUID();
+	const evidence = bookmarkHealthEvidenceSchema.parse({
+		observedAt: new Date().toISOString(),
+		content: { applicable: false },
+		media: { applicable: false },
+		coverage: "complete",
+		confirmation: "repeated",
+	});
+	const rows = ids
+		.map(
+			(id, index) =>
+				`('${id}','https://example.com/review-stability/${id}','https://example.com/review-stability/${id}','검토 안정화 ${index}',timestamptz '2000-01-01'+interval '${index} seconds')`
+		)
+		.join(",");
+	runAdminSql(`begin;
+	 insert into public.bookmarks(id,url,url_key,title,saved_at) values ${rows};
+	 insert into public.bookmark_jobs(id,kind,state,total,completed,progress) values('${jobId}','check','processing',131,130,'{"healthResultRevision":0}');
+	 insert into public.bookmark_checks(bookmark_id,job_id,bookmark_version,status,http_status,reason,checked_url,evidence)
+	 select id,'${jobId}',version,case when id='${ids[130]}' then 'healthy' else 'dead' end,case when id='${ids[130]}' then 200 else 404 end,'HTTP 404',url,${quoteLiteral(JSON.stringify(evidence))}::jsonb from public.bookmarks where id in (${ids.map(quoteLiteral).join(",")});
+	 insert into public.bookmark_proposals(job_id,bookmark_id,expected_version,kind,reason) values('${jobId}','${ids[5]}',1,'classify','컬렉션 제안 접근 검증');
+	 commit;`);
+	return {
+		ids,
+		publish: () =>
+			runAdminSql(
+				`begin; update public.bookmark_checks set status='dead',http_status=404,evidence_revision=evidence_revision+1 where bookmark_id='${ids[130]}'; update public.bookmark_jobs set progress=jsonb_build_object('healthResultRevision',1),updated_at=now() where id='${jobId}'; commit;`
+			),
+		cleanup: () =>
+			runAdminSql(
+				`begin; delete from public.bookmark_proposals where job_id='${jobId}'; delete from public.bookmark_checks where job_id='${jobId}'; delete from public.bookmark_events where bookmark_id in (${ids.map(quoteLiteral).join(",")}); delete from public.bookmarks where id in (${ids.map(quoteLiteral).join(",")}); delete from public.bookmark_jobs where id='${jobId}'; commit;`
+			),
+	};
+}
 
 function sanitizeProcessError(value: string | undefined) {
 	return (value?.trim() || "알 수 없는 로컬 PostgreSQL 오류")

@@ -1,8 +1,6 @@
 "use client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Folder, GripVertical, MoreHorizontal } from "lucide-react";
 import { type DragEvent, useRef } from "react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -13,10 +11,9 @@ import {
 import type { BookmarkCollection, BookmarkItem } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
 import { healthSummary } from "@/lib/bookmark-health";
-import { useTRPCClient } from "@/trpc/client";
 import type { BookmarkDetailSelection } from "./bookmark-item-dialog";
 import styles from "./bookmark-row.module.css";
-import { useBookmarkChange } from "./use-bookmark-actions";
+import { useBookmarkChange, useBookmarkOpen } from "./use-bookmark-actions";
 
 export function BookmarkRow({
 	item,
@@ -43,8 +40,6 @@ export function BookmarkRow({
 	moving: boolean;
 	selectionDisabled: boolean;
 }) {
-	const trpc = useTRPCClient();
-	const cache = useQueryClient();
 	const change = useBookmarkChange();
 	const menuTrigger = useRef<HTMLButtonElement>(null);
 	const openingDialog = useRef(false);
@@ -52,16 +47,10 @@ export function BookmarkRow({
 		openingDialog.current = true;
 		detail({ id: item.id, mode, trigger: menuTrigger.current });
 	}
-	const open = useMutation({
-		mutationFn: () => trpc.bookmark.open.mutate({ id: item.id }),
-		onSuccess: () => cache.invalidateQueries({ queryKey: ["bookmarks"] }),
-		onError: (error) => toast.error(error.message),
-	});
+	const open = useBookmarkOpen();
 	const rowPending = change.isPending || selectionDisabled;
 	const path = collectionPath(item.collection_id, collections);
-	const proposalLabel = item.proposals.some((proposal) => proposal.kind === "classify")
-		? "변경안"
-		: "근거";
+	const hasClassification = item.proposals.some((proposal) => proposal.kind === "classify");
 	const health = healthSummary(item);
 	const reason = reviewReason(item);
 	return (
@@ -114,7 +103,7 @@ export function BookmarkRow({
 					item={item}
 					path={path}
 					review={view === "review"}
-					onOpen={() => open.mutate()}
+					onOpen={() => open.mutate({ id: item.id })}
 				/>
 				{view !== "review" && <BookmarkRowContext item={item} view={view} reason={reason} />}
 			</fieldset>
@@ -149,15 +138,17 @@ export function BookmarkRow({
 						>
 							삭제
 						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={(event) =>
-								detail({ id: item.id, mode: "proposal", trigger: event.currentTarget })
-							}
-						>
-							{proposalLabel}
-						</Button>
+						{hasClassification && (
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={(event) =>
+									detail({ id: item.id, mode: "proposal", trigger: event.currentTarget })
+								}
+							>
+								변경안
+							</Button>
+						)}
 					</>
 				)}
 				{view === "trash" && (
@@ -229,7 +220,7 @@ function BookmarkRowContext({
 				{health?.label ??
 					(item.proposals.some((proposal) => proposal.kind === "classify")
 						? "컬렉션 변경 제안"
-						: "미사용 후보")}
+						: "보관 정리")}
 			</span>
 			<p
 				className="m-0 line-clamp-2 break-words text-foreground/70 text-sm leading-5"

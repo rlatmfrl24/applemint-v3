@@ -8,6 +8,7 @@ import { BOOKMARK_CHANGES_KEY, type BookmarkChange } from "@/lib/bookmark-optimi
 import {
 	useBookmarkChange,
 	useBookmarkDisplayChanges,
+	useBookmarkOpen,
 	useCollectionChange,
 	useCollectionDisplayChanges,
 } from "./use-bookmark-actions";
@@ -15,6 +16,7 @@ import {
 const { api, notice } = vi.hoisted(() => ({
 	api: {
 		bookmark: {
+			open: { mutate: vi.fn() },
 			keep: { mutate: vi.fn() },
 			trash: { mutate: vi.fn() },
 			restore: { mutate: vi.fn() },
@@ -286,4 +288,35 @@ describe("optimistic collection commands", () => {
 			"변경은 저장되었습니다. 최신 컬렉션을 다시 확인해주세요."
 		);
 	});
+});
+
+it("merges authoritative open fields without invalidating lists or rolling back newer data", async () => {
+	const key = ["bookmarks", "list", { state: "library" }];
+	const current = {
+		...first,
+		title: "New title",
+		open_count: 4,
+		opened_at: "2026-10-26T01:00:00Z",
+		review_revision: 8,
+	};
+	cache.setQueryData(key, { pages: [{ items: [current], total: 1 }], pageParams: [0] });
+	cache.setQueryData(["bookmarks", "detail", first.id], { items: [current] });
+	const late = { ...first, open_count: 3, opened_at: "2026-10-25T01:00:00Z", review_revision: 7 };
+	api.bookmark.open.mutate.mockResolvedValueOnce(late).mockResolvedValueOnce({
+		...late,
+		open_count: 5,
+		opened_at: "2026-10-26T02:00:00Z",
+		review_revision: 9,
+	});
+	const hook = renderHook(() => useBookmarkOpen(), { wrapper });
+	await act(() => hook.result.current.mutateAsync({ id: first.id }));
+	expect(cache.getQueryData(key)).toMatchObject({ pages: [{ items: [current] }] });
+	await act(() => hook.result.current.mutateAsync({ id: first.id }));
+	expect(cache.getQueryData(key)).toMatchObject({
+		pages: [{ items: [{ title: "New title", open_count: 5, review_revision: 9 }] }],
+	});
+	expect(cache.getQueryData(["bookmarks", "detail", first.id])).toMatchObject({
+		items: [{ title: "New title", open_count: 5, review_revision: 9 }],
+	});
+	expect(cache.getQueryState(key)?.isInvalidated).toBe(false);
 });

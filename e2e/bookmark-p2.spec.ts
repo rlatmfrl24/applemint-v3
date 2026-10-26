@@ -74,7 +74,7 @@ test("실제 분류 요청 기록과 북마크 기준 전체 제안 제외를 UI
 			.eq("state", "pending");
 		expect(generated.error).toBeNull();
 		expect(generated.data).toHaveLength(2);
-		await page.goto(`/main/bookmarks/review?search=${encodeURIComponent(source.title)}`);
+		await page.goto("/main/bookmarks/review?group=classify");
 		await row.getByRole("checkbox").check();
 		const request = page.waitForRequest((request) =>
 			request.url().includes("bookmarkProposal.excludeBookmarks")
@@ -114,7 +114,7 @@ test("실제 분류 요청 기록과 북마크 기준 전체 제안 제외를 UI
 			.eq("bookmark_id", source.id)
 			.eq("state", "pending");
 		if (remaining.data?.length) {
-			await page.goto(`/main/bookmarks/review?search=${encodeURIComponent(source.title)}`);
+			await page.goto("/main/bookmarks/review?group=classify");
 			await page.locator(`[data-bookmark-id="${source.id}"]`).getByRole("checkbox").check();
 			await page.getByRole("button", { name: "선택 제안 제외", exact: true }).click();
 			await expect

@@ -244,7 +244,7 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
-it("does not abort a slow list fetch when evidence arrives and refreshes after it completes", async () => {
+it("notices evidence without aborting or reloading the visible list", async () => {
 	mount("review");
 	await screen.findByLabelText("Select Alpha");
 	let resolve!: (value: ReturnType<typeof page>) => void;
@@ -275,6 +275,9 @@ it("does not abort a slow list fetch when evidence arrives and refreshes after i
 	expect(signal.aborted).toBe(false);
 	resolve(page());
 	await pending;
+	await screen.findByRole("button", { name: "새 결과 보기" });
+	expect(api.bookmark.list.query).toHaveBeenCalledTimes(2);
+	fireEvent.click(screen.getByRole("button", { name: "새 결과 보기" }));
 	await waitFor(() => expect(api.bookmark.list.query).toHaveBeenCalledTimes(3));
 });
 
@@ -358,7 +361,8 @@ it("compares the first job response with the initial list snapshot before discar
 		finishList(page());
 	});
 	await screen.findByLabelText("Select Alpha");
-	await waitFor(() => expect(api.bookmark.list.query).toHaveBeenCalledTimes(2));
+	await screen.findByRole("button", { name: "새 결과 보기" });
+	expect(api.bookmark.list.query).toHaveBeenCalledOnce();
 });
 
 describe("bookmark library navigation and results", () => {
@@ -678,7 +682,11 @@ it.each(["content", "media", "uncheckable"])(
 		api.bookmark.list.query.mockResolvedValue(page(items, 37));
 		mount("review");
 		await screen.findByText("Alpha");
-		expect(api.bookmark.list.query.mock.calls[0]?.[0]).toMatchObject({ reviewType: type });
+		expect(api.bookmark.list.query.mock.calls[0]?.[0]).toMatchObject(
+			type === "uncheckable"
+				? { reviewGroup: "attention", reviewType: "all" }
+				: { reviewGroup: "problems", reviewType: type }
+		);
 		expect(screen.getAllByText(/37/).length).toBeGreaterThan(0);
 	}
 );
@@ -734,4 +742,130 @@ it("manual start exposes the all-reused result with a jobs entry point", async (
 	expect(screen.getByRole("link", { name: "진행 작업 보기" }).getAttribute("href")).toBe(
 		"/main/bookmarks/activity"
 	);
+});
+
+it("defaults to confirmed problems and strips hidden review searches", async () => {
+	window.history.replaceState(null, "", "/main/bookmarks/review?search=hidden");
+	mount("review");
+	await screen.findByLabelText("Select Alpha");
+	expect(api.bookmark.list.query.mock.calls[0]?.[0]).toMatchObject({
+		reviewGroup: "problems",
+		search: "",
+	});
+	expect(window.location.search).not.toContain("search=");
+	expect(screen.queryByRole("textbox", { name: "북마크 검색" })).toBeNull();
+	expect(screen.queryByText("저장 · 검토 · 정리")).toBeNull();
+	expect(screen.queryByRole("link", { name: "작업 기록" })).toBeNull();
+	expect((screen.getByRole("combobox", { name: "검토 범위" }) as HTMLSelectElement).value).toBe(
+		"problems"
+	);
+});
+
+it.each([
+	["unused", "organize"],
+	["classify", "classify"],
+	["uncheckable", "attention"],
+])("maps legacy %s links to %s", async (type, group) => {
+	window.history.replaceState(null, "", `/main/bookmarks/review?type=${type}`);
+	mount("review");
+	await screen.findByLabelText("Select Alpha");
+	expect(api.bookmark.list.query.mock.calls[0]?.[0]).toMatchObject({ reviewGroup: group });
+	expect(screen.queryByRole("button", { name: "죽은 링크" })).toBeNull();
+});
+
+it("preserves selection through repeated publications and failed explicit refresh", async () => {
+	mount("review");
+	const checkbox = await screen.findByLabelText("Select Alpha");
+	fireEvent.click(checkbox);
+	for (const revision of [1, 2, 3]) {
+		await act(async () => {
+			cache.setQueryData(
+				["bookmarks", "jobs"],
+				[
+					{
+						id: "check",
+						kind: "check",
+						state: "retry",
+						updated_at: `${revision}`,
+						progress: { healthResultRevision: revision },
+					},
+				]
+			);
+		});
+	}
+	await screen.findByRole("button", { name: "새 결과 보기" });
+	expect(api.bookmark.list.query).toHaveBeenCalledOnce();
+	expect((checkbox as HTMLInputElement).checked).toBe(true);
+	expect(screen.queryByText("목록 갱신 중…")).toBeNull();
+	api.bookmark.list.query.mockRejectedValueOnce(new Error("offline"));
+	fireEvent.click(screen.getByRole("button", { name: "새 결과 보기" }));
+	await waitFor(() => expect(notice.error).toHaveBeenCalled());
+	expect((screen.getByLabelText("Select Alpha") as HTMLInputElement).checked).toBe(true);
+	expect(screen.getByRole("button", { name: "새 결과 보기" })).toBeDefined();
+	api.bookmark.list.query.mockResolvedValueOnce(page([item("New")]));
+	fireEvent.click(screen.getByRole("button", { name: "새 결과 보기" }));
+	await screen.findByLabelText("Select New");
+	expect((screen.getByLabelText("Select New") as HTMLInputElement).checked).toBe(false);
+	expect(api.bookmark.list.query.mock.calls.at(-1)?.[0].offset).toBe(0);
+});
+
+it("keeps a newer publication notice when it arrives during explicit refresh", async () => {
+	mount("review");
+	await screen.findByLabelText("Select Alpha");
+	const publication = (revision: number): BookmarkJob[] => [
+		{
+			id: "check",
+			kind: "check",
+			state: "retry",
+			updated_at: `${revision}`,
+			progress: { healthResultRevision: revision },
+			scope: {},
+			total: 1,
+			completed: 0,
+			failed: 0,
+			attempts: 0,
+			available_at: "2026-10-26T00:00:00Z",
+			lease_token: null,
+			lease_expires_at: null,
+			error: null,
+			created_at: "2026-10-26T00:00:00Z",
+		},
+	];
+	await act(async () => {
+		cache.setQueryData(["bookmarks", "jobs"], publication(1));
+	});
+	const result = Promise.withResolvers<ReturnType<typeof page>>();
+	api.bookmark.list.query.mockReturnValueOnce(result.promise);
+	fireEvent.click(await screen.findByRole("button", { name: "새 결과 보기" }));
+	await waitFor(() => expect(api.bookmark.list.query).toHaveBeenCalledTimes(2));
+	await act(async () => {
+		cache.setQueryData(["bookmarks", "jobs"], publication(2));
+		result.resolve({ ...page(), jobs: publication(1) });
+	});
+	await waitFor(() =>
+		expect(screen.getByRole("button", { name: "새 결과 보기" }).hasAttribute("disabled")).toBe(
+			false
+		)
+	);
+	expect(api.bookmark.list.query).toHaveBeenCalledTimes(2);
+});
+
+it("does not reset the new group's selection when an older refresh finishes", async () => {
+	mount("review");
+	await screen.findByLabelText("Select Alpha");
+	const previous = Promise.withResolvers<ReturnType<typeof page>>();
+	api.bookmark.list.query.mockReturnValueOnce(previous.promise);
+	fireEvent.click(screen.getByRole("button", { name: "목록 새로고침" }));
+	await waitFor(() => expect(api.bookmark.list.query).toHaveBeenCalledTimes(2));
+	api.bookmark.list.query.mockResolvedValueOnce(page([item("Attention")]));
+	fireEvent.change(screen.getByRole("combobox", { name: "검토 범위" }), {
+		target: { value: "attention" },
+	});
+	const checkbox = await screen.findByLabelText("Select Attention");
+	fireEvent.click(checkbox);
+	await act(async () => {
+		previous.resolve(page([item("Old refresh")]));
+	});
+	expect((screen.getByLabelText("Select Attention") as HTMLInputElement).checked).toBe(true);
+	expect(screen.queryByLabelText("Select Old refresh")).toBeNull();
 });

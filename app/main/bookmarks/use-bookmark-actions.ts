@@ -38,6 +38,42 @@ export function useBookmarkDisplayChanges() {
 type ChangeResult =
 	| Omit<BookmarkItem, "check" | "proposals" | "last_review" | "duplicate_count">
 	| { applied: number };
+
+export function useBookmarkOpen() {
+	const trpc = useTRPCClient();
+	const cache = useQueryClient();
+	return useMutation({
+		mutationFn: (input: { id: string }) => trpc.bookmark.open.mutate(input),
+		onSuccess: (result) => {
+			const merge = (items: BookmarkItem[]) =>
+				items.map((item) =>
+					item.id !== result.id
+						? item
+						: {
+								...item,
+								open_count: Math.max(item.open_count, result.open_count),
+								opened_at:
+									item.opened_at && result.opened_at && item.opened_at > result.opened_at
+										? item.opened_at
+										: (result.opened_at ?? item.opened_at),
+								review_revision: Math.max(item.review_revision, result.review_revision),
+							}
+				);
+			cache.setQueriesData<{ pages: { items: BookmarkItem[] }[] }>(
+				{ queryKey: ["bookmarks", "list"] },
+				(old) =>
+					old
+						? { ...old, pages: old.pages.map((page) => ({ ...page, items: merge(page.items) })) }
+						: old
+			);
+			cache.setQueriesData<{ items: BookmarkItem[] }>(
+				{ queryKey: ["bookmarks", "detail"] },
+				(old) => (old ? { ...old, items: merge(old.items) } : old)
+			);
+		},
+		onError: (error) => toast.error(`열기 기록 저장 실패: ${error.message}`),
+	});
+}
 export function useBookmarkChange() {
 	const trpc = useTRPCClient();
 	const cache = useQueryClient();

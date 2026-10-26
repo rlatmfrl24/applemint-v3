@@ -241,10 +241,10 @@ test("목록 끝의 갱신 실패도 기존 항목을 보존하고 재시도한�
 		} else await route.continue();
 	});
 	await page.getByRole("button", { name: "목록 새로고침", exact: true }).click();
-	await expect(page.getByRole("alert").filter({ hasText: "목록" })).toBeVisible({ timeout: 15000 });
+	await expect(page.getByText("갱신 실패", { exact: true })).toBeVisible({ timeout: 15000 });
 	await expect(rows).toHaveCount(ids.length);
-	await page.getByRole("button", { name: "다시 불러오기", exact: true }).click();
-	await expect(page.getByRole("alert").filter({ hasText: "목록" })).toHaveCount(0);
+	await page.getByRole("button", { name: "목록 새로고침", exact: true }).click();
+	await expect(page.getByText("갱신 실패", { exact: true })).toHaveCount(0);
 	expect(
 		await rows.evaluateAll((elements) => elements.map((el) => el.getAttribute("data-bookmark-id")))
 	).toEqual(ids);
@@ -252,6 +252,7 @@ test("목록 끝의 갱신 실패도 기존 항목을 보존하고 재시도한�
 });
 
 test("불러온 목록은 대기 중 반복 조회하지 않고 작업 상태만 갱신한다", async ({ page }) => {
+	await page.clock.install();
 	await page.goto("/main/bookmarks");
 	const rows = page.locator("article[data-bookmark-id]");
 	await expect(rows).toHaveCount(100);
@@ -266,9 +267,9 @@ test("불러온 목록은 대기 중 반복 조회하지 않고 작업 상태만
 		if (request.url().includes("/api/trpc/bookmark.list")) listRequests++;
 		if (request.url().includes("/api/trpc/bookmarkImport.status")) statusRequests++;
 	});
-	await page.waitForTimeout(12000);
+	await page.clock.fastForward(60100);
+	await expect.poll(() => statusRequests).toBeGreaterThanOrEqual(1);
 	expect(listRequests).toBe(0);
-	expect(statusRequests).toBeGreaterThanOrEqual(2);
 	await expect(rows).toHaveCount(200);
 });
 

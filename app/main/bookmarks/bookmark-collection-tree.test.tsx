@@ -112,13 +112,10 @@ describe("BookmarkCollectionTree", () => {
 		]);
 	});
 
-	it("recovers from invalid stored expansion and searches full collection paths", () => {
+	it("recovers from invalid expansion without a sidebar search field", () => {
 		sessionStorage.setItem("bookmark-collection-expansion", "not JSON");
-		const { props } = setup();
-		fireEvent.change(screen.getByRole("searchbox"), { target: { value: "  GUIDES / REACT " } });
-		fireEvent.click(screen.getByRole("button", { name: "Work / Guides / React" }));
-		expect(props.select).toHaveBeenCalledExactlyOnceWith("react");
-		expect((screen.getByRole("searchbox") as HTMLInputElement).value).toBe("");
+		setup();
+		expect(screen.queryByRole("searchbox")).toBeNull();
 		expect(screen.getByRole("button", { name: "Work" })).toBeDefined();
 	});
 
