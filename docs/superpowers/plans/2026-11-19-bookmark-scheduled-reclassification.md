@@ -29,7 +29,7 @@
 
 ---
 
-## 1. DB에서 회차 날짜와 등록 수량을 제한한다
+## Task 1. DB에서 회차 날짜와 등록 수량을 제한한다
 
 **Files** · `supabase/migrations/<CLI 생성 시각>_bookmark_scheduled_classification_queue.sql`, `supabase/tests/bookmark-scheduled-classification.test.sql`, `supabase/tests/bookmark-scheduled-classification-concurrency.test.sql`.
 
@@ -42,7 +42,7 @@
 - [ ] **등록 트랜잭션과 조회 규칙을 구현한다.** `bookmark:scheduled-classification` 트랜잭션 advisory lock을 설정·등록·예약·재개·종료에서 공통으로 사용한다. 등록에서 이전 미완료 회차, `progress.closedAt`이 속한 KST 날짜, 당일 조회 날짜를 먼저 확인한다. 오늘 종료한 회차가 있으면 오늘 등록을 건너뛴다. 기존 `bookmark_job_items`와 작업 origin으로 이미 등록한 ID를 제외하고 `bookmarks.created_at <= startedAt`인 보관함을 `saved_at, id` 순서로 제한한다. 버전 일치 `pending classify` 제안과 미완료 활성 분류 항목은 보류한다. 후보 전부가 보류 중이면 `deferred`, 등록할 기존 ID 자체가 없으면 `exhausted`를 기록한다. 기존 인덱스로 조회 계획을 확인하고 필요할 때만 북마크 ID 기준 작업 항목 인덱스를 추가한다. 회차 키는 `scope.scheduledDate`이며, `classify`의 해당 origin만 적용하는 날짜 고유 인덱스로 중복 등록을 차단한다.
 - [ ] **진입점과 검증을 마친다.** 설정 RPC는 `is_applemint_owner()`를 검증한 authenticated 호출만 허용하고, 클라이언트의 일반 `bookmark_command('start', ...)`에서 예약 origin을 사칭하는 입력을 거부한다. 설정 조회는 저장된 조회 결과와 최근 회차로 상태를 구성한다. `nextEligibleAt`은 다음 등록이 가능한 KST 09:00 시각 또는 이미 열린 당일 창의 09:00이며 비활성·차단·완료에는 null이다. `pnpm test:db`에서 새 테스트와 기존 자동 점검·수동 등록 테스트가 모두 통과하면 이 단계 파일만 커밋한다.
 
-## 2. 기존 워커에서 게시와 비용 안전장치를 적용한다
+## Task 2. 기존 워커에서 게시와 비용 안전장치를 적용한다
 
 **Files** · `supabase/migrations/<CLI 생성 시각>_bookmark_scheduled_classification_worker.sql`, `supabase/tests/bookmark-scheduled-classification-worker.test.sql`, `server/bookmarks/worker.ts`, `server/bookmarks/worker.test.ts`, `types/database.types.ts`.
 
@@ -55,7 +55,7 @@
 - [ ] **같은 분류기를 연결하고 게시를 방어한다.** `aiBatch`의 정기 origin 분기에서 claim의 `expected_version`과 현재 `version/state`를 비교한 뒤 기존 모델 요청과 `resolveBookmarkTopicTarget`을 사용한다. 기존 결과에 비교 사유를 남기고 소속 변경이 필요한 경우만 제안을 전달한다. DB 게시 구간에서 `private.bookmark_worker_commit_legacy`의 분류 대상 북마크 행을 proposal insert 전에 잠근다. 정기 origin에 한해 현재 버전·상태·소속 및 기존 동버전 대기 제안을 다시 확인하고, 기존 출처·`etc` 게시 잠금과 영수증 처리 순서를 보존한다. 수동 게시에도 같은 북마크 행 잠금을 사용해 정기 게시 시점의 중복 확인을 직렬화한다.
 - [ ] **생성 타입과 검증을 마친다.** `pnpm db:types:generate`로 RPC 타입을 반영한다. 1·2단계 DB 및 대상 Vitest를 다시 실행해 통과하면 이 단계 파일만 커밋한다.
 
-## 3. 소유자 설정과 회차 종료를 연결한다
+## Task 3. 소유자 설정과 회차 종료를 연결한다
 
 **Files** · `supabase/migrations/<CLI 생성 시각>_bookmark_scheduled_classification_controls.sql`, `supabase/tests/bookmark-scheduled-classification-controls.test.sql`, `contracts/bookmark-scheduled-classification.schema.ts`, `server/repositories/bookmark.repository.ts`, `server/services/bookmark.service.ts`, `server/trpc/routers/bookmark.router.ts`와 해당 테스트, `app/main/setting/bookmarks/bookmark-scheduled-classification-settings.tsx`, `app/main/setting/bookmarks/page.tsx`, `app/main/bookmarks/bookmark-jobs.tsx`와 해당 테스트, `types/database.types.ts`.
 
@@ -68,7 +68,7 @@
 - [ ] **설정과 검토 진입점을 연결한다.** 1단계 응답을 Zod로 검증하고 기존 ownerProcedure → 서비스 → repository → RPC 패턴으로 연결한다. 설정 화면에는 시간·수량·월 공유 예산·현재 상태와 작업 기록 링크를 표시한다. 작업 기록에는 **정기 재분류**, **회차 종료**, **종료됨**을 표시한다. 청구 불명확일 때 재개 전에 예약 보존과 재호출 가능성을 설명한다. 승인·제외는 기존 **컬렉션 제안** 화면을 연결한다.
 - [ ] **실제 스케줄 진입점을 연결한다.** `dispatch_bookmark_worker()`에 `private.enqueue_bookmark_scheduled_classification(now())`를 연결한다. 기존 자동 링크 점검 등록과 기존 worker dispatch를 유지한다. 호출 전에 Vault 및 dispatch 준비 상태를 확인한다. 세 단계 마이그레이션과 애플리케이션을 하나의 릴리스로 검증한다. `pnpm db:types:generate`와 3단계 DB·Vitest가 통과하면 이 단계 파일만 커밋한다.
 
-## 4. 정상 진입점에서 정기 처리부터 승인까지 확인한다
+## Task 4. 정상 진입점에서 정기 처리부터 승인까지 확인한다
 
 **Files** · `e2e/bookmark-ai.spec.ts`, `docs/reports/2026-11-19-bookmark-scheduled-reclassification-verification.md` 또는 작업 PR의 검증 원장.
 
