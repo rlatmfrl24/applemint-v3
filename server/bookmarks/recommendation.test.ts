@@ -210,7 +210,7 @@ it("rejects a choice that contradicts its probability distribution while settlin
 	expect(result.outputError).toBe("COLLECTION_CHOICE_RANK");
 });
 
-it.each(["topic", "etc", "root-etc", "missing-etc", "duplicate-etc", "invalid-source"])(
+it.each(["topic", "source", "etc", "root-etc", "missing-etc", "duplicate-etc", "invalid-source"])(
 	"resolves a community recommendation for %s after validating the model response",
 	async (scenario) => {
 		vi.stubEnv("OPENROUTER_API_KEY", "fixture-only");
@@ -224,7 +224,13 @@ it.each(["topic", "etc", "root-etc", "missing-etc", "duplicate-etc", "invalid-so
 		};
 		const parent = { ...etc, id: "aaaaaaaa-0000-4000-8000-000000000005", name: "Community" };
 		const nested = { ...etc, id: "aaaaaaaa-0000-4000-8000-000000000006", parent_id: parent.id };
+		const sourceFolder = {
+			...nested,
+			id: "aaaaaaaa-0000-4000-8000-000000000007",
+			name: "arcalive",
+		};
 		const active = [folder, topic, etc, parent];
+		if (scenario === "source") active.push(sourceFolder);
 		if (scenario !== "missing-etc") active.push(nested);
 		if (scenario === "duplicate-etc")
 			active.push({ ...nested, id: "aaaaaaaa-0000-4000-8000-000000000004" });
@@ -270,11 +276,13 @@ it.each(["topic", "etc", "root-etc", "missing-etc", "duplicate-etc", "invalid-so
 		expect(result.chargedNano).toBe(4200);
 		const expectedScopes: Record<string, string> = { etc: "community", "root-etc": "root" };
 		expect(result.etcScope).toBe(expectedScopes[scenario] ?? null);
+		expect(result.sourceRoute?.siteKey).toBe(scenario === "source" ? "arca.live" : undefined);
 		if (scenario === "invalid-source") {
 			expect(result).toMatchObject({ recommendation: null, outputError: "SOURCE_CHOICE_OPTIONS" });
 		} else {
 			const targets: Record<string, Pick<typeof etc, "id" | "version">> = {
 				topic,
+				source: sourceFolder,
 				etc: nested,
 				"root-etc": etc,
 			};

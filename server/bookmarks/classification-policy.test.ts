@@ -35,7 +35,9 @@ it.each([" WWW.FMKOREA.COM ", "bbs.ruliweb.com"])(
 it.each([
 	["DCInside", "https://gall.dcinside.com/mgallery/board/view/?id=bluearchive&no=123"],
 	["dogdrip", "https://www.dogdrip.net/123"],
-	["ilbe", "https://www.ilbe.com/view/123"],
+	["danger", "https://www.ilbe.com/view/123"],
+	[" 루리웹 ", "https://bbs.ruliweb.com/community/board/300143/read/123"],
+	["v12.battlepage.com", "https://www.battlepage.com/123"],
 ])(
 	"recognizes imported community source %s without offering its folder as a topic",
 	(name, url) => {
@@ -45,10 +47,9 @@ it.each([
 		expect(() =>
 			resolveBookmarkTopicTarget(url, { ...noMatch, collectionId: sourceFolder.id }, active)
 		).toThrow("INVALID_TOPIC_COLLECTION");
-		expect(resolveBookmarkTopicTarget(url, noMatch, active)).toEqual({
-			kind: "etc",
-			etcScope: "community",
-			collection: communityEtc,
+		expect(resolveBookmarkTopicTarget(url, noMatch, active)).toMatchObject({
+			kind: "source",
+			collection: sourceFolder,
 		});
 	}
 );
@@ -67,7 +68,9 @@ it("excludes the imported danger and youtube folders only below the root Communi
 });
 
 it("uses Community / etc for registered and evidenced community posts with a root etc present", () => {
-	expect(resolveBookmarkTopicTarget(arcaUrl, noMatch, collections)).toEqual({
+	expect(
+		resolveBookmarkTopicTarget(arcaUrl, noMatch, [community, blueArchive, rootEtc, communityEtc])
+	).toEqual({
 		kind: "etc",
 		etcScope: "community",
 		collection: communityEtc,
@@ -78,6 +81,30 @@ it("uses Community / etc for registered and evidenced community posts with a roo
 			{ ...noMatch, sourceKind: "community" },
 			collections
 		)
+	).toEqual({ kind: "etc", etcScope: "community", collection: communityEtc });
+});
+
+it("uses Community / etc when multiple folders match the same source", () => {
+	const duplicate = { ...arcalive, id: "host", name: "arca.live" };
+	expect(resolveBookmarkTopicTarget(arcaUrl, noMatch, [...collections, duplicate])).toEqual({
+		kind: "etc",
+		etcScope: "community",
+		collection: communityEtc,
+	});
+});
+
+it("matches a source folder only directly under a root Community", () => {
+	const rootSource = { ...arcalive, parent_id: null };
+	const nestedSource = { ...arcalive, id: "nested-source", parent_id: blueArchive.id };
+	expect(
+		resolveBookmarkTopicTarget(arcaUrl, noMatch, [
+			community,
+			rootSource,
+			blueArchive,
+			nestedSource,
+			rootEtc,
+			communityEtc,
+		])
 	).toEqual({ kind: "etc", etcScope: "community", collection: communityEtc });
 });
 
@@ -100,7 +127,9 @@ it("withholds classification when its exact fallback path is missing or ambiguou
 	});
 	expect(
 		resolveBookmarkTopicTarget(arcaUrl, noMatch, [
-			...collections,
+			community,
+			rootEtc,
+			communityEtc,
 			{ ...communityEtc, id: "duplicate" },
 		])
 	).toEqual({ kind: "etc-unavailable", etcScope: "community" });

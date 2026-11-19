@@ -6,8 +6,10 @@ export type TopicCollection = Pick<BookmarkCollection, "id" | "name" | "parent_i
 export const bookmarkSourceKinds = ["community", "other", "unknown"] as const;
 type BookmarkSourceKind = (typeof bookmarkSourceKinds)[number];
 type EtcScope = "community" | "root";
+type CommunitySource = { siteKey: string; aliases: string[] };
 type BookmarkTopicResolution =
 	| { kind: "existing"; collection: TopicCollection }
+	| { kind: "source"; collection: TopicCollection; sourceRoute: CommunitySource }
 	| { kind: "etc"; etcScope: EtcScope; collection: TopicCollection }
 	| { kind: "etc-unavailable"; etcScope: EtcScope }
 	| { kind: "unfiled" };
@@ -20,8 +22,16 @@ const bookmarkCommunitySites = [
 	{ siteKey: "dogdrip.net", label: "개드립" },
 	{ siteKey: "ilbe.com", label: "일베" },
 ];
-const communitySiteKeys = bookmarkCommunitySites.map(({ siteKey }) => siteKey);
 const importedFolderAliases = new Set(["danger", "youtube"]);
+const communitySources: CommunitySource[] = bookmarkCommunitySites.map(({ siteKey, label }) => ({
+	siteKey,
+	aliases: [
+		siteKey.split(".")[0],
+		label.toLowerCase(),
+		...(siteKey === "arca.live" ? ["arcalive"] : []),
+		...(siteKey === "ilbe.com" ? ["danger"] : []),
+	],
+}));
 const reservedNames = new Set([
 	etcName,
 	"community",
@@ -34,15 +44,18 @@ const reservedNames = new Set([
 	]),
 ]);
 
-const isCommunityHost = (hostname: string) =>
-	communitySiteKeys.some((key) => hostname === key || hostname.endsWith(`.${key}`));
+const hostNamePattern = /^(?:[a-z0-9-]+\.)+[a-z0-9-]+$/u;
+const matchesHost = (hostname: string, key: string) =>
+	hostname === key || hostname.endsWith(`.${key}`);
+const communitySourceForHost = (hostname: string) =>
+	communitySources.find(({ siteKey }) => matchesHost(hostname, siteKey));
 
 const normalizedName = (name: string) => name.trim().toLowerCase();
 const isReservedName = (name: string) => {
 	const normalized = normalizedName(name);
 	return (
 		reservedNames.has(normalized) ||
-		(/^(?:[a-z0-9-]+\.)+[a-z0-9-]+$/u.test(normalized) && isCommunityHost(normalized))
+		(hostNamePattern.test(normalized) && !!communitySourceForHost(normalized))
 	);
 };
 
@@ -89,10 +102,22 @@ export function resolveBookmarkTopicTarget(
 	}
 	const parsed = URL.parse(url);
 	if (!parsed || !["http:", "https:"].includes(parsed.protocol)) return { kind: "unfiled" };
-	const community =
-		choice.sourceKind === "community" || isCommunityHost(parsed.hostname.replace(/\.$/u, ""));
+	const sourceRoute = communitySourceForHost(parsed.hostname.replace(/\.$/u, ""));
+	const community = choice.sourceKind === "community" || !!sourceRoute;
 	const etcScope = community ? "community" : "root";
 	const parents = community ? communityParentIds(collections) : new Set([null]);
+	if (sourceRoute) {
+		const sourceMatches = collections.filter(({ name, parent_id }) => {
+			const folder = normalizedName(name);
+			return (
+				parents.has(parent_id) &&
+				(sourceRoute.aliases.includes(folder) ||
+					(hostNamePattern.test(folder) && matchesHost(folder, sourceRoute.siteKey)))
+			);
+		});
+		if (sourceMatches.length === 1)
+			return { kind: "source", collection: sourceMatches[0], sourceRoute };
+	}
 	const matches = collections.filter(
 		({ name, parent_id }) => normalizedName(name) === etcName && parents.has(parent_id)
 	);
