@@ -276,6 +276,7 @@ it.each([
 	"etc",
 	"missing-etc",
 	"already-etc",
+	"root-etc",
 	"source-folder",
 	"missing-source-kind",
 ] as const)("classify commits the validated topic decision for %s", async (scenario) => {
@@ -284,7 +285,10 @@ it.each([
 	const sourceId = "aaaaaaaa-0000-4000-8000-000000000011";
 	const topicId = "aaaaaaaa-0000-4000-8000-000000000012";
 	const etcId = "aaaaaaaa-0000-4000-8000-000000000013";
-	const url = "https://arca.live/b/bluearchive/123";
+	const parentId = "aaaaaaaa-0000-4000-8000-000000000014";
+	const rootEtcId = "aaaaaaaa-0000-4000-8000-000000000015";
+	const url =
+		scenario === "root-etc" ? "https://example.org/misc" : "https://arca.live/b/bluearchive/123";
 	const collection = (id: string, name: string, parent_id: string | null = null) => ({
 		id,
 		name,
@@ -299,7 +303,7 @@ it.each([
 	const modelItem = {
 		id,
 		collectionId: selection,
-		newCollectionName: scenario === "etc" ? "게시판 잡담" : null,
+		newCollectionName: selection ? null : "새 주제 후보",
 		reason: "글의 주제 근거",
 		relevance: null,
 		reviewCandidate: false,
@@ -352,7 +356,9 @@ it.each([
 						collections: [
 							collection(sourceId, "arcalive"),
 							collection(topicId, "블루 아카이브", sourceId),
-							...(scenario === "missing-etc" ? [] : [collection(etcId, "etc")]),
+							collection(parentId, "Community"),
+							collection(rootEtcId, "etc"),
+							...(scenario === "missing-etc" ? [] : [collection(etcId, "etc", parentId)]),
 						],
 						settings: { interests: [], interest_version: 1 },
 					}
@@ -372,18 +378,26 @@ it.each([
 	expect(input.collections).toEqual([
 		expect.objectContaining({ id: topicId, path: "arcalive / 블루 아카이브" }),
 	]);
-	if (scenario === "topic" || scenario === "etc") {
-		expect(charge.items[0].proposal).toMatchObject({
-			collectionId: scenario === "topic" ? topicId : etcId,
-			newCollectionName: null,
-			reason:
-				scenario === "topic"
-					? modelItem.reason
-					: "맞는 주제 컬렉션이 없어 커뮤니티 글을 etc에 제안했습니다.",
-		});
-		expect(Boolean(charge.items[0].proposal.communityEtc)).toBe(scenario === "etc");
-	} else {
+	if (scenario === "missing-etc" || scenario === "already-etc") {
 		expect(charge.items[0]).toHaveProperty("result.reason");
 		expect(charge.items[0]).not.toHaveProperty("proposal");
+		return;
 	}
+	const expected = {
+		topic: { collectionId: topicId, etcScope: null, reason: modelItem.reason },
+		etc: {
+			collectionId: etcId,
+			etcScope: "community",
+			reason: "맞는 주제 컬렉션이 없어 Community / etc로 이동을 제안했습니다.",
+		},
+		"root-etc": {
+			collectionId: rootEtcId,
+			etcScope: "root",
+			reason: "맞는 주제 컬렉션이 없어 최상위 etc로 이동을 제안했습니다.",
+		},
+	};
+	expect(charge.items[0].proposal).toMatchObject({
+		...expected[scenario],
+		newCollectionName: null,
+	});
 });

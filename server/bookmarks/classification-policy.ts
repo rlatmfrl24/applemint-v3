@@ -5,10 +5,12 @@ import { getNormalSiteKey, NORMAL_SITE_CATALOG } from "@/lib/community";
 export type TopicCollection = Pick<BookmarkCollection, "id" | "name" | "parent_id" | "version">;
 export const bookmarkSourceKinds = ["community", "other", "unknown"] as const;
 type BookmarkSourceKind = (typeof bookmarkSourceKinds)[number];
+type EtcScope = "community" | "root";
 type BookmarkTopicResolution =
-	| { kind: "existing" | "community-etc"; collection: TopicCollection }
-	| { kind: "new"; name: string }
-	| { kind: "unfiled" | "community-etc-unavailable" };
+	| { kind: "existing"; collection: TopicCollection }
+	| { kind: "etc"; etcScope: EtcScope; collection: TopicCollection }
+	| { kind: "etc-unavailable"; etcScope: EtcScope }
+	| { kind: "unfiled" };
 
 const etcName = "etc";
 const communitySiteKeys = new Set<string>(NORMAL_SITE_CATALOG.map(({ siteKey }) => siteKey));
@@ -53,7 +55,6 @@ export function resolveBookmarkTopicTarget(
 	url: string,
 	choice: {
 		collectionId: string | null;
-		newCollectionName: string | null;
 		sourceKind: BookmarkSourceKind;
 	},
 	collections: TopicCollection[]
@@ -64,18 +65,24 @@ export function resolveBookmarkTopicTarget(
 		return { kind: "existing", collection };
 	}
 	const parsed = URL.parse(url);
-	if (
-		parsed &&
-		["http:", "https:"].includes(parsed.protocol) &&
-		(choice.sourceKind === "community" ||
-			communitySiteKeys.has(getNormalSiteKey(parsed.hostname.replace(/\.$/u, ""))))
-	) {
-		const matches = collections.filter(({ name }) => normalizedName(name) === etcName);
-		return matches.length === 1
-			? { kind: "community-etc", collection: matches[0] }
-			: { kind: "community-etc-unavailable" };
-	}
-	if (choice.newCollectionName && !isReservedName(choice.newCollectionName))
-		return { kind: "new", name: choice.newCollectionName };
-	return { kind: "unfiled" };
+	if (!parsed || !["http:", "https:"].includes(parsed.protocol)) return { kind: "unfiled" };
+	const community =
+		choice.sourceKind === "community" ||
+		communitySiteKeys.has(getNormalSiteKey(parsed.hostname.replace(/\.$/u, "")));
+	const etcScope = community ? "community" : "root";
+	const parents: Set<string | null> = community
+		? new Set(
+				collections
+					.filter(
+						({ name, parent_id }) => parent_id === null && normalizedName(name) === "community"
+					)
+					.map(({ id }) => id)
+			)
+		: new Set([null]);
+	const matches = collections.filter(
+		({ name, parent_id }) => normalizedName(name) === etcName && parents.has(parent_id)
+	);
+	return matches.length === 1
+		? { kind: "etc", etcScope, collection: matches[0] }
+		: { kind: "etc-unavailable", etcScope };
 }

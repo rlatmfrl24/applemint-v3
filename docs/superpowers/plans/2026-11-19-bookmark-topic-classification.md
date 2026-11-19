@@ -10,6 +10,8 @@
 
 **Spec:** [북마크 주제 우선 분류 설계](../specs/2026-11-19-bookmark-topic-classification-design.md)
 
+2026-11-19 후속 결정으로 주제 미일치 링크의 목적지를 `Community / etc`와 최상위 `etc`로 구분했다. 경로별 유일성을 적용한 동작은 위 설계 문서와 `bookmark_etc_route_publication` 마이그레이션을 따른다. 아래 작업은 최초 구현 계획이다.
+
 ## Global Constraints
 
 - 저장과 이동은 각각 사용자의 명시적 저장과 승인으로 반영한다. 새 두 경로를 같은 변경으로 제공한다.

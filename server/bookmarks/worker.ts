@@ -228,23 +228,25 @@ function classificationDecision(
 	if (!choice.sourceKind) throw new Error("MISSING_BOOKMARK_SOURCE_KIND");
 	const target = resolveBookmarkTopicTarget(
 		item.url,
-		{ ...choice, sourceKind: choice.sourceKind },
+		{ collectionId: choice.collectionId, sourceKind: choice.sourceKind },
 		collections
 	);
-	if (target.kind === "community-etc-unavailable")
-		return { reason: "사용할 수 있는 etc 컬렉션이 정확히 하나일 때 이동을 제안합니다." };
-	if (target.kind === "community-etc" && target.collection.id === item.collection_id)
-		return { reason: "이미 etc에 속한 커뮤니티 글입니다." };
+	const path =
+		"etcScope" in target && target.etcScope === "community" ? "Community / etc" : "최상위 etc";
+	if (target.kind === "etc-unavailable")
+		return { reason: `활성 ${path} 컬렉션이 정확히 하나일 때 이동을 제안합니다.` };
+	if (target.kind === "etc" && target.collection.id === item.collection_id)
+		return { reason: `이미 ${path} 컬렉션에 속해 있습니다.` };
 	const reason =
-		target.kind === "community-etc"
-			? "맞는 주제 컬렉션이 없어 커뮤니티 글을 etc에 제안했습니다."
+		target.kind === "etc"
+			? `맞는 주제 컬렉션이 없어 ${path}로 이동을 제안했습니다.`
 			: choice.reason;
 	return {
 		reason,
 		proposal: {
-			...(target.kind === "community-etc" ? { communityEtc: true } : {}),
+			etcScope: target.kind === "etc" ? target.etcScope : null,
 			collectionId: "collection" in target ? target.collection.id : null,
-			newCollectionName: target.kind === "new" ? target.name : null,
+			newCollectionName: null,
 			reason,
 			relevance,
 		},
@@ -496,7 +498,7 @@ async function recommendCollection(db: AppSupabaseClient, claim: Claim): Promise
 						completed: 1,
 						failed: 0,
 						recommendation: result.recommendation,
-						communityEtc: result.communityEtc,
+						etcScope: result.etcScope,
 					}
 				: {
 						state: result.chargedNano === null ? "paused" : "failed",

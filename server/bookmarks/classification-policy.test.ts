@@ -1,15 +1,16 @@
 import { expect, it } from "vitest";
 import { resolveBookmarkTopicTarget, topicCollections } from "./classification-policy";
 
-const community = { id: "community", name: "Community", parent_id: null, version: 1 };
+const community = { id: "community", name: " Community ", parent_id: null, version: 1 };
 const arcalive = { id: "source", name: "arcalive", parent_id: community.id, version: 1 };
 const blueArchive = { ...arcalive, id: "blue", name: "블루 아카이브" };
-const etc = { id: "etc", name: " Etc ", parent_id: null, version: 2 };
-const collections = [community, arcalive, blueArchive, etc];
+const rootEtc = { id: "root-etc", name: " Etc ", parent_id: null, version: 2 };
+const communityEtc = { ...rootEtc, id: "community-etc", parent_id: community.id };
+const collections = [community, arcalive, blueArchive, rootEtc, communityEtc];
 const arcaUrl = "https://arca.live/b/bluearchive/123";
-const noMatch = { collectionId: null, newCollectionName: null, sourceKind: "unknown" } as const;
+const noMatch = { collectionId: null, sourceKind: "unknown" } as const;
 
-it("keeps a topic child eligible when its source folders are excluded", () => {
+it("keeps a topic child eligible and prioritizes it over both etc paths", () => {
 	expect(topicCollections(collections)).toEqual([blueArchive]);
 	expect(
 		resolveBookmarkTopicTarget(arcaUrl, { ...noMatch, collectionId: blueArchive.id }, collections)
@@ -31,10 +32,11 @@ it.each([" WWW.FMKOREA.COM ", "bbs.ruliweb.com"])(
 	}
 );
 
-it("uses the unique existing etc for known and evidenced community posts", () => {
+it("uses Community / etc for registered and evidenced community posts with a root etc present", () => {
 	expect(resolveBookmarkTopicTarget(arcaUrl, noMatch, collections)).toEqual({
-		kind: "community-etc",
-		collection: etc,
+		kind: "etc",
+		etcScope: "community",
+		collection: communityEtc,
 	});
 	expect(
 		resolveBookmarkTopicTarget(
@@ -42,27 +44,32 @@ it("uses the unique existing etc for known and evidenced community posts", () =>
 			{ ...noMatch, sourceKind: "community" },
 			collections
 		)
-	).toEqual({ kind: "community-etc", collection: etc });
+	).toEqual({ kind: "etc", etcScope: "community", collection: communityEtc });
 });
 
-it("leaves a lookalike host unfiled and allows a new topic for a general link", () => {
-	expect(
-		resolveBookmarkTopicTarget("https://arca.live.example.org/b/thread/1", noMatch, collections)
-	).toEqual({ kind: "unfiled" });
-	expect(
-		resolveBookmarkTopicTarget(
-			"https://example.org/garden",
-			{ ...noMatch, newCollectionName: "정원" },
-			collections
-		)
-	).toEqual({ kind: "new", name: "정원" });
-});
+it.each(["https://arca.live.example.org/b/thread/1", "https://example.org/garden"])(
+	"uses the root etc when the source has no community evidence: %s",
+	(url) => {
+		expect(resolveBookmarkTopicTarget(url, noMatch, collections)).toEqual({
+			kind: "etc",
+			etcScope: "root",
+			collection: rootEtc,
+		});
+	}
+);
 
-it.each([
-	["missing", [blueArchive]],
-	["ambiguous", [...collections, { ...etc, id: "nested-etc", parent_id: community.id }]],
-])("leaves a community post without a destination when etc is %s", (_, active) => {
-	expect(resolveBookmarkTopicTarget(arcaUrl, noMatch, active)).toEqual({
-		kind: "community-etc-unavailable",
+it("withholds classification when its exact fallback path is missing or ambiguous", () => {
+	expect(resolveBookmarkTopicTarget(arcaUrl, noMatch, [community, rootEtc])).toEqual({
+		kind: "etc-unavailable",
+		etcScope: "community",
 	});
+	expect(
+		resolveBookmarkTopicTarget(arcaUrl, noMatch, [
+			...collections,
+			{ ...communityEtc, id: "duplicate" },
+		])
+	).toEqual({ kind: "etc-unavailable", etcScope: "community" });
+	expect(
+		resolveBookmarkTopicTarget("https://example.org", noMatch, [community, communityEtc])
+	).toEqual({ kind: "etc-unavailable", etcScope: "root" });
 });

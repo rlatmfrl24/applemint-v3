@@ -210,7 +210,7 @@ it("rejects a choice that contradicts its probability distribution while settlin
 	expect(result.outputError).toBe("COLLECTION_CHOICE_RANK");
 });
 
-it.each(["topic", "etc", "missing-etc", "duplicate-etc", "invalid-source"])(
+it.each(["topic", "etc", "root-etc", "missing-etc", "duplicate-etc", "invalid-source"])(
 	"resolves a community recommendation for %s after validating the model response",
 	async (scenario) => {
 		vi.stubEnv("OPENROUTER_API_KEY", "fixture-only");
@@ -222,12 +222,20 @@ it.each(["topic", "etc", "missing-etc", "duplicate-etc", "invalid-source"])(
 			version: 4,
 			parent_id: null,
 		};
-		const active = [folder, topic];
-		if (scenario !== "missing-etc") active.push(etc);
+		const parent = { ...etc, id: "aaaaaaaa-0000-4000-8000-000000000005", name: "Community" };
+		const nested = { ...etc, id: "aaaaaaaa-0000-4000-8000-000000000006", parent_id: parent.id };
+		const active = [folder, topic, etc, parent];
+		if (scenario !== "missing-etc") active.push(nested);
 		if (scenario === "duplicate-etc")
-			active.push({ ...etc, id: "aaaaaaaa-0000-4000-8000-000000000004", parent_id: folder.id });
+			active.push({ ...nested, id: "aaaaaaaa-0000-4000-8000-000000000004" });
 		const request = buildRecommendationRequest(
-			{ ...source, url: "https://arca.live/b/bluearchive/1" },
+			{
+				...source,
+				url:
+					scenario === "root-etc"
+						? "https://example.org/misc"
+						: "https://arca.live/b/bluearchive/1",
+			},
 			active,
 			[]
 		);
@@ -260,11 +268,17 @@ it.each(["topic", "etc", "missing-etc", "duplicate-etc", "invalid-source"])(
 		);
 		const result = await callRecommendation(request, active);
 		expect(result.chargedNano).toBe(4200);
-		expect(result.communityEtc).toBe(scenario === "etc");
+		const expectedScopes: Record<string, string> = { etc: "community", "root-etc": "root" };
+		expect(result.etcScope).toBe(expectedScopes[scenario] ?? null);
 		if (scenario === "invalid-source") {
 			expect(result).toMatchObject({ recommendation: null, outputError: "SOURCE_CHOICE_OPTIONS" });
 		} else {
-			const target = chooseTopic ? topic : scenario === "etc" ? etc : null;
+			const targets: Record<string, Pick<typeof etc, "id" | "version">> = {
+				topic,
+				etc: nested,
+				"root-etc": etc,
+			};
+			const target = targets[scenario];
 			expect(result.recommendation).toMatchObject({
 				collectionId: target?.id ?? null,
 				collectionVersion: target?.version ?? null,

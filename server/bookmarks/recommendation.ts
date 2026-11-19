@@ -107,14 +107,13 @@ function recommendationFromAnswers(
 		url,
 		{
 			collectionId: answers.collection.choice === "unfiled" ? null : answers.collection.choice,
-			newCollectionName: null,
 			sourceKind: sourceKindSchema.parse(answers.source.choice),
 		},
 		collections
 	);
 	const collection = "collection" in target ? target.collection : null;
 	return {
-		communityEtc: target.kind === "community-etc",
+		etcScope: target.kind === "etc" ? target.etcScope : null,
 		recommendation: bookmarkRecommendationSchema.parse({
 			collectionId: collection?.id ?? null,
 			collectionVersion: collection?.version ?? null,
@@ -154,7 +153,7 @@ export async function callRecommendation(
 	return {
 		...(!outputError && answers.success
 			? recommendationFromAnswers(request.state.bookmark.url, answers.data, collections)
-			: { recommendation: null, communityEtc: false }),
+			: { recommendation: null, etcScope: null }),
 		outputError,
 		chargedNano,
 		inputTokens: usage.success ? usage.data.input_tokens : null,

@@ -83,7 +83,7 @@ ${
 	classify
 		? `Emit exactly one item for every input bookmark ID. ${bookmarkTopicInstructions}
 For each item set sourceKind: community (${bookmarkSourceCriteria.community}) other (${bookmarkSourceCriteria.other}) or unknown (${bookmarkSourceCriteria.unknown}).
-If a supplied topic fits, set its collectionId and set newCollectionName to null. Otherwise set collectionId to null. Only suggest a meaningful new topic for a general non-community link with a clear subject and no matching existing topic. The server decides where to file community posts with no topic match.`
+If a supplied topic fits, set collectionId to its ID. Otherwise set collectionId to null. Always set newCollectionName to null for classification; the server files links with no existing topic match.`
 		: ""
 }
 For review, emit exactly one item for every input bookmark ID explaining review priority using age, duplicate count, recorded open-button clicks and confirmed interests. Set reviewCandidate true only when review is useful, false for relevant/recently used bookmarks needing no review. Unknown historical use must remain unknown, not proof of disuse. Do not invent interests or relevance: relevance must be null when confirmed interests is empty. Collection targets must be null for review. For classify set reviewCandidate false.
