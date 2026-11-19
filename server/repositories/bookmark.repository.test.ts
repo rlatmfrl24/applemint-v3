@@ -24,6 +24,16 @@ const job = {
 	created_at: date,
 	updated_at: date,
 };
+const scheduled = {
+	enabled: false,
+	dailyLimit: 100,
+	timeZone: "Asia/Seoul",
+	hour: 9,
+	startedAt: null,
+	nextEligibleAt: null,
+	status: "disabled",
+	lastJob: null,
+};
 const snapshot = {
 	items: [],
 	total: 0,
@@ -89,10 +99,11 @@ function query(result: object) {
 function repositoryWithQuery(result: object) {
 	const builder = query(result);
 	const from = vi.fn().mockReturnValue(builder);
+	const rpc = vi.fn().mockResolvedValue({ data: scheduled, error: null });
 	return {
 		builder,
 		from,
-		repository: new BookmarkRepository({ from } as unknown as AppSupabaseClient),
+		repository: new BookmarkRepository({ from, rpc } as unknown as AppSupabaseClient),
 	};
 }
 
@@ -274,14 +285,23 @@ describe("BookmarkRepository table queries", () => {
 		await expect(repository.jobDetails(otherId, 0)).rejects.toMatchObject({ code: "Forbidden" });
 	});
 
-	it("merges recent jobs with older imports, deduplicates by ID, and sorts newest first", async () => {
+	it("retains the latest scheduled round outside the 30 recent jobs", async () => {
 		const recent = query({ data: [job], error: null });
 		const importJob = { ...job, id: otherId, kind: "import", created_at: "2026-01-01T00:00:00Z" };
+		const lastJob = {
+			...job,
+			id: "33333333-3333-4333-8333-333333333333",
+			kind: "classify",
+			state: "paused",
+			scope: { origin: "scheduled-classify", scheduledDate: "2026-08-01" },
+			created_at: "2026-08-01T00:00:00Z",
+		};
 		const imports = query({ data: [job, importJob], error: null });
 		const from = vi.fn().mockReturnValueOnce(recent).mockReturnValueOnce(imports);
-		const repository = new BookmarkRepository({ from } as unknown as AppSupabaseClient);
+		const rpc = vi.fn().mockResolvedValue({ data: { ...scheduled, lastJob }, error: null });
+		const repository = new BookmarkRepository({ from, rpc } as unknown as AppSupabaseClient);
 
-		await expect(repository.jobs()).resolves.toEqual([job, importJob]);
+		await expect(repository.jobs()).resolves.toEqual([job, lastJob, importJob]);
 		expect(from.mock.calls).toEqual([["bookmark_jobs"], ["bookmark_jobs"]]);
 		expect(recent.order).toHaveBeenCalledWith("created_at", { ascending: false });
 		expect(recent.limit).toHaveBeenCalledWith(30);
@@ -293,7 +313,8 @@ describe("BookmarkRepository table queries", () => {
 			query({ data: [], error: index === failedIndex ? { code: "42501" } : null })
 		);
 		const from = vi.fn().mockReturnValueOnce(results[0]).mockReturnValueOnce(results[1]);
-		const repository = new BookmarkRepository({ from } as unknown as AppSupabaseClient);
+		const rpc = vi.fn().mockResolvedValue({ data: scheduled, error: null });
+		const repository = new BookmarkRepository({ from, rpc } as unknown as AppSupabaseClient);
 
 		await expect(repository.jobs()).rejects.toMatchObject({ code: "Forbidden" });
 	});

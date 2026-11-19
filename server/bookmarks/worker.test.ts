@@ -271,7 +271,7 @@ it.each(["budget-denied", "excessive-cost"])(
 	}
 );
 
-it.each([
+const classificationScenarios = [
 	"topic",
 	"source",
 	"already-source",
@@ -281,7 +281,15 @@ it.each([
 	"root-etc",
 	"source-folder",
 	"missing-source-kind",
-] as const)("classify commits the validated topic decision for %s", async (scenario) => {
+] as const;
+
+function classificationScenarioURL(scenario: string) {
+	if (scenario === "unfiled") return "ftp://example.org/misc";
+	if (scenario === "root-etc") return "https://example.org/misc";
+	return "https://arca.live/b/bluearchive/123";
+}
+
+function classificationFixture(origin: string, scenario: string) {
 	vi.stubEnv("OPENROUTER_API_KEY", "fixture-only");
 	const id = "aaaaaaaa-0000-4000-8000-000000000010";
 	const sourceId = "aaaaaaaa-0000-4000-8000-000000000011";
@@ -290,8 +298,7 @@ it.each([
 	const parentId = "aaaaaaaa-0000-4000-8000-000000000014";
 	const rootEtcId = "aaaaaaaa-0000-4000-8000-000000000015";
 	const sourceFolderId = "aaaaaaaa-0000-4000-8000-000000000016";
-	const url =
-		scenario === "root-etc" ? "https://example.org/misc" : "https://arca.live/b/bluearchive/123";
+	const url = classificationScenarioURL(scenario);
 	const collection = (id: string, name: string, parent_id: string | null = null) => ({
 		id,
 		name,
@@ -302,9 +309,18 @@ it.each([
 		original: null,
 		created_at: job.created_at,
 	});
-	const selection = scenario === "topic" ? topicId : scenario === "source-folder" ? sourceId : null;
-	const currentCollectionId =
-		scenario === "already-etc" ? etcId : scenario === "already-source" ? sourceFolderId : null;
+	const selections: Record<string, string> = {
+		topic: topicId,
+		"already-topic": topicId,
+		uncertain: topicId,
+		"source-folder": sourceId,
+	};
+	const memberships: Record<string, string> = {
+		"already-etc": etcId,
+		"already-source": sourceFolderId,
+		"already-topic": topicId,
+	};
+	const selection = selections[scenario] ?? null;
 	const modelItem = {
 		id,
 		collectionId: selection,
@@ -325,57 +341,104 @@ it.each([
 					],
 				},
 			],
-			usage: { input_tokens: 100, output_tokens: 20, cost: 0.00002 },
+			usage: {
+				input_tokens: 100,
+				output_tokens: 20,
+				...(scenario === "uncertain" ? {} : { cost: 0.00002 }),
+			},
 		})
 	);
-	const rpc = vi.fn().mockImplementation(async (command) => ({
-		data:
-			command === "bookmark_worker_claim"
-				? {
-						job: { ...job, kind: "classify", progress: {} },
-						items: [
-							{
-								id,
-								url,
-								url_key: url,
-								title: "블아 공략",
-								description: "",
-								tags: [],
-								note: "",
-								collection_id: currentCollectionId,
-								state: "library",
-								version: 1,
-								expected_version: 1,
-								review_revision: 1,
-								source_id: null,
-								source_thread_id: null,
-								original: null,
-								previous: null,
-								saved_at: job.created_at,
-								created_at: job.created_at,
-								updated_at: job.updated_at,
-								opened_at: null,
-								open_count: 0,
-							},
-						],
-						collections: [
-							collection(sourceId, "arcalive"),
-							collection(topicId, "블루 아카이브", sourceId),
-							collection(parentId, "Community"),
-							collection(rootEtcId, "etc"),
-							...(scenario === "source" || scenario === "already-source"
-								? [collection(sourceFolderId, "arcalive", parentId)]
-								: []),
-							...(scenario === "missing-etc" ? [] : [collection(etcId, "etc", parentId)]),
-						],
-						settings: { interests: [], interest_version: 1 },
-					}
-				: true,
-		error: null,
-	}));
+	const claim = {
+		job: { ...job, kind: "classify", scope: { origin }, progress: {} },
+		items: [
+			{
+				id,
+				url,
+				url_key: url,
+				title: "블아 공략",
+				description: "",
+				tags: [],
+				note: "",
+				collection_id: memberships[scenario] ?? null,
+				state: scenario === "trashed" ? "trash" : "library",
+				version: scenario === "edited" ? 2 : 1,
+				expected_version: 1,
+				review_revision: 1,
+				source_id: null,
+				source_thread_id: null,
+				original: null,
+				previous: null,
+				saved_at: job.created_at,
+				created_at: job.created_at,
+				updated_at: job.updated_at,
+				opened_at: null,
+				open_count: 0,
+			},
+		],
+		collections: [
+			collection(sourceId, "arcalive"),
+			collection(topicId, "블루 아카이브", sourceId),
+			collection(parentId, "Community"),
+			collection(rootEtcId, "etc"),
+			...(scenario === "source" || scenario === "already-source"
+				? [collection(sourceFolderId, "arcalive", parentId)]
+				: []),
+			...(scenario === "missing-etc" ? [] : [collection(etcId, "etc", parentId)]),
+		],
+		settings: { interests: [], interest_version: 1 },
+	};
+	const rpc = vi.fn().mockImplementation(async (command) => {
+		if (command === "bookmark_worker_claim") return { data: claim, error: null };
+		if (command === "bookmark_scheduled_classification_reserve") {
+			if (scenario === "reservation-response-lost")
+				return { data: null, error: { message: "reservation response lost after commit" } };
+			if (scenario === "reservation-rejected") throw new Error("reservation RPC disconnected");
+			return { data: scenario === "disabled" ? "disabled" : "reserved", error: null };
+		}
+		return { data: true, error: null };
+	});
+	return { rpc, fetch, modelItem, id, topicId, sourceFolderId, rootEtcId, etcId };
+}
+
+it.each([
+	...classificationScenarios.map((scenario) => ["manual", scenario] as const),
+	...[
+		...classificationScenarios,
+		"already-topic",
+		"unfiled",
+		"edited",
+		"trashed",
+		"disabled",
+		"uncertain",
+	].map((scenario) => ["scheduled-classify", scenario] as const),
+] as const)("%s classify commits the validated decision for %s", async (origin, scenario) => {
+	const { rpc, fetch, modelItem, id, topicId, sourceFolderId, rootEtcId, etcId } =
+		classificationFixture(origin, scenario);
 	await runBookmarkWorker({ rpc } as unknown as AppSupabaseClient);
 	const charge = rpc.mock.calls.find(([command]) => command === "bookmark_worker_commit")?.[1]
 		?.p_result;
+	if (["disabled", "edited", "trashed"].includes(scenario)) {
+		expect(fetch).not.toHaveBeenCalled();
+		expect(charge).not.toHaveProperty("reservationId");
+		if (scenario === "disabled") expect(charge).toMatchObject({ state: "retry" });
+		else expect(charge.items).toEqual([expect.objectContaining({ id, state: "failed" })]);
+		return;
+	}
+	if (origin === "scheduled-classify") {
+		expect(rpc.mock.calls.map(([command]) => command)).toContain(
+			"bookmark_scheduled_classification_reserve"
+		);
+	}
+	if (scenario === "uncertain") {
+		expect(charge).toMatchObject({
+			state: "paused",
+			reservationState: "uncertain",
+			items: [
+				expect.objectContaining({ proposal: expect.objectContaining({ collectionId: topicId }) }),
+			],
+		});
+		return;
+	}
 	expect(charge).toMatchObject({ reservationState: "settled", chargedNano: 20000 });
 	if (scenario === "missing-source-kind" || scenario === "source-folder") {
 		expect(charge.state).toBe("failed");
@@ -386,7 +449,9 @@ it.each([
 	expect(input.collections).toEqual([
 		expect.objectContaining({ id: topicId, path: "arcalive / 블루 아카이브" }),
 	]);
-	if (scenario === "missing-etc" || scenario === "already-etc" || scenario === "already-source") {
+	if (
+		["missing-etc", "already-etc", "already-source", "already-topic", "unfiled"].includes(scenario)
+	) {
 		expect(charge.items[0]).toHaveProperty("result.reason");
 		expect(charge.items[0]).not.toHaveProperty("proposal");
 		return;
@@ -411,7 +476,23 @@ it.each([
 		},
 	};
 	expect(charge.items[0].proposal).toMatchObject({
-		...expected[scenario],
+		...expected[scenario as keyof typeof expected],
 		newCollectionName: null,
 	});
 });
+
+it.each(["reservation-response-lost", "reservation-rejected"])(
+	"pauses on %s and releases only the unsent request's reservation",
+	async (scenario) => {
+		const { rpc, fetch } = classificationFixture("scheduled-classify", scenario);
+		await runBookmarkWorker({ rpc } as unknown as AppSupabaseClient);
+		const reserve = rpc.mock.calls.find(
+			([command]) => command === "bookmark_scheduled_classification_reserve"
+		)?.[1];
+		expect(reserve?.p_id).toEqual(expect.any(String));
+		expect(fetch).not.toHaveBeenCalled();
+		expect(
+			rpc.mock.calls.find(([command]) => command === "bookmark_worker_commit")?.[1]?.p_result
+		).toMatchObject({ state: "paused", reservationId: reserve.p_id, reservationState: "released" });
+	}
+);

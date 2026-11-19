@@ -63,6 +63,36 @@ function createService(data: object) {
 	return { service, rpc };
 }
 
+it("loads and saves typed scheduling settings and sends confirmation to the closure RPC", async () => {
+	const settings = {
+		enabled: true,
+		dailyLimit: 20,
+		timeZone: "Asia/Seoul",
+		hour: 9,
+		startedAt: "2026-11-19T01:15:00+00:00",
+		nextEligibleAt: null,
+		status: "blocked",
+		lastJob: null,
+	};
+	const { service, rpc } = createService(settings);
+	await expect(service.scheduledSettings()).resolves.toEqual(settings);
+	expect(rpc).toHaveBeenLastCalledWith("bookmark_scheduled_classification_settings");
+	await expect(service.updateScheduledSettings({ enabled: true, dailyLimit: 20 })).resolves.toEqual(
+		settings
+	);
+	expect(rpc).toHaveBeenLastCalledWith("bookmark_scheduled_classification_update_settings", {
+		p_enabled: true,
+		p_daily_limit: 20,
+	});
+	const closed = { ...job, kind: "classify", state: "failed", progress: { closedAt: date } };
+	rpc.mockResolvedValueOnce({ data: closed, error: null });
+	await expect(service.closeScheduledJob({ id, confirmed: true })).resolves.toEqual(closed);
+	expect(rpc).toHaveBeenLastCalledWith("bookmark_scheduled_classification_close", {
+		p_id: id,
+		p_confirmed: true,
+	});
+});
+
 it("loads collections through the owner collection RPC without a full bookmark snapshot", async () => {
 	const { service, rpc } = createService([collection]);
 	await expect(service.collections()).resolves.toEqual([collection]);

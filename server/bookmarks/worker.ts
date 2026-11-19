@@ -8,7 +8,7 @@ import {
 	bookmarkSchema,
 } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
-import type { Json } from "@/types/database.types";
+import type { Database, Json } from "@/types/database.types";
 import type { AppSupabaseClient } from "@/types/supabase";
 import {
 	AI_INPUT_LIMIT,
@@ -219,11 +219,17 @@ async function enrich(claim: Claim): Promise<Commit> {
 	}
 }
 
+function classificationFallbackPath(target: ReturnType<typeof resolveBookmarkTopicTarget>) {
+	if (target.kind === "source") return `Community / ${target.collection.name.trim()}`;
+	return "etcScope" in target && target.etcScope === "community" ? "Community / etc" : "최상위 etc";
+}
+
 function classificationDecision(
 	item: Claim["items"][number],
 	choice: NonNullable<Awaited<ReturnType<typeof callBookmarkAI>>["output"]>["items"][number],
 	collections: Claim["collections"],
-	relevance: string | null
+	relevance: string | null,
+	scheduled: boolean
 ) {
 	if (!choice.sourceKind) throw new Error("MISSING_BOOKMARK_SOURCE_KIND");
 	const target = resolveBookmarkTopicTarget(
@@ -231,17 +237,15 @@ function classificationDecision(
 		{ collectionId: choice.collectionId, sourceKind: choice.sourceKind },
 		collections
 	);
-	const path =
-		target.kind === "source"
-			? `Community / ${target.collection.name.trim()}`
-			: "etcScope" in target && target.etcScope === "community"
-				? "Community / etc"
-				: "최상위 etc";
+	const path = classificationFallbackPath(target);
 	const isFallback = target.kind === "etc" || target.kind === "source";
 	if (target.kind === "etc-unavailable")
 		return { reason: `활성 ${path} 컬렉션이 정확히 하나일 때 이동을 제안합니다.` };
 	if (isFallback && target.collection.id === item.collection_id)
 		return { reason: `이미 ${path} 컬렉션에 속해 있습니다.` };
+	if (scheduled && target.kind === "unfiled") return { reason: choice.reason };
+	if (scheduled && target.kind === "existing" && target.collection.id === item.collection_id)
+		return { reason: "이미 선택한 컬렉션에 속해 있습니다." };
 	const reason = isFallback
 		? `맞는 주제 컬렉션이 없어 ${path}로 이동을 제안했습니다.`
 		: choice.reason;
@@ -262,7 +266,8 @@ function validatedAIResult(
 	kind: "classify" | "review" | "interests",
 	output: NonNullable<Awaited<ReturnType<typeof callBookmarkAI>>["output"]>,
 	claim: Claim,
-	items: Claim["items"]
+	items: Claim["items"],
+	scheduled: boolean
 ): Commit {
 	const collections = claim.collections;
 	if (kind === "interests") {
@@ -297,10 +302,14 @@ function validatedAIResult(
 			};
 			const decision =
 				kind === "classify"
-					? classificationDecision(item, p, collections, relevance)
+					? classificationDecision(item, p, collections, relevance, scheduled)
 					: { reason: p.reason, proposal: p.reviewCandidate ? proposal : undefined };
 			return {
-				result: { reviewCandidate: p.reviewCandidate, reason: decision.reason, relevance },
+				result: {
+					reviewCandidate: p.reviewCandidate,
+					reason: decision.reason,
+					relevance,
+				},
 				id: item.id,
 				version: item.version,
 				reviewRevision: item.review_revision,
@@ -320,7 +329,30 @@ function usageExceeded(
 		(response.outputTokens ?? 0) > AI_OUTPUT_LIMIT
 	);
 }
-async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
+
+async function reserveAIBatch(
+	db: AppSupabaseClient,
+	input: Database["public"]["Functions"]["bookmark_ai_reserve"]["Args"],
+	scheduled: boolean
+) {
+	if (!scheduled) {
+		const { data, error } = await db.rpc("bookmark_ai_reserve", input);
+		if (error) throw new Error("BUDGET_RESERVATION_FAILED");
+		return data ? "reserved" : "denied";
+	}
+	try {
+		const { data, error } = await db.rpc("bookmark_scheduled_classification_reserve", input);
+		return error ? "unconfirmed" : data;
+	} catch {
+		return "unconfirmed";
+	}
+}
+
+async function requestAIBatch(
+	db: AppSupabaseClient,
+	claim: Claim,
+	scheduled: boolean
+): Promise<Commit> {
 	const kind = claim.job.kind as "classify" | "review" | "interests";
 	if (!process.env.OPENROUTER_API_KEY?.trim())
 		return { state: "paused", error: "서버 OPENROUTER_API_KEY 설정 후 작업을 재개해주세요." };
@@ -366,7 +398,7 @@ async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
 		};
 	const reservationId = randomUUID();
 	const reservedNano = reserveNano(AI_INPUT_LIMIT, AI_OUTPUT_LIMIT);
-	const { data: reserved, error } = await db.rpc("bookmark_ai_reserve", {
+	const reservation = {
 		p_id: reservationId,
 		p_job: claim.job.id,
 		p_lease: claim.job.lease_token ?? "",
@@ -374,14 +406,33 @@ async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
 		p_amount: reservedNano,
 		p_provider: "openrouter",
 		p_model: request.model,
-	});
-	if (error) throw new Error("BUDGET_RESERVATION_FAILED");
-	if (!reserved)
+	};
+	const reserved = await reserveAIBatch(db, reservation, scheduled);
+	if (reserved === "unconfirmed")
+		return {
+			reservationId,
+			reservationState: "released",
+			state: "paused",
+			error: "AI 비용 예약 응답을 확인하지 못했습니다. 연결 상태를 확인한 후 재개해주세요.",
+		};
+	if (reserved === "disabled") return { state: "retry" };
+	if (reserved !== "reserved")
 		return {
 			state: "paused",
 			error:
 				"KST 이번 달 $1 예산이 부족합니다. 완료된 제안은 유지됩니다. 다음 달 직접 재개해주세요.",
 		};
+	return executePaidAIBatch(claim, items, request, { reservationId, reservedNano }, scheduled);
+}
+
+async function executePaidAIBatch(
+	claim: Claim,
+	items: Claim["items"],
+	request: ReturnType<typeof buildAIRequest>,
+	{ reservationId, reservedNano }: { reservationId: string; reservedNano: number },
+	scheduled: boolean
+): Promise<Commit> {
+	const kind = claim.job.kind as "classify" | "review" | "interests";
 	try {
 		const response = await callBookmarkAI(request);
 		const settlement = {
@@ -396,6 +447,13 @@ async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
 			chargedNano: response.chargedNano,
 			outputTokens: response.outputTokens,
 		} satisfies Commit;
+		const unknownCharge =
+			scheduled && response.chargedNano === null
+				? {
+						state: "paused",
+						error: "AI 청구가 불명확하여 예약액을 유지합니다. 확인 후 직접 재개해주세요.",
+					}
+				: undefined;
 		if (usageExceeded(response, reservedNano, AI_INPUT_LIMIT)) {
 			return {
 				...settlement,
@@ -410,9 +468,14 @@ async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
 				...settlement,
 				state: "failed",
 				error: `AI 구조화 결과 검증 실패 (${response.outputError ?? "INVALID_OUTPUT"}). 같은 작업을 재개할 수 있습니다.`,
+				...unknownCharge,
 			};
 		try {
-			return { ...settlement, ...validatedAIResult(kind, response.output, claim, items) };
+			return {
+				...settlement,
+				...validatedAIResult(kind, response.output, claim, items, scheduled),
+				...unknownCharge,
+			};
 		} catch {
 			return {
 				...settlement,
@@ -423,6 +486,7 @@ async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
 					error: "AI 결과의 대상·소속 검증 실패",
 				})),
 				error: "일부 AI 결과를 적용할 수 없습니다. 실패 항목을 재개해주세요.",
+				...unknownCharge,
 			};
 		}
 	} catch {
@@ -430,11 +494,31 @@ async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
 		return {
 			reservationId,
 			reservationState: "uncertain",
+			...(scheduled && { progress: { usageUncertain: true } }),
 			state: "paused",
 			error:
 				"AI 응답을 확인하지 못했습니다. 청구가 불명확하여 예약액을 유지합니다. 직접 재개할 수 있습니다.",
 		};
 	}
+}
+
+async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
+	const scheduled =
+		claim.job.kind === "classify" && claim.job.scope.origin === "scheduled-classify";
+	if (!scheduled) return requestAIBatch(db, claim, false);
+	const unchanged = (item: Claim["items"][number]) =>
+		item.state === "library" && item.version === item.expected_version;
+	const items = claim.items.filter(unchanged);
+	const result = items.length ? await requestAIBatch(db, { ...claim, items }, true) : {};
+	if (items.length === claim.items.length) return result;
+	const changed = claim.items
+		.filter((item) => !unchanged(item))
+		.map(({ id }) => ({
+			id,
+			state: "failed",
+			error: "북마크가 변경되어 다시 분류해야 합니다.",
+		}));
+	return { ...result, items: [...changed, ...(result.items ?? [])] };
 }
 
 async function recommendCollection(db: AppSupabaseClient, claim: Claim): Promise<Commit> {

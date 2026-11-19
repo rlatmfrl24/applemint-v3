@@ -11,6 +11,11 @@ import {
 	bookmarkSnapshotSchema,
 } from "@/contracts/bookmark.schema";
 import { bookmarkAIUsageSchema } from "@/contracts/bookmark-ai-usage.schema";
+import {
+	type BookmarkScheduledCloseInput,
+	type BookmarkScheduledSettingsInput,
+	bookmarkScheduledSettingsSchema,
+} from "@/contracts/bookmark-scheduled-classification.schema";
 import { DomainError, unexpectedFailure } from "@/server/errors/domain-error";
 import { mapPostgrestError } from "@/server/errors/error-mapper";
 import type { RequestMetrics } from "@/server/observability/request-metrics";
@@ -87,6 +92,27 @@ export class BookmarkRepository {
 		if (error) throw mapPostgrestError(error, "AI 사용량을 불러오지 못했습니다.");
 		return bookmarkAIUsageSchema.parse(data);
 	}
+	async scheduledSettings() {
+		const { data, error } = await this.supabase.rpc("bookmark_scheduled_classification_settings");
+		if (error) throw mapPostgrestError(error, "정기 재분류 설정을 불러오지 못했습니다.");
+		return bookmarkScheduledSettingsSchema.parse(data);
+	}
+	async updateScheduledSettings(input: BookmarkScheduledSettingsInput) {
+		const { data, error } = await this.supabase.rpc(
+			"bookmark_scheduled_classification_update_settings",
+			{ p_enabled: input.enabled, p_daily_limit: input.dailyLimit }
+		);
+		if (error) throw mapPostgrestError(error, "정기 재분류 설정을 저장하지 못했습니다.");
+		return bookmarkScheduledSettingsSchema.parse(data);
+	}
+	async closeScheduledJob(input: BookmarkScheduledCloseInput) {
+		const { data, error } = await this.supabase.rpc("bookmark_scheduled_classification_close", {
+			p_id: input.id,
+			p_confirmed: input.confirmed,
+		});
+		if (error) throw mapPostgrestError(error, "정기 재분류 회차를 종료하지 못했습니다.");
+		return bookmarkJobSchema.parse(data);
+	}
 	async jobDetails(id: string, offset: number) {
 		const { data, count, error } = await this.supabase
 			.from("bookmark_job_items")
@@ -130,19 +156,22 @@ export class BookmarkRepository {
 	}
 
 	async jobs() {
-		const [recent, imports] = await Promise.all([
+		const [recent, imports, { lastJob }] = await Promise.all([
 			this.supabase
 				.from("bookmark_jobs")
 				.select("*")
 				.order("created_at", { ascending: false })
 				.limit(30),
 			this.supabase.from("bookmark_jobs").select("*").eq("kind", "import"),
+			this.scheduledSettings(),
 		]);
 		for (const result of [recent, imports])
 			if (result.error)
 				throw mapPostgrestError(result.error, "북마크 작업 상태를 불러오지 못했습니다.");
 		const jobs = new Map(
-			[...(recent.data ?? []), ...(imports.data ?? [])].map((job) => [job.id, job])
+			[...(recent.data ?? []), ...(imports.data ?? []), ...(lastJob ? [lastJob] : [])].map(
+				(job) => [job.id, job]
+			)
 		);
 		return z
 			.array(bookmarkJobSchema)

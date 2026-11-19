@@ -408,6 +408,11 @@ export type Database = {
 			};
 			bookmark_settings: {
 				Row: {
+					classify_auto_enabled: boolean;
+					classify_daily_limit: number;
+					classify_last_scan_date: string | null;
+					classify_last_scan_outcome: string | null;
+					classify_started_at: string | null;
 					health_auto_enabled: boolean;
 					health_daily_limit: number;
 					id: boolean;
@@ -419,6 +424,11 @@ export type Database = {
 					suggestions_job_id: string | null;
 				};
 				Insert: {
+					classify_auto_enabled?: boolean;
+					classify_daily_limit?: number;
+					classify_last_scan_date?: string | null;
+					classify_last_scan_outcome?: string | null;
+					classify_started_at?: string | null;
 					health_auto_enabled?: boolean;
 					health_daily_limit?: number;
 					id?: boolean;
@@ -430,6 +440,11 @@ export type Database = {
 					suggestions_job_id?: string | null;
 				};
 				Update: {
+					classify_auto_enabled?: boolean;
+					classify_daily_limit?: number;
+					classify_last_scan_date?: string | null;
+					classify_last_scan_outcome?: string | null;
+					classify_started_at?: string | null;
 					health_auto_enabled?: boolean;
 					health_daily_limit?: number;
 					id?: boolean;
@@ -1394,6 +1409,27 @@ export type Database = {
 			};
 			bookmark_row: {
 				Args: { p_bookmark: Database["public"]["Tables"]["bookmarks"]["Row"] };
+				Returns: Json;
+			};
+			bookmark_scheduled_classification_close: {
+				Args: { p_confirmed: boolean; p_id: string };
+				Returns: Json;
+			};
+			bookmark_scheduled_classification_reserve: {
+				Args: {
+					p_amount: number;
+					p_id: string;
+					p_job: string;
+					p_lease: string;
+					p_model: string;
+					p_provider: string;
+					p_tokens: number;
+				};
+				Returns: string;
+			};
+			bookmark_scheduled_classification_settings: { Args: never; Returns: Json };
+			bookmark_scheduled_classification_update_settings: {
+				Args: { p_daily_limit: number; p_enabled: boolean };
 				Returns: Json;
 			};
 			bookmark_snapshot: { Args: { p_filter?: Json }; Returns: Json };

@@ -29,6 +29,26 @@ const job = {
 };
 type Caller = ReturnType<typeof createCaller>;
 
+it("routes scheduled settings and requires the numeric limit and explicit closure confirmation", async () => {
+	const { caller, bookmark } = createContext();
+	await expect(caller.bookmarkAI.scheduledSettings()).resolves.toMatchObject({ dailyLimit: 100 });
+	for (const dailyLimit of [0, 501, 1.5]) {
+		await expect(
+			caller.bookmarkAI.updateScheduledSettings({ enabled: true, dailyLimit })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	}
+	await expect(
+		caller.bookmarkAI.closeScheduledJob({ id, confirmed: false as never })
+	).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	expect(bookmark.updateScheduledSettings).not.toHaveBeenCalled();
+	expect(bookmark.closeScheduledJob).not.toHaveBeenCalled();
+	await expect(
+		caller.bookmarkAI.updateScheduledSettings({ enabled: true, dailyLimit: 50 })
+	).resolves.toMatchObject({ enabled: true, dailyLimit: 50 });
+	await caller.bookmarkAI.closeScheduledJob({ id, confirmed: true });
+	expect(bookmark.closeScheduledJob).toHaveBeenCalledExactlyOnceWith({ id, confirmed: true });
+});
+
 function createContext(
 	access: { kind: string; status?: number; message?: string } = { kind: "owner" }
 ) {
@@ -59,6 +79,9 @@ function createContext(
 		}),
 		resume: vi.fn().mockResolvedValue(job),
 		aiUsage: vi.fn().mockResolvedValue({ requestCount: 2 }),
+		scheduledSettings: vi.fn().mockResolvedValue({ enabled: false, dailyLimit: 100 }),
+		updateScheduledSettings: vi.fn().mockResolvedValue({ enabled: true, dailyLimit: 50 }),
+		closeScheduledJob: vi.fn().mockResolvedValue(job),
 		recommend: vi.fn().mockResolvedValue(job),
 		recommendation: vi.fn().mockResolvedValue({ job, recommendation: null }),
 		interests: vi.fn().mockResolvedValue({ interests: ["Web"], interest_version: 3 }),
@@ -149,6 +172,15 @@ const protectedCalls: [string, (caller: Caller) => Promise<unknown>][] = [
 	["bookmarkImport.resume", (caller) => caller.bookmarkImport.resume({ id })],
 	["bookmarkCheck.start", (caller) => caller.bookmarkCheck.start({ scope: "all" })],
 	["bookmarkAI.usage", (caller) => caller.bookmarkAI.usage()],
+	["bookmarkAI.scheduledSettings", (caller) => caller.bookmarkAI.scheduledSettings()],
+	[
+		"bookmarkAI.updateScheduledSettings",
+		(caller) => caller.bookmarkAI.updateScheduledSettings({ enabled: true, dailyLimit: 50 }),
+	],
+	[
+		"bookmarkAI.closeScheduledJob",
+		(caller) => caller.bookmarkAI.closeScheduledJob({ id, confirmed: true }),
+	],
 	[
 		"bookmarkAI.recommend",
 		(caller) => caller.bookmarkAI.recommend({ threadId: "1", title: "Title", requestId: id }),

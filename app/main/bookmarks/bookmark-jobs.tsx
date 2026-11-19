@@ -4,6 +4,16 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { BookmarkSaveDialog } from "@/components/bookmark-save-dialog";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import type { BookmarkJob } from "@/contracts/bookmark.schema";
 import { useTRPCClient } from "@/trpc/client";
@@ -39,6 +49,84 @@ const stateLabels: Record<BookmarkJob["state"], string> = {
 	partial: "일부 미완료",
 	succeeded: "완료",
 };
+
+function isScheduled(job: BookmarkJob) {
+	return job.kind === "classify" && job.scope.origin === "scheduled-classify";
+}
+
+function jobStateLabel(job: BookmarkJob) {
+	return isScheduled(job) && job.progress.closedAt ? "종료됨" : stateLabels[job.state];
+}
+
+function ScheduledClose({ id }: { id: string }) {
+	const trpc = useTRPCClient();
+	const cache = useQueryClient();
+	const close = useMutation({
+		mutationFn: () => trpc.bookmarkAI.closeScheduledJob.mutate({ id, confirmed: true }),
+		onSuccess: async () => {
+			await cache.invalidateQueries({ queryKey: ["bookmarks"] });
+			toast.success("회차를 종료했습니다.");
+		},
+		onError: (error) => toast.error(error.message),
+	});
+	return (
+		<AlertDialog>
+			<AlertDialogTrigger asChild>
+				<Button size="sm" variant="outline" disabled={close.isPending}>
+					회차 종료
+				</Button>
+			</AlertDialogTrigger>
+			<AlertDialogContent>
+				<AlertDialogTitle>이 회차를 종료할까요?</AlertDialogTitle>
+				<AlertDialogDescription>
+					완료 결과와 제안, 비용 기록은 보존됩니다. 이 회차의 남은 항목은 마감하며, 다음 KST
+					날짜부터 다른 후보를 처리합니다.
+				</AlertDialogDescription>
+				<AlertDialogFooter>
+					<AlertDialogCancel>취소</AlertDialogCancel>
+					<AlertDialogAction onClick={() => close.mutate()}>종료 확인</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
+	);
+}
+
+function JobActions({
+	job,
+	onResume,
+	resuming,
+}: {
+	job: BookmarkJob;
+	onResume: () => void;
+	resuming: boolean;
+}) {
+	const scheduled = isScheduled(job);
+	const resumable = ["failed", "partial", "paused"].includes(job.state);
+	if (!resumable) return null;
+	if (
+		scheduled &&
+		(job.progress.closedAt ||
+			(job.lease_expires_at && Date.parse(job.lease_expires_at) > Date.now()))
+	)
+		return null;
+	return (
+		<div className="mt-2 space-y-2">
+			{scheduled && job.progress.usageUncertain === true && (
+				<p className="text-muted-foreground">
+					확인되지 않은 예약액은 유지되며, 재개하면 미처리 항목에 대한 AI 요청이 재호출될 수
+					있습니다.
+				</p>
+			)}
+			<div className="flex flex-wrap gap-2">
+				<Button size="sm" variant="outline" disabled={resuming} onClick={onResume}>
+					같은 작업 재개
+				</Button>
+				{scheduled && <ScheduledClose id={job.id} />}
+			</div>
+		</div>
+	);
+}
+
 function JobItems({ id }: { id: string }) {
 	const trpc = useTRPCClient();
 	const [open, setOpen] = useState(false);
@@ -127,6 +215,7 @@ export function BookmarkJobs({ jobs }: { jobs: BookmarkJob[] }) {
 				jobs.map((job) => (
 					<article
 						key={job.id}
+						id={`bookmark-job-${job.id}`}
 						data-bookmark-job-id={job.id}
 						className="rounded-md border p-3 text-sm"
 					>
@@ -137,8 +226,8 @@ export function BookmarkJobs({ jobs }: { jobs: BookmarkJob[] }) {
 						<div className="flex flex-wrap items-center justify-between gap-2">
 							<JobHeading job={job} />
 							<span>
-								{stateLabels[job.state]} · {job.completed.toLocaleString()}/
-								{job.total.toLocaleString()} · 실패 {job.failed}
+								{jobStateLabel(job)} · {job.completed.toLocaleString()}/{job.total.toLocaleString()}{" "}
+								· 실패 {job.failed}
 							</span>
 						</div>
 
@@ -172,17 +261,11 @@ export function BookmarkJobs({ jobs }: { jobs: BookmarkJob[] }) {
 						{Array.isArray(job.progress.failedIds) && job.progress.failedIds.length > 0 && (
 							<p>실패 원본 ID: {job.progress.failedIds.join(", ")}</p>
 						)}
-						{["failed", "partial", "paused"].includes(job.state) && (
-							<Button
-								className="mt-2"
-								size="sm"
-								variant="outline"
-								disabled={resume.isPending}
-								onClick={() => resume.mutate({ id: job.id })}
-							>
-								같은 작업 재개
-							</Button>
-						)}
+						<JobActions
+							job={job}
+							resuming={resume.isPending}
+							onResume={() => resume.mutate({ id: job.id })}
+						/>
 					</article>
 				))
 			)}
@@ -191,6 +274,15 @@ export function BookmarkJobs({ jobs }: { jobs: BookmarkJob[] }) {
 }
 
 function JobHeading({ job }: { job: BookmarkJob }) {
+	if (isScheduled(job))
+		return (
+			<div>
+				<strong>정기 재분류 · {String(job.scope.scheduledDate)}</strong>
+				<Link className="ml-2 text-xs underline" href="/main/bookmarks/review?group=classify">
+					컬렉션 제안
+				</Link>
+			</div>
+		);
 	return (
 		<div>
 			<strong>
