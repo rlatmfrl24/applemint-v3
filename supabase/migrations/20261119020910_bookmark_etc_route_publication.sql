@@ -26,7 +26,9 @@ declare definition text;
  proposal_marker text := $proposal$v->'proposal'->>'communityEtc'='true'
   and not private.bookmark_is_unique_etc((v->'proposal'->>'collectionId')::uuid)$proposal$;
 begin
- definition := pg_get_functiondef('private.bookmark_worker_commit_legacy(uuid,uuid,jsonb)'::regprocedure);
+ definition := replace(pg_get_functiondef('private.bookmark_worker_commit_legacy(uuid,uuid,jsonb)'::regprocedure),chr(13),'');
+ recommend_marker := replace(recommend_marker,chr(13),'');
+ proposal_marker := replace(proposal_marker,chr(13),'');
  if position(lock_marker in definition)=0 or position(recommend_marker in definition)=0 or position(proposal_marker in definition)=0 then
   raise exception 'bookmark publication guards changed';
  end if;
