@@ -8,6 +8,10 @@ import {
 	type bookmarkRecommendationInputSchema,
 	bookmarkSchema,
 } from "@/contracts/bookmark.schema";
+import type {
+	BookmarkScheduledCloseInput,
+	BookmarkScheduledSettingsInput,
+} from "@/contracts/bookmark-scheduled-classification.schema";
 import { normalizeBookmarkUrl } from "@/server/bookmarks/url";
 import { getBookmarkConfiguration } from "@/server/env/bookmarks";
 import { DomainError } from "@/server/errors/domain-error";
@@ -43,6 +47,15 @@ export class BookmarkService {
 	}
 	aiUsage() {
 		return this.store.aiUsage();
+	}
+	scheduledSettings() {
+		return this.store.scheduledSettings();
+	}
+	updateScheduledSettings(input: BookmarkScheduledSettingsInput) {
+		return this.store.updateScheduledSettings(input);
+	}
+	closeScheduledJob(input: BookmarkScheduledCloseInput) {
+		return this.store.closeScheduledJob(input);
 	}
 	private async source(input: z.infer<typeof bookmarkLookupInputSchema>) {
 		const source = input.threadId ? await this.store.sourceThread(input.threadId) : null;

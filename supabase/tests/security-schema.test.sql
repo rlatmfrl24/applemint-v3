@@ -116,6 +116,7 @@ select is(
 		'bookmark_command(text,jsonb)',
 		'bookmark_health_settings()',
 		'bookmark_health_update_settings(boolean,integer)',
+		'bookmark_scheduled_classification_close(uuid,boolean)',
 		'bookmark_scheduled_classification_settings()',
 		'bookmark_scheduled_classification_update_settings(boolean,integer)',
 		'bookmark_snapshot(jsonb)',

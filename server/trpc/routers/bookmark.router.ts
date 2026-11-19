@@ -11,6 +11,10 @@ import {
 	bookmarkVersionInputSchema,
 } from "@/contracts/bookmark.schema";
 import { bookmarkHealthSettingsInputSchema } from "@/contracts/bookmark-health.schema";
+import {
+	bookmarkScheduledCloseInputSchema,
+	bookmarkScheduledSettingsInputSchema,
+} from "@/contracts/bookmark-scheduled-classification.schema";
 import { createTRPCRouter, ownerProcedure } from "../init";
 
 const idInput = z.object({ id: z.uuid() });
@@ -113,6 +117,13 @@ export const bookmarkCheckRouter = createTRPCRouter({
 });
 export const bookmarkAIRouter = createTRPCRouter({
 	usage: ownerProcedure.query(({ ctx }) => ctx.services.bookmark.aiUsage()),
+	scheduledSettings: ownerProcedure.query(({ ctx }) => ctx.services.bookmark.scheduledSettings()),
+	updateScheduledSettings: ownerProcedure
+		.input(bookmarkScheduledSettingsInputSchema)
+		.mutation(({ ctx, input }) => ctx.services.bookmark.updateScheduledSettings(input)),
+	closeScheduledJob: ownerProcedure
+		.input(bookmarkScheduledCloseInputSchema)
+		.mutation(({ ctx, input }) => ctx.services.bookmark.closeScheduledJob(input)),
 	recommend: ownerProcedure
 		.input(bookmarkRecommendationInputSchema)
 		.mutation(({ ctx, input }) => ctx.services.bookmark.recommend(input)),

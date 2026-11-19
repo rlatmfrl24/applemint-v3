@@ -13,6 +13,7 @@ import { SettingsPageHeader, SettingsSurface } from "../admin-ui";
 import { BookmarkAIUsagePanel } from "./bookmark-ai-usage";
 import { BookmarkHealthSettingsPanel } from "./bookmark-health-settings";
 import { BookmarkInterestEditor } from "./bookmark-interest-editor";
+import { BookmarkScheduledClassificationSettings } from "./bookmark-scheduled-classification-settings";
 
 function ImportSettings({
 	job,
@@ -163,6 +164,7 @@ export default function BookmarkSettingsPage() {
 				)}
 			</div>
 			<BookmarkHealthSettingsPanel />
+			<BookmarkScheduledClassificationSettings />
 			<section aria-label="이번 달 AI 사용량" className="min-w-0 rounded-xl border bg-card">
 				<h2 className="sr-only">AI 사용량</h2>
 				<BookmarkAIUsagePanel />
