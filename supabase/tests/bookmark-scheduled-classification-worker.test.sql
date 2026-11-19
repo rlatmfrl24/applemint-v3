@@ -78,5 +78,43 @@ select is((select state from public.bookmark_jobs join worker_round using(id)),'
 select public.bookmark_scheduled_classification_update_settings(true,8);
 select is(private.enqueue_bookmark_scheduled_classification('2030-02-01 09:00+09'),null::uuid,'the next month does not bypass an uncertain round');
 select is(public.bookmark_worker_claim(),null::jsonb,'a paused round is not automatically replayed');
+
+select public.bookmark_command('resume',jsonb_build_object('id',(select id from worker_round)));
+select public.bookmark_worker_claim()->'job'->>'id';
+select is(public.bookmark_scheduled_classification_reserve(md5('worker-reserve-ack-lost')::uuid,j.id,j.lease_token,100,1000,'openrouter','openai/gpt-6-luna'),'reserved','a reservation can persist before its RPC response reaches the worker')
+from public.bookmark_jobs j join worker_round r on j.id=r.id;
+select ok(public.bookmark_worker_commit(j.id,j.lease_token,jsonb_build_object(
+ 'reservationId',md5('worker-reserve-ack-lost')::uuid,'reservationState','released','state','paused','error','reservation response lost'
+)),'the worker can release the unsent request and pause its round atomically')
+from public.bookmark_jobs j join worker_round r on j.id=r.id;
+select is((select state from public.bookmark_ai_reservations where id=md5('worker-reserve-ack-lost')::uuid),'released','the unsent request frees its reservation');
+select is(public.bookmark_worker_claim(),null::jsonb,'a lost reservation acknowledgment does not retry automatically');
+
+select public.bookmark_command('resume',jsonb_build_object('id',(select id from worker_round)));
+select public.bookmark_worker_claim()->'job'->>'id';
+select is(public.bookmark_scheduled_classification_reserve(md5('worker-cost-3')::uuid,j.id,j.lease_token,100,1000,'openrouter','openai/gpt-6-luna'),'reserved','explicit resume can reserve again')
+from public.bookmark_jobs j join worker_round r on j.id=r.id;
+select ok(public.bookmark_worker_commit(j.id,j.lease_token,jsonb_build_object(
+ 'reservationId',md5('worker-cost-3')::uuid,'reservationState','settled','chargedNano',400,'progress','{"usageUncertain":false}'::jsonb,
+ 'items',jsonb_build_array(jsonb_build_object('id',md5('worker-item-8')::uuid,'version',1))
+)),'a later response settles normally') from public.bookmark_jobs j join worker_round r on j.id=r.id;
+select is((select progress->>'usageUncertain' from public.bookmark_jobs join worker_round using(id)),'true','a later settlement does not hide an earlier uncertain receipt');
+select public.bookmark_worker_claim()->'job'->>'id';
+select ok(public.bookmark_worker_commit(j.id,j.lease_token,'{"state":"paused","error":"budget denied"}'),'a subsequent pause preserves the round')
+from public.bookmark_jobs j join worker_round r on j.id=r.id;
+select is((select progress->>'usageUncertain' from public.bookmark_jobs join worker_round using(id)),'true','the warning remains visible on the next pause');
+select is((select state from public.bookmark_ai_reservations where id=md5('worker-cost-2')::uuid),'uncertain','the historic hold is still active');
+
+select public.bookmark_scheduled_classification_close((select id from worker_round),true);
+insert into public.bookmarks(id,url,url_key,saved_at,created_at)
+select ('dddddddd-5678-4567-8123-'||lpad(i::text,12,'0'))::uuid,'https://worker-order.example/'||i,'https://worker-order.example/'||i,
+ '2000-01-01'::timestamptz+(22-i)*interval '1 second','2000-01-01' from generate_series(1,21) i;
+select public.bookmark_scheduled_classification_update_settings(true,21);
+select private.enqueue_bookmark_scheduled_classification('2030-02-02 09:00+09');
+create temporary table ordered_claim as select public.bookmark_worker_claim() result;
+select results_eq(
+ $$select item->>'id' from ordered_claim cross join lateral jsonb_array_elements(result->'items') with ordinality as i(item,rank) order by rank$$,
+ $$select id::text from public.bookmarks where url_key like 'https://worker-order.example/%' order by saved_at,id limit 20$$,
+ 'the first paid batch takes and returns the oldest 20 items in saved order, including the highest UUID');
 select * from finish();
 rollback;

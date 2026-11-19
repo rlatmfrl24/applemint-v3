@@ -389,8 +389,12 @@ function classificationFixture(origin: string, scenario: string) {
 	};
 	const rpc = vi.fn().mockImplementation(async (command) => {
 		if (command === "bookmark_worker_claim") return { data: claim, error: null };
-		if (command === "bookmark_scheduled_classification_reserve")
+		if (command === "bookmark_scheduled_classification_reserve") {
+			if (scenario === "reservation-response-lost")
+				return { data: null, error: { message: "reservation response lost after commit" } };
+			if (scenario === "reservation-rejected") throw new Error("reservation RPC disconnected");
 			return { data: scenario === "disabled" ? "disabled" : "reserved", error: null };
+		}
 		return { data: true, error: null };
 	});
 	return { rpc, fetch, modelItem, id, topicId, sourceFolderId, rootEtcId, etcId };
@@ -476,3 +480,19 @@ it.each([
 		newCollectionName: null,
 	});
 });
+
+it.each(["reservation-response-lost", "reservation-rejected"])(
+	"pauses on %s and releases only the unsent request's reservation",
+	async (scenario) => {
+		const { rpc, fetch } = classificationFixture("scheduled-classify", scenario);
+		await runBookmarkWorker({ rpc } as unknown as AppSupabaseClient);
+		const reserve = rpc.mock.calls.find(
+			([command]) => command === "bookmark_scheduled_classification_reserve"
+		)?.[1];
+		expect(reserve?.p_id).toEqual(expect.any(String));
+		expect(fetch).not.toHaveBeenCalled();
+		expect(
+			rpc.mock.calls.find(([command]) => command === "bookmark_worker_commit")?.[1]?.p_result
+		).toMatchObject({ state: "paused", reservationId: reserve.p_id, reservationState: "released" });
+	}
+);

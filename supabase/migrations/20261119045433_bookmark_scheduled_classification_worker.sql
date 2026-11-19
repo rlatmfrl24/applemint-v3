@@ -1,5 +1,8 @@
 begin;
 
+create index bookmark_ai_reservations_open_job_idx on public.bookmark_ai_reservations(job_id)
+ where state in ('reserved','uncertain');
+
 alter function public.bookmark_ai_reserve(uuid,uuid,uuid,int,bigint,text,text) set schema private;
 revoke all on function private.bookmark_ai_reserve(uuid,uuid,uuid,int,bigint,text,text) from public,anon,authenticated,service_role;
 
@@ -53,6 +56,16 @@ begin
    or private.bookmark_scheduled_classification_claimable(bookmark_jobs))
   order by case when kind='recommend' then 0 when kind='classify' and scope->>'origin'='scheduled-classify' then 3
    when scope->>'origin'='automatic' then 2 else 1 end$claim$);
+ marker:=$batch$order by bookmark_id limit case when j.kind in ('classify','review') then 20 else 1 end$batch$;
+ if strpos(definition,marker)=0 then raise exception 'bookmark claim batch boundary changed'; end if;
+ definition:=replace(definition,marker,$batch$
+  order by case when j.kind='classify' and j.scope->>'origin'='scheduled-classify' then
+   (select b.saved_at from public.bookmarks b where b.id=bookmark_job_items.bookmark_id)
+  end,bookmark_id limit case when j.kind in ('classify','review') then 20 else 1 end$batch$);
+ marker:=$items$d.state='library'))),'[]') into v_items$items$;
+ if strpos(definition,marker)=0 then raise exception 'bookmark claim response boundary changed'; end if;
+ definition:=replace(definition,marker,$items$d.state='library'))
+  order by case when j.kind='classify' and j.scope->>'origin'='scheduled-classify' then b.saved_at end,i.bookmark_id),'[]') into v_items$items$);
  marker:=$receipt$error='이전 AI 요청의 응답이 확인되지 않아 예약액을 유지합니다. 직접 재개해주세요.'$receipt$;
  if strpos(definition,marker)=0 then raise exception 'bookmark expired receipt boundary changed'; end if;
  execute replace(definition,marker,marker||$uncertain$,
@@ -83,6 +96,12 @@ begin
    end if;
   end if;
  $guard$);
+ marker:=$progress$progress=progress||coalesce(p_result->'progress','{}'),$progress$;
+ if strpos(definition,marker)=0 then raise exception 'bookmark job progress boundary changed'; end if;
+ definition:=replace(definition,marker,$progress$progress=progress||coalesce(p_result->'progress','{}')||
+  case when j.kind='classify' and j.scope->>'origin'='scheduled-classify' then jsonb_build_object('usageUncertain',exists(
+   select 1 from public.bookmark_ai_reservations r where r.job_id=j.id and r.state='uncertain'
+  )) else '{}'::jsonb end,$progress$);
  marker:=$error$error=p_result->>'error',$error$;
  if strpos(definition,marker)=0 then raise exception 'bookmark job error boundary changed'; end if;
  execute replace(definition,marker,$error$error=coalesce(p_result->>'error',

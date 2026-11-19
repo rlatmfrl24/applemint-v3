@@ -8,7 +8,7 @@ import {
 	bookmarkSchema,
 } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
-import type { Json } from "@/types/database.types";
+import type { Database, Json } from "@/types/database.types";
 import type { AppSupabaseClient } from "@/types/supabase";
 import {
 	AI_INPUT_LIMIT,
@@ -329,6 +329,25 @@ function usageExceeded(
 		(response.outputTokens ?? 0) > AI_OUTPUT_LIMIT
 	);
 }
+
+async function reserveAIBatch(
+	db: AppSupabaseClient,
+	input: Database["public"]["Functions"]["bookmark_ai_reserve"]["Args"],
+	scheduled: boolean
+) {
+	if (!scheduled) {
+		const { data, error } = await db.rpc("bookmark_ai_reserve", input);
+		if (error) throw new Error("BUDGET_RESERVATION_FAILED");
+		return data ? "reserved" : "denied";
+	}
+	try {
+		const { data, error } = await db.rpc("bookmark_scheduled_classification_reserve", input);
+		return error ? "unconfirmed" : data;
+	} catch {
+		return "unconfirmed";
+	}
+}
+
 async function requestAIBatch(
 	db: AppSupabaseClient,
 	claim: Claim,
@@ -388,12 +407,16 @@ async function requestAIBatch(
 		p_provider: "openrouter",
 		p_model: request.model,
 	};
-	const { data: reserved, error } = await (scheduled
-		? db.rpc("bookmark_scheduled_classification_reserve", reservation)
-		: db.rpc("bookmark_ai_reserve", reservation));
-	if (error) throw new Error("BUDGET_RESERVATION_FAILED");
+	const reserved = await reserveAIBatch(db, reservation, scheduled);
+	if (reserved === "unconfirmed")
+		return {
+			reservationId,
+			reservationState: "released",
+			state: "paused",
+			error: "AI 비용 예약 응답을 확인하지 못했습니다. 연결 상태를 확인한 후 재개해주세요.",
+		};
 	if (reserved === "disabled") return { state: "retry" };
-	if (reserved !== true && reserved !== "reserved")
+	if (reserved !== "reserved")
 		return {
 			state: "paused",
 			error:
