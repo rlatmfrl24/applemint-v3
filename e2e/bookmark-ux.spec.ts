@@ -760,10 +760,7 @@ async function captureBookmarkQA(
 	await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 	const save = page.getByRole("alertdialog");
 	await expect(save.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
-	await expect(save.getByLabel("컬렉션", { exact: true })).toHaveAttribute(
-		"data-collection-id",
-		""
-	);
+	await expect(save.getByLabel("컬렉션", { exact: true })).toHaveText("미분류");
 	await page.screenshot({ path: `reports/qa-${viewport.width}-${theme}-save.png` });
 	await save.getByRole("button", { name: "취소", exact: true }).click();
 }

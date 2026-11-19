@@ -115,10 +115,7 @@ test("AI 설정이 없으면 커뮤니티 출처 컬렉션을 선택하지 않�
 	await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 	const dialog = page.getByRole("alertdialog");
 	await expect(dialog.getByText("AI 설정이 없어 수동으로 저장할 수 있습니다.")).toBeVisible();
-	await expect(dialog.getByLabel("컬렉션", { exact: true })).toHaveAttribute(
-		"data-collection-id",
-		""
-	);
+	await expect(dialog.getByLabel("컬렉션", { exact: true })).toHaveText("미분류");
 	await expect(dialog.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
 	await expect(dialog.getByRole("region", { name: "컬렉션 추천", exact: true })).toHaveCount(0);
 	await expect(dialog.getByRole("button", { name: "추천 적용", exact: true })).toHaveCount(0);
@@ -225,10 +222,7 @@ test("커뮤니티 글의 컬렉션 조회가 복구되면 서버 추천을 한 
 	failCollections = false;
 	await reload.click();
 	await expect.poll(() => recommendationRequests).toBe(1);
-	await expect(dialog.getByLabel("컬렉션", { exact: true })).toHaveAttribute(
-		"data-collection-id",
-		""
-	);
+	await expect(dialog.getByLabel("컬렉션", { exact: true })).toHaveText("미분류");
 	await dialog.getByRole("button", { name: "취소", exact: true }).click();
 });
 
