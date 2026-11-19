@@ -35,14 +35,14 @@ begin
  definition := replace(definition,lock_marker,$lock$if p_result->>'etcScope' is not null
   or jsonb_path_exists(p_result,'$.items[*].proposal.etcScope ? (@ != null)')
   or p_result->>'communityEtc'='true' or jsonb_path_exists(p_result,'$.items[*].proposal ? (@.communityEtc == true)') then$lock$);
- definition := replace(definition,recommend_marker,$recommend$case
+ definition := replace(definition,recommend_marker,$recommend$(case
    when p_result->>'etcScope' is not null then not private.bookmark_is_unique_etc_on_route((p_result->'recommendation'->>'collectionId')::uuid,p_result->>'etcScope')
    when p_result->>'communityEtc'='true' then not private.bookmark_is_unique_etc((p_result->'recommendation'->>'collectionId')::uuid)
-   else false end$recommend$);
- definition := replace(definition,proposal_marker,$proposal$case
+   else false end)$recommend$);
+ definition := replace(definition,proposal_marker,$proposal$(case
    when v->'proposal'->>'etcScope' is not null then not private.bookmark_is_unique_etc_on_route((v->'proposal'->>'collectionId')::uuid,v->'proposal'->>'etcScope')
    when v->'proposal'->>'communityEtc'='true' then not private.bookmark_is_unique_etc((v->'proposal'->>'collectionId')::uuid)
-   else false end$proposal$);
+   else false end)$proposal$);
  execute definition;
 end $$;
 
