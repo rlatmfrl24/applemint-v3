@@ -35,6 +35,7 @@ it.each([" WWW.FMKOREA.COM ", "bbs.ruliweb.com"])(
 it.each([
 	["DCInside", "https://gall.dcinside.com/mgallery/board/view/?id=bluearchive&no=123"],
 	["dogdrip", "https://www.dogdrip.net/123"],
+	["ilbe", "https://www.ilbe.com/view/123"],
 ])(
 	"recognizes imported community source %s without offering its folder as a topic",
 	(name, url) => {
@@ -51,6 +52,19 @@ it.each([
 		});
 	}
 );
+
+it("excludes the imported danger and youtube folders only below the root Community", () => {
+	const danger = { ...communityEtc, id: "ilbe-source", name: "danger" };
+	const youtube = { ...communityEtc, id: "youtube-source", name: "YouTube" };
+	const otherTopic = { ...danger, id: "danger-topic", parent_id: null };
+	const active = [...collections, danger, youtube, otherTopic];
+	expect(topicCollections(active)).toEqual([blueArchive, otherTopic]);
+	expect(resolveBookmarkTopicTarget("https://youtu.be/example", noMatch, active)).toEqual({
+		kind: "etc",
+		etcScope: "root",
+		collection: rootEtc,
+	});
+});
 
 it("uses Community / etc for registered and evidenced community posts with a root etc present", () => {
 	expect(resolveBookmarkTopicTarget(arcaUrl, noMatch, collections)).toEqual({

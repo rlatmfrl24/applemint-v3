@@ -18,8 +18,10 @@ const bookmarkCommunitySites = [
 	...NORMAL_SITE_CATALOG,
 	{ siteKey: "dcinside.com", label: "디시인사이드" },
 	{ siteKey: "dogdrip.net", label: "개드립" },
+	{ siteKey: "ilbe.com", label: "일베" },
 ];
 const communitySiteKeys = bookmarkCommunitySites.map(({ siteKey }) => siteKey);
+const importedFolderAliases = new Set(["danger", "youtube"]);
 const reservedNames = new Set([
 	etcName,
 	"community",
@@ -55,8 +57,21 @@ export const bookmarkSourceCriteria = {
 	unknown: "The supplied evidence is insufficient to identify the type of source.",
 } satisfies Record<BookmarkSourceKind, string>;
 
+function communityParentIds(collections: TopicCollection[]): Set<string | null> {
+	return new Set(
+		collections
+			.filter(({ name, parent_id }) => parent_id === null && normalizedName(name) === "community")
+			.map(({ id }) => id)
+	);
+}
+
 export function topicCollections<T extends TopicCollection>(collections: T[]): T[] {
-	return collections.filter((collection) => !isReservedName(collection.name));
+	const parents = communityParentIds(collections);
+	return collections.filter(
+		({ name, parent_id }) =>
+			!isReservedName(name) &&
+			!(parents.has(parent_id) && importedFolderAliases.has(normalizedName(name)))
+	);
 }
 
 export function resolveBookmarkTopicTarget(
@@ -77,15 +92,7 @@ export function resolveBookmarkTopicTarget(
 	const community =
 		choice.sourceKind === "community" || isCommunityHost(parsed.hostname.replace(/\.$/u, ""));
 	const etcScope = community ? "community" : "root";
-	const parents: Set<string | null> = community
-		? new Set(
-				collections
-					.filter(
-						({ name, parent_id }) => parent_id === null && normalizedName(name) === "community"
-					)
-					.map(({ id }) => id)
-			)
-		: new Set([null]);
+	const parents = community ? communityParentIds(collections) : new Set([null]);
 	const matches = collections.filter(
 		({ name, parent_id }) => normalizedName(name) === etcName && parents.has(parent_id)
 	);
