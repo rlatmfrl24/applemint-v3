@@ -19,6 +19,18 @@ it("keeps a topic child eligible when its source folders are excluded", () => {
 	).toThrow();
 });
 
+it.each([" WWW.FMKOREA.COM ", "bbs.ruliweb.com"])(
+	"excludes the full registered community host used as a collection name: %s",
+	(name) => {
+		const hostFolder = { ...arcalive, name };
+		const active = [hostFolder, blueArchive];
+		expect(topicCollections(active)).toEqual([blueArchive]);
+		expect(() =>
+			resolveBookmarkTopicTarget(arcaUrl, { ...noMatch, collectionId: hostFolder.id }, active)
+		).toThrow("INVALID_TOPIC_COLLECTION");
+	}
+);
+
 it("uses the unique existing etc for known and evidenced community posts", () => {
 	expect(resolveBookmarkTopicTarget(arcaUrl, noMatch, collections)).toEqual({
 		kind: "community-etc",

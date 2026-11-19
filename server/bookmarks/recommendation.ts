@@ -113,13 +113,16 @@ function recommendationFromAnswers(
 		collections
 	);
 	const collection = "collection" in target ? target.collection : null;
-	return bookmarkRecommendationSchema.parse({
-		collectionId: collection?.id ?? null,
-		collectionVersion: collection?.version ?? null,
-		basis: answers.basis.choice,
-		confidence: answers.collection.confidence,
-		model: RESOLVED_MODEL,
-	});
+	return {
+		communityEtc: target.kind === "community-etc",
+		recommendation: bookmarkRecommendationSchema.parse({
+			collectionId: collection?.id ?? null,
+			collectionVersion: collection?.version ?? null,
+			basis: answers.basis.choice,
+			confidence: answers.collection.confidence,
+			model: RESOLVED_MODEL,
+		}),
+	};
 }
 
 export async function callRecommendation(
@@ -149,10 +152,9 @@ export async function callRecommendation(
 	else if (!answers.success) outputError = "INVALID_ANSWERS";
 	else outputError = answerError(answers.data, request);
 	return {
-		recommendation:
-			!outputError && answers.success
-				? recommendationFromAnswers(request.state.bookmark.url, answers.data, collections)
-				: null,
+		...(!outputError && answers.success
+			? recommendationFromAnswers(request.state.bookmark.url, answers.data, collections)
+			: { recommendation: null, communityEtc: false }),
 		outputError,
 		chargedNano,
 		inputTokens: usage.success ? usage.data.input_tokens : null,

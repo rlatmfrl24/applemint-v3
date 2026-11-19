@@ -802,6 +802,7 @@ test("200%에 해당하는 CSS 화면과 모션 감소에서 패널과 키보드
 for (const reducedMotion of ["no-preference", "reduce"] as const) {
 	test(`저장 팝업은 전환을 끝낸 뒤 닫고 초점을 복원한다 (${reducedMotion})`, async ({ page }) => {
 		await page.emulateMedia({ reducedMotion });
+		await page.route(/\/api\/trpc\/bookmarkAI\.recommend(?:\?|,|$)/u, (route) => route.abort());
 		await page.goto("/main");
 		const trigger = page
 			.locator('[data-thread-url^="https://www.fmkorea.com/"]')

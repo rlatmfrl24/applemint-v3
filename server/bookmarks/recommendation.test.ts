@@ -260,6 +260,7 @@ it.each(["topic", "etc", "missing-etc", "duplicate-etc", "invalid-source"])(
 		);
 		const result = await callRecommendation(request, active);
 		expect(result.chargedNano).toBe(4200);
+		expect(result.communityEtc).toBe(scenario === "etc");
 		if (scenario === "invalid-source") {
 			expect(result).toMatchObject({ recommendation: null, outputError: "SOURCE_CHOICE_OPTIONS" });
 		} else {

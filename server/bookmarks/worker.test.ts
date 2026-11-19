@@ -381,6 +381,7 @@ it.each([
 					? modelItem.reason
 					: "맞는 주제 컬렉션이 없어 커뮤니티 글을 etc에 제안했습니다.",
 		});
+		expect(Boolean(charge.items[0].proposal.communityEtc)).toBe(scenario === "etc");
 	} else {
 		expect(charge.items[0]).toHaveProperty("result.reason");
 		expect(charge.items[0]).not.toHaveProperty("proposal");

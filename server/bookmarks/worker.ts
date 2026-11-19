@@ -242,6 +242,7 @@ function classificationDecision(
 	return {
 		reason,
 		proposal: {
+			...(target.kind === "community-etc" ? { communityEtc: true } : {}),
 			collectionId: "collection" in target ? target.collection.id : null,
 			newCollectionName: target.kind === "new" ? target.name : null,
 			reason,
@@ -490,7 +491,13 @@ async function recommendCollection(db: AppSupabaseClient, claim: Claim): Promise
 				inputTokens: result.inputTokens,
 			},
 			...(result.recommendation
-				? { state: "succeeded", completed: 1, failed: 0, recommendation: result.recommendation }
+				? {
+						state: "succeeded",
+						completed: 1,
+						failed: 0,
+						recommendation: result.recommendation,
+						communityEtc: result.communityEtc,
+					}
 				: {
 						state: result.chargedNano === null ? "paused" : "failed",
 						completed: 0,
