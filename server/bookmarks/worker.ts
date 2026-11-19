@@ -219,11 +219,17 @@ async function enrich(claim: Claim): Promise<Commit> {
 	}
 }
 
+function classificationFallbackPath(target: ReturnType<typeof resolveBookmarkTopicTarget>) {
+	if (target.kind === "source") return `Community / ${target.collection.name.trim()}`;
+	return "etcScope" in target && target.etcScope === "community" ? "Community / etc" : "최상위 etc";
+}
+
 function classificationDecision(
 	item: Claim["items"][number],
 	choice: NonNullable<Awaited<ReturnType<typeof callBookmarkAI>>["output"]>["items"][number],
 	collections: Claim["collections"],
-	relevance: string | null
+	relevance: string | null,
+	scheduled: boolean
 ) {
 	if (!choice.sourceKind) throw new Error("MISSING_BOOKMARK_SOURCE_KIND");
 	const target = resolveBookmarkTopicTarget(
@@ -231,17 +237,15 @@ function classificationDecision(
 		{ collectionId: choice.collectionId, sourceKind: choice.sourceKind },
 		collections
 	);
-	const path =
-		target.kind === "source"
-			? `Community / ${target.collection.name.trim()}`
-			: "etcScope" in target && target.etcScope === "community"
-				? "Community / etc"
-				: "최상위 etc";
+	const path = classificationFallbackPath(target);
 	const isFallback = target.kind === "etc" || target.kind === "source";
 	if (target.kind === "etc-unavailable")
 		return { reason: `활성 ${path} 컬렉션이 정확히 하나일 때 이동을 제안합니다.` };
 	if (isFallback && target.collection.id === item.collection_id)
 		return { reason: `이미 ${path} 컬렉션에 속해 있습니다.` };
+	if (scheduled && target.kind === "unfiled") return { reason: choice.reason };
+	if (scheduled && target.kind === "existing" && target.collection.id === item.collection_id)
+		return { reason: "이미 선택한 컬렉션에 속해 있습니다." };
 	const reason = isFallback
 		? `맞는 주제 컬렉션이 없어 ${path}로 이동을 제안했습니다.`
 		: choice.reason;
@@ -256,16 +260,6 @@ function classificationDecision(
 			relevance,
 		},
 	};
-}
-
-function scheduledDecision(
-	decision: ReturnType<typeof classificationDecision>,
-	currentCollectionId: string | null
-) {
-	const targetId = decision.proposal?.collectionId;
-	if (!targetId) return { reason: decision.reason };
-	if (targetId === currentCollectionId) return { reason: "이미 선택한 컬렉션에 속해 있습니다." };
-	return decision;
 }
 
 function validatedAIResult(
@@ -308,19 +302,18 @@ function validatedAIResult(
 			};
 			const decision =
 				kind === "classify"
-					? classificationDecision(item, p, collections, relevance)
+					? classificationDecision(item, p, collections, relevance, scheduled)
 					: { reason: p.reason, proposal: p.reviewCandidate ? proposal : undefined };
-			const result = scheduled ? scheduledDecision(decision, item.collection_id) : decision;
 			return {
 				result: {
 					reviewCandidate: p.reviewCandidate,
-					reason: result.reason,
+					reason: decision.reason,
 					relevance,
 				},
 				id: item.id,
 				version: item.version,
 				reviewRevision: item.review_revision,
-				...(result.proposal ? { proposal: result.proposal } : {}),
+				...(decision.proposal ? { proposal: decision.proposal } : {}),
 			};
 		}),
 	};

@@ -24,6 +24,97 @@ interface SeededThread {
 const DATABASE_CONTAINER_PATTERN = /^supabase_db_[A-Za-z0-9_.-]+$/u;
 const BIGINT_PATTERN = /^(?:0|[1-9]\d*)$/u;
 
+export function seedScheduledClassification() {
+	const runtime = getE2ERuntime();
+	if (
+		!runtime.databaseContainer.startsWith("supabase_db_applemint-bookmark-scheduled-") ||
+		!["localhost", "127.0.0.1"].includes(new URL(runtime.supabaseUrl).hostname)
+	) {
+		throw new Error("정기 재분류 실검증에는 전용 로컬 Supabase 프로젝트가 필요합니다.");
+	}
+	const collections = {
+		topic: randomUUID(),
+		community: randomUUID(),
+		source: randomUUID(),
+		communityEtc: randomUUID(),
+		rootEtc: randomUUID(),
+	};
+	const previousJob = randomUUID();
+	const previousItem = randomUUID();
+	const heldReceipt = randomUUID();
+	const fixtures = [
+		{
+			url: "https://bbs.ruliweb.com/game/85438/read/1399370",
+			title: "블루 아카이브 총력전과 코토리 편성 공략",
+			target: collections.topic,
+			initial: null,
+		},
+		{
+			url: "https://bbs.ruliweb.com/best/board/300143/read/77268659",
+			title: "루리웹 유머 게시판 · 이미 극락 가버린 고양이",
+			target: collections.source,
+			initial: null,
+		},
+		{
+			url: "https://theqoo.net/square/3727256370",
+			title: "더쿠 스퀘어 · 아기 레서판다가 태어나면",
+			target: collections.communityEtc,
+			initial: null,
+		},
+		{
+			url: "https://www.nasa.gov/image-article/webbs-first-deep-field/",
+			title: "NASA Image Article · Webb's First Deep Field",
+			target: collections.rootEtc,
+			initial: null,
+		},
+		{
+			url: "https://bbs.ruliweb.com/game/85438/read/1399371",
+			title: "블루 아카이브 아리스 장비 파밍 공략",
+			target: collections.topic,
+			initial: collections.topic,
+		},
+	].map((fixture) => ({ ...fixture, id: randomUUID() }));
+	const values = fixtures.map(
+		({ id, url, title, initial }, index) =>
+			`('${id}',${quoteLiteral(url)},${quoteLiteral(url)},${quoteLiteral(title)},${initial ? quoteLiteral(initial) : "null"},'2001-01-01'::timestamptz+interval '${index} minutes')`
+	);
+	runAdminSql(`begin;
+		do $$ begin
+		 if exists(select 1 from public.bookmarks) or exists(select 1 from public.bookmark_jobs)
+		  or exists(select 1 from public.bookmark_settings where classify_started_at is not null)
+		  then raise exception 'A fresh disposable database is required'; end if;
+		end $$;
+		insert into public.bookmark_collections(id,name,parent_id) values
+		 ('${collections.topic}','블루 아카이브',null),
+		 ('${collections.community}','Community',null),
+		 ('${collections.source}','ruliweb','${collections.community}'),
+		 ('${collections.communityEtc}','etc','${collections.community}'),
+		 ('${collections.rootEtc}','etc',null);
+		insert into public.bookmarks(id,url,url_key,title,collection_id,saved_at) values
+		 ('${previousItem}','https://example.com/scheduled-previous','https://example.com/scheduled-previous','이전 회차 후보',null,'2000-01-01'),
+		 ${values.join(",")};
+		insert into public.bookmark_jobs(id,kind,state,scope,progress,total,error) values
+		 ('${previousJob}','classify','paused',
+		  jsonb_build_object('origin','scheduled-classify','scope','selected','scheduledDate',(now() at time zone 'Asia/Seoul')::date-1),
+		  '{"usageUncertain":true}',1,'이전 회차의 AI 청구 확인 대기');
+		insert into public.bookmark_job_items(job_id,bookmark_id,expected_version) values ('${previousJob}','${previousItem}',1);
+		insert into public.bookmark_ai_reservations(id,job_id,month,reserved_nano,input_tokens,state,provider,model) values
+		 ('${heldReceipt}','${previousJob}',date_trunc('month',now() at time zone 'Asia/Seoul')::date,1000,100,'uncertain','openrouter','openai/gpt-6-luna');
+		commit;`);
+	return {
+		fixtures,
+		previousJob,
+		previousItem,
+		heldReceipt,
+		advanceAfterClosure() {
+			// Represent an elapsed KST day while keeping the real cron and worker entry points.
+			runAdminSql(`update public.bookmark_jobs
+			 set progress=jsonb_set(progress,'{closedAt}',to_jsonb((progress->>'closedAt')::timestamptz-interval '24 hours'))
+			 where id='${previousJob}' and state='failed' and progress ? 'closedAt';`);
+		},
+	};
+}
+
 export function seedBookmarkReviewStability() {
 	const ids = Array.from({ length: 131 }, () => randomUUID());
 	const jobId = randomUUID();
