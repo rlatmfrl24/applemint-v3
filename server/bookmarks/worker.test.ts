@@ -273,6 +273,8 @@ it.each(["budget-denied", "excessive-cost"])(
 
 it.each([
 	"topic",
+	"source",
+	"already-source",
 	"etc",
 	"missing-etc",
 	"already-etc",
@@ -287,6 +289,7 @@ it.each([
 	const etcId = "aaaaaaaa-0000-4000-8000-000000000013";
 	const parentId = "aaaaaaaa-0000-4000-8000-000000000014";
 	const rootEtcId = "aaaaaaaa-0000-4000-8000-000000000015";
+	const sourceFolderId = "aaaaaaaa-0000-4000-8000-000000000016";
 	const url =
 		scenario === "root-etc" ? "https://example.org/misc" : "https://arca.live/b/bluearchive/123";
 	const collection = (id: string, name: string, parent_id: string | null = null) => ({
@@ -300,6 +303,8 @@ it.each([
 		created_at: job.created_at,
 	});
 	const selection = scenario === "topic" ? topicId : scenario === "source-folder" ? sourceId : null;
+	const currentCollectionId =
+		scenario === "already-etc" ? etcId : scenario === "already-source" ? sourceFolderId : null;
 	const modelItem = {
 		id,
 		collectionId: selection,
@@ -337,7 +342,7 @@ it.each([
 								description: "",
 								tags: [],
 								note: "",
-								collection_id: scenario === "already-etc" ? etcId : null,
+								collection_id: currentCollectionId,
 								state: "library",
 								version: 1,
 								expected_version: 1,
@@ -358,6 +363,9 @@ it.each([
 							collection(topicId, "블루 아카이브", sourceId),
 							collection(parentId, "Community"),
 							collection(rootEtcId, "etc"),
+							...(scenario === "source" || scenario === "already-source"
+								? [collection(sourceFolderId, "arcalive", parentId)]
+								: []),
 							...(scenario === "missing-etc" ? [] : [collection(etcId, "etc", parentId)]),
 						],
 						settings: { interests: [], interest_version: 1 },
@@ -378,13 +386,19 @@ it.each([
 	expect(input.collections).toEqual([
 		expect.objectContaining({ id: topicId, path: "arcalive / 블루 아카이브" }),
 	]);
-	if (scenario === "missing-etc" || scenario === "already-etc") {
+	if (scenario === "missing-etc" || scenario === "already-etc" || scenario === "already-source") {
 		expect(charge.items[0]).toHaveProperty("result.reason");
 		expect(charge.items[0]).not.toHaveProperty("proposal");
 		return;
 	}
 	const expected = {
 		topic: { collectionId: topicId, etcScope: null, reason: modelItem.reason },
+		source: {
+			collectionId: sourceFolderId,
+			etcScope: null,
+			sourceRoute: { siteKey: "arca.live" },
+			reason: "맞는 주제 컬렉션이 없어 Community / arcalive로 이동을 제안했습니다.",
+		},
 		etc: {
 			collectionId: etcId,
 			etcScope: "community",

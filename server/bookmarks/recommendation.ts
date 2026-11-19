@@ -114,6 +114,7 @@ function recommendationFromAnswers(
 	const collection = "collection" in target ? target.collection : null;
 	return {
 		etcScope: target.kind === "etc" ? target.etcScope : null,
+		...(target.kind === "source" && { sourceRoute: target.sourceRoute }),
 		recommendation: bookmarkRecommendationSchema.parse({
 			collectionId: collection?.id ?? null,
 			collectionVersion: collection?.version ?? null,
@@ -153,7 +154,7 @@ export async function callRecommendation(
 	return {
 		...(!outputError && answers.success
 			? recommendationFromAnswers(request.state.bookmark.url, answers.data, collections)
-			: { recommendation: null, etcScope: null }),
+			: { recommendation: null, etcScope: null, sourceRoute: undefined }),
 		outputError,
 		chargedNano,
 		inputTokens: usage.success ? usage.data.input_tokens : null,

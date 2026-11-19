@@ -232,19 +232,24 @@ function classificationDecision(
 		collections
 	);
 	const path =
-		"etcScope" in target && target.etcScope === "community" ? "Community / etc" : "최상위 etc";
+		target.kind === "source"
+			? `Community / ${target.collection.name.trim()}`
+			: "etcScope" in target && target.etcScope === "community"
+				? "Community / etc"
+				: "최상위 etc";
+	const isFallback = target.kind === "etc" || target.kind === "source";
 	if (target.kind === "etc-unavailable")
 		return { reason: `활성 ${path} 컬렉션이 정확히 하나일 때 이동을 제안합니다.` };
-	if (target.kind === "etc" && target.collection.id === item.collection_id)
+	if (isFallback && target.collection.id === item.collection_id)
 		return { reason: `이미 ${path} 컬렉션에 속해 있습니다.` };
-	const reason =
-		target.kind === "etc"
-			? `맞는 주제 컬렉션이 없어 ${path}로 이동을 제안했습니다.`
-			: choice.reason;
+	const reason = isFallback
+		? `맞는 주제 컬렉션이 없어 ${path}로 이동을 제안했습니다.`
+		: choice.reason;
 	return {
 		reason,
 		proposal: {
 			etcScope: target.kind === "etc" ? target.etcScope : null,
+			...(target.kind === "source" && { sourceRoute: target.sourceRoute }),
 			collectionId: "collection" in target ? target.collection.id : null,
 			newCollectionName: null,
 			reason,
@@ -499,6 +504,7 @@ async function recommendCollection(db: AppSupabaseClient, claim: Claim): Promise
 						failed: 0,
 						recommendation: result.recommendation,
 						etcScope: result.etcScope,
+						sourceRoute: result.sourceRoute,
 					}
 				: {
 						state: result.chargedNano === null ? "paused" : "failed",
