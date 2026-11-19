@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import type { BookmarkItem } from "@/contracts/bookmark.schema";
-import { collectionForHost } from "@/lib/bookmark-host";
 import { bookmarkItemLocation } from "@/lib/bookmark-list";
 import { useTRPCClient } from "@/trpc/client";
 import { BookmarkCollectionPicker, bookmarkFieldClass } from "./bookmark-collection-picker";
@@ -255,10 +254,7 @@ function BookmarkSaveForm({
 					type="button"
 					variant="ghost"
 					size="sm"
-					disabled={
-						locked ||
-						(!config.data?.openrouter && !collectionForHost(source.url, collections.data ?? []))
-					}
+					disabled={locked || !config.data?.openrouter}
 					onClick={() => void start(Boolean(jobId || origin))}
 				>
 					{error && !jobId ? "요청 다시 확인" : "다시 추천"}

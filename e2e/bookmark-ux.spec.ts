@@ -756,10 +756,11 @@ async function captureBookmarkQA(
 	}
 	await page.goto("/main");
 	const card = page.locator('[data-thread-url^="https://www.fmkorea.com/"]').first();
+	await page.route(/\/api\/trpc\/bookmarkAI\.recommend(?:\?|,|$)/u, (route) => route.abort());
 	await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 	const save = page.getByRole("alertdialog");
 	await expect(save.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
-	await expect(save.getByText("사이트 일치", { exact: true })).toBeVisible();
+	await expect(save.getByLabel("컬렉션", { exact: true })).toHaveText("미분류");
 	await page.screenshot({ path: `reports/qa-${viewport.width}-${theme}-save.png` });
 	await save.getByRole("button", { name: "취소", exact: true }).click();
 }
@@ -798,6 +799,7 @@ test("200%에 해당하는 CSS 화면과 모션 감소에서 패널과 키보드
 for (const reducedMotion of ["no-preference", "reduce"] as const) {
 	test(`저장 팝업은 전환을 끝낸 뒤 닫고 초점을 복원한다 (${reducedMotion})`, async ({ page }) => {
 		await page.emulateMedia({ reducedMotion });
+		await page.route(/\/api\/trpc\/bookmarkAI\.recommend(?:\?|,|$)/u, (route) => route.abort());
 		await page.goto("/main");
 		const trigger = page
 			.locator('[data-thread-url^="https://www.fmkorea.com/"]')

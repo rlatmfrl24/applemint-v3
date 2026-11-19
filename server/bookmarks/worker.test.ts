@@ -270,3 +270,134 @@ it.each(["budget-denied", "excessive-cost"])(
 		}
 	}
 );
+
+it.each([
+	"topic",
+	"etc",
+	"missing-etc",
+	"already-etc",
+	"root-etc",
+	"source-folder",
+	"missing-source-kind",
+] as const)("classify commits the validated topic decision for %s", async (scenario) => {
+	vi.stubEnv("OPENROUTER_API_KEY", "fixture-only");
+	const id = "aaaaaaaa-0000-4000-8000-000000000010";
+	const sourceId = "aaaaaaaa-0000-4000-8000-000000000011";
+	const topicId = "aaaaaaaa-0000-4000-8000-000000000012";
+	const etcId = "aaaaaaaa-0000-4000-8000-000000000013";
+	const parentId = "aaaaaaaa-0000-4000-8000-000000000014";
+	const rootEtcId = "aaaaaaaa-0000-4000-8000-000000000015";
+	const url =
+		scenario === "root-etc" ? "https://example.org/misc" : "https://arca.live/b/bluearchive/123";
+	const collection = (id: string, name: string, parent_id: string | null = null) => ({
+		id,
+		name,
+		parent_id,
+		version: 1,
+		sort_order: 1,
+		source_id: null,
+		original: null,
+		created_at: job.created_at,
+	});
+	const selection = scenario === "topic" ? topicId : scenario === "source-folder" ? sourceId : null;
+	const modelItem = {
+		id,
+		collectionId: selection,
+		newCollectionName: selection ? null : "새 주제 후보",
+		reason: "글의 주제 근거",
+		relevance: null,
+		reviewCandidate: false,
+		...(scenario === "missing-source-kind" ? {} : { sourceKind: "unknown" }),
+	};
+	const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+		Response.json({
+			status: "completed",
+			output: [
+				{
+					type: "message",
+					content: [
+						{ type: "output_text", text: JSON.stringify({ items: [modelItem], interests: [] }) },
+					],
+				},
+			],
+			usage: { input_tokens: 100, output_tokens: 20, cost: 0.00002 },
+		})
+	);
+	const rpc = vi.fn().mockImplementation(async (command) => ({
+		data:
+			command === "bookmark_worker_claim"
+				? {
+						job: { ...job, kind: "classify", progress: {} },
+						items: [
+							{
+								id,
+								url,
+								url_key: url,
+								title: "블아 공략",
+								description: "",
+								tags: [],
+								note: "",
+								collection_id: scenario === "already-etc" ? etcId : null,
+								state: "library",
+								version: 1,
+								expected_version: 1,
+								review_revision: 1,
+								source_id: null,
+								source_thread_id: null,
+								original: null,
+								previous: null,
+								saved_at: job.created_at,
+								created_at: job.created_at,
+								updated_at: job.updated_at,
+								opened_at: null,
+								open_count: 0,
+							},
+						],
+						collections: [
+							collection(sourceId, "arcalive"),
+							collection(topicId, "블루 아카이브", sourceId),
+							collection(parentId, "Community"),
+							collection(rootEtcId, "etc"),
+							...(scenario === "missing-etc" ? [] : [collection(etcId, "etc", parentId)]),
+						],
+						settings: { interests: [], interest_version: 1 },
+					}
+				: true,
+		error: null,
+	}));
+	await runBookmarkWorker({ rpc } as unknown as AppSupabaseClient);
+	const charge = rpc.mock.calls.find(([command]) => command === "bookmark_worker_commit")?.[1]
+		?.p_result;
+	expect(charge).toMatchObject({ reservationState: "settled", chargedNano: 20000 });
+	if (scenario === "missing-source-kind" || scenario === "source-folder") {
+		expect(charge.state).toBe("failed");
+		expect(charge.items?.[0] ?? {}).not.toHaveProperty("proposal");
+		return;
+	}
+	const input = JSON.parse(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body)).input);
+	expect(input.collections).toEqual([
+		expect.objectContaining({ id: topicId, path: "arcalive / 블루 아카이브" }),
+	]);
+	if (scenario === "missing-etc" || scenario === "already-etc") {
+		expect(charge.items[0]).toHaveProperty("result.reason");
+		expect(charge.items[0]).not.toHaveProperty("proposal");
+		return;
+	}
+	const expected = {
+		topic: { collectionId: topicId, etcScope: null, reason: modelItem.reason },
+		etc: {
+			collectionId: etcId,
+			etcScope: "community",
+			reason: "맞는 주제 컬렉션이 없어 Community / etc로 이동을 제안했습니다.",
+		},
+		"root-etc": {
+			collectionId: rootEtcId,
+			etcScope: "root",
+			reason: "맞는 주제 컬렉션이 없어 최상위 etc로 이동을 제안했습니다.",
+		},
+	};
+	expect(charge.items[0].proposal).toMatchObject({
+		...expected[scenario],
+		newCollectionName: null,
+	});
+});

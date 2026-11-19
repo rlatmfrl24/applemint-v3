@@ -7,6 +7,7 @@ import {
 	bookmarkJobSchema,
 	bookmarkSchema,
 } from "@/contracts/bookmark.schema";
+import { collectionPath } from "@/lib/bookmark-collection";
 import type { Json } from "@/types/database.types";
 import type { AppSupabaseClient } from "@/types/supabase";
 import {
@@ -18,6 +19,7 @@ import {
 	reserveNano,
 	validateAIItems,
 } from "./ai";
+import { resolveBookmarkTopicTarget, topicCollections } from "./classification-policy";
 import { type HealthWork, processHealthClaim } from "./health-worker";
 import { collectionDigest, importVerified } from "./import-verification";
 import { parseRaindropPage, raindropManifest, readRaindrop } from "./raindrop";
@@ -217,6 +219,40 @@ async function enrich(claim: Claim): Promise<Commit> {
 	}
 }
 
+function classificationDecision(
+	item: Claim["items"][number],
+	choice: NonNullable<Awaited<ReturnType<typeof callBookmarkAI>>["output"]>["items"][number],
+	collections: Claim["collections"],
+	relevance: string | null
+) {
+	if (!choice.sourceKind) throw new Error("MISSING_BOOKMARK_SOURCE_KIND");
+	const target = resolveBookmarkTopicTarget(
+		item.url,
+		{ collectionId: choice.collectionId, sourceKind: choice.sourceKind },
+		collections
+	);
+	const path =
+		"etcScope" in target && target.etcScope === "community" ? "Community / etc" : "최상위 etc";
+	if (target.kind === "etc-unavailable")
+		return { reason: `활성 ${path} 컬렉션이 정확히 하나일 때 이동을 제안합니다.` };
+	if (target.kind === "etc" && target.collection.id === item.collection_id)
+		return { reason: `이미 ${path} 컬렉션에 속해 있습니다.` };
+	const reason =
+		target.kind === "etc"
+			? `맞는 주제 컬렉션이 없어 ${path}로 이동을 제안했습니다.`
+			: choice.reason;
+	return {
+		reason,
+		proposal: {
+			etcScope: target.kind === "etc" ? target.etcScope : null,
+			collectionId: "collection" in target ? target.collection.id : null,
+			newCollectionName: null,
+			reason,
+			relevance,
+		},
+	};
+}
+
 function validatedAIResult(
 	kind: "classify" | "review" | "interests",
 	output: NonNullable<Awaited<ReturnType<typeof callBookmarkAI>>["output"]>,
@@ -235,7 +271,7 @@ function validatedAIResult(
 	const proposals = validateAIItems(
 		output.items,
 		items.map((i) => i.id),
-		collections.map((c) => c.id)
+		(kind === "classify" ? topicCollections(collections) : collections).map((c) => c.id)
 	);
 	if (
 		output.interests.length ||
@@ -244,26 +280,28 @@ function validatedAIResult(
 		throw new Error("INVALID_AI_TASK_OUTPUT");
 	return {
 		interestVersion: claim.settings.interest_version,
-		items: proposals.map((p) => ({
-			result: {
-				reviewCandidate: p.reviewCandidate,
+		items: proposals.map((p) => {
+			const item = items.find((candidate) => candidate.id === p.id);
+			if (!item) throw new Error("INVALID_AI_ITEM");
+			const relevance = claim.settings.interests.length ? p.relevance : null;
+			const proposal = {
+				collectionId: p.collectionId,
+				newCollectionName: p.newCollectionName,
 				reason: p.reason,
-				relevance: claim.settings.interests.length ? p.relevance : null,
-			},
-			id: p.id,
-			version: items.find((i) => i.id === p.id)?.version,
-			reviewRevision: items.find((i) => i.id === p.id)?.review_revision,
-			...(kind === "review" && !p.reviewCandidate
-				? {}
-				: {
-						proposal: {
-							collectionId: p.collectionId,
-							newCollectionName: p.newCollectionName,
-							reason: p.reason,
-							relevance: claim.settings.interests.length ? p.relevance : null,
-						},
-					}),
-		})),
+				relevance,
+			};
+			const decision =
+				kind === "classify"
+					? classificationDecision(item, p, collections, relevance)
+					: { reason: p.reason, proposal: p.reviewCandidate ? proposal : undefined };
+			return {
+				result: { reviewCandidate: p.reviewCandidate, reason: decision.reason, relevance },
+				id: item.id,
+				version: item.version,
+				reviewRevision: item.review_revision,
+				...(decision.proposal ? { proposal: decision.proposal } : {}),
+			};
+		}),
 	};
 }
 function usageExceeded(
@@ -282,37 +320,20 @@ async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
 	if (!process.env.OPENROUTER_API_KEY?.trim())
 		return { state: "paused", error: "서버 OPENROUTER_API_KEY 설정 후 작업을 재개해주세요." };
 	let items = claim.items;
-	const collections = claim.collections.map((c) => ({
+	const candidates = kind === "classify" ? topicCollections(claim.collections) : claim.collections;
+	const collections = candidates.map((c) => ({
 		id: c.id,
 		name: c.name,
 		parentId: c.parent_id,
+		...(kind === "classify" ? { path: collectionPath(c.id, claim.collections) } : {}),
 	}));
 	const tags = kind === "interests" ? (await context(db)).tagCounts : undefined;
-	let request = buildAIRequest(kind, {
-		collections,
-		confirmedInterests: claim.settings.interests,
-		tagCounts: tags,
-		bookmarks: items.map((b) => ({
-			id: b.id,
-			title: b.title,
-			url: b.url,
-			tags: b.tags,
-			description: b.description,
-			collectionId: b.collection_id,
-			savedAt: b.saved_at,
-			openButtonClicks: b.open_count,
-			lastOpenButtonClick: b.opened_at,
-			priorUse: "unknown",
-			duplicateCount: b.duplicate_count ?? 0,
-		})),
-	});
-	let tokens = await countAIInput(request);
-	while (tokens > AI_INPUT_LIMIT && items.length > 1) {
-		items = items.slice(0, Math.ceil(items.length / 2));
-		request = buildAIRequest(kind, {
+	const buildRequest = (batch: Claim["items"]) =>
+		buildAIRequest(kind, {
 			collections,
 			confirmedInterests: claim.settings.interests,
-			bookmarks: items.map((b) => ({
+			tagCounts: tags,
+			bookmarks: batch.map((b) => ({
 				id: b.id,
 				title: b.title,
 				url: b.url,
@@ -326,6 +347,11 @@ async function aiBatch(db: AppSupabaseClient, claim: Claim): Promise<Commit> {
 				duplicateCount: b.duplicate_count ?? 0,
 			})),
 		});
+	let request = buildRequest(items);
+	let tokens = await countAIInput(request);
+	while (tokens > AI_INPUT_LIMIT && items.length > 1) {
+		items = items.slice(0, Math.ceil(items.length / 2));
+		request = buildRequest(items);
 		tokens = await countAIInput(request);
 	}
 	if (tokens > AI_INPUT_LIMIT)
@@ -412,13 +438,16 @@ async function recommendCollection(db: AppSupabaseClient, claim: Claim): Promise
 			state: "paused",
 			error: "저장 추천 설정이 필요합니다. 수동으로 컬렉션을 선택해 저장할 수 있습니다.",
 		};
-	if (claim.collections.length >= 255)
+	if (topicCollections(claim.collections).length >= 255)
 		return {
 			state: "paused",
 			error: "Jev의 선택지 한도를 초과했습니다. 수동으로 컬렉션을 선택해주세요.",
 		};
+	const { url } = claim.job.scope;
+	if (typeof url !== "string")
+		return { state: "failed", error: "추천할 원본 URL을 확인하지 못했습니다." };
 	const request = buildRecommendationRequest(
-		claim.job.scope,
+		{ ...claim.job.scope, url },
 		claim.collections,
 		claim.settings.interests
 	);
@@ -464,7 +493,13 @@ async function recommendCollection(db: AppSupabaseClient, claim: Claim): Promise
 				inputTokens: result.inputTokens,
 			},
 			...(result.recommendation
-				? { state: "succeeded", completed: 1, failed: 0, recommendation: result.recommendation }
+				? {
+						state: "succeeded",
+						completed: 1,
+						failed: 0,
+						recommendation: result.recommendation,
+						etcScope: result.etcScope,
+					}
 				: {
 						state: result.chargedNano === null ? "paused" : "failed",
 						completed: 0,

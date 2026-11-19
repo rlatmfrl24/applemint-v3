@@ -54,6 +54,7 @@ it("settles known usage for invalid model output and exposes only the failed sch
 										id: "book",
 										collectionId: null,
 										newCollectionName: "",
+										sourceKind: "unknown",
 										reason: "private-provider-text",
 										relevance: null,
 										reviewCandidate: false,
