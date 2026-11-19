@@ -6,7 +6,6 @@ import {
 	bookmarkSaveInputSchema,
 } from "../contracts/bookmark.schema";
 import { collectionPath } from "../lib/bookmark-collection";
-import { collectionForHost } from "../lib/bookmark-host";
 import { bookmarkOwner } from "./support/bookmarks";
 import { seedBookmarkUXSource } from "./support/database";
 
@@ -86,14 +85,12 @@ test("중복 조회 실패는 저장과 추천 없이 재시도하고 실제 조
 	).toBeVisible();
 });
 
-async function findUnmatchedSource(page: Page, db: Awaited<ReturnType<typeof bookmarkOwner>>) {
-	const active = await db.from("bookmark_collections").select("*").is("archived_at", null);
-	expect(active.error).toBeNull();
+async function findUnsavedSource(page: Page, db: Awaited<ReturnType<typeof bookmarkOwner>>) {
 	const cards = page.getByTestId("thread-card");
 	await expect(cards.first()).toBeVisible();
 	for (let index = 0; index < (await cards.count()); index++) {
 		const candidate = await cards.nth(index).getAttribute("data-thread-url");
-		if (!candidate || collectionForHost(candidate, active.data ?? [])) continue;
+		if (!candidate) continue;
 		const existing = await db.rpc("bookmark_lookup", { p_url: candidate }).maybeSingle();
 		expect(existing.error).toBeNull();
 		if (!existing.data) return candidate;
@@ -104,21 +101,25 @@ async function findUnmatchedSource(page: Page, db: Awaited<ReturnType<typeof boo
 	return seeded.url;
 }
 
-test("호스트와 일치하는 컬렉션은 팝업에서 바로 선택되고 추천 클릭에도 유료 작업을 만들지 않는다", async ({
+test("AI 설정이 없으면 커뮤니티 출처 컬렉션을 선택하지 않고 수동 저장을 제공한다", async ({
 	page,
 }) => {
 	const db = await bookmarkOwner();
 	const before = await db.rpc("bookmark_ai_usage");
 	expect(before.error).toBeNull();
 	const seeded = await seedBookmarkUXSource("https://www.fmkorea.com/");
+	await page.route("**/api/trpc/**bookmarkImport.configuration**", missingAIConfiguration);
 	await page.goto("/main");
 	const card = page.locator(`[data-thread-url=${JSON.stringify(seeded.url)}]`);
 	await expect(card).toBeVisible();
 	await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 	const dialog = page.getByRole("alertdialog");
-	await expect(dialog.getByLabel("컬렉션", { exact: true })).toContainText("fmkorea");
-	await dialog.getByRole("button", { name: /다시 추천|요청 다시 확인/u }).click();
-	await expect(dialog.getByLabel("컬렉션", { exact: true })).toContainText("fmkorea");
+	await expect(dialog.getByText("AI 설정이 없어 수동으로 저장할 수 있습니다.")).toBeVisible();
+	await expect(dialog.getByLabel("컬렉션", { exact: true })).toHaveAttribute(
+		"data-collection-id",
+		""
+	);
+	await expect(dialog.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
 	await expect(dialog.getByRole("region", { name: "컬렉션 추천", exact: true })).toHaveCount(0);
 	await expect(dialog.getByRole("button", { name: "추천 적용", exact: true })).toHaveCount(0);
 	await dialog.getByRole("button", { name: "취소", exact: true }).click();
@@ -186,26 +187,19 @@ test("작업 기록의 추천 조회 실패는 조회만 재시도하고 실제 
 	expect((await db.rpc("bookmark_ai_usage")).data).toEqual(before.data);
 });
 
-test("컬렉션 조회가 실패한 뒤 늦게 복구돼도 호스트 추천은 유료 요청을 보내지 않는다", async ({
-	page,
-}) => {
+test("커뮤니티 글의 컬렉션 조회가 복구되면 서버 추천을 한 번 요청한다", async ({ page }) => {
 	const seeded = await seedBookmarkUXSource("https://www.fmkorea.com/");
-	let release = () => {};
-	const gate = new Promise<void>((resolve) => {
-		release = resolve;
-	});
-	let paidRequests = 0;
-	let firstCollection = true;
+	let recommendationRequests = 0;
+	let failCollections = true;
 	await page.route("**/api/trpc/**", async (route) => {
 		const url = route.request().url();
 		if (url.includes("bookmarkAI.recommend") && !url.includes("bookmarkAI.recommendation")) {
-			paidRequests++;
+			recommendationRequests++;
 			return route.abort();
 		}
 		if (!url.includes("bookmarkCollection.list")) return route.continue();
 		const response = await route.fetch();
-		if (firstCollection) {
-			firstCollection = false;
+		if (failCollections) {
 			const paths = new URL(url).pathname.split("/").pop()?.split(",") ?? [];
 			const body = await response.json();
 			body[paths.indexOf("bookmarkCollection.list")] = {
@@ -217,23 +211,25 @@ test("컬렉션 조회가 실패한 뒤 늦게 복구돼도 호스트 추천은 
 			};
 			return route.fulfill({ response, json: body });
 		}
-		await gate;
 		await route.fulfill({ response });
 	});
-	try {
-		await page.goto("/main");
-		await page
-			.locator(`[data-thread-url=${JSON.stringify(seeded.url)}]`)
-			.getByRole("button", { name: "Bookmark", exact: true })
-			.click();
-		const dialog = page.getByRole("alertdialog");
-		release();
-		await expect(dialog.getByLabel("컬렉션", { exact: true })).toContainText("fmkorea");
-		expect(paidRequests).toBe(0);
-		await dialog.getByRole("button", { name: "취소", exact: true }).click();
-	} finally {
-		release();
-	}
+	await page.goto("/main");
+	await page
+		.locator(`[data-thread-url=${JSON.stringify(seeded.url)}]`)
+		.getByRole("button", { name: "Bookmark", exact: true })
+		.click();
+	const dialog = page.getByRole("alertdialog");
+	const reload = dialog.getByRole("button", { name: "다시 불러오기", exact: true });
+	await expect(reload).toBeVisible();
+	expect(recommendationRequests).toBe(0);
+	failCollections = false;
+	await reload.click();
+	await expect.poll(() => recommendationRequests).toBe(1);
+	await expect(dialog.getByLabel("컬렉션", { exact: true })).toHaveAttribute(
+		"data-collection-id",
+		""
+	);
+	await dialog.getByRole("button", { name: "취소", exact: true }).click();
 });
 
 test("Main 저장 팝업은 자동 추천 뒤 컬렉션 트리의 수동 선택을 제공한다", async ({ page }) => {
@@ -408,7 +404,6 @@ for (const screen of ["Main", "Quick"]) {
 		const before = await db.rpc("bookmark_snapshot", { p_filter: { limit: 1 } });
 		expect(before.error).toBeNull();
 		const seeded = await seedBookmarkUXSource();
-		expect(collectionForHost(seeded.url, before.data.collections)).toBeNull();
 		await page.goto("/main");
 		const url = seeded.url;
 		const source = await db.from("threads").select("id,state").eq("url", url).single();
@@ -555,7 +550,7 @@ for (const failure of ["missing-key", "budget"] as const) {
 	test(`자동 추천 ${failure} 오류는 이유와 수동 저장 경로를 제공한다`, async ({ page }) => {
 		const db = await bookmarkOwner();
 		await page.goto("/main");
-		const url = await findUnmatchedSource(page, db);
+		const url = await findUnsavedSource(page, db);
 		const before = await db.rpc("bookmark_ai_usage");
 		let registrations = 0;
 		await page.route("**/api/trpc/**", async (route) => {

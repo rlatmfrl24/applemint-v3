@@ -24,6 +24,12 @@ const source = {
 	officialTitle: "공식 제목",
 	title: "수정 제목",
 };
+const sourceAnswer = {
+	type: "choice",
+	choice: "unknown",
+	confidence: 1,
+	probabilities: { community: 0, other: 0, unknown: 1 },
+};
 it("normalizes the draft title exactly as final saving does", () => {
 	const draft = bookmarkRecommendationInputSchema.parse({
 		threadId: "1",
@@ -56,6 +62,7 @@ it("settles known usage even if Jev returns a target outside the offered choices
 			model: "typesafe/jev-1.13-20260917",
 			usage: { input_tokens: 100, output_tokens: 20, cost: 0.0000042 },
 			answers: {
+				source: sourceAnswer,
 				collection: {
 					type: "choice",
 					choice: "missing",
@@ -116,6 +123,7 @@ it("returns the chosen collection version and model confidence without treating 
 			model: "typesafe/jev-1.13-20260917",
 			usage: { input_tokens: 250, output_tokens: 60, cost: 0.0000105 },
 			answers: {
+				source: sourceAnswer,
 				collection: {
 					type: "choice",
 					choice: collections[1].id,
@@ -177,6 +185,7 @@ it("rejects a choice that contradicts its probability distribution while settlin
 			model: "typesafe/jev-1.13-20260917",
 			usage: { input_tokens: 100, output_tokens: 20, cost: 0.0000042 },
 			answers: {
+				source: sourceAnswer,
 				collection: {
 					type: "choice",
 					choice: "unfiled",
@@ -200,3 +209,65 @@ it("rejects a choice that contradicts its probability distribution while settlin
 	expect(result.chargedNano).toBe(4200);
 	expect(result.outputError).toBe("COLLECTION_CHOICE_RANK");
 });
+
+it.each(["topic", "etc", "missing-etc", "duplicate-etc", "invalid-source"])(
+	"resolves a community recommendation for %s after validating the model response",
+	async (scenario) => {
+		vi.stubEnv("OPENROUTER_API_KEY", "fixture-only");
+		const folder = { ...collections[0], name: "arcalive" };
+		const topic = { ...collections[1], name: "블루 아카이브" };
+		const etc = {
+			id: "aaaaaaaa-0000-4000-8000-000000000003",
+			name: "Etc",
+			version: 4,
+			parent_id: null,
+		};
+		const active = [folder, topic];
+		if (scenario !== "missing-etc") active.push(etc);
+		if (scenario === "duplicate-etc")
+			active.push({ ...etc, id: "aaaaaaaa-0000-4000-8000-000000000004", parent_id: folder.id });
+		const request = buildRecommendationRequest(
+			{ ...source, url: "https://arca.live/b/bluearchive/1" },
+			active,
+			[]
+		);
+		expect(request.questions.collection.criteria).toEqual({
+			unfiled: "No existing collection fits this bookmark.",
+			[topic.id]: "arcalive / 블루 아카이브",
+		});
+		const chooseTopic = scenario === "topic";
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			Response.json({
+				model: "typesafe/jev-1.13-20260917",
+				usage: { input_tokens: 100, output_tokens: 20, cost: 0.0000042 },
+				answers: {
+					collection: {
+						type: "choice",
+						choice: chooseTopic ? topic.id : "unfiled",
+						confidence: 1,
+						probabilities: { [topic.id]: Number(chooseTopic), unfiled: Number(!chooseTopic) },
+					},
+					basis: {
+						type: "choice",
+						choice: "topic",
+						confidence: 1,
+						probabilities: { topic: 1, url: 0, uncertain: 0 },
+					},
+					source:
+						scenario === "invalid-source" ? { ...sourceAnswer, choice: "invalid" } : sourceAnswer,
+				},
+			})
+		);
+		const result = await callRecommendation(request, active);
+		expect(result.chargedNano).toBe(4200);
+		if (scenario === "invalid-source") {
+			expect(result).toMatchObject({ recommendation: null, outputError: "SOURCE_CHOICE_OPTIONS" });
+		} else {
+			const target = chooseTopic ? topic : scenario === "etc" ? etc : null;
+			expect(result.recommendation).toMatchObject({
+				collectionId: target?.id ?? null,
+				collectionVersion: target?.version ?? null,
+			});
+		}
+	}
+);

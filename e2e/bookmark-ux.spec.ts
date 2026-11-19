@@ -756,10 +756,14 @@ async function captureBookmarkQA(
 	}
 	await page.goto("/main");
 	const card = page.locator('[data-thread-url^="https://www.fmkorea.com/"]').first();
+	await page.route(/\/api\/trpc\/bookmarkAI\.recommend(?:\?|,|$)/u, (route) => route.abort());
 	await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 	const save = page.getByRole("alertdialog");
 	await expect(save.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
-	await expect(save.getByText("사이트 일치", { exact: true })).toBeVisible();
+	await expect(save.getByLabel("컬렉션", { exact: true })).toHaveAttribute(
+		"data-collection-id",
+		""
+	);
 	await page.screenshot({ path: `reports/qa-${viewport.width}-${theme}-save.png` });
 	await save.getByRole("button", { name: "취소", exact: true }).click();
 }

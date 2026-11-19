@@ -1,7 +1,6 @@
 "use client";
 import { type QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { collectionForHost } from "@/lib/bookmark-host";
 import { recommendationRequest, registerRecommendationOnce } from "@/lib/bookmark-save-request";
 import { useTRPCClient } from "@/trpc/client";
 import type { Source } from "./bookmark-save-form";
@@ -14,13 +13,11 @@ async function prepareRecommendation(
 	title: string,
 	renew: boolean
 ) {
-	const current = await cache.fetchQuery({
+	await cache.fetchQuery({
 		queryKey: ["bookmarks", "collections"],
 		queryFn: () => trpc.bookmarkCollection.list.query(),
 		staleTime: 0,
 	});
-	const match = collectionForHost(url, current);
-	if (match) return { collection: match };
 	const config = await cache.fetchQuery({
 		queryKey: ["bookmarks", "configuration"],
 		queryFn: () => trpc.bookmarkImport.configuration.query(),
@@ -102,10 +99,7 @@ export function useBookmarkSaveRecommendation(source: Source, recommendationId?:
 			try {
 				const result = await prepareRecommendation(cache, trpc, sourceId, sourceUrl, draft, renew);
 				if (generation.current !== currentGeneration) return;
-				if ("collection" in result) {
-					setSelection({ id: result.collection.id, version: result.collection.version });
-					setOrigin("사이트 일치");
-				} else setJobId(result.id);
+				setJobId(result.id);
 			} catch (error) {
 				if (generation.current === currentGeneration)
 					setMessage(

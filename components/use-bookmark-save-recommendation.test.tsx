@@ -25,10 +25,10 @@ afterEach(() => {
 	vi.useRealTimers();
 });
 
-function mount(recommendationId?: string) {
+function mount(recommendationId?: string, activeSource = source) {
 	const harness = queryHarness();
 	return {
-		...renderHook(() => useBookmarkSaveRecommendation(source, recommendationId), harness),
+		...renderHook(() => useBookmarkSaveRecommendation(activeSource, recommendationId), harness),
 		...harness,
 	};
 }
@@ -47,15 +47,19 @@ describe("bookmark save recommendation", () => {
 		});
 	});
 
-	it("selects an unambiguous site collection without requesting AI", async () => {
+	it("uses the server topic recommendation even with a matching community collection", async () => {
+		const communitySource = { ...source, url: "https://arca.live/b/bluearchive/123" };
 		backend.client.bookmarkCollection.list.query.mockResolvedValue([
-			{ ...collectionA, name: "example" },
+			{ ...collectionA, name: "arcalive" },
+			{ ...collectionB, name: "블루 아카이브" },
 		]);
-		backend.client.bookmarkImport.configuration.query.mockResolvedValue({ openrouter: false });
-		const { result } = mount();
-		await waitFor(() => expect(result.current.origin).toBe("사이트 일치"));
-		expect(result.current.selection).toEqual({ id: collectionA.id, version: collectionA.version });
-		expect(backend.client.bookmarkAI.recommend.mutate).not.toHaveBeenCalled();
+		backend.client.bookmarkAI.recommendation.query.mockResolvedValue(
+			recommendationStatus({ scope: { threadId: communitySource.id, ...communitySource } })
+		);
+		const { result } = mount(undefined, communitySource);
+		await waitFor(() => expect(result.current.applied).toBe(jobId));
+		expect(result.current.selection).toEqual({ id: collectionB.id, version: collectionB.version });
+		expect(backend.client.bookmarkAI.recommend.mutate).toHaveBeenCalledTimes(1);
 	});
 
 	it("allows manual selection when AI is not configured", async () => {
