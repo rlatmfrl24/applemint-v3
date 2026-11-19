@@ -32,6 +32,26 @@ it.each([" WWW.FMKOREA.COM ", "bbs.ruliweb.com"])(
 	}
 );
 
+it.each([
+	["DCInside", "https://gall.dcinside.com/mgallery/board/view/?id=bluearchive&no=123"],
+	["dogdrip", "https://www.dogdrip.net/123"],
+])(
+	"recognizes imported community source %s without offering its folder as a topic",
+	(name, url) => {
+		const sourceFolder = { ...arcalive, id: "imported-source", name };
+		const active = [...collections, sourceFolder];
+		expect(topicCollections(active)).toEqual([blueArchive]);
+		expect(() =>
+			resolveBookmarkTopicTarget(url, { ...noMatch, collectionId: sourceFolder.id }, active)
+		).toThrow("INVALID_TOPIC_COLLECTION");
+		expect(resolveBookmarkTopicTarget(url, noMatch, active)).toEqual({
+			kind: "etc",
+			etcScope: "community",
+			collection: communityEtc,
+		});
+	}
+);
+
 it("uses Community / etc for registered and evidenced community posts with a root etc present", () => {
 	expect(resolveBookmarkTopicTarget(arcaUrl, noMatch, collections)).toEqual({
 		kind: "etc",
@@ -47,16 +67,17 @@ it("uses Community / etc for registered and evidenced community posts with a roo
 	).toEqual({ kind: "etc", etcScope: "community", collection: communityEtc });
 });
 
-it.each(["https://arca.live.example.org/b/thread/1", "https://example.org/garden"])(
-	"uses the root etc when the source has no community evidence: %s",
-	(url) => {
-		expect(resolveBookmarkTopicTarget(url, noMatch, collections)).toEqual({
-			kind: "etc",
-			etcScope: "root",
-			collection: rootEtc,
-		});
-	}
-);
+it.each([
+	"https://arca.live.example.org/b/thread/1",
+	"https://dcinside.com.example.org/thread/1",
+	"https://example.org/garden",
+])("uses the root etc when the source has no community evidence: %s", (url) => {
+	expect(resolveBookmarkTopicTarget(url, noMatch, collections)).toEqual({
+		kind: "etc",
+		etcScope: "root",
+		collection: rootEtc,
+	});
+});
 
 it("withholds classification when its exact fallback path is missing or ambiguous", () => {
 	expect(resolveBookmarkTopicTarget(arcaUrl, noMatch, [community, rootEtc])).toEqual({
