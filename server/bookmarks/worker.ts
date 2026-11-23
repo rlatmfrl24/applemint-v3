@@ -233,7 +233,7 @@ function classificationDecision(
 ) {
 	if (!choice.sourceKind) throw new Error("MISSING_BOOKMARK_SOURCE_KIND");
 	const target = resolveBookmarkTopicTarget(
-		item.url,
+		item,
 		{ collectionId: choice.collectionId, sourceKind: choice.sourceKind },
 		collections
 	);
@@ -246,9 +246,10 @@ function classificationDecision(
 	if (scheduled && target.kind === "unfiled") return { reason: choice.reason };
 	if (scheduled && target.kind === "existing" && target.collection.id === item.collection_id)
 		return { reason: "이미 선택한 컬렉션에 속해 있습니다." };
-	const reason = isFallback
-		? `맞는 주제 컬렉션이 없어 ${path}로 이동을 제안했습니다.`
-		: choice.reason;
+	let reason = choice.reason;
+	if (isFallback) reason = `맞는 주제 컬렉션이 없어 ${path}로 이동을 제안했습니다.`;
+	if (target.kind === "existing" && target.titleMatch)
+		reason = `제목에서 ${target.collection.name} 주제를 확인해 이동을 제안했습니다.`;
 	return {
 		reason,
 		proposal: {
