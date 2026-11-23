@@ -5,6 +5,31 @@ test.beforeEach(async () => {
 	await clearThreadTables();
 });
 
+test("좁은 모바일 화면에서 모든 필터 칩을 끝까지 보고 선택한다", async ({ page }) => {
+	await page.setViewportSize({ width: 360, height: 800 });
+	await seedThreads("inbox", 12, { prefix: "mobile-normal" });
+	const [arcaliveThread] = await seedThreads("inbox", 1, {
+		prefix: "mobile-arcalive",
+		type: "arcalive",
+	});
+
+	await page.goto("/main");
+	const arcaliveFilter = page.getByRole("radio", { name: /^arcalive\s*1$/u });
+	const siteFilter = page.getByRole("radio", { name: /^e2e\.applemint\.local\s*12$/u });
+	await expect(arcaliveFilter).toBeInViewport({ ratio: 1 });
+	await expect(siteFilter).toBeInViewport({ ratio: 1 });
+
+	await arcaliveFilter.click();
+	await expect(arcaliveFilter).toBeChecked();
+	const cards = page.getByTestId("thread-card");
+	await expect(cards).toHaveCount(1);
+	await expect(cards.first()).toContainText(arcaliveThread.title);
+
+	await siteFilter.click();
+	await expect(siteFilter).toBeChecked();
+	await expect(cards).toHaveCount(12);
+});
+
 test("Inbox 페이지네이션과 Main → Quick → Trash → Main 복원을 검증한다", async ({ page }) => {
 	const threads = await seedThreads("inbox", 31, { prefix: "thread-workflow" });
 	const selectedThread = threads[0];
