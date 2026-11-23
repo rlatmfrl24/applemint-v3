@@ -7,7 +7,13 @@ export function QuickThread() {
 	return (
 		<ThreadInfiniteList
 			state="saved"
-			renderItem={(thread) => <DefaultThreadItem thread={thread} threadState="saved" />}
+			renderItem={(thread, bookmarkAvailability) => (
+				<DefaultThreadItem
+					thread={thread}
+					threadState="saved"
+					bookmarkAvailability={bookmarkAvailability}
+				/>
+			)}
 		/>
 	);
 }

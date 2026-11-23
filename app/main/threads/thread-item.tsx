@@ -6,6 +6,7 @@ import { ThreadCard } from "@/app/main/thread-card";
 import { BookmarkSaveDialog } from "@/components/bookmark-save-dialog";
 import { ThreadShareButton } from "@/components/thread-share-button";
 import { Button } from "@/components/ui/button";
+import type { BookmarkAvailability } from "@/lib/bookmark-links";
 import {
 	applyMoveThreadOptimisticUpdates,
 	invalidateThreadQueries,
@@ -24,11 +25,13 @@ export const DefaultThreadItem = ({
 	threadState,
 	extraButtons,
 	disablePrimaryAction,
+	bookmarkAvailability,
 }: {
 	thread: ThreadItemType;
 	threadState: Exclude<ThreadState, "trash">;
 	extraButtons?: React.ReactNode;
 	disablePrimaryAction?: boolean;
+	bookmarkAvailability?: BookmarkAvailability;
 }) => {
 	const trpc = useTRPCClient();
 	const queryClient = useQueryClient();
@@ -75,6 +78,7 @@ export const DefaultThreadItem = ({
 	return (
 		<ThreadCard
 			thread={thread}
+			showDescription={threadState !== "inbox"}
 			actions={
 				<>
 					{disablePrimaryAction ? null : (
@@ -95,6 +99,7 @@ export const DefaultThreadItem = ({
 					)}
 					{extraButtons}
 					<BookmarkSaveDialog
+						availability={bookmarkAvailability}
 						source={{
 							id: normalizeThreadId(thread.id),
 							url: thread.url,

@@ -6,9 +6,12 @@ import { Drawer as DrawerPrimitive } from "vaul";
 import {
 	BookmarkCollectionPicker,
 	bookmarkFieldClass,
+	bookmarkPickerActionsClass,
+	bookmarkPickerDialogClass,
 } from "@/components/bookmark-collection-picker";
 import {
 	AlertDialog,
+	AlertDialogCancel,
 	AlertDialogContent,
 	AlertDialogDescription,
 	AlertDialogHeader,
@@ -180,25 +183,36 @@ function BookmarkMoveForm({
 		move.mutate({ action: "move", items, collectionId }, { onSuccess: onDone });
 	}
 	return (
-		<form className="space-y-3" onSubmit={submit}>
-			<p className="break-words text-sm">
-				{items.length === 1
-					? item.title || item.url
-					: `선택한 북마크 ${items.length}개를 함께 이동합니다.`}
-			</p>
-			<label htmlFor={`${fieldId}collection`}>컬렉션</label>
-			<BookmarkCollectionPicker
-				id={`${fieldId}collection`}
-				name="collection"
-				collections={collections}
-				defaultValue={item.collection_id}
-				disabled={move.isPending}
-				onChange={() => setChosen(true)}
-			/>
-			<Button type="submit" disabled={move.isPending || !chosen}>
-				{move.isPending ? "이동 중…" : "이동"}
-			</Button>
-		</form>
+		<>
+			<form
+				id={fieldId}
+				className="min-h-0 space-y-3 overflow-y-auto overscroll-contain"
+				onSubmit={submit}
+			>
+				<p className="break-words text-sm">
+					{items.length === 1
+						? item.title || item.url
+						: `선택한 북마크 ${items.length}개를 함께 이동합니다.`}
+				</p>
+				<div className="space-y-1">
+					<label htmlFor={`${fieldId}collection`}>컬렉션</label>
+					<BookmarkCollectionPicker
+						id={`${fieldId}collection`}
+						name="collection"
+						collections={collections}
+						defaultValue={item.collection_id}
+						disabled={move.isPending}
+						onChange={() => setChosen(true)}
+					/>
+				</div>
+			</form>
+			<div className={bookmarkPickerActionsClass}>
+				<AlertDialogCancel className="mt-0">닫기</AlertDialogCancel>
+				<Button type="submit" form={fieldId} disabled={move.isPending || !chosen}>
+					{move.isPending ? "이동 중…" : "이동"}
+				</Button>
+			</div>
+		</>
 	);
 }
 
@@ -749,7 +763,7 @@ function SelectedBookmarkItemDialog({
 				}}
 			>
 				<AlertDialogContent
-					className="max-h-[85dvh] overflow-y-auto"
+					className={bookmarkPickerDialogClass}
 					onEscapeKeyDown={(event) => {
 						if ((event.target as HTMLElement).closest('[role="tree"]')) event.preventDefault();
 					}}
@@ -758,14 +772,16 @@ function SelectedBookmarkItemDialog({
 						restoreFocus();
 					}}
 				>
-					<AlertDialogHeader>
+					<AlertDialogHeader className="shrink-0">
 						<AlertDialogTitle>{title}</AlertDialogTitle>
 						<AlertDialogDescription>이동할 컬렉션을 선택하세요.</AlertDialogDescription>
 					</AlertDialogHeader>
 					{body}
-					<Button variant="ghost" onClick={dismiss}>
-						닫기
-					</Button>
+					{!item && (
+						<div className={bookmarkPickerActionsClass}>
+							<AlertDialogCancel className="mt-0">닫기</AlertDialogCancel>
+						</div>
+					)}
 				</AlertDialogContent>
 			</AlertDialog>
 		);

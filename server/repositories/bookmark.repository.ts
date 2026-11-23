@@ -50,6 +50,19 @@ export class BookmarkRepository {
 		};
 		return this.metrics?.measureRepository("bookmark.lookup", run) ?? run();
 	}
+	async savedUrlKeys(keys: string[]) {
+		const run = async () => {
+			const { data, error } = await this.supabase.rpc("bookmark_saved_url_keys", {
+				p_url_keys: keys,
+			});
+			if (error) throw mapPostgrestError(error, "북마크 저장 여부를 확인하지 못했습니다.");
+			const parsed = z.array(z.string()).safeParse(data);
+			if (!parsed.success)
+				throw unexpectedFailure("저장한 링크 조회 응답이 올바르지 않습니다.", parsed.error);
+			return parsed.data;
+		};
+		return this.metrics?.measureRepository("bookmark.savedUrlKeys", run) ?? run();
+	}
 
 	async snapshot(input: object) {
 		const run = async () => {

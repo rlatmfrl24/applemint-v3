@@ -180,10 +180,11 @@ export const ThreadList = () => {
 				filters={filterParams}
 				onInitialLoadSuccess={acknowledgeInbox}
 				emptyState={selection.kind === "all" ? <InboxEmptyState /> : undefined}
-				renderItem={(thread) => (
+				renderItem={(thread, bookmarkAvailability) => (
 					<DefaultThreadItem
 						thread={thread}
 						threadState="inbox"
+						bookmarkAvailability={bookmarkAvailability}
 						extraButtons={<QuickSaveButton thread={thread} />}
 					/>
 				)}

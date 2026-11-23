@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import {
 	BookmarkCollectionPicker,
 	bookmarkFieldClass,
+	bookmarkPickerActionsClass,
+	bookmarkPickerDialogClass,
 } from "@/components/bookmark-collection-picker";
 import {
 	AlertDialog,
@@ -123,7 +125,7 @@ export function BookmarkCollectionDialog({
 			}}
 		>
 			<AlertDialogContent
-				className="max-h-[85dvh] overflow-y-auto"
+				className={bookmarkPickerDialogClass}
 				onEscapeKeyDown={(event) => {
 					if ((event.target as HTMLElement).closest('[role="tree"]')) event.preventDefault();
 				}}
@@ -134,7 +136,7 @@ export function BookmarkCollectionDialog({
 					else document.getElementById("bookmark-collection-add")?.focus();
 				}}
 			>
-				<AlertDialogHeader>
+				<AlertDialogHeader className="shrink-0">
 					<AlertDialogTitle className="border-0 p-0 text-lg">{titles[mode]}</AlertDialogTitle>
 					<AlertDialogDescription>
 						{selection?.mode === "remove"
@@ -143,8 +145,9 @@ export function BookmarkCollectionDialog({
 					</AlertDialogDescription>
 				</AlertDialogHeader>
 				<form
+					id={fieldId}
 					key={`${selection?.mode}-${selection?.collection?.id}`}
-					className="min-w-0 space-y-4"
+					className="min-h-0 space-y-4 overflow-y-auto overscroll-contain"
 					onSubmit={submit}
 				>
 					{selection?.mode === "remove" ? (
@@ -217,17 +220,20 @@ export function BookmarkCollectionDialog({
 							)}
 						</>
 					)}
-					<div className="flex justify-end gap-2">
-						<AlertDialogCancel disabled={pending}>취소</AlertDialogCancel>
-						<Button
-							type="submit"
-							variant={selection?.mode === "remove" ? "destructive" : "default"}
-							disabled={pending}
-						>
-							{buttons[mode]}
-						</Button>
-					</div>
 				</form>
+				<div className={bookmarkPickerActionsClass}>
+					<AlertDialogCancel className="mt-0" disabled={pending}>
+						취소
+					</AlertDialogCancel>
+					<Button
+						type="submit"
+						form={fieldId}
+						variant={selection?.mode === "remove" ? "destructive" : "default"}
+						disabled={pending}
+					>
+						{buttons[mode]}
+					</Button>
+				</div>
 			</AlertDialogContent>
 		</AlertDialog>
 	);

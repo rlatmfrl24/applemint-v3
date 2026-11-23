@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import type { ThreadItemType } from "@/lib/type-defs";
 import { cn } from "@/lib/utils";
 import { MEDIA_CARD_LAYOUT_CLASS } from "./media-card-layout";
+import { ThreadCardTitle } from "./thread-card-title";
 
 function getThreadTitle(thread: ThreadItemType) {
 	return thread.title?.trim() || "Imgur 이미지";
@@ -39,7 +40,7 @@ export function ImgurThreadContent({
 			<div className={MEDIA_CARD_LAYOUT_CLASS}>
 				<div
 					data-testid="imgur-thumbnail"
-					className="group relative aspect-video w-full overflow-hidden rounded-md bg-zinc-100 dark:bg-zinc-900"
+					className="group relative z-10 aspect-video w-full overflow-hidden rounded-md bg-zinc-100 dark:bg-zinc-900"
 				>
 					<ImgurPreviewImage sourceUrl={thread.url} title={title} variant="thumbnail" />
 					<button
@@ -73,20 +74,12 @@ export function ImgurThreadContent({
 						) : null}
 						{meta}
 					</div>
-					<button
-						type="button"
-						aria-label={`${title} Imgur에서 열기`}
-						className="-mx-1 rounded-md px-1 py-0.5 text-left font-semibold text-[15px] leading-5 transition-colors hover:bg-zinc-100 hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 sm:text-base dark:focus-visible:ring-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
-						onClick={onOpen}
-						style={{
-							display: "-webkit-box",
-							WebkitBoxOrient: "vertical",
-							WebkitLineClamp: 2,
-							overflow: "hidden",
-						}}
-					>
-						{title}
-					</button>
+					<ThreadCardTitle
+						title={title}
+						label={`${title} Imgur에서 열기`}
+						onOpen={onOpen}
+						className="py-0.5"
+					/>
 					<div className="flex min-w-0 items-center gap-1.5 text-[11px] text-zinc-500 dark:text-zinc-400">
 						<Link2 aria-hidden="true" className="size-3 shrink-0" />
 						<span className="truncate">{thread.url}</span>
@@ -104,7 +97,7 @@ export function ImgurThreadContent({
 					id={previewId}
 					aria-label={`${title} Imgur 전체 미리보기`}
 					data-testid="imgur-full-preview"
-					className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800"
+					className="relative z-10 overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800"
 				>
 					<div className="flex items-center justify-between gap-2 border-zinc-200 border-b bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900">
 						<div className="flex min-w-0 items-center gap-2">

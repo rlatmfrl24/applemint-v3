@@ -7,16 +7,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getImgurEmbedTarget } from "@/lib/imgur-embed";
 import type { ThreadItemType } from "@/lib/type-defs";
 import { ImgurThreadContent } from "./imgur-embed-preview";
+import { ThreadCardTitle } from "./thread-card-title";
 import { YouTubeThreadContent } from "./youtube-thread-content";
 
 function DefaultThreadContent({
 	thread,
 	onOpen,
 	meta,
+	showDescription,
 }: {
 	thread: ThreadItemType;
 	onOpen: () => void;
 	meta?: React.ReactNode;
+	showDescription: boolean;
 }) {
 	return (
 		<div className="flex items-start gap-3" data-testid="default-thread-content">
@@ -32,24 +35,16 @@ function DefaultThreadContent({
 					) : null}
 					{meta}
 				</div>
-				<button
-					type="button"
-					className="-mx-1 w-full rounded-md px-1 py-1 text-left font-semibold text-[15px] leading-6 transition-colors hover:bg-zinc-100 hover:text-zinc-600 sm:text-base dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
-					onClick={onOpen}
-					style={{
-						display: "-webkit-box",
-						WebkitBoxOrient: "vertical",
-						WebkitLineClamp: 2,
-						overflow: "hidden",
-					}}
-				>
-					{thread.title || "Untitled"}
-				</button>
+				<ThreadCardTitle
+					title={thread.title || "Untitled"}
+					onOpen={onOpen}
+					className="py-1 leading-6"
+				/>
 				<div className="flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-zinc-400">
 					<Link2 className="size-3 shrink-0" />
 					<span className="truncate">{thread.url}</span>
 				</div>
-				{thread.description ? (
+				{showDescription && thread.description ? (
 					<p className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">
 						{thread.description}
 					</p>
@@ -63,10 +58,12 @@ export function ThreadCard({
 	thread,
 	actions,
 	meta,
+	showDescription = true,
 }: {
 	thread: ThreadItemType;
 	actions?: React.ReactNode;
 	meta?: React.ReactNode;
+	showDescription?: boolean;
 }) {
 	const [isImgurPreviewExpanded, setIsImgurPreviewExpanded] = useState(false);
 	const imgurEmbedTarget = useMemo(
@@ -79,7 +76,7 @@ export function ThreadCard({
 
 	return (
 		<Card
-			className="w-full border-zinc-200/80 shadow-none transition-colors duration-150 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700"
+			className="relative isolate w-full border-zinc-200/80 shadow-none transition-colors duration-150 hover:border-zinc-400/60 hover:bg-zinc-50 motion-reduce:transition-none dark:border-zinc-800 dark:hover:border-zinc-600/90 dark:hover:bg-zinc-900/60"
 			data-testid="thread-card"
 			data-thread-url={thread.url}
 		>
@@ -95,9 +92,18 @@ export function ThreadCard({
 						meta={meta}
 					/>
 				) : (
-					<DefaultThreadContent thread={thread} onOpen={handleOpen} meta={meta} />
+					<DefaultThreadContent
+						thread={thread}
+						onOpen={handleOpen}
+						meta={meta}
+						showDescription={showDescription}
+					/>
 				)}
-				{actions ? <div className="flex flex-wrap items-center gap-1.5">{actions}</div> : null}
+				{actions ? (
+					<div className="relative z-10 flex w-fit max-w-full flex-wrap items-center gap-1.5">
+						{actions}
+					</div>
+				) : null}
 			</CardContent>
 		</Card>
 	);

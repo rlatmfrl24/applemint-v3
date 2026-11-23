@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { getAllowedYouTubeThumbnailUrl } from "@/lib/media-preview";
 import type { ThreadItemType } from "@/lib/type-defs";
 import { MEDIA_CARD_LAYOUT_CLASS } from "./media-card-layout";
+import { ThreadCardTitle } from "./thread-card-title";
 
 type YouTubeCardStatus = "pending" | "ready" | "failed" | "unavailable" | "unsupported" | "legacy";
 
@@ -144,20 +145,12 @@ function YouTubePendingContent({
 					</Badge>
 					{meta}
 				</div>
-				<button
-					type="button"
-					aria-label={`${title} YouTube에서 열기`}
-					className="-mx-1 rounded-md px-1 py-0.5 text-left font-semibold text-[15px] leading-5 transition-colors hover:bg-zinc-100 hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 sm:text-base dark:focus-visible:ring-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
-					onClick={onOpen}
-					style={{
-						display: "-webkit-box",
-						WebkitBoxOrient: "vertical",
-						WebkitLineClamp: 2,
-						overflow: "hidden",
-					}}
-				>
-					{title}
-				</button>
+				<ThreadCardTitle
+					title={title}
+					label={`${title} YouTube에서 열기`}
+					onOpen={onOpen}
+					className="py-0.5"
+				/>
 				<div className="h-3.5 w-2/5 animate-pulse rounded bg-zinc-100 motion-reduce:animate-none dark:bg-zinc-900" />
 			</div>
 		</div>
@@ -236,20 +229,12 @@ export function YouTubeThreadContent({
 					) : null}
 					{meta}
 				</div>
-				<button
-					type="button"
-					aria-label={`${model.title} YouTube에서 열기`}
-					className="-mx-1 rounded-md px-1 py-0.5 text-left font-semibold text-[15px] leading-5 transition-colors hover:bg-zinc-100 hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 sm:text-base dark:focus-visible:ring-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
-					onClick={onOpen}
-					style={{
-						display: "-webkit-box",
-						WebkitBoxOrient: "vertical",
-						WebkitLineClamp: 2,
-						overflow: "hidden",
-					}}
-				>
-					{model.title}
-				</button>
+				<ThreadCardTitle
+					title={model.title}
+					label={`${model.title} YouTube에서 열기`}
+					onOpen={onOpen}
+					className="py-0.5"
+				/>
 				{model.metadata?.channel_title ? (
 					<div className="flex min-w-0 items-center gap-1 text-xs text-zinc-600 leading-4 dark:text-zinc-300">
 						<CirclePlay aria-hidden="true" className="size-3.5 shrink-0" />

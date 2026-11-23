@@ -1,5 +1,14 @@
 "use client";
-import { ChevronRight, Folder, FolderOpen, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import {
+	Bookmark,
+	Check,
+	ChevronRight,
+	Folders,
+	Inbox,
+	MoreHorizontal,
+	Plus,
+	Trash2,
+} from "lucide-react";
 import {
 	type DragEvent,
 	type HTMLAttributes,
@@ -9,6 +18,12 @@ import {
 	useState,
 } from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
+import treeStyles from "@/components/bookmark-tree.module.css";
+import {
+	BookmarkTreeDisclosure,
+	BookmarkTreeLabel,
+	bookmarkTreeLabelClass,
+} from "@/components/bookmark-tree-row";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent } from "@/components/ui/drawer";
 import {
@@ -142,29 +157,30 @@ function CollectionOrderActions({
 function CollectionLabel({
 	collection,
 	selected,
-	open,
+	containsSelection,
 	select,
 	path,
 }: {
 	collection: BookmarkCollection;
 	selected: boolean;
-	open: boolean;
+	containsSelection: boolean;
 	select: (id: string) => void;
 	path: string;
 }) {
-	const FolderIcon = open ? FolderOpen : Folder;
 	return (
 		<button
 			type="button"
 			data-collection-select
 			aria-current={selected ? "page" : undefined}
-			className="flex min-w-0 flex-1 items-center gap-2 py-2 text-left text-sm focus-visible:outline focus-visible:outline-ring"
+			aria-description={containsSelection ? "선택한 하위 컬렉션이 있습니다." : undefined}
+			className={bookmarkTreeLabelClass}
 			onClick={() => select(collection.id)}
 		>
-			<FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-			<span className="line-clamp-2 break-words" title={path}>
-				{collection.name}
-			</span>
+			<BookmarkTreeLabel
+				name={collection.name}
+				path={path}
+				marked={selected || containsSelection}
+			/>
 		</button>
 	);
 }
@@ -172,6 +188,7 @@ function CollectionNode({
 	collection,
 	props,
 	expanded,
+	ancestors,
 	toggle,
 	seen,
 	dropHandlers,
@@ -179,6 +196,7 @@ function CollectionNode({
 	collection: BookmarkCollection;
 	props: Props;
 	expanded: string[];
+	ancestors: ReadonlySet<string>;
 	toggle: (id: string) => void;
 	seen: Set<string>;
 	dropHandlers: (id: string | null) => DropHandlers;
@@ -192,13 +210,18 @@ function CollectionNode({
 	const children = collectionChildren(collection.id, props.collections).filter(
 		(c) => !seen.has(c.id)
 	);
-	const open = expanded.includes(collection.id);
+	const hasChildren = children.length > 0;
+	const open = hasChildren && expanded.includes(collection.id);
+	const selected = props.selected === collection.id;
+	const ancestor = ancestors.has(collection.id);
+	const containsSelection = ancestor && !open;
 	const drop = dropHandlers(collection.id);
 	const source =
 		props.dragged?.kind === "collection" && props.dragged.collection.id === collection.id;
 	return (
 		<li
-			className={styles.branch}
+			className={`${styles.branch} ${treeStyles.branch}`}
+			data-expanded={open}
 			data-insertion={
 				drop["data-drop-state"] === "valid" && drop["data-drop-position"] !== "inside"
 					? drop["data-drop-position"]
@@ -209,6 +232,10 @@ function CollectionNode({
 				aria-label={`${collection.name} 컬렉션`}
 				{...drop}
 				data-collection-id={collection.id}
+				data-current={selected}
+				data-ancestor={ancestor}
+				data-hidden-current={containsSelection}
+				data-parent-node={hasChildren}
 				draggable={!props.moving}
 				onDragStart={(event) => {
 					event.stopPropagation();
@@ -216,27 +243,17 @@ function CollectionNode({
 				}}
 				onDragEnd={props.endDrag}
 				style={{ ...drop.style, opacity: source ? 0.45 : undefined }}
-				className={`group flex min-h-9 min-w-0 items-center rounded-md ${drop["data-drop-state"] === "valid" && drop["data-drop-position"] === "inside" ? "bg-accent" : ""} ${props.selected === collection.id ? "bg-accent text-accent-foreground" : "hover:bg-muted/70"}`}
+				className={treeStyles.collectionRow}
 			>
-				{children.length > 0 ? (
-					<button
-						type="button"
-						className="grid size-8 shrink-0 place-items-center rounded focus-visible:outline focus-visible:outline-ring"
-						aria-label={`${collection.name} 하위 컬렉션 ${open ? "접기" : "펼치기"}`}
-						aria-expanded={open}
-						onClick={() => toggle(collection.id)}
-					>
-						<ChevronRight
-							className={`size-3.5 motion-safe:transition-transform ${open ? "rotate-90" : ""}`}
-						/>
-					</button>
-				) : (
-					<span className="w-8 shrink-0" />
-				)}
+				<BookmarkTreeDisclosure
+					name={collection.name}
+					expanded={hasChildren ? open : undefined}
+					onClick={() => toggle(collection.id)}
+				/>
 				<CollectionLabel
 					collection={collection}
-					selected={props.selected === collection.id}
-					open={open}
+					selected={selected}
+					containsSelection={containsSelection}
 					select={props.select}
 					path={collectionPath(collection.id, props.collections)}
 				/>
@@ -247,10 +264,10 @@ function CollectionNode({
 							disabled={props.moving}
 							variant="ghost"
 							size="icon"
-							className="size-7 shrink-0"
+							className={`${treeStyles.rowControl} ${treeStyles.rowMenu}`}
 							aria-label={`${collection.name} 메뉴`}
 						>
-							<MoreHorizontal className="size-3.5" />
+							<MoreHorizontal className="size-4" aria-hidden="true" />
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent
@@ -320,14 +337,15 @@ function CollectionNode({
 					</DropdownMenuContent>
 				</DropdownMenu>
 			</fieldset>
-			{open && children.length > 0 && (
-				<ul className={`${seen.size < 5 ? "ml-3" : ""} border-border border-l pl-1`}>
+			{open && (
+				<ul className={seen.size < 5 ? treeStyles.children : undefined}>
 					{children.map((child) => (
 						<CollectionNode
 							key={child.id}
 							collection={child}
 							props={props}
 							expanded={expanded}
+							ancestors={ancestors}
 							toggle={toggle}
 							seen={new Set([...seen, child.id])}
 							dropHandlers={dropHandlers}
@@ -424,7 +442,8 @@ export function BookmarkCollectionTree(props: Props) {
 		if (id) setExpanded((previous) => [...new Set([...previous, id])]);
 		props.move(id);
 	}
-	const ancestors = collectionAncestors(props.selected, props.collections).join(",");
+	const selectedAncestors = new Set(collectionAncestors(props.selected, props.collections));
+	const ancestors = [...selectedAncestors].join(",");
 	useEffect(() => {
 		try {
 			const stored: unknown = JSON.parse(
@@ -449,39 +468,43 @@ export function BookmarkCollectionTree(props: Props) {
 			id="bookmark-collection-navigation"
 			aria-label="북마크 탐색"
 			data-open={mobile ? mobileOpen : true}
-			className={`${styles.navigation} text-sm`}
+			className={`${styles.navigation} ${treeStyles.theme} text-sm`}
 		>
 			{[
-				{ id: "all", label: "전체 북마크" },
-				{ id: "", label: "미분류" },
-				{ id: "trash", label: "휴지통" },
-			].map((entry) => (
+				{ id: "all", label: "전체 북마크", Icon: Bookmark },
+				{ id: "", label: "미분류", Icon: Inbox },
+				{ id: "trash", label: "휴지통", Icon: Trash2 },
+			].map(({ id, label, Icon }) => (
 				<button
-					key={entry.id}
-					{...(entry.id === "" && props.dragged?.kind === "bookmarks" ? dropHandlers(null) : {})}
+					key={id}
+					{...(id === "" && props.dragged?.kind === "bookmarks" ? dropHandlers(null) : {})}
 					type="button"
-					aria-current={props.selected === entry.id ? "page" : undefined}
-					className={`mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left focus-visible:outline focus-visible:outline-ring ${props.dragged?.kind === "bookmarks" && dropTarget?.id === null && entry.id === "" ? "bg-accent" : ""} ${props.selected === entry.id ? "bg-accent font-medium" : "hover:bg-muted/70"}`}
-					onClick={() => select(entry.id)}
+					aria-current={props.selected === id ? "page" : undefined}
+					className={`${treeStyles.navEntry} flex w-full items-center gap-2.5 rounded-md px-3 py-1.5 text-left focus-visible:outline focus-visible:outline-ring`}
+					onClick={() => select(id)}
 				>
-					{entry.id === "trash" && <Trash2 className="size-3.5" aria-hidden="true" />}
-					{entry.label}
+					<Icon className="size-4 shrink-0" aria-hidden="true" />
+					{label}
+					{props.selected === id && (
+						<Check
+							className={`${treeStyles.currentMark} ml-auto size-3.5 shrink-0`}
+							aria-hidden="true"
+						/>
+					)}
 				</button>
 			))}
-			<section
-				aria-labelledby="bookmark-collections-heading"
-				className={`${styles.collections} mt-3 border-t pt-3`}
-			>
+			<section aria-labelledby="bookmark-collections-heading" className={styles.collections}>
 				<section
 					aria-label="최상위 컬렉션 이동 영역"
 					{...(props.dragged?.kind === "collection" ? dropHandlers(null) : {})}
-					className={`${styles.rootTarget} flex items-center justify-between rounded-md bg-background pl-3`}
+					className={`${styles.rootTarget} flex items-center justify-between rounded-md pl-2.5`}
 					title="컬렉션을 여기에 놓으면 최상위로 이동합니다."
 				>
 					<h2
 						id="bookmark-collections-heading"
-						className="m-0 border-0 p-0 font-medium text-muted-foreground text-xs"
+						className="m-0 flex items-center gap-2 border-0 p-0 font-semibold text-muted-foreground text-xs"
 					>
+						<Folders className="size-3.5 shrink-0" aria-hidden="true" />
 						{props.dragged?.kind === "collection" ? "최상위로 이동" : "컬렉션"}
 					</h2>
 					<Button
@@ -526,7 +549,7 @@ export function BookmarkCollectionTree(props: Props) {
 							))}
 						</div>
 					)}
-					<ul className="mt-1">
+					<ul className={treeStyles.roots}>
 						{collectionChildren(null, props.collections).map((collection) => (
 							<CollectionNode
 								key={collection.id}
@@ -540,6 +563,7 @@ export function BookmarkCollectionTree(props: Props) {
 									},
 								}}
 								expanded={expanded}
+								ancestors={selectedAncestors}
 								toggle={(id) =>
 									setExpanded((previous) =>
 										previous.includes(id)
@@ -603,15 +627,14 @@ function DragStatus({
 	target: DropTarget | undefined;
 	collections: BookmarkCollection[];
 }) {
-	const message = !dragged
-		? "사이: 순서 변경 · 가운데: 하위 이동"
-		: dragged.kind === "bookmarks"
+	const message =
+		dragged?.kind === "bookmarks"
 			? `북마크 ${dragged.items.length}개 · ${target === undefined ? "컬렉션 또는 미분류에 놓아 이동" : `${collectionPath(target.id, collections)}로 이동`}`
-			: collectionDragMessage(dragged.collection, target, collections);
+			: dragged && collectionDragMessage(dragged.collection, target, collections);
 	return (
 		<p
 			role="status"
-			title={message}
+			title={message ?? undefined}
 			className={`${styles.dragStatus} break-words px-3 text-muted-foreground text-xs`}
 		>
 			{message}
