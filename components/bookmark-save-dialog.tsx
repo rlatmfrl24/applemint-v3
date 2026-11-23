@@ -1,7 +1,9 @@
 "use client";
-import { Bookmark } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Bookmark, BookmarkCheck } from "lucide-react";
 import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useTRPCClient } from "@/trpc/client";
 import type { Source } from "./bookmark-save-form";
 import { useBookmarkDialogMotion } from "./use-bookmark-dialog-motion";
 
@@ -26,7 +28,7 @@ function SaveLoading({ close, openedAt }: { close: () => void; openedAt: number 
 				event.preventDefault();
 				dismiss();
 			}}
-			className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-lg space-y-4 rounded-lg border bg-background p-6 text-foreground shadow-lg backdrop:bg-black/80"
+			className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-lg space-y-4 rounded-lg border bg-background p-6 text-foreground shadow-lg backdrop:bg-black/80 max-sm:top-auto max-sm:mb-0 max-sm:w-full max-sm:rounded-t-xl max-sm:rounded-b-none max-sm:p-4 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]"
 		>
 			<h2 id={title} className="m-0 border-0 p-0 font-semibold text-lg">
 				북마크 저장
@@ -39,7 +41,7 @@ function SaveLoading({ close, openedAt }: { close: () => void; openedAt: number 
 				<div className="h-10 rounded-md bg-muted" />
 				<div className="h-10 rounded-md bg-muted" />
 			</div>
-			<Button variant="outline" onClick={dismiss}>
+			<Button variant="outline" className="min-h-11 max-sm:w-full" onClick={dismiss}>
 				취소
 			</Button>
 		</dialog>
@@ -49,26 +51,68 @@ function SaveLoading({ close, openedAt }: { close: () => void; openedAt: number 
 export function BookmarkSaveDialog({
 	source,
 	recommendationId,
+	bookmarkUrls,
 }: {
 	source: Source;
 	recommendationId?: string;
+	bookmarkUrls?: string[];
 }) {
+	const trpc = useTRPCClient();
+	const savedLinks = useQuery({
+		// The cards on a page share this query and select their own saved state.
+		queryKey: ["bookmarks", "saved-links", bookmarkUrls],
+		queryFn: ({ signal }) =>
+			trpc.bookmark.savedLinks.query({ urls: bookmarkUrls ?? [] }, { signal }),
+		enabled: bookmarkUrls !== undefined,
+		select: (urls) => urls.includes(source.url),
+		staleTime: 30_000,
+		refetchOnWindowFocus: "always",
+		retry: false,
+	});
 	const [openedAt, setOpenedAt] = useState<number | null>(null);
 	const [ready, setReady] = useState(false);
+	const [tooltipDismissed, setTooltipDismissed] = useState(false);
+	const tooltipId = useId();
 	const trigger = useRef<HTMLButtonElement>(null);
+	const saved = savedLinks.data ?? false;
+	const BookmarkIcon = saved ? BookmarkCheck : Bookmark;
 	useEffect(() => setReady(true), []);
 	return (
 		<>
-			<Button
-				ref={trigger}
-				variant="outline"
-				size="sm"
-				disabled={!ready}
-				onClick={() => setOpenedAt(performance.now())}
-			>
-				<Bookmark aria-hidden="true" className="mr-1 size-3.5" />
-				{recommendationId ? "Review & Save" : "Bookmark"}
-			</Button>
+			<span className="group/bookmark-trigger relative inline-flex">
+				<Button
+					ref={trigger}
+					variant="outline"
+					size="sm"
+					className="aria-disabled:cursor-default aria-disabled:opacity-55"
+					disabled={!ready || (bookmarkUrls !== undefined && savedLinks.isPending)}
+					aria-disabled={saved || undefined}
+					aria-describedby={saved ? tooltipId : undefined}
+					onMouseEnter={() => setTooltipDismissed(false)}
+					onFocus={() => setTooltipDismissed(false)}
+					onKeyDown={(event) => {
+						if (saved && event.key === "Escape") setTooltipDismissed(true);
+					}}
+					onClick={() => {
+						if (!saved) setOpenedAt(performance.now());
+					}}
+				>
+					<BookmarkIcon aria-hidden="true" className="mr-1 size-3.5" />
+					{recommendationId ? "Review & Save" : "Bookmark"}
+				</Button>
+				{saved && (
+					<span
+						id={tooltipId}
+						role="tooltip"
+						hidden={tooltipDismissed}
+						className="invisible absolute bottom-full left-0 z-20 pb-1 group-focus-within/bookmark-trigger:visible group-hover/bookmark-trigger:visible"
+					>
+						<span className="block whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-popover-foreground text-xs shadow-sm">
+							이미 북마크에 저장됨
+						</span>
+					</span>
+				)}
+			</span>
 			{openedAt !== null && (
 				<Suspense
 					fallback={

@@ -62,6 +62,7 @@ test("작업 기록의 이미 저장된 링크는 추천 조회 없이 기존 �
 });
 
 test("중복 조회 실패는 저장과 추천 없이 재시도하고 실제 조회 결과로 안내한다", async ({ page }) => {
+	const source = await seedBookmarkUXSource();
 	await page.goto("/main");
 	let attempts = 0;
 	const aiRequests: string[] = [];
@@ -71,7 +72,7 @@ test("중복 조회 실패는 저장과 추천 없이 재시도하고 실제 조
 	await page.route("**/api/trpc/bookmark.lookup**", (route) =>
 		++attempts === 1 ? route.abort() : route.continue()
 	);
-	const card = page.getByTestId("thread-card").first();
+	const card = page.locator(`[data-thread-url=${JSON.stringify(source.url)}]`);
 	await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 	const dialog = page.getByRole("alertdialog");
 	await expect(dialog.getByRole("alert")).toBeVisible();

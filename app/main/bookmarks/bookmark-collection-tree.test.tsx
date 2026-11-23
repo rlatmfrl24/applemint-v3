@@ -99,6 +99,10 @@ describe("BookmarkCollectionTree", () => {
 		sessionStorage.setItem("bookmark-collection-expansion", JSON.stringify(["personal", 123]));
 		setup({ selected: "react" });
 		expect(screen.getByRole("button", { name: "React" }).getAttribute("aria-current")).toBe("page");
+		expect(target("React").getAttribute("data-current")).toBe("true");
+		expect(target("Work").getAttribute("data-ancestor")).toBe("true");
+		expect(target("Guides").getAttribute("data-ancestor")).toBe("true");
+		expect(target("Personal").getAttribute("data-ancestor")).toBe("false");
 		expect(JSON.parse(sessionStorage.getItem("bookmark-collection-expansion") ?? "[]")).toEqual([
 			"personal",
 			"guides",
@@ -106,6 +110,9 @@ describe("BookmarkCollectionTree", () => {
 		]);
 		fireEvent.click(screen.getByRole("button", { name: "Guides 하위 컬렉션 접기" }));
 		expect(screen.queryByRole("button", { name: "React" })).toBeNull();
+		expect(target("Guides").getAttribute("data-hidden-current")).toBe("true");
+		expect(target("Work").getAttribute("data-hidden-current")).toBe("false");
+		expect(screen.getByRole("button", { name: "Guides" }).getAttribute("aria-current")).toBeNull();
 		expect(JSON.parse(sessionStorage.getItem("bookmark-collection-expansion") ?? "[]")).toEqual([
 			"personal",
 			"work",

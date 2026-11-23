@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { bookmarkUrlLimit } from "@/lib/bookmark-links";
 import { bookmarkHealthEvidenceSchema } from "./bookmark-health.schema";
 
 const id = z.uuid();
@@ -148,7 +149,7 @@ export const bookmarkListInputSchema = z.object({
 	limit: z.number().int().min(1).max(100).default(50),
 });
 export const bookmarkSaveInputSchema = z.object({
-	url: z.string().trim().min(1).max(8192),
+	url: z.string().trim().min(1).max(bookmarkUrlLimit),
 	title: z.string().trim().max(1000).default(""),
 	collectionId: id.nullable().optional(),
 	collectionVersion: z.number().int().positive().optional(),
@@ -163,6 +164,9 @@ export const bookmarkSaveInputSchema = z.object({
 export const bookmarkLookupInputSchema = bookmarkSaveInputSchema.pick({
 	url: true,
 	threadId: true,
+});
+export const bookmarkSavedLinksInputSchema = z.object({
+	urls: z.array(z.string().min(1).max(bookmarkUrlLimit)).min(1).max(100),
 });
 export const bookmarkLookupSchema = bookmarkSchema.pick({
 	id: true,

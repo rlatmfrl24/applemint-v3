@@ -15,12 +15,18 @@ import { Button } from "@/components/ui/button";
 import type { BookmarkItem } from "@/contracts/bookmark.schema";
 import { bookmarkItemLocation } from "@/lib/bookmark-list";
 import { useTRPCClient } from "@/trpc/client";
-import { BookmarkCollectionPicker, bookmarkFieldClass } from "./bookmark-collection-picker";
+import {
+	BookmarkCollectionPicker,
+	bookmarkPickerActionsClass,
+	bookmarkPickerDialogClass,
+} from "./bookmark-collection-picker";
 import { useBookmarkDialogMotion } from "./use-bookmark-dialog-motion";
 import { useBookmarkSaveRecommendation } from "./use-bookmark-save-recommendation";
 
 export type Source = { id: string; url: string; title: string };
 type ExistingBookmark = Pick<BookmarkItem, "id" | "url" | "title" | "state">;
+const saveFieldClass =
+	"min-h-11 w-full min-w-0 rounded-md border bg-background px-2.5 py-1.5 text-base sm:min-h-9 sm:text-sm";
 function savedMessage(result: { existing: boolean; item: { state: string } }) {
 	if (!result.existing) return "북마크를 저장했습니다.";
 	return result.item.state === "trash"
@@ -77,8 +83,8 @@ function BookmarkLookupResult({
 		);
 	return (
 		<>
-			{message}
-			<div className="flex justify-end gap-2">
+			<div className="min-h-0 overflow-y-auto">{message}</div>
+			<div className={bookmarkPickerActionsClass}>
 				<Button ref={closeButton} type="button" variant="ghost" onClick={close}>
 					닫기
 				</Button>
@@ -104,27 +110,24 @@ function BookmarkLookupResult({
 }
 function RecommendationFeedback({
 	busy,
-	origin,
 	error,
 	retry,
 }: {
 	busy: boolean;
-	origin?: string;
 	error?: string;
 	retry?: () => void;
 }) {
 	return (
 		<>
-			{busy ? (
-				<p role="status" className="mt-2 flex items-center gap-2 text-muted-foreground text-xs">
+			{busy && (
+				<p
+					role="status"
+					className="m-0 mt-1.5 flex items-center gap-2 text-muted-foreground text-xs"
+				>
 					<Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
 					저장할 컬렉션을 추천하고 있어요
 				</p>
-			) : origin ? (
-				<p role="status" className="mt-2 text-muted-foreground text-xs">
-					{origin}
-				</p>
-			) : null}
+			)}
 			{error && (
 				<div role="alert" className="mt-2 text-destructive text-xs">
 					<p className="m-0">{error}</p>
@@ -155,7 +158,11 @@ function BookmarkSaveForm({
 	const cache = useQueryClient();
 	const fieldId = useId();
 	const titleInput = useRef<HTMLInputElement>(null);
-	useEffect(() => titleInput.current?.focus(), []);
+	const cancelButton = useRef<HTMLButtonElement>(null);
+	useEffect(() => {
+		const touchLayout = window.matchMedia?.("(max-width: 639px), (pointer: coarse)").matches;
+		(touchLayout ? cancelButton.current : titleInput.current)?.focus({ preventScroll: true });
+	}, []);
 	const {
 		collections,
 		config,
@@ -203,133 +210,149 @@ function BookmarkSaveForm({
 	const locked = save.isPending || busy;
 	const error = save.error?.message ?? message ?? recommendation.error?.message;
 	return (
-		<form
-			className="space-y-3"
-			onSubmit={(event) => {
-				event.preventDefault();
-				if (locked) return;
-				const data = new FormData(event.currentTarget);
-				save.mutate({
-					url: source.url,
-					title,
-					collectionId: selection.id,
-					collectionVersion: selection.version,
-					recommendationId: applied,
-					tags: String(data.get("tags") ?? "")
-						.split(",")
-						.map((tag) => tag.trim())
-						.filter(Boolean),
-					note: String(data.get("note") ?? ""),
-					threadId: source.id,
-				});
-			}}
-		>
-			<label className="block space-y-1" htmlFor={`${fieldId}url`}>
-				<span>URL</span>
+		<>
+			<form
+				id={fieldId}
+				className="grid min-h-0 grid-cols-[3rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2 overflow-y-auto overscroll-contain"
+				onSubmit={(event) => {
+					event.preventDefault();
+					if (locked) return;
+					const data = new FormData(event.currentTarget);
+					save.mutate({
+						url: source.url,
+						title,
+						collectionId: selection.id,
+						collectionVersion: selection.version,
+						recommendationId: applied,
+						tags: String(data.get("tags") ?? "")
+							.split(",")
+							.map((tag) => tag.trim())
+							.filter(Boolean),
+						note: String(data.get("note") ?? ""),
+						threadId: source.id,
+					});
+				}}
+			>
+				<label className="font-medium text-sm" htmlFor={`${fieldId}title`}>
+					제목
+				</label>
 				<input
-					className={bookmarkFieldClass}
-					id={`${fieldId}url`}
-					type="url"
-					value={source.url}
-					readOnly
-				/>
-			</label>
-			<label className="block space-y-1" htmlFor={`${fieldId}title`}>
-				<span>제목 (선택)</span>
-				<input
-					className={bookmarkFieldClass}
+					className={saveFieldClass}
 					id={`${fieldId}title`}
+					aria-label="제목 (선택)"
 					ref={titleInput}
 					maxLength={1000}
 					value={title}
 					disabled={save.isPending}
-					onChange={(event) => {
-						changeTitle(event.target.value);
-					}}
+					onChange={(event) => changeTitle(event.target.value)}
 				/>
-			</label>
-			<div className="flex items-center justify-between gap-2">
-				<label htmlFor={`${fieldId}collection`}>컬렉션</label>
-				<Button
-					type="button"
-					variant="ghost"
-					size="sm"
-					disabled={locked || !config.data?.openrouter}
-					onClick={() => void start(Boolean(jobId || origin))}
-				>
-					{error && !jobId ? "요청 다시 확인" : "다시 추천"}
-				</Button>
-			</div>
-			<div aria-busy={busy}>
-				<BookmarkCollectionPicker
-					id={`${fieldId}collection`}
-					name="collection"
-					collections={collections.data ?? []}
-					defaultValue={null}
-					value={selection.id}
-					disabled={locked}
-					onChange={choose}
+				<label className="text-muted-foreground text-sm" htmlFor={`${fieldId}url`}>
+					URL
+				</label>
+				<input
+					className={`${saveFieldClass} text-muted-foreground`}
+					id={`${fieldId}url`}
+					type="url"
+					value={source.url}
+					title={source.url}
+					readOnly
 				/>
-				<RecommendationFeedback
-					busy={busy}
-					origin={origin}
-					error={error}
-					retry={
-						recommendation.error
-							? () => {
-									void recommendation.refetch();
-								}
-							: undefined
-					}
-				/>
-			</div>
-			{collections.error && (
-				<p role="alert" className="text-destructive text-xs">
-					컬렉션을 불러오지 못했습니다. 다시 불러오거나 미분류로 저장할 수 있습니다.
-					<Button type="button" size="sm" variant="ghost" onClick={() => void start()}>
-						다시 불러오기
-					</Button>
-				</p>
-			)}
-			{slow && busy && (
-				<Button type="button" variant="outline" size="sm" onClick={useManual}>
-					기다리지 않고 직접 선택
-				</Button>
-			)}
-			<details className="rounded-md border p-3">
-				<summary className="min-h-8 cursor-pointer text-sm">추가 정보 · 태그와 메모</summary>
-				<div className="mt-3 space-y-3">
-					<label className="block space-y-1" htmlFor={`${fieldId}tags`}>
-						<span>태그 (쉼표로 구분)</span>
-						<input
-							className={bookmarkFieldClass}
-							id={`${fieldId}tags`}
-							name="tags"
-							disabled={save.isPending}
+				<div className="col-span-2 min-w-0 space-y-1">
+					<div className="flex items-center gap-2">
+						<label className="font-medium text-sm" htmlFor={`${fieldId}collection`}>
+							컬렉션
+						</label>
+						{!busy && origin && (
+							<span role="status" className="text-muted-foreground text-xs">
+								{origin}
+							</span>
+						)}
+						<Button
+							className="ml-auto min-h-11 px-2 sm:h-8 sm:min-h-8"
+							type="button"
+							variant="ghost"
+							size="sm"
+							disabled={locked || !config.data?.openrouter}
+							onClick={() => void start(Boolean(jobId || origin))}
+						>
+							{error && !jobId ? "요청 다시 확인" : "다시 추천"}
+						</Button>
+					</div>
+					<div aria-busy={busy}>
+						<BookmarkCollectionPicker
+							id={`${fieldId}collection`}
+							name="collection"
+							collections={collections.data ?? []}
+							defaultValue={null}
+							value={selection.id}
+							searchable={false}
+							disabled={locked}
+							onChange={choose}
 						/>
-					</label>
-					<label className="block space-y-1" htmlFor={`${fieldId}note`}>
-						<span>메모</span>
-						<textarea
-							className={bookmarkFieldClass}
-							id={`${fieldId}note`}
-							name="note"
-							maxLength={20000}
-							rows={3}
-							disabled={save.isPending}
+						<RecommendationFeedback
+							busy={busy}
+							error={error}
+							retry={recommendation.error ? () => void recommendation.refetch() : undefined}
 						/>
-					</label>
+					</div>
 				</div>
-			</details>
-			<div className="sticky bottom-0 flex justify-end gap-2 border-t bg-background pt-3">
-				<Button variant="ghost" type="button" disabled={save.isPending} onClick={close}>
+				{collections.error && (
+					<p role="alert" className="col-span-2 m-0 text-destructive text-xs">
+						컬렉션을 불러오지 못했습니다. 다시 불러오거나 미분류로 저장할 수 있습니다.
+						<Button type="button" size="sm" variant="ghost" onClick={() => void start()}>
+							다시 불러오기
+						</Button>
+					</p>
+				)}
+				{slow && busy && (
+					<Button
+						className="col-span-2 justify-self-start"
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={useManual}
+					>
+						기다리지 않고 직접 선택
+					</Button>
+				)}
+				<label className="font-medium text-sm" htmlFor={`${fieldId}tags`}>
+					태그
+				</label>
+				<input
+					className={saveFieldClass}
+					id={`${fieldId}tags`}
+					aria-label="태그 (쉼표로 구분)"
+					name="tags"
+					placeholder="쉼표로 구분"
+					disabled={save.isPending}
+				/>
+				<label className="self-start pt-2 font-medium text-sm" htmlFor={`${fieldId}note`}>
+					메모
+				</label>
+				<textarea
+					className={`${saveFieldClass} resize-y`}
+					id={`${fieldId}note`}
+					name="note"
+					maxLength={20000}
+					rows={2}
+					disabled={save.isPending}
+				/>
+			</form>
+			<div className={bookmarkPickerActionsClass}>
+				<Button
+					ref={cancelButton}
+					variant="outline"
+					type="button"
+					disabled={save.isPending}
+					onClick={close}
+				>
 					취소
 				</Button>
-				<Button type="submit" disabled={locked}>
+				<Button type="submit" form={fieldId} disabled={locked}>
 					{save.isPending ? "저장 중…" : "저장"}
 				</Button>
 			</div>
-		</form>
+		</>
 	);
 }
 
@@ -354,6 +377,7 @@ export default function BookmarkSaveRoot(props: {
 	});
 	const checking = lookup.isPending || lookup.isFetching;
 	const existing = lookup.data;
+	const showLookupResult = checking || lookup.isError || Boolean(existing);
 	const [saving, setSaving] = useState(false);
 	const closeButton = useRef<HTMLButtonElement>(null);
 	const { content, overlay, dismiss } = useBookmarkDialogMotion<HTMLDivElement>(
@@ -371,7 +395,7 @@ export default function BookmarkSaveRoot(props: {
 				ref={content}
 				overlayRef={overlay}
 				overlayClassName="animate-none!"
-				className="max-h-[90dvh] animate-none! overflow-y-auto pb-[max(24px,env(safe-area-inset-bottom))]"
+				className={`${bookmarkPickerDialogClass} animate-none! gap-3 sm:px-5 sm:pt-4 sm:pb-4`}
 				onOpenAutoFocus={(event) => {
 					event.preventDefault();
 					closeButton.current?.focus();
@@ -385,13 +409,13 @@ export default function BookmarkSaveRoot(props: {
 					props.returnFocus();
 				}}
 			>
-				<AlertDialogHeader>
-					<AlertDialogTitle>북마크 저장</AlertDialogTitle>
-					<AlertDialogDescription>
+				<AlertDialogHeader className="shrink-0 space-y-1 text-left">
+					<AlertDialogTitle className="m-0 border-0 p-0">북마크 저장</AlertDialogTitle>
+					<AlertDialogDescription className={showLookupResult ? "m-0 leading-snug" : "sr-only"}>
 						{lookupDescription(checking, lookup.error, existing)}
 					</AlertDialogDescription>
 				</AlertDialogHeader>
-				{checking || lookup.isError || existing ? (
+				{showLookupResult ? (
 					<BookmarkLookupResult
 						checking={checking}
 						error={lookup.error}

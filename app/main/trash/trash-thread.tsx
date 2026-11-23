@@ -85,7 +85,7 @@ export function TrashThread() {
 		<ThreadInfiniteList
 			state="trash"
 			loadingCount={5}
-			renderItem={(thread) => (
+			renderItem={(thread, bookmarkUrls) => (
 				<ThreadCard
 					thread={thread}
 					meta={
@@ -99,6 +99,7 @@ export function TrashThread() {
 						<>
 							<RestoreButton thread={thread} />
 							<BookmarkSaveDialog
+								bookmarkUrls={bookmarkUrls}
 								source={{ id: String(thread.id), url: thread.url, title: thread.title ?? "" }}
 							/>
 							<ThreadShareButton thread={thread} />

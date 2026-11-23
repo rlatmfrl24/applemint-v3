@@ -1,53 +1,65 @@
 "use client";
-import { ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
+import { ChevronDown, Folder } from "lucide-react";
 import { type FocusEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import type { BookmarkCollection } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
 import { collectionAncestors, collectionChildren } from "@/lib/bookmark-tree";
+import treeStyles from "./bookmark-tree.module.css";
+import {
+	BookmarkTreeDisclosure,
+	BookmarkTreeLabel,
+	bookmarkTreeLabelClass,
+} from "./bookmark-tree-row";
 
 export const bookmarkFieldClass = "w-full rounded-md border bg-background px-3 py-2 text-sm";
+export const bookmarkPickerDialogClass =
+	"flex max-h-[90dvh] flex-col overflow-hidden px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:top-auto max-sm:bottom-0 max-sm:translate-y-0 max-sm:rounded-t-xl sm:px-6 sm:pt-6 sm:pb-6";
+export const bookmarkPickerActionsClass =
+	"flex shrink-0 justify-end gap-2 border-t pt-3 [&>button]:min-h-11 max-sm:[&>button]:flex-1";
+
+const searchKey = (text: string) => text.normalize("NFKC").toLowerCase().replace(/\s+/gu, "");
+
+function searchCollections(query: string, collections: BookmarkCollection[]) {
+	if (!query) return [];
+	return collections.filter(({ id }) => searchKey(collectionPath(id, collections)).includes(query));
+}
 
 function CollectionChoiceRow({
-	collection,
+	name,
+	path,
 	selected,
-	isOpen,
-	hasChildren,
+	ancestor,
+	expanded,
 	toggle,
 }: {
-	collection: BookmarkCollection;
+	name: string;
+	path: string;
 	selected: boolean;
-	isOpen: boolean;
-	hasChildren: boolean;
-	toggle: (id: string) => void;
+	ancestor: boolean;
+	expanded?: boolean;
+	toggle: () => void;
 }) {
+	const containsSelection = ancestor && !expanded;
 	return (
 		<div
-			className={`flex min-h-9 items-center gap-2 rounded px-2 text-sm ${selected ? "bg-accent font-medium" : "hover:bg-muted"}`}
+			className={treeStyles.collectionRow}
+			data-current={selected}
+			data-ancestor={ancestor}
+			data-parent-node={expanded !== undefined}
+			data-hidden-current={containsSelection}
 		>
-			{hasChildren ? (
-				<button
-					type="button"
-					tabIndex={-1}
-					aria-label={`${collection.name} 하위 컬렉션 ${isOpen ? "접기" : "펼치기"}`}
-					className="grid size-8 shrink-0 place-items-center"
-					onClick={(event) => {
-						event.stopPropagation();
-						toggle(collection.id);
-						event.currentTarget.closest<HTMLElement>('[role="treeitem"]')?.focus();
-					}}
-				>
-					<ChevronRight className={`size-3.5 ${isOpen ? "rotate-90" : ""}`} />
-				</button>
-			) : (
-				<span className="w-8 shrink-0" />
-			)}
-			{isOpen ? (
-				<FolderOpen className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-			) : (
-				<Folder className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-			)}
-			<span className="line-clamp-2 break-words" title={collection.name}>
-				{collection.name}
+			<BookmarkTreeDisclosure
+				name={name}
+				expanded={expanded}
+				tabIndex={-1}
+				onClick={(event) => {
+					event.stopPropagation();
+					toggle();
+					event.currentTarget.closest<HTMLElement>('[role="treeitem"]')?.focus();
+				}}
+			/>
+			<span className={bookmarkTreeLabelClass}>
+				<BookmarkTreeLabel name={name} path={path} marked={selected || containsSelection} />
 			</span>
 		</div>
 	);
@@ -60,6 +72,7 @@ export function BookmarkCollectionPicker({
 	defaultValue,
 	value: controlledValue,
 	disabled,
+	searchable = true,
 	rootLabel = "미분류",
 	onChange,
 }: {
@@ -69,6 +82,7 @@ export function BookmarkCollectionPicker({
 	defaultValue: string | null;
 	value?: string | null;
 	disabled?: boolean;
+	searchable?: boolean;
 	rootLabel?: string;
 	onChange?: (id: string | null) => void;
 }) {
@@ -78,6 +92,7 @@ export function BookmarkCollectionPicker({
 	const [search, setSearch] = useState("");
 	const [expanded, setExpanded] = useState(collectionAncestors(defaultValue ?? "", collections));
 	const [focused, setFocused] = useState(defaultValue ?? "");
+	const selectedAncestors = new Set(collectionAncestors(value, collections));
 	const trigger = useRef<HTMLButtonElement>(null);
 	const tree = useRef<HTMLDivElement>(null);
 	const pendingFocus = useRef<string | null>(null);
@@ -108,7 +123,7 @@ export function BookmarkCollectionPicker({
 		);
 		if (item) {
 			pendingFocus.current = null;
-			item.focus();
+			item.focus({ preventScroll: true });
 			item.scrollIntoView({ block: "nearest" });
 		}
 	}, [open, value, expanded, collections]);
@@ -178,11 +193,12 @@ export function BookmarkCollectionPicker({
 		return collectionChildren(parent, collections)
 			.filter((collection) => !seen.has(collection.id))
 			.map((collection) => {
-				const children = collectionChildren(collection.id, collections).filter(
-					(child) => !seen.has(child.id) && child.id !== collection.id
+				const pathIds = new Set(seen).add(collection.id);
+				const hasChildren = collectionChildren(collection.id, collections).some(
+					(child) => !pathIds.has(child.id)
 				);
-				const isOpen = expanded.includes(collection.id);
-				const hasChildren = children.length > 0;
+				const expansion = hasChildren ? expanded.includes(collection.id) : undefined;
+				const ancestor = selectedAncestors.has(collection.id);
 				return (
 					<div
 						key={collection.id}
@@ -190,11 +206,13 @@ export function BookmarkCollectionPicker({
 						aria-label={collection.name}
 						aria-level={level}
 						aria-selected={value === collection.id}
-						aria-expanded={hasChildren ? isOpen : undefined}
+						aria-expanded={expansion}
+						aria-description={ancestor && !expansion ? "선택한 하위 컬렉션이 있습니다." : undefined}
 						data-collection-id={collection.id}
-						data-parent-id={parent ?? ""}
+						data-parent-id={parent}
 						tabIndex={focused === collection.id ? 0 : -1}
-						className="rounded focus-visible:outline focus-visible:outline-ring"
+						data-expanded={Boolean(expansion)}
+						className={`${treeStyles.branch} cursor-pointer rounded-md focus-visible:outline focus-visible:outline-ring`}
 						onFocus={(event) => focusChoice(event, collection.id)}
 						onClick={(event) => {
 							event.stopPropagation();
@@ -203,26 +221,24 @@ export function BookmarkCollectionPicker({
 						onKeyDown={(event) => key(event, collection.id, parent, hasChildren)}
 					>
 						<CollectionChoiceRow
-							collection={collection}
+							name={collection.name}
+							path={collectionPath(collection.id, collections)}
 							selected={value === collection.id}
-							isOpen={isOpen}
-							hasChildren={hasChildren}
-							toggle={toggle}
+							ancestor={ancestor}
+							expanded={expansion}
+							toggle={() => toggle(collection.id)}
 						/>
-						{isOpen && hasChildren && (
-							<fieldset className={`${level < 5 ? "ml-3" : ""} border-l pl-1`}>
-								{nodes(collection.id, new Set([...seen, collection.id]), level + 1)}
+						{expansion && (
+							<fieldset className={level < 5 ? treeStyles.children : undefined}>
+								{nodes(collection.id, pathIds, level + 1)}
 							</fieldset>
 						)}
 					</div>
 				);
 			});
 	}
-	const matches = collections.filter((collection) =>
-		collectionPath(collection.id, collections)
-			.toLocaleLowerCase()
-			.includes(search.trim().toLocaleLowerCase())
-	);
+	const query = searchable ? searchKey(search) : "";
+	const matches = searchCollections(query, collections);
 	return (
 		<div>
 			<input type="hidden" name={name} value={value} />
@@ -230,12 +246,15 @@ export function BookmarkCollectionPicker({
 				ref={trigger}
 				id={id}
 				type="button"
-				className={`${bookmarkFieldClass} flex items-center gap-2 text-left`}
+				className={`${bookmarkFieldClass} flex min-h-11 items-center gap-2 text-left sm:min-h-9`}
 				aria-haspopup="tree"
 				aria-expanded={open && !disabled}
 				aria-controls={`${id}-tree`}
 				disabled={disabled}
-				onClick={() => setOpen(!open)}
+				onClick={() => {
+					if (!open) setSearch("");
+					setOpen(!open);
+				}}
 			>
 				<Folder className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
 				<span
@@ -252,68 +271,82 @@ export function BookmarkCollectionPicker({
 					id={`${id}-tree`}
 					role="tree"
 					aria-label="컬렉션 선택"
-					className="mt-1 max-h-80 overflow-y-auto rounded-md border p-1"
+					className={`${treeStyles.theme} ${treeStyles.pickerPanel} mt-1 max-h-[min(20rem,45dvh)] overflow-y-auto overscroll-contain rounded-md border p-1`}
 				>
-					<label className="sticky top-0 z-10 block bg-background p-1">
-						<span className="sr-only">컬렉션 검색</span>
-						<input
-							type="search"
-							aria-label="컬렉션 검색"
-							value={search}
-							className="h-10 w-full rounded border bg-background px-3 text-sm"
-							placeholder="컬렉션 검색"
-							onChange={(event) => {
-								setSearch(event.target.value);
-								setFocused("");
-							}}
-							onKeyDown={(event) => {
-								if (event.key === "ArrowDown") {
-									event.preventDefault();
-									tree.current?.querySelector<HTMLElement>('[role="treeitem"]')?.focus();
-								}
-								if (event.key === "Escape") {
-									event.preventDefault();
-									event.stopPropagation();
-									setOpen(false);
-									trigger.current?.focus();
-								}
-							}}
-						/>
-					</label>
-					<div
-						role="treeitem"
-						aria-label={rootLabel}
-						aria-level={1}
-						aria-selected={value === ""}
-						data-collection-id=""
-						tabIndex={focused === "" ? 0 : -1}
-						className={`cursor-pointer rounded px-3 py-2 text-sm focus-visible:outline focus-visible:outline-ring ${value === "" ? "bg-accent font-medium" : "hover:bg-muted"}`}
-						onFocus={() => setFocused("")}
-						onClick={() => choose("")}
-						onKeyDown={(event) => key(event, "", null, false)}
-					>
-						{rootLabel}
-					</div>
-					{search.trim()
-						? matches.map((collection) => (
-								<div
-									key={collection.id}
-									role="treeitem"
-									aria-label={collectionPath(collection.id, collections)}
-									aria-level={1}
-									aria-selected={value === collection.id}
-									data-collection-id={collection.id}
-									tabIndex={focused === collection.id ? 0 : -1}
-									className="min-h-11 cursor-pointer break-words rounded px-3 py-2 text-xs hover:bg-muted focus-visible:outline focus-visible:outline-ring"
-									onFocus={() => setFocused(collection.id)}
-									onClick={() => choose(collection.id)}
-									onKeyDown={(event) => key(event, collection.id, null, false)}
-								>
-									{collectionPath(collection.id, collections)}
-								</div>
-							))
-						: nodes(null, new Set(), 1)}
-					{search.trim() && matches.length === 0 && (
+					{searchable && (
+						<label className="sticky top-0 z-10 block bg-background p-1">
+							<span className="sr-only">컬렉션 검색</span>
+							<input
+								type="search"
+								aria-label="컬렉션 검색"
+								value={search}
+								className="h-11 w-full rounded border bg-background px-3 text-base sm:text-sm"
+								placeholder="컬렉션 검색"
+								onChange={(event) => {
+									setSearch(event.target.value);
+									setFocused("");
+								}}
+								onKeyDown={(event) => {
+									if (event.key === "Enter" && !event.nativeEvent.isComposing)
+										event.preventDefault();
+									if (event.key === "ArrowDown") {
+										event.preventDefault();
+										tree.current?.querySelector<HTMLElement>('[role="treeitem"]')?.focus();
+									}
+									if (event.key === "Escape") {
+										event.preventDefault();
+										event.stopPropagation();
+										setOpen(false);
+										trigger.current?.focus();
+									}
+								}}
+							/>
+						</label>
+					)}
+					<fieldset className={treeStyles.roots}>
+						<div
+							role="treeitem"
+							aria-label={rootLabel}
+							aria-level={1}
+							aria-selected={value === ""}
+							data-current={value === ""}
+							data-collection-id=""
+							tabIndex={focused === "" ? 0 : -1}
+							className={`${treeStyles.collectionRow} cursor-pointer focus-visible:outline focus-visible:outline-ring`}
+							onFocus={() => setFocused("")}
+							onClick={() => choose("")}
+							onKeyDown={(event) => key(event, "", null, false)}
+						>
+							<BookmarkTreeDisclosure name={rootLabel} />
+							<span className={bookmarkTreeLabelClass}>
+								<BookmarkTreeLabel name={rootLabel} marked={value === ""} />
+							</span>
+						</div>
+						{query
+							? matches.map((collection) => (
+									<div
+										key={collection.id}
+										role="treeitem"
+										aria-label={collectionPath(collection.id, collections)}
+										aria-level={1}
+										aria-selected={value === collection.id}
+										data-current={value === collection.id}
+										data-collection-id={collection.id}
+										tabIndex={focused === collection.id ? 0 : -1}
+										className={`${treeStyles.collectionRow} ${bookmarkTreeLabelClass} cursor-pointer`}
+										onFocus={() => setFocused(collection.id)}
+										onClick={() => choose(collection.id)}
+										onKeyDown={(event) => key(event, collection.id, null, false)}
+									>
+										<BookmarkTreeLabel
+											name={collectionPath(collection.id, collections)}
+											marked={value === collection.id}
+										/>
+									</div>
+								))
+							: nodes(null, new Set(), 1)}
+					</fieldset>
+					{query && matches.length === 0 && (
 						<p role="status" className="p-3 text-xs">
 							일치하는 컬렉션이 없습니다.
 						</p>

@@ -107,6 +107,10 @@ function createContext(
 }
 
 const protectedCalls: [string, (caller: Caller) => Promise<unknown>][] = [
+	[
+		"bookmark.savedLinks",
+		(caller) => caller.bookmark.savedLinks({ urls: ["https://example.com/"] }),
+	],
 	["bookmarkCheck.settings", (caller) => caller.bookmarkCheck.settings()],
 	[
 		"bookmarkCheck.updateSettings",

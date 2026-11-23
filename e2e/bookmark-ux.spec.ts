@@ -3,6 +3,113 @@ import { expect, type Page, test } from "@playwright/test";
 import { bookmarkOwner } from "./support/bookmarks";
 import { seedBookmarkProposalDraft, seedBookmarkUXSource } from "./support/database";
 
+test("360px 모바일에서 컬렉션을 펼친 채 저장·이동 버튼에 접근하고 실제 소속을 변경한다", async ({
+	page,
+}) => {
+	const db = await bookmarkOwner();
+	const source = await seedBookmarkUXSource();
+	const rootName = `모바일 선택 ${source.id}`;
+	const collections: { id: string; version: number }[] = [];
+	async function createCollection(name: string, parentId: string | null) {
+		const { data, error } = await db.rpc("bookmark_command", {
+			p_action: "collectionCreate",
+			p_input: { name, parentId },
+		});
+		expect(error).toBeNull();
+		const collection = { id: String(data.id), version: Number(data.version) };
+		collections.push(collection);
+		return collection;
+	}
+	try {
+		const root = await createCollection(rootName, null);
+		const blue = await createCollection("블루아카", root.id);
+		const idol = await createCollection("아이마스", root.id);
+		for (let index = 1; index <= 7; index += 1)
+			await createCollection(`테스트 컬렉션 ${index}`, root.id);
+		await page.setViewportSize({ width: 360, height: 640 });
+		await page.goto("/main");
+		const card = page.locator(`[data-thread-url=${JSON.stringify(source.url)}]`);
+		const bookmark = card.getByRole("button", { name: "Bookmark", exact: true });
+		await expect(card).toBeVisible();
+		await expect(bookmark).toBeEnabled();
+		await expect(card.getByText("북마크 저장 흐름 검증", { exact: true })).toHaveCount(0);
+		const [sourceTab] = await Promise.all([
+			page.waitForEvent("popup", { timeout: 5000 }),
+			card.click({ position: { x: 5, y: 5 } }),
+		]);
+		try {
+			await expect(sourceTab).toHaveURL(source.url);
+		} finally {
+			await sourceTab.close();
+		}
+		await bookmark.click();
+		const saveDialog = page.getByRole("alertdialog", { name: "북마크 저장" });
+		const save = saveDialog.getByRole("button", { name: "저장", exact: true });
+		await expect(saveDialog.getByRole("button", { name: "취소", exact: true })).toBeFocused();
+		expect(page.context().pages()).toEqual([page]);
+		await saveDialog.getByLabel("태그 (쉼표로 구분)").fill("모바일, 저장");
+		await saveDialog.getByLabel("메모", { exact: true }).fill("저장 창의 바로 보이는 입력");
+		await saveDialog.getByLabel("컬렉션", { exact: true }).click();
+		await expect(saveDialog.getByRole("searchbox", { name: "컬렉션 검색" })).toHaveCount(0);
+		await saveDialog.getByRole("button", { name: `${rootName} 하위 컬렉션 펼치기` }).click();
+		await expect(save).toBeInViewport({ ratio: 1 });
+		await expect(saveDialog.getByRole("button", { name: "취소", exact: true })).toBeInViewport({
+			ratio: 1,
+		});
+		await saveDialog.getByRole("treeitem", { name: "블루아카", exact: true }).click();
+		await save.click();
+		await expect(saveDialog).toBeHidden();
+		const { data: saved, error } = await db
+			.from("bookmarks")
+			.select("id,collection_id,tags,note")
+			.eq("url", source.url)
+			.single();
+		expect(error).toBeNull();
+		expect(saved?.collection_id).toBe(blue.id);
+		expect(saved?.tags).toEqual(["모바일", "저장"]);
+		expect(saved?.note).toBe("저장 창의 바로 보이는 입력");
+		await expect(bookmark).toHaveAttribute("aria-disabled", "true");
+		await bookmark.hover();
+		await expect(card.getByRole("tooltip")).toHaveText("이미 북마크에 저장됨");
+		await expect(card.getByRole("tooltip")).toBeVisible();
+		await bookmark.press("Enter");
+		await expect(saveDialog).toBeHidden();
+		expect(page.context().pages()).toEqual([page]);
+
+		await expect(page.getByText("북마크를 저장했습니다.", { exact: true })).toBeVisible();
+		await page.goto(`/main/bookmarks?search=${encodeURIComponent(source.url)}`);
+		await page.locator(`[data-bookmark-id="${saved?.id}"]`).getByRole("checkbox").check();
+		await page.getByRole("button", { name: "선택 컬렉션 이동" }).click();
+		const moveDialog = page.getByRole("alertdialog", { name: "컬렉션 이동" });
+		const move = moveDialog.getByRole("button", { name: "이동", exact: true });
+		const close = moveDialog.getByRole("button", { name: "닫기", exact: true });
+		const picker = moveDialog.getByLabel("컬렉션", { exact: true });
+		await picker.click();
+		await expect(move).toBeInViewport({ ratio: 1 });
+		await expect(close).toBeInViewport({ ratio: 1 });
+		expect((await move.boundingBox())?.y).toBe((await close.boundingBox())?.y);
+		expect((await move.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+		const search = moveDialog.getByRole("searchbox", { name: "컬렉션 검색" });
+		await search.fill("아이 마스");
+		await search.press("Enter");
+		await expect(moveDialog).toBeVisible();
+		await moveDialog.getByRole("treeitem", { name: `${rootName} / 아이마스` }).click();
+		await move.click();
+		await expect(moveDialog).toBeHidden();
+		const moved = await db.from("bookmarks").select("collection_id").eq("id", saved?.id).single();
+		expect(moved.error).toBeNull();
+		expect(moved.data?.collection_id).toBe(idol.id);
+	} finally {
+		for (const collection of collections.reverse()) {
+			const { error } = await db.rpc("bookmark_command", {
+				p_action: "collectionRemove",
+				p_input: collection,
+			});
+			expect(error).toBeNull();
+		}
+	}
+});
+
 test("모션 감소에서 트리와 상세의 초기 골격은 펄스 없이 표시된다", async ({ page }) => {
 	await page.emulateMedia({ reducedMotion: "reduce" });
 	let release = () => {};
