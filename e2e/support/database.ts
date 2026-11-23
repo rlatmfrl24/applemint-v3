@@ -7,6 +7,7 @@ export type E2EThreadState = "inbox" | "saved" | "trash";
 
 interface SeedThreadOptions {
 	prefix?: string;
+	type?: "normal" | "arcalive";
 }
 
 interface SeedCrawlRunOptions {
@@ -355,7 +356,7 @@ export async function seedThreads(
 				state_changed_at, state
 			)
 			select
-				'normal',
+				${quoteLiteral(options.type ?? "normal")},
 				${quoteLiteral(`https://e2e.applemint.local/${prefix}/`)} || item::text,
 				${quoteLiteral(`${prefix} thread `)} || lpad(item::text, 2, '0'),
 				${quoteLiteral(`E2E ${state} fixture `)} || item::text,

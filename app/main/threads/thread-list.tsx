@@ -78,7 +78,7 @@ export const TypeStats = ({
 		<Card className="w-full border-zinc-200/80 shadow-none dark:border-zinc-800">
 			<CardHeader className="flex-row items-center gap-2 space-y-0 p-3">
 				<ToggleGroup
-					className="min-w-0 flex-1 [scrollbar-width:none] justify-start overflow-x-auto p-0.5"
+					className="min-w-0 flex-1 justify-start p-0.5"
 					type="single"
 					variant="outline"
 					size="sm"
@@ -101,7 +101,7 @@ export const TypeStats = ({
 						}
 					}}
 				>
-					<div className="flex gap-2">
+					<div className="flex min-w-0 flex-wrap gap-2">
 						<ToggleGroupItem
 							value="all"
 							className="flex shrink-0 justify-between gap-2 px-2"
@@ -114,9 +114,9 @@ export const TypeStats = ({
 							<ToggleGroupItem
 								key={type.key}
 								value={`type:${type.key}`}
-								className="flex shrink-0 justify-between gap-2 px-2"
+								className="flex h-auto min-h-9 max-w-full shrink-0 justify-between gap-2 px-2 py-1"
 							>
-								<span className="text-xs font-medium sm:text-sm">{type.label}</span>
+								<span className="text-xs font-medium wrap-anywhere sm:text-sm">{type.label}</span>
 								<Badge className="px-1.5 py-0">{type.count}</Badge>
 							</ToggleGroupItem>
 						))}
@@ -124,9 +124,11 @@ export const TypeStats = ({
 							<ToggleGroupItem
 								key={siteCount.siteKey}
 								value={siteFilterValue(siteCount.siteKey)}
-								className="flex shrink-0 justify-between gap-2 px-2"
+								className="flex h-auto min-h-9 max-w-full shrink-0 justify-between gap-2 px-2 py-1"
 							>
-								<span className="text-xs font-medium sm:text-sm">{siteCount.label}</span>
+								<span className="text-xs font-medium wrap-anywhere sm:text-sm">
+									{siteCount.label}
+								</span>
 								<Badge className="px-1.5 py-0">{siteCount.count}</Badge>
 							</ToggleGroupItem>
 						))}
