@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { CrawlPolicySettings } from "@/lib/crawl-policy-contract";
 import { crawlPolicySettings } from "@/test/support/communication";
+import { InboxEmptyCard } from "./inbox-empty-card";
 import {
 	formatCountdown,
 	formatSourceSummary,
@@ -182,6 +183,7 @@ describe("Inbox 빈 상태 표현", () => {
 		);
 
 		expect(loading).toContain("다음 수집 일정을 확인하고 있습니다.");
+		expect(renderToStaticMarkup(<InboxEmptyCard loading />)).toBe(loading);
 		expect(error).toContain("다음 수집 일정을 불러오지 못했습니다.");
 		expect(error).toContain("다시 시도");
 		expect(countdown).toContain("01:01:01");

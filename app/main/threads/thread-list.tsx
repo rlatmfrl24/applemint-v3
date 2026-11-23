@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -11,9 +11,11 @@ import { threadStatsOptions } from "@/lib/thread-query-options";
 import type { ThreadStats } from "@/lib/type-defs";
 import { useTRPCClient } from "@/trpc/client";
 import { ThreadInfiniteList } from "../thread-infinite-list";
-import { InboxEmptyState } from "./inbox-empty-state";
+import { InboxEmptyCard } from "./inbox-empty-card";
 import { QuickSaveButton } from "./quick-save-button";
 import { DefaultThreadItem } from "./thread-item";
+
+const InboxEmptyState = lazy(() => import("./inbox-empty-state"));
 
 export type ThreadFilterSelection =
 	| { kind: "all" }
@@ -174,7 +176,13 @@ export const ThreadList = () => {
 			state="inbox"
 			filters={filterParams}
 			onInitialLoadSuccess={acknowledgeInbox}
-			emptyState={selection.kind === "all" ? <InboxEmptyState /> : undefined}
+			emptyState={
+				selection.kind === "all" ? (
+					<Suspense fallback={<InboxEmptyCard loading />}>
+						<InboxEmptyState />
+					</Suspense>
+				) : undefined
+			}
 			renderHeader={(newItemsControl) => (
 				<TypeStats
 					stats={statsQuery.data}
