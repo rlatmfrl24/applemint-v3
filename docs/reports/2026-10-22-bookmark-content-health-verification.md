@@ -30,12 +30,12 @@ Tonematrix를 실제 원문 열기 버튼으로 열어 JS 기반 화면을 확�
 
 최초 30개 관측의 분포는 다음과 같다. 진행 중 미디어 관측도 포함하며 후보 필터의 최종 건수와는 다르다.
 
-| 축 | 관측 |
-| --- | --- |
-| 접속 | healthy 21, dead 3, temporary 3, restricted 3 |
-| 본문 | present 4, unknown 15, restricted 2, not_checked 9 |
-| 미디어 | present 1, none_detected 1, unknown 18, not_checked 10 |
-| AI 호출률 | 4/30, 13.3% |
+| 축        | 관측                                                   |
+| --------- | ------------------------------------------------------ |
+| 접속      | healthy 21, dead 3, temporary 3, restricted 3          |
+| 본문      | present 4, unknown 15, restricted 2, not_checked 9     |
+| 미디어    | present 1, none_detected 1, unknown 18, not_checked 10 |
+| AI 호출률 | 4/30, 13.3%                                            |
 
 본문 unknown 비율 50%, 미디어 unknown 비율 60%다. Jev 대상 10건 중 9건은 unknown, 1건은 restricted였다. 후자는 실제 브라우저에서 글 본문을 볼 수 있었으므로 권한 제한 판정을 확정 사실로 삼을 수 없다. 구형 HTML·JS·잘린 문서에서 AI만 추가한다고 본문/미디어 판정이 해결되지는 않았다. 이 결과를 정상·삭제 판정 정확도로 표현하지 않는다.
 

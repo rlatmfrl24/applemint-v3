@@ -113,7 +113,7 @@ function BookmarkContentEvidence({ evidence }: { evidence: BookmarkHealthEvidenc
 				</p>
 			)}
 			{evidence.content.excerpt && (
-				<p className="whitespace-pre-wrap break-words">본문 발췌: {evidence.content.excerpt}</p>
+				<p className="break-words whitespace-pre-wrap">본문 발췌: {evidence.content.excerpt}</p>
 			)}
 			{evidence.media.items.length > 0 && (
 				<ul className="space-y-1">
@@ -189,7 +189,7 @@ function BookmarkMoveForm({
 				className="min-h-0 space-y-3 overflow-y-auto overscroll-contain"
 				onSubmit={submit}
 			>
-				<p className="break-words text-sm">
+				<p className="text-sm break-words">
 					{items.length === 1
 						? item.title || item.url
 						: `선택한 북마크 ${items.length}개를 함께 이동합니다.`}
@@ -310,10 +310,10 @@ function BookmarkItemDetail({
 		<div className="space-y-3">
 			<div className="flex items-start gap-3">
 				<div className="min-w-0 flex-1">
-					<h2 className="break-words border-0 p-0 font-medium text-base">
+					<h2 className="border-0 p-0 text-base font-medium break-words">
 						{item.title || item.url}
 					</h2>
-					<p className="break-all text-muted-foreground text-xs">{item.url}</p>
+					<p className="text-muted-foreground text-xs break-all">{item.url}</p>
 					<Button
 						type="button"
 						size="sm"
@@ -331,7 +331,7 @@ function BookmarkItemDetail({
 						{collectionPath(item.collection_id, collections)}{" "}
 						{item.tags.length > 0 && `· ${item.tags.join(", ")}`}
 						{!item.collection_id && item.previous_collection_path && (
-							<span className="block break-words text-muted-foreground">
+							<span className="text-muted-foreground block break-words">
 								이전 컬렉션: {item.previous_collection_path}
 								<span className="block">이동이나 컬렉션 삭제 전에 저장된 소속 경로입니다.</span>
 							</span>
@@ -340,9 +340,9 @@ function BookmarkItemDetail({
 				</div>
 			</div>
 			{item.description && (
-				<p className="line-clamp-3 text-muted-foreground text-sm">{item.description}</p>
+				<p className="text-muted-foreground line-clamp-3 text-sm">{item.description}</p>
 			)}
-			{item.note && <p className="whitespace-pre-wrap break-words text-sm">{item.note}</p>}
+			{item.note && <p className="text-sm break-words whitespace-pre-wrap">{item.note}</p>}
 			<BookmarkUsage item={item} />
 			<BookmarkHealthDetail item={item} />
 			<div className="flex flex-wrap gap-2">
@@ -604,7 +604,7 @@ function BookmarkItemDetail({
 			{item.original && (
 				<details className="text-muted-foreground text-xs">
 					<summary className="cursor-pointer">가져온 원본 정보</summary>
-					<pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all">
+					<pre className="max-h-64 overflow-auto break-all whitespace-pre-wrap">
 						{JSON.stringify(item.original, null, 2)}
 					</pre>
 				</details>
@@ -801,7 +801,7 @@ function SelectedBookmarkItemDialog({
 					<h2
 						ref={panelHeading}
 						tabIndex={-1}
-						className="m-0 rounded-sm border-0 p-0 font-medium text-sm focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4"
+						className="focus-visible:outline-ring m-0 rounded-sm border-0 p-0 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-4"
 					>
 						{title}
 					</h2>
@@ -832,7 +832,7 @@ function SelectedBookmarkItemDialog({
 				}}
 			>
 				<div className="my-3 flex items-center justify-between">
-					<DrawerPrimitive.Title className="m-0 border-0 p-0 font-medium text-base">
+					<DrawerPrimitive.Title className="m-0 border-0 p-0 text-base font-medium">
 						{title}
 					</DrawerPrimitive.Title>
 					<Button variant="ghost" onClick={dismiss}>

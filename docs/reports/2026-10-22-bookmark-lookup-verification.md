@@ -27,16 +27,16 @@
 
 ## 검증 결과
 
-| 검증 | 결과 |
-|---|---|
-| `pnpm test` | 947 PASS, 기존 조건부 3 SKIP |
-| `pnpm test:db` | 격리 DB의 32개 SQL 파일, 788 PASS |
-| 신규 lookup SQL 검사 | 10 PASS: 정렬·동률·휴지통·미존재·8192자·권한·원본 보존·인덱스 유효성 |
-| `pnpm check` | Biome·Knip·TypeScript PASS |
-| `pnpm build` | production build·server boundary·bundle 검사 PASS |
-| bookmarks + bookmark-recommend Playwright | 실제 소유자 로그인 포함 16 PASS, 조건부 4 SKIP |
-| 기존 방문 기록·헤더/휴지통 이동 Playwright | 로그인 포함 3 PASS |
-| 초기 번들 | `/main` 127.1 KiB gzip, 기준 대비 +0.5%, 기존 한도 이내 |
+| 검증                                       | 결과                                                                 |
+| ------------------------------------------ | -------------------------------------------------------------------- |
+| `pnpm test`                                | 947 PASS, 기존 조건부 3 SKIP                                         |
+| `pnpm test:db`                             | 격리 DB의 32개 SQL 파일, 788 PASS                                    |
+| 신규 lookup SQL 검사                       | 10 PASS: 정렬·동률·휴지통·미존재·8192자·권한·원본 보존·인덱스 유효성 |
+| `pnpm check`                               | Biome·Knip·TypeScript PASS                                           |
+| `pnpm build`                               | production build·server boundary·bundle 검사 PASS                    |
+| bookmarks + bookmark-recommend Playwright  | 실제 소유자 로그인 포함 16 PASS, 조건부 4 SKIP                       |
+| 기존 방문 기록·헤더/휴지통 이동 Playwright | 로그인 포함 3 PASS                                                   |
+| 초기 번들                                  | `/main` 127.1 KiB gzip, 기준 대비 +0.5%, 기존 한도 이내              |
 
 실제 UI에서 신규 저장, 중복 재열기, 북마크 휴지통 안내, ID로 도착한 상세 화면, 닫기·초점 복귀, 조회 실패 후 재시도, 기존 추천 결과 재조회와 제목 변경 보호를 확인했다. ASCII와 `%2F`가 많은 8192자 URL 모두 조회·저장·중복 안내·상세 이동을 통과했다. 중복 안내 동안 브라우저의 추천 요청이 0건이고 해당 원본의 추천 작업 수가 증가하지 않으며, DB의 기존 항목과 원본 수집 글 상태가 보존됨을 확인했다.
 
@@ -46,11 +46,11 @@ Mock과 실패 주입은 단위·오류·경합 회귀 검사를 보조했다. �
 
 실제 로컬 PostgreSQL 17.6의 `bookmarks_url_idx USING hash(url_key)`가 valid·ready 상태임을 확인했다. 추가 인덱스는 만들지 않았다. 339개 북마크가 있던 시점에 authenticated 소유자와 동일한 조건으로 측정했다.
 
-| 측정 | 실행 시간 | 버퍼 |
-|---|---:|---|
-| RPC와 동일한 SELECT, 기존 URL | 0.117 ms | shared hit 12, 인덱스 스캔 단계 hit 3 |
-| 실제 `bookmark_lookup` RPC, 기존 URL | 0.168 ms | shared hit 2 |
-| 실제 `bookmark_lookup` RPC, 미존재 URL | 0.136 ms | shared hit 1 |
+| 측정                                   | 실행 시간 | 버퍼                                  |
+| -------------------------------------- | --------: | ------------------------------------- |
+| RPC와 동일한 SELECT, 기존 URL          |  0.117 ms | shared hit 12, 인덱스 스캔 단계 hit 3 |
+| 실제 `bookmark_lookup` RPC, 기존 URL   |  0.168 ms | shared hit 2                          |
+| 실제 `bookmark_lookup` RPC, 미존재 URL |  0.136 ms | shared hit 1                          |
 
 동일 SELECT의 실행 계획은 `Index Scan using bookmarks_url_idx` 후 일치 행을 정렬했다. RPC 자체의 EXPLAIN은 Function Scan을 표시한다. 세션에서 nested auto_explain 로드는 허용되지 않아 그 출력은 수집하지 않았다. 측정은 READ ONLY transaction에서 수행하고 rollback했으며, 인덱스 사용 강제나 통계·데이터 수정은 하지 않았다.
 

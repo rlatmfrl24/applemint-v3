@@ -585,7 +585,7 @@ function JobControls({ m }: { m: Manager }) {
 			</label>
 			<select
 				id="bookmark-job-scope"
-				className="h-9 max-w-full rounded-md border bg-background px-2 text-xs"
+				className="bg-background h-9 max-w-full rounded-md border px-2 text-xs"
 				value={m.scope}
 				onChange={(event) => m.setScope(event.target.value as typeof m.scope)}
 			>
@@ -659,7 +659,7 @@ function BulkControls({ m }: { m: Manager }) {
 	if (m.selected.length === 0) return null;
 	const restore = m.view === "trash";
 	return (
-		<div className="flex flex-wrap items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs">
+		<div className="bg-muted flex flex-wrap items-center gap-2 rounded-md px-3 py-2 text-xs">
 			<span>선택 {m.selected.length}개</span>
 			{m.view !== "trash" && (
 				<Button
@@ -709,7 +709,7 @@ function Toolbar({ m }: { m: Manager }) {
 						<select
 							aria-label="검토 범위"
 							value={m.reviewGroup}
-							className="h-9 rounded-md border bg-background px-2 text-sm"
+							className="bg-background h-9 rounded-md border px-2 text-sm"
 							onChange={(event) =>
 								m.updateURL({
 									group: event.target.value === "problems" ? null : event.target.value,
@@ -745,11 +745,11 @@ function Toolbar({ m }: { m: Manager }) {
 					</>
 				) : (
 					<div className={`${styles.search} relative min-w-0 flex-1`}>
-						<Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted-foreground" />
+						<Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-3 size-4" />
 						<input
 							id="bookmark-search"
 							aria-label="북마크 검색"
-							className="h-9 w-full rounded-md border bg-background pr-3 pl-9 text-sm"
+							className="bg-background h-9 w-full rounded-md border pr-3 pl-9 text-sm"
 							placeholder="제목 또는 URL 검색"
 							value={m.search}
 							onCompositionStart={() => m.setComposing(true)}
@@ -779,7 +779,7 @@ function Toolbar({ m }: { m: Manager }) {
 					</Button>
 					<span
 						role="status"
-						className="inline-flex w-16 items-center justify-end text-muted-foreground text-xs"
+						className="text-muted-foreground inline-flex w-16 items-center justify-end text-xs"
 					>
 						{m.query.isFetching && !m.query.isPending
 							? "불러오는 중"
@@ -816,7 +816,7 @@ function Toolbar({ m }: { m: Manager }) {
 					/>
 					불러온 항목 선택{m.items.length > 2000 ? " (최대 2,000개)" : ""}
 				</label>
-				<span className="ml-auto font-mono text-muted-foreground">
+				<span className="text-muted-foreground ml-auto font-mono">
 					{m.total?.toLocaleString() ?? "…"}개 · 선택 {m.selected.length}개
 				</span>
 			</div>
@@ -842,7 +842,7 @@ function Results({ m }: { m: Manager }) {
 		>
 			{m.query.isPending && <BookmarkListSkeleton />}
 			{m.query.error && !m.query.isFetchNextPageError && !m.items.length && (
-				<div role="alert" className="sticky top-0 z-10 bg-background py-2 text-destructive text-sm">
+				<div role="alert" className="bg-background text-destructive sticky top-0 z-10 py-2 text-sm">
 					<p>
 						{m.items.length
 							? "목록을 갱신하지 못했습니다. 불러온 목록은 유지됩니다."
@@ -861,7 +861,7 @@ function Results({ m }: { m: Manager }) {
 				</div>
 			)}
 			{m.query.data && m.items.length === 0 && (
-				<div className="rounded-lg border border-dashed py-16 text-center text-muted-foreground text-sm">
+				<div className="text-muted-foreground rounded-lg border border-dashed py-16 text-center text-sm">
 					<p className="m-0">
 						{m.search
 							? "검색 결과가 없습니다."
@@ -956,11 +956,11 @@ function BookmarkLoadMore({
 			<div ref={sentinel} className={styles.sentinel} data-testid="bookmark-load-more-sentinel" />
 			<div
 				className={
-					m.query.isFetchNextPageError ? "sticky bottom-0 z-10 border-t bg-background" : undefined
+					m.query.isFetchNextPageError ? "bg-background sticky bottom-0 z-10 border-t" : undefined
 				}
 			>
 				{m.query.isFetchNextPageError && (
-					<p role="alert" className="px-3 pt-2 text-destructive text-sm">
+					<p role="alert" className="text-destructive px-3 pt-2 text-sm">
 						추가 항목을 불러오지 못했습니다. 불러온 목록은 유지됩니다.
 					</p>
 				)}
@@ -992,7 +992,7 @@ function CollectionBreadcrumb({ m, title }: { m: Manager; title: string }) {
 		<div>
 			<h2
 				aria-label={title}
-				className="m-0 flex flex-wrap items-center gap-1 break-words border-0 p-0 font-medium text-base"
+				className="m-0 flex flex-wrap items-center gap-1 border-0 p-0 text-base font-medium break-words"
 			>
 				{path.length
 					? path.map((collection, index) => (
@@ -1005,7 +1005,7 @@ function CollectionBreadcrumb({ m, title }: { m: Manager; title: string }) {
 								<button
 									type="button"
 									aria-label={`${collection.name} 컬렉션으로 이동`}
-									className="min-h-8 max-w-full break-all rounded px-1 text-left hover:bg-muted focus-visible:outline focus-visible:outline-ring"
+									className="hover:bg-muted focus-visible:outline-ring min-h-8 max-w-full rounded px-1 text-left break-all focus-visible:outline"
 									onClick={() => m.updateURL({ collection: collection.id })}
 								>
 									{collection.name}
@@ -1015,7 +1015,7 @@ function CollectionBreadcrumb({ m, title }: { m: Manager; title: string }) {
 					: title}
 			</h2>
 			{m.collection !== "all" && (
-				<p className="m-0 text-muted-foreground text-xs">현재 컬렉션의 직접 소속 항목</p>
+				<p className="text-muted-foreground m-0 text-xs">현재 컬렉션의 직접 소속 항목</p>
 			)}
 		</div>
 	);
@@ -1023,7 +1023,7 @@ function CollectionBreadcrumb({ m, title }: { m: Manager; title: string }) {
 function Activity({ m }: { m: Manager }) {
 	return (
 		<section aria-label="작업 기록" className="max-w-4xl">
-			<p className="mb-4 text-muted-foreground text-sm">
+			<p className="text-muted-foreground mb-4 text-sm">
 				등록한 작업의 진행과 실패 항목을 확인하고 재개할 수 있습니다.
 			</p>
 			{m.jobsQuery.error && (
@@ -1072,14 +1072,14 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 	return (
 		<div className="w-full min-w-0 space-y-4">
 			<header className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b pb-2">
-				<h1 className="m-0 font-semibold text-xl tracking-tight">북마크 관리자</h1>
+				<h1 className="m-0 text-xl font-semibold tracking-tight">북마크 관리자</h1>
 				<nav aria-label="북마크 보기" className="flex items-center gap-1">
 					{(["library", "review"] as const).map((key) => (
 						<Link
 							key={key}
 							href={viewInfo[key].path}
 							aria-current={view === key ? "page" : undefined}
-							className={`rounded-md px-3 py-2 text-sm ${view === key ? "bg-accent font-medium text-accent-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+							className={`rounded-md px-3 py-2 text-sm ${view === key ? "bg-accent text-accent-foreground font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
 						>
 							{viewInfo[key].label}
 						</Link>
@@ -1123,7 +1123,7 @@ export function BookmarkLibrary({ view = "library" }: { view?: BookmarkView }) {
 					)}
 					<main className={`${styles.main} min-w-0 space-y-2`}>
 						{m.view === "trash" && (
-							<h2 className="m-0 border-0 p-0 font-medium text-base">휴지통</h2>
+							<h2 className="m-0 border-0 p-0 text-base font-medium">휴지통</h2>
 						)}
 						{m.view === "library" && <CollectionBreadcrumb m={m} title={collectionTitle} />}
 						<Toolbar m={m} />

@@ -17,7 +17,7 @@ export function ThreadCardTitle({
 			aria-label={label}
 			onClick={onOpen}
 			className={cn(
-				"block w-full cursor-pointer rounded-lg text-left font-semibold text-[15px] leading-5 transition-colors after:absolute after:inset-0 after:z-0 after:rounded-[inherit] after:content-[''] hover:text-zinc-600 focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-ring focus-visible:after:-outline-offset-2 sm:text-base dark:hover:text-zinc-300",
+				"focus-visible:after:outline-ring block w-full cursor-pointer rounded-lg text-left text-[15px] leading-5 font-semibold transition-colors after:absolute after:inset-0 after:z-0 after:rounded-[inherit] after:content-[''] hover:text-zinc-600 focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 sm:text-base dark:hover:text-zinc-300",
 				className
 			)}
 		>

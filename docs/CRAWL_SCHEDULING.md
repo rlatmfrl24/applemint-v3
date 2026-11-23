@@ -3,7 +3,7 @@
 ## 기본 정책
 
 - 활성 크롤링 소스의 초기 최소 실행 간격은 `arcalive` 2시간, `battlepage` 4시간,
-	`insagirl` 3시간, `issuelink` 3시간입니다.
+  `insagirl` 3시간, `issuelink` 3시간입니다.
 - IssueLink는 12시간 인기순 한 페이지를 3시간마다 확인합니다. 순위를 보존하되 회당 전체
   20건, 원 커뮤니티별 3건까지만 후보로 전달하고 영구 수집 이력으로 중복을 제거합니다.
   제한으로 제외한 정상 후보는 parser 오류가 아닌 ignored 항목으로 관측합니다.
@@ -62,16 +62,16 @@ YouTube thread가 Trash로 이동하면 아직 처리되지 않은 metadata와
 Vault 값이 없거나 base URL·secret 형식이 올바르지 않으면 media scheduler만 비활성화합니다.
 기존 `crawl_runtime_settings.scheduler_enabled`는 변경하지 않습니다.
 
-| 응답 | `media_worker_dispatches.state` | 동작 |
-| --- | --- | --- |
-| 2xx | `succeeded` | transport 성공과 정규화된 worker 건수 기록 |
-| 401 | `authentication-error` | YouTube switch만 자동 중지 |
-| 403 | `authorization-error` | YouTube switch만 자동 중지 |
-| 404 | `endpoint-not-found` | YouTube switch만 자동 중지 |
-| 429 | `rate-limited` | queue와 lease를 보존하고 다음 실행에서 복구 |
-| 5xx | `server-error` | queue와 lease를 보존하고 다음 실행에서 복구 |
-| timeout·network | `transport-error` | 응답 정산 후 다시 dispatch 가능 |
-| 2분간 응답 없음 | `expired` | 응답 감사를 만료하고 다시 dispatch 가능 |
+| 응답            | `media_worker_dispatches.state` | 동작                                        |
+| --------------- | ------------------------------- | ------------------------------------------- |
+| 2xx             | `succeeded`                     | transport 성공과 정규화된 worker 건수 기록  |
+| 401             | `authentication-error`          | YouTube switch만 자동 중지                  |
+| 403             | `authorization-error`           | YouTube switch만 자동 중지                  |
+| 404             | `endpoint-not-found`            | YouTube switch만 자동 중지                  |
+| 429             | `rate-limited`                  | queue와 lease를 보존하고 다음 실행에서 복구 |
+| 5xx             | `server-error`                  | queue와 lease를 보존하고 다음 실행에서 복구 |
+| timeout·network | `transport-error`               | 응답 정산 후 다시 dispatch 가능             |
+| 2분간 응답 없음 | `expired`                       | 응답 감사를 만료하고 다시 dispatch 가능     |
 
 YouTube worker가 job을 claim한 뒤 중단되면 45초 lease가 만료된 후 다시 claim할 수 있습니다.
 429·5xx·timeout은 job을 `retry`로 돌리고 `available_at`까지 재claim하지 않습니다.

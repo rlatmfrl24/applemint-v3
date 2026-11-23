@@ -28,18 +28,18 @@ function SaveLoading({ close, openedAt }: { close: () => void; openedAt: number 
 				event.preventDefault();
 				dismiss();
 			}}
-			className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-lg space-y-4 rounded-lg border bg-background p-6 text-foreground shadow-lg backdrop:bg-black/80 max-sm:top-auto max-sm:mb-0 max-sm:w-full max-sm:rounded-t-xl max-sm:rounded-b-none max-sm:p-4 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]"
+			className="bg-background text-foreground fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-lg space-y-4 rounded-lg border p-6 shadow-lg backdrop:bg-black/80 max-sm:top-auto max-sm:mb-0 max-sm:w-full max-sm:rounded-t-xl max-sm:rounded-b-none max-sm:p-4 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]"
 		>
-			<h2 id={title} className="m-0 border-0 p-0 font-semibold text-lg">
+			<h2 id={title} className="m-0 border-0 p-0 text-lg font-semibold">
 				북마크 저장
 			</h2>
 			<p role="status" className="text-muted-foreground text-sm">
 				저장 화면을 불러오는 중…
 			</p>
 			<div aria-hidden="true" className="space-y-3">
-				<div className="h-10 rounded-md bg-muted" />
-				<div className="h-10 rounded-md bg-muted" />
-				<div className="h-10 rounded-md bg-muted" />
+				<div className="bg-muted h-10 rounded-md" />
+				<div className="bg-muted h-10 rounded-md" />
+				<div className="bg-muted h-10 rounded-md" />
 			</div>
 			<Button variant="outline" className="min-h-11 max-sm:w-full" onClick={dismiss}>
 				취소
@@ -107,7 +107,7 @@ export function BookmarkSaveDialog({
 						hidden={tooltipDismissed}
 						className="invisible absolute bottom-full left-0 z-20 pb-1 group-focus-within/bookmark-trigger:visible group-hover/bookmark-trigger:visible"
 					>
-						<span className="block whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-popover-foreground text-xs shadow-sm">
+						<span className="bg-popover text-popover-foreground block rounded-md border px-2 py-1 text-xs whitespace-nowrap shadow-sm">
 							이미 북마크에 저장됨
 						</span>
 					</span>

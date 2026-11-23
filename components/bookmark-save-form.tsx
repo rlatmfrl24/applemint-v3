@@ -62,7 +62,7 @@ function BookmarkLookupResult({
 	let message: ReactNode = null;
 	if (checking)
 		message = (
-			<p role="status" className="flex items-center gap-2 text-muted-foreground text-sm">
+			<p role="status" className="text-muted-foreground flex items-center gap-2 text-sm">
 				<Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
 				저장 여부를 확인하고 있어요
 			</p>
@@ -122,14 +122,14 @@ function RecommendationFeedback({
 			{busy && (
 				<p
 					role="status"
-					className="m-0 mt-1.5 flex items-center gap-2 text-muted-foreground text-xs"
+					className="text-muted-foreground m-0 mt-1.5 flex items-center gap-2 text-xs"
 				>
 					<Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
 					저장할 컬렉션을 추천하고 있어요
 				</p>
 			)}
 			{error && (
-				<div role="alert" className="mt-2 text-destructive text-xs">
+				<div role="alert" className="text-destructive mt-2 text-xs">
 					<p className="m-0">{error}</p>
 					<p className="m-0">직접 컬렉션을 선택하거나 미분류로 저장할 수 있습니다.</p>
 					{retry && (
@@ -176,7 +176,7 @@ function BookmarkSaveForm({
 		busy,
 		slow,
 		start,
-		useManual,
+		enterManualMode,
 		changeTitle,
 		choose,
 		recommendation,
@@ -233,7 +233,7 @@ function BookmarkSaveForm({
 					});
 				}}
 			>
-				<label className="font-medium text-sm" htmlFor={`${fieldId}title`}>
+				<label className="text-sm font-medium" htmlFor={`${fieldId}title`}>
 					제목
 				</label>
 				<input
@@ -259,7 +259,7 @@ function BookmarkSaveForm({
 				/>
 				<div className="col-span-2 min-w-0 space-y-1">
 					<div className="flex items-center gap-2">
-						<label className="font-medium text-sm" htmlFor={`${fieldId}collection`}>
+						<label className="text-sm font-medium" htmlFor={`${fieldId}collection`}>
 							컬렉션
 						</label>
 						{!busy && origin && (
@@ -297,7 +297,7 @@ function BookmarkSaveForm({
 					</div>
 				</div>
 				{collections.error && (
-					<p role="alert" className="col-span-2 m-0 text-destructive text-xs">
+					<p role="alert" className="text-destructive col-span-2 m-0 text-xs">
 						컬렉션을 불러오지 못했습니다. 다시 불러오거나 미분류로 저장할 수 있습니다.
 						<Button type="button" size="sm" variant="ghost" onClick={() => void start()}>
 							다시 불러오기
@@ -310,12 +310,12 @@ function BookmarkSaveForm({
 						type="button"
 						variant="outline"
 						size="sm"
-						onClick={useManual}
+						onClick={enterManualMode}
 					>
 						기다리지 않고 직접 선택
 					</Button>
 				)}
-				<label className="font-medium text-sm" htmlFor={`${fieldId}tags`}>
+				<label className="text-sm font-medium" htmlFor={`${fieldId}tags`}>
 					태그
 				</label>
 				<input
@@ -326,7 +326,7 @@ function BookmarkSaveForm({
 					placeholder="쉼표로 구분"
 					disabled={save.isPending}
 				/>
-				<label className="self-start pt-2 font-medium text-sm" htmlFor={`${fieldId}note`}>
+				<label className="self-start pt-2 text-sm font-medium" htmlFor={`${fieldId}note`}>
 					메모
 				</label>
 				<textarea

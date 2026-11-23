@@ -382,14 +382,14 @@ function InstallSurface({
 		>
 			<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 				<div className="flex items-start gap-3">
-					<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
+					<div className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-full">
 						<Download aria-hidden="true" className="size-5" />
 					</div>
 					<div>
-						<h3 className="font-medium text-sm">
+						<h3 className="text-sm font-medium">
 							{installStatus === "설치됨" ? "홈 화면 앱으로 실행 중" : "홈 화면에 설치"}
 						</h3>
-						<p className="mt-1 text-muted-foreground text-sm leading-6">
+						<p className="text-muted-foreground mt-1 text-sm leading-6">
 							{installDescription({ ios, standalone, promptAvailable })}
 						</p>
 					</div>
@@ -437,12 +437,12 @@ function NotificationSurface({
 		>
 			<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 				<div className="flex items-start gap-3">
-					<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
+					<div className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-full">
 						{notificationIcon(status)}
 					</div>
 					<div>
-						<h3 className="font-medium text-sm">{status}</h3>
-						<p className="mt-1 max-w-2xl text-muted-foreground text-sm leading-6">
+						<h3 className="text-sm font-medium">{status}</h3>
+						<p className="text-muted-foreground mt-1 max-w-2xl text-sm leading-6">
 							{notificationDescription(status)}
 						</p>
 					</div>
@@ -474,7 +474,7 @@ function NotificationSurface({
 
 			{status === "차단" ? (
 				<a
-					className="mt-4 inline-flex items-center gap-1 text-muted-foreground text-xs underline underline-offset-4"
+					className="text-muted-foreground mt-4 inline-flex items-center gap-1 text-xs underline underline-offset-4"
 					href="https://support.google.com/chrome/answer/3220216"
 					target="_blank"
 					rel="noreferrer"

@@ -13,8 +13,8 @@ export function SettingsPageHeader({
 	return (
 		<header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 			<div className="min-w-0">
-				<h1 className="font-semibold text-2xl tracking-tight sm:text-3xl">{title}</h1>
-				<p className="mt-1.5 max-w-3xl text-muted-foreground text-sm leading-6">{description}</p>
+				<h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+				<p className="text-muted-foreground mt-1.5 max-w-3xl text-sm leading-6">{description}</p>
 			</div>
 			{action ? <div className="shrink-0">{action}</div> : null}
 		</header>
@@ -31,7 +31,7 @@ export function SettingsStatusStrip({
 	return (
 		<div
 			className={cn(
-				"mt-6 grid overflow-hidden rounded-xl border bg-card shadow-sm md:grid-cols-3 md:divide-x",
+				"bg-card mt-6 grid overflow-hidden rounded-xl border shadow-sm md:grid-cols-3 md:divide-x",
 				className
 			)}
 		>
@@ -74,11 +74,11 @@ export function SettingsStatusItem({
 			</div>
 			<div className="min-w-0">
 				<div className="text-muted-foreground text-xs">{label}</div>
-				<div className="mt-0.5 truncate font-semibold text-sm" data-testid={valueTestId}>
+				<div className="mt-0.5 truncate text-sm font-semibold" data-testid={valueTestId}>
 					{value}
 				</div>
 				{supporting ? (
-					<div className="mt-1 text-muted-foreground text-xs leading-5">{supporting}</div>
+					<div className="text-muted-foreground mt-1 text-xs leading-5">{supporting}</div>
 				) : null}
 			</div>
 		</div>
@@ -101,13 +101,13 @@ export function SettingsSurface({
 	contentClassName?: string;
 }) {
 	return (
-		<section className={cn("overflow-hidden rounded-xl border bg-card shadow-sm", className)}>
+		<section className={cn("bg-card overflow-hidden rounded-xl border shadow-sm", className)}>
 			{title || description || action ? (
 				<header className="flex flex-col gap-3 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
 					<div>
-						{title ? <h2 className="border-0 p-0 font-semibold text-base">{title}</h2> : null}
+						{title ? <h2 className="border-0 p-0 text-base font-semibold">{title}</h2> : null}
 						{description ? (
-							<p className="mt-1 text-muted-foreground text-xs leading-5">{description}</p>
+							<p className="text-muted-foreground mt-1 text-xs leading-5">{description}</p>
 						) : null}
 					</div>
 					{action ? <div className="shrink-0">{action}</div> : null}
@@ -128,7 +128,7 @@ export function SettingsFeedback({
 	return (
 		<div
 			className={cn(
-				"mt-6 flex min-h-28 items-center justify-center rounded-xl border border-dashed bg-muted/20 px-5 py-8 text-center text-muted-foreground text-sm",
+				"bg-muted/20 text-muted-foreground mt-6 flex min-h-28 items-center justify-center rounded-xl border border-dashed px-5 py-8 text-center text-sm",
 				className
 			)}
 		>

@@ -151,13 +151,13 @@ export function BookmarkCollectionDialog({
 					onSubmit={submit}
 				>
 					{selection?.mode === "remove" ? (
-						<p className="break-all text-sm">
+						<p className="text-sm break-all">
 							삭제할 컬렉션:{" "}
 							<strong>{collectionPath(selection.collection?.id ?? null, collections)}</strong>
 						</p>
 					) : selection?.mode === "move" ? (
 						<div className="space-y-3">
-							<p className="break-words text-sm">
+							<p className="text-sm break-words">
 								{collectionPath(selection.collection.id, collections)} · 하위 컬렉션도 함께
 								이동합니다.
 							</p>

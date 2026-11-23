@@ -38,7 +38,7 @@ export function BookmarkTreeDisclosure({
 	return (
 		<button
 			type="button"
-			className={`${styles.rowControl} focus-visible:outline focus-visible:outline-ring`}
+			className={`${styles.rowControl} focus-visible:outline-ring focus-visible:outline`}
 			aria-label={`${name} 하위 컬렉션 ${expanded ? "접기" : "펼치기"}`}
 			aria-expanded={expanded}
 			tabIndex={tabIndex}

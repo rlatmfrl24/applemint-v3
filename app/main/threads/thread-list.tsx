@@ -76,7 +76,7 @@ export const TypeStats = ({
 		<Card className="w-full border-zinc-200/80 shadow-none dark:border-zinc-800">
 			<CardHeader className="flex-row items-center gap-2 space-y-0 p-3">
 				<ToggleGroup
-					className="min-w-0 flex-1 justify-start overflow-x-auto p-0.5 [scrollbar-width:none]"
+					className="min-w-0 flex-1 [scrollbar-width:none] justify-start overflow-x-auto p-0.5"
 					type="single"
 					variant="outline"
 					size="sm"
@@ -105,7 +105,7 @@ export const TypeStats = ({
 							className="flex shrink-0 justify-between gap-2 px-2"
 							disabled={!stats}
 						>
-							<span className="font-medium text-xs sm:text-sm">All</span>
+							<span className="text-xs font-medium sm:text-sm">All</span>
 							<Badge className="px-1.5 py-0">{stats ? stats.totalCount : "-"}</Badge>
 						</ToggleGroupItem>
 						{orderedTypeCounts.map((type) => (
@@ -114,7 +114,7 @@ export const TypeStats = ({
 								value={`type:${type.key}`}
 								className="flex shrink-0 justify-between gap-2 px-2"
 							>
-								<span className="font-medium text-xs sm:text-sm">{type.label}</span>
+								<span className="text-xs font-medium sm:text-sm">{type.label}</span>
 								<Badge className="px-1.5 py-0">{type.count}</Badge>
 							</ToggleGroupItem>
 						))}
@@ -124,7 +124,7 @@ export const TypeStats = ({
 								value={siteFilterValue(siteCount.siteKey)}
 								className="flex shrink-0 justify-between gap-2 px-2"
 							>
-								<span className="font-medium text-xs sm:text-sm">{siteCount.label}</span>
+								<span className="text-xs font-medium sm:text-sm">{siteCount.label}</span>
 								<Badge className="px-1.5 py-0">{siteCount.count}</Badge>
 							</ToggleGroupItem>
 						))}

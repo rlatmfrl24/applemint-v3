@@ -290,6 +290,7 @@ test("실제 추천 결과가 늦게 도착해도 그 사이 바꾼 제목에 �
 			.click();
 		const dialog = page.getByRole("alertdialog");
 		await expect.poll(() => deferred).toBe(true);
+		// biome-ignore lint/performance/useDomNodeTextContent: This Playwright locator reads the rendered collection label.
 		const prior = await dialog.getByLabel("컬렉션", { exact: true }).innerText();
 		await dialog.getByLabel("제목 (선택)").fill(`${job.scope.title} 수정`);
 		release();

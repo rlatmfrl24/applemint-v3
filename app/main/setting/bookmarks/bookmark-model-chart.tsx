@@ -60,18 +60,18 @@ export default function BookmarkModelChart({ usage }: { usage: BookmarkAIUsage }
 					aria-hidden="true"
 					className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"
 				>
-					<span className="truncate text-muted-foreground text-xs" style={{ maxWidth: 128 }}>
+					<span className="text-muted-foreground truncate text-xs" style={{ maxWidth: 128 }}>
 						{selected?.label ?? "이번 달 요청"}
 					</span>
-					<span className="mt-1 font-semibold text-3xl tabular-nums">
+					<span className="mt-1 text-3xl font-semibold tabular-nums">
 						{selected?.value ?? usage.requestCount}
-						<span className="ml-1 font-normal text-sm">회</span>
+						<span className="ml-1 text-sm font-normal">회</span>
 					</span>
 				</div>
 			</div>
 			<table aria-label="모델별 AI 사용량" className="w-full table-fixed text-xs tabular-nums">
 				<thead>
-					<tr className="border-b text-muted-foreground">
+					<tr className="text-muted-foreground border-b">
 						<th className="w-[45%] pb-2 text-left font-normal">요청 모델</th>
 						<th className="pb-2 text-right font-normal">요청 비율</th>
 						<th className="pb-2 text-right font-normal">정산 비용</th>
@@ -83,7 +83,7 @@ export default function BookmarkModelChart({ usage }: { usage: BookmarkAIUsage }
 							<td className="py-3">
 								<button
 									type="button"
-									className="flex max-w-full items-center gap-2 rounded-sm text-left focus-visible:outline focus-visible:outline-ring"
+									className="focus-visible:outline-ring flex max-w-full items-center gap-2 rounded-sm text-left focus-visible:outline"
 									title={`${model.provider ?? "공급자 미기록"} · ${model.model ?? "모델 미기록"}`}
 									onMouseEnter={() => setHovered(index)}
 									onMouseLeave={() => setHovered(null)}
@@ -95,7 +95,7 @@ export default function BookmarkModelChart({ usage }: { usage: BookmarkAIUsage }
 										className="size-2 shrink-0 rounded-full"
 										style={{ backgroundColor: data[index].color }}
 									/>
-									<span className="min-w-0 break-words [overflow-wrap:anywhere]">
+									<span className="min-w-0 [overflow-wrap:anywhere] break-words">
 										{data[index].label}
 									</span>
 								</button>
@@ -104,12 +104,12 @@ export default function BookmarkModelChart({ usage }: { usage: BookmarkAIUsage }
 								<span className="block">
 									{((model.requests / usage.requestCount) * 100).toFixed(1)}%
 								</span>
-								<span className="mt-0.5 block text-muted-foreground">{model.requests}회</span>
+								<span className="text-muted-foreground mt-0.5 block">{model.requests}회</span>
 							</td>
 							<td className="py-3 text-right" title={`$${(model.chargedNano / 1e9).toFixed(9)}`}>
 								${(model.chargedNano / 1e9).toFixed(6)}
 								{model.heldNano > 0 && (
-									<span className="mt-0.5 block text-muted-foreground">
+									<span className="text-muted-foreground mt-0.5 block">
 										예약 ${(model.heldNano / 1e9).toFixed(6)}
 									</span>
 								)}

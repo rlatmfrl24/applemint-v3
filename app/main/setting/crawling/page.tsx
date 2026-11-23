@@ -122,8 +122,8 @@ function LatestStatus({ policy }: { policy: CrawlSourcePolicy }) {
 	if (!policy.latest) {
 		return (
 			<div>
-				<div className="font-medium text-sm">실행 기록 없음</div>
-				<div className="mt-1 text-muted-foreground text-xs">첫 실행 후 결과가 표시됩니다.</div>
+				<div className="text-sm font-medium">실행 기록 없음</div>
+				<div className="text-muted-foreground mt-1 text-xs">첫 실행 후 결과가 표시됩니다.</div>
 			</div>
 		);
 	}
@@ -136,7 +136,7 @@ function LatestStatus({ policy }: { policy: CrawlSourcePolicy }) {
 		<div>
 			<div
 				className={cn(
-					"flex items-center gap-1.5 font-medium text-sm",
+					"flex items-center gap-1.5 text-sm font-medium",
 					failed && "text-red-600 dark:text-red-400",
 					warning && "text-amber-700 dark:text-amber-400",
 					!failed && !warning && "text-emerald-700 dark:text-emerald-400"
@@ -145,7 +145,7 @@ function LatestStatus({ policy }: { policy: CrawlSourcePolicy }) {
 				<Icon aria-hidden="true" className="size-4" />
 				{latestStatusLabel(policy)}
 			</div>
-			<div className="mt-1 text-muted-foreground text-xs leading-5">
+			<div className="text-muted-foreground mt-1 text-xs leading-5">
 				{formatDate(policy.latest.finishedAt ?? policy.latest.startedAt)}
 				<br />
 				저장 {policy.latest.insertedCount}건 · 재시도 {policy.latest.retryCount}건
@@ -175,7 +175,7 @@ function ScheduleSwitch({
 					role="switch"
 					type="checkbox"
 				/>
-				<span className="pointer-events-none absolute inset-0 rounded-full bg-zinc-200 transition-colors peer-checked:bg-zinc-900 peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 dark:bg-zinc-700 dark:peer-checked:bg-zinc-100" />
+				<span className="peer-focus-visible:ring-ring pointer-events-none absolute inset-0 rounded-full bg-zinc-200 transition-colors peer-checked:bg-zinc-900 peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2 dark:bg-zinc-700 dark:peer-checked:bg-zinc-100" />
 				<span className="pointer-events-none relative ml-1 size-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5 dark:bg-zinc-950" />
 			</span>
 			<span className="text-sm">{checked ? "사용 중" : "중지됨"}</span>
@@ -248,12 +248,12 @@ function PolicyRow({
 			<div className="grid gap-5 md:grid-cols-2 md:items-start xl:grid-cols-[1.15fr_0.8fr_1.05fr_1.25fr_1fr_8.5rem] xl:gap-4">
 				<div className="min-w-0">
 					<div className="flex items-start gap-3">
-						<div className="flex size-10 shrink-0 items-center justify-center rounded-lg border bg-muted/30">
+						<div className="bg-muted/30 flex size-10 shrink-0 items-center justify-center rounded-lg border">
 							<Globe2 aria-hidden="true" className="size-5" />
 						</div>
 						<div className="min-w-0">
-							<h3 className="truncate font-semibold text-base">{policy.label}</h3>
-							<div className="mt-1 text-muted-foreground text-xs leading-5">
+							<h3 className="truncate text-base font-semibold">{policy.label}</h3>
+							<div className="text-muted-foreground mt-1 text-xs leading-5">
 								권장 {formatInterval(policy.recommendedCooldownSeconds)}
 								<br />
 								실행 예산 {policy.runBudgetSeconds}초
@@ -263,7 +263,7 @@ function PolicyRow({
 				</div>
 
 				<div>
-					<div className="mb-2 font-medium text-muted-foreground text-xs xl:hidden">예약 수집</div>
+					<div className="text-muted-foreground mb-2 text-xs font-medium xl:hidden">예약 수집</div>
 					<ScheduleSwitch
 						label={policy.label}
 						checked={scheduleEnabled}
@@ -273,14 +273,14 @@ function PolicyRow({
 
 				<div>
 					<label
-						className="mb-2 block font-medium text-muted-foreground text-xs xl:hidden"
+						className="text-muted-foreground mb-2 block text-xs font-medium xl:hidden"
 						htmlFor={`${policy.source}-interval`}
 					>
 						최소 수집 간격
 					</label>
 					<select
 						aria-label={`${policy.label} 최소 수집 간격`}
-						className="h-10 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						className="bg-background focus-visible:ring-ring h-10 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none"
 						id={`${policy.source}-interval`}
 						value={intervalMode === "custom" ? "custom" : String(cooldownSeconds)}
 						onChange={(event) => {
@@ -300,10 +300,10 @@ function PolicyRow({
 						<option value="custom">사용자 지정</option>
 					</select>
 					{intervalMode === "custom" ? (
-						<label className="mt-2 block text-muted-foreground text-xs">
+						<label className="text-muted-foreground mt-2 block text-xs">
 							사용자 지정(분)
 							<input
-								className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-foreground text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+								className="bg-background text-foreground focus-visible:ring-ring mt-1 h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none"
 								max={10080}
 								min={30}
 								step={30}
@@ -329,11 +329,11 @@ function PolicyRow({
 				</div>
 
 				<div>
-					<div className="mb-2 font-medium text-muted-foreground text-xs xl:hidden">
+					<div className="text-muted-foreground mb-2 text-xs font-medium xl:hidden">
 						다음 예상 실행
 					</div>
 					<div className="flex items-start gap-2 text-sm">
-						<Clock3 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+						<Clock3 aria-hidden="true" className="text-muted-foreground mt-0.5 size-4 shrink-0" />
 						<span className="leading-5" data-testid="next-scheduled-at">
 							{nextSchedule}
 						</span>
@@ -341,7 +341,7 @@ function PolicyRow({
 				</div>
 
 				<div>
-					<div className="mb-2 font-medium text-muted-foreground text-xs xl:hidden">
+					<div className="text-muted-foreground mb-2 text-xs font-medium xl:hidden">
 						마지막 결과
 					</div>
 					<LatestStatus policy={policy} />

@@ -480,7 +480,7 @@ export function BookmarkCollectionTree(props: Props) {
 					{...(id === "" && props.dragged?.kind === "bookmarks" ? dropHandlers(null) : {})}
 					type="button"
 					aria-current={props.selected === id ? "page" : undefined}
-					className={`${treeStyles.navEntry} flex w-full items-center gap-2.5 rounded-md px-3 py-1.5 text-left focus-visible:outline focus-visible:outline-ring`}
+					className={`${treeStyles.navEntry} focus-visible:outline-ring flex w-full items-center gap-2.5 rounded-md px-3 py-1.5 text-left focus-visible:outline`}
 					onClick={() => select(id)}
 				>
 					<Icon className="size-4 shrink-0" aria-hidden="true" />
@@ -502,7 +502,7 @@ export function BookmarkCollectionTree(props: Props) {
 				>
 					<h2
 						id="bookmark-collections-heading"
-						className="m-0 flex items-center gap-2 border-0 p-0 font-semibold text-muted-foreground text-xs"
+						className="text-muted-foreground m-0 flex items-center gap-2 border-0 p-0 text-xs font-semibold"
 					>
 						<Folders className="size-3.5 shrink-0" aria-hidden="true" />
 						{props.dragged?.kind === "collection" ? "최상위로 이동" : "컬렉션"}
@@ -594,7 +594,7 @@ export function BookmarkCollectionTree(props: Props) {
 						북마크 탐색
 					</button>
 					<DrawerContent
-						className={`${styles.mobileDrawer} max-h-[90dvh] bg-background p-4 pb-[max(16px,env(safe-area-inset-bottom))]`}
+						className={`${styles.mobileDrawer} bg-background max-h-[90dvh] p-4 pb-[max(16px,env(safe-area-inset-bottom))]`}
 					>
 						<div className="my-2 flex items-center justify-between">
 							<DrawerPrimitive.Title className="m-0 border-0 p-0 text-base">
@@ -635,7 +635,7 @@ function DragStatus({
 		<p
 			role="status"
 			title={message ?? undefined}
-			className={`${styles.dragStatus} break-words px-3 text-muted-foreground text-xs`}
+			className={`${styles.dragStatus} text-muted-foreground px-3 text-xs break-words`}
 		>
 			{message}
 		</p>

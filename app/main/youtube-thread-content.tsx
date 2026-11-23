@@ -103,7 +103,7 @@ function YouTubeThumbnail({
 				</div>
 			)}
 			{duration ? (
-				<span className="absolute right-1.5 bottom-1.5 rounded bg-black/85 px-1.5 py-0.5 font-medium text-[11px] text-white">
+				<span className="absolute right-1.5 bottom-1.5 rounded bg-black/85 px-1.5 py-0.5 text-[11px] font-medium text-white">
 					{duration}
 				</span>
 			) : null}
@@ -236,24 +236,24 @@ export function YouTubeThreadContent({
 					className="py-0.5"
 				/>
 				{model.metadata?.channel_title ? (
-					<div className="flex min-w-0 items-center gap-1 text-xs text-zinc-600 leading-4 dark:text-zinc-300">
+					<div className="flex min-w-0 items-center gap-1 text-xs leading-4 text-zinc-600 dark:text-zinc-300">
 						<CirclePlay aria-hidden="true" className="size-3.5 shrink-0" />
 						<span className="truncate">{model.metadata.channel_title}</span>
 					</div>
 				) : null}
 				{model.sourceContext ? (
-					<p className="truncate text-[11px] text-zinc-500 leading-4 dark:text-zinc-400">
+					<p className="truncate text-[11px] leading-4 text-zinc-500 dark:text-zinc-400">
 						수집 문맥: {model.sourceContext}
 					</p>
 				) : null}
 				{message ? (
-					<p role="status" className="text-xs text-zinc-600 leading-4 dark:text-zinc-300">
+					<p role="status" className="text-xs leading-4 text-zinc-600 dark:text-zinc-300">
 						{message}
 					</p>
 				) : null}
 				<div
 					data-testid="youtube-thread-footer"
-					className="mt-0.5 flex min-w-0 items-center gap-1 text-[11px] text-zinc-500 leading-4 dark:text-zinc-400"
+					className="mt-0.5 flex min-w-0 items-center gap-1 text-[11px] leading-4 text-zinc-500 dark:text-zinc-400"
 				>
 					<Link2 aria-hidden="true" className="size-3 shrink-0" />
 					<span className="truncate">{thread.url}</span>

@@ -139,7 +139,7 @@ function JobItems({ id }: { id: string }) {
 	});
 	return (
 		<details className="mt-2" onToggle={(e) => setOpen(e.currentTarget.open)}>
-			<summary className="min-h-11 cursor-pointer rounded-md py-2 focus-visible:outline focus-visible:outline-ring">
+			<summary className="focus-visible:outline-ring min-h-11 cursor-pointer rounded-md py-2 focus-visible:outline">
 				실패·재검사·미처리 항목 확인
 			</summary>
 			{open && query.isPending && (
@@ -232,7 +232,7 @@ export function BookmarkJobs({ jobs }: { jobs: BookmarkJob[] }) {
 						</div>
 
 						{job.kind === "import" && (
-							<p className="mt-1 text-muted-foreground">
+							<p className="text-muted-foreground mt-1">
 								조회 {String(job.progress.readCount ?? 0)} · 저장{" "}
 								{String(job.progress.storedCount ?? job.completed)} · 페이지{" "}
 								{String(job.progress.page ?? 0)} · 검증{" "}
@@ -240,7 +240,7 @@ export function BookmarkJobs({ jobs }: { jobs: BookmarkJob[] }) {
 							</p>
 						)}
 						{job.error && (
-							<p role="status" className="mt-2 text-destructive">
+							<p role="status" className="text-destructive mt-2">
 								{job.error}
 							</p>
 						)}
@@ -249,7 +249,7 @@ export function BookmarkJobs({ jobs }: { jobs: BookmarkJob[] }) {
 							typeof job.scope.url === "string" &&
 							typeof job.scope.title === "string" && (
 								<div className="mt-2">
-									<p className="mb-2 break-words text-muted-foreground">
+									<p className="text-muted-foreground mb-2 break-words">
 										{job.scope.title || job.scope.url}
 									</p>
 									<BookmarkSaveDialog
@@ -290,7 +290,7 @@ function JobHeading({ job }: { job: BookmarkJob }) {
 				{job.kind === "check" && ` · ${job.scope.origin === "automatic" ? "자동" : "수동"}`}
 			</strong>
 			{job.kind === "check" && (
-				<p className="mt-1 text-muted-foreground">
+				<p className="text-muted-foreground mt-1">
 					판단 불가 {Number(job.progress.unknownCount ?? 0)}개 · AI 대기{" "}
 					{Number(job.progress.aiPendingCount ?? 0)}개 · 완료는 정상 링크 비율이 아닌 검사 진행
 					상태입니다.

@@ -212,7 +212,7 @@ export function BookmarkCollectionPicker({
 						data-parent-id={parent}
 						tabIndex={focused === collection.id ? 0 : -1}
 						data-expanded={Boolean(expansion)}
-						className={`${treeStyles.branch} cursor-pointer rounded-md focus-visible:outline focus-visible:outline-ring`}
+						className={`${treeStyles.branch} focus-visible:outline-ring cursor-pointer rounded-md focus-visible:outline`}
 						onFocus={(event) => focusChoice(event, collection.id)}
 						onClick={(event) => {
 							event.stopPropagation();
@@ -256,7 +256,7 @@ export function BookmarkCollectionPicker({
 					setOpen(!open);
 				}}
 			>
-				<Folder className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+				<Folder className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
 				<span
 					className="min-w-0 flex-1 truncate"
 					title={collectionPath(value || null, collections)}
@@ -274,13 +274,13 @@ export function BookmarkCollectionPicker({
 					className={`${treeStyles.theme} ${treeStyles.pickerPanel} mt-1 max-h-[min(20rem,45dvh)] overflow-y-auto overscroll-contain rounded-md border p-1`}
 				>
 					{searchable && (
-						<label className="sticky top-0 z-10 block bg-background p-1">
+						<label className="bg-background sticky top-0 z-10 block p-1">
 							<span className="sr-only">컬렉션 검색</span>
 							<input
 								type="search"
 								aria-label="컬렉션 검색"
 								value={search}
-								className="h-11 w-full rounded border bg-background px-3 text-base sm:text-sm"
+								className="bg-background h-11 w-full rounded border px-3 text-base sm:text-sm"
 								placeholder="컬렉션 검색"
 								onChange={(event) => {
 									setSearch(event.target.value);
@@ -312,7 +312,7 @@ export function BookmarkCollectionPicker({
 							data-current={value === ""}
 							data-collection-id=""
 							tabIndex={focused === "" ? 0 : -1}
-							className={`${treeStyles.collectionRow} cursor-pointer focus-visible:outline focus-visible:outline-ring`}
+							className={`${treeStyles.collectionRow} focus-visible:outline-ring cursor-pointer focus-visible:outline`}
 							onFocus={() => setFocused("")}
 							onClick={() => choose("")}
 							onKeyDown={(event) => key(event, "", null, false)}
