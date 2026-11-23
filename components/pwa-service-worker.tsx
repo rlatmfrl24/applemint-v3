@@ -55,11 +55,11 @@ export function PwaServiceWorker() {
 	return (
 		<div
 			role="status"
-			className="fixed right-4 bottom-4 left-4 z-50 mx-auto flex max-w-lg items-center justify-between gap-4 rounded-xl border bg-background p-4 shadow-lg"
+			className="bg-background fixed right-4 bottom-4 left-4 z-50 mx-auto flex max-w-lg items-center justify-between gap-4 rounded-xl border p-4 shadow-lg"
 		>
 			<div>
-				<p className="font-medium text-sm">새 버전이 준비되었습니다</p>
-				<p className="mt-1 text-muted-foreground text-xs">
+				<p className="text-sm font-medium">새 버전이 준비되었습니다</p>
+				<p className="text-muted-foreground mt-1 text-xs">
 					업데이트를 누르면 최신 버전으로 다시 시작합니다.
 				</p>
 			</div>

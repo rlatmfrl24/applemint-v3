@@ -62,6 +62,7 @@ test("작업 기록의 이미 저장된 링크는 추천 조회 없이 기존 �
 });
 
 test("중복 조회 실패는 저장과 추천 없이 재시도하고 실제 조회 결과로 안내한다", async ({ page }) => {
+	const source = await seedBookmarkUXSource();
 	await page.goto("/main");
 	let attempts = 0;
 	const aiRequests: string[] = [];
@@ -71,7 +72,7 @@ test("중복 조회 실패는 저장과 추천 없이 재시도하고 실제 조
 	await page.route("**/api/trpc/bookmark.lookup**", (route) =>
 		++attempts === 1 ? route.abort() : route.continue()
 	);
-	const card = page.getByTestId("thread-card").first();
+	const card = page.locator(`[data-thread-url=${JSON.stringify(source.url)}]`);
 	await card.getByRole("button", { name: "Bookmark", exact: true }).click();
 	const dialog = page.getByRole("alertdialog");
 	await expect(dialog.getByRole("alert")).toBeVisible();
@@ -289,6 +290,7 @@ test("실제 추천 결과가 늦게 도착해도 그 사이 바꾼 제목에 �
 			.click();
 		const dialog = page.getByRole("alertdialog");
 		await expect.poll(() => deferred).toBe(true);
+		// biome-ignore lint/performance/useDomNodeTextContent: This Playwright locator reads the rendered collection label.
 		const prior = await dialog.getByLabel("컬렉션", { exact: true }).innerText();
 		await dialog.getByLabel("제목 (선택)").fill(`${job.scope.title} 수정`);
 		release();

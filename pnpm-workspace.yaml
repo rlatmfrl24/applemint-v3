@@ -2,7 +2,7 @@ packages:
   - .
 
 ignoredBuiltDependencies:
-  - '@biomejs/biome'
+  - "@biomejs/biome"
   - puppeteer
   - sharp
 

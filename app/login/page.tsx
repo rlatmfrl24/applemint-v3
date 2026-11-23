@@ -38,11 +38,11 @@ export default function Login({ searchParams }: { searchParams: Promise<{ messag
 		<div className="flex w-full flex-1 flex-col justify-center gap-2 px-8 sm:max-w-md">
 			<form
 				action={signIn}
-				className="flex w-full flex-1 flex-col justify-center gap-2 text-foreground"
+				className="text-foreground flex w-full flex-1 flex-col justify-center gap-2"
 			>
 				<div className="mb-10">
 					<BrandLogo />
-					<div className="mt-3 text-muted-foreground text-sm">
+					<div className="text-muted-foreground mt-3 text-sm">
 						트렌드 링크를 모으고, 살펴보고, 간결하게 정리하세요.
 					</div>
 				</div>
@@ -75,7 +75,7 @@ export default function Login({ searchParams }: { searchParams: Promise<{ messag
 				</SubmitButton>
 
 				{params?.message && (
-					<p className="mt-4 bg-foreground/10 p-4 text-center text-foreground">{params.message}</p>
+					<p className="bg-foreground/10 text-foreground mt-4 p-4 text-center">{params.message}</p>
 				)}
 			</form>
 		</div>

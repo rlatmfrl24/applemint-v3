@@ -3,6 +3,7 @@ import { z } from "zod";
 import { bookmarkRecommendationSchema } from "@/contracts/bookmark.schema";
 import { collectionPath } from "@/lib/bookmark-collection";
 import {
+	type BookmarkTopicEvidence,
 	bookmarkSourceCriteria,
 	bookmarkSourceKinds,
 	bookmarkTopicInstructions,
@@ -18,7 +19,7 @@ const RESOLVED_MODEL = "typesafe/jev-1.13-20260917";
 export function recommendationReservation() {
 	return { tokens: 65536, nano: 65536 * 42 };
 }
-export function buildRecommendationRequest<T extends { url: string }>(
+export function buildRecommendationRequest<T extends BookmarkTopicEvidence>(
 	bookmark: T,
 	collections: TopicCollection[],
 	interests: string[]
@@ -99,12 +100,12 @@ function answerError(
 }
 
 function recommendationFromAnswers(
-	url: string,
+	bookmark: BookmarkTopicEvidence,
 	answers: z.infer<typeof answersSchema>,
 	collections: TopicCollection[]
 ) {
 	const target = resolveBookmarkTopicTarget(
-		url,
+		bookmark,
 		{
 			collectionId: answers.collection.choice === "unfiled" ? null : answers.collection.choice,
 			sourceKind: sourceKindSchema.parse(answers.source.choice),
@@ -112,13 +113,16 @@ function recommendationFromAnswers(
 		collections
 	);
 	const collection = "collection" in target ? target.collection : null;
+	let basis = answers.basis.choice;
+	if (target.kind === "existing" && target.titleMatch) basis = "topic";
+	if (target.kind === "source") basis = "url";
 	return {
 		etcScope: target.kind === "etc" ? target.etcScope : null,
 		...(target.kind === "source" && { sourceRoute: target.sourceRoute }),
 		recommendation: bookmarkRecommendationSchema.parse({
 			collectionId: collection?.id ?? null,
 			collectionVersion: collection?.version ?? null,
-			basis: answers.basis.choice,
+			basis,
 			confidence: answers.collection.confidence,
 			model: RESOLVED_MODEL,
 		}),
@@ -153,7 +157,7 @@ export async function callRecommendation(
 	else outputError = answerError(answers.data, request);
 	return {
 		...(!outputError && answers.success
-			? recommendationFromAnswers(request.state.bookmark.url, answers.data, collections)
+			? recommendationFromAnswers(request.state.bookmark, answers.data, collections)
 			: { recommendation: null, etcScope: null, sourceRoute: undefined }),
 		outputError,
 		chargedNano,

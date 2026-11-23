@@ -8,6 +8,7 @@
 **Spec:** User approval of findings 1–4 in this chat; existing `docs/superpowers/specs/2026-10-22-bookmark-content-health-design.md:174-180`.
 
 ## Global Constraints
+
 - Shared KST monthly AI limit remains 1,000,000,000 nano-dollar ($1).
 - No automatic bookmark deletion or trash movement; explicit keep/trash/restore with version/evidence checks.
 - Preserve all review filters, counts, page ordering, legacy checked_url rules, raw response shape and owner/RLS boundaries.
@@ -15,6 +16,7 @@
 - Reuse the attached worktree and existing dependencies. Preserve root untracked approved documents.
 
 ## Review Focus
+
 - Many unchecked bookmarks and wide evidence must not trigger per-bookmark classification or per-page evidence scans.
 - Current/stale/reviewed checks must retain identical filter and detail semantics.
 - Job claim/host waits without published evidence must not cause refreshes.
@@ -22,6 +24,7 @@
 - An open detail must refresh on the same result event without overwriting an unsaved edit.
 
 ## Tasks
+
 1. [x] Add a failing database scale/semantics regression; optimize snapshot via additive migration. Verify all existing filter/budget/owner tests and read-only real-size comparison.
 2. [x] Add failing collection repository/router/owner tests; implement dedicated owner RPC and remove unconditional 10-second collection polling. Generate/check DB types.
 3. [x] Add failing job-result/slow-fetch tests; publish evidence revision from actual check commits and coalesce refreshes. Verify initial load, next page, failure and unchanged-progress cases.

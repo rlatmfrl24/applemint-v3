@@ -12,7 +12,7 @@ const ModelChart = dynamic(() => import("./bookmark-model-chart"), {
 	loading: () => (
 		<div
 			role="status"
-			className="min-h-72 animate-pulse rounded-md bg-muted/30 motion-reduce:animate-none"
+			className="bg-muted/30 min-h-72 animate-pulse rounded-md motion-reduce:animate-none"
 			aria-label="모델 차트를 불러오는 중"
 		/>
 	),
@@ -38,7 +38,7 @@ export function BookmarkAIUsagePanel() {
 						</Button>
 					</div>
 				) : (
-					<p role="status" aria-busy="true" className="min-h-24 text-muted-foreground text-sm">
+					<p role="status" aria-busy="true" className="text-muted-foreground min-h-24 text-sm">
 						사용량을 불러오는 중…
 					</p>
 				)}
@@ -55,7 +55,7 @@ export function BookmarkAIUsagePanel() {
 					<span className="text-xs tabular-nums">월 예산 $1</span>
 				</div>
 				<div
-					className="h-1.5 overflow-hidden rounded-full bg-muted"
+					className="bg-muted h-1.5 overflow-hidden rounded-full"
 					role="progressbar"
 					aria-label="월 AI 예산 사용률"
 					aria-valuemin={0}
@@ -64,13 +64,13 @@ export function BookmarkAIUsagePanel() {
 					aria-valuetext={`정산·예약 합계 $${(usage.usedNano / 1e9).toFixed(6)} / $1`}
 				>
 					<div
-						className="h-full rounded-full bg-primary"
+						className="bg-primary h-full rounded-full"
 						style={{ width: `${Math.min(100, percent)}%` }}
 					/>
 				</div>
 				<p className="text-muted-foreground text-xs">
 					사용·예약 합계{" "}
-					<span className="font-medium text-foreground tabular-nums">
+					<span className="text-foreground font-medium tabular-nums">
 						${(usage.usedNano / 1e9).toFixed(6)} / $1
 					</span>
 				</p>
@@ -80,26 +80,26 @@ export function BookmarkAIUsagePanel() {
 					<dt className="text-muted-foreground">요청</dt>
 					<dd
 						data-testid="bookmark-ai-requests"
-						className="mt-1.5 font-medium text-sm tabular-nums"
+						className="mt-1.5 text-sm font-medium tabular-nums"
 					>
 						{usage.requestCount}회
 					</dd>
 				</div>
 				<div>
 					<dt className="text-muted-foreground">정산 비용</dt>
-					<dd data-testid="bookmark-ai-charged" className="mt-1.5 font-medium text-sm tabular-nums">
+					<dd data-testid="bookmark-ai-charged" className="mt-1.5 text-sm font-medium tabular-nums">
 						${(usage.chargedNano / 1e9).toFixed(6)}
 					</dd>
 				</div>
 				<div>
 					<dt className="text-muted-foreground">예약·확인 대기</dt>
-					<dd data-testid="bookmark-ai-held" className="mt-1.5 font-medium text-sm tabular-nums">
+					<dd data-testid="bookmark-ai-held" className="mt-1.5 text-sm font-medium tabular-nums">
 						${(usage.heldNano / 1e9).toFixed(6)}
 					</dd>
 				</div>
 			</dl>
 			<details className="group" onToggle={(event) => setExpanded(event.currentTarget.open)}>
-				<summary className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-md text-sm focus-visible:outline focus-visible:outline-ring">
+				<summary className="focus-visible:outline-ring flex min-h-11 cursor-pointer list-none items-center justify-between rounded-md text-sm focus-visible:outline">
 					상세 사용량
 					<ChevronDown
 						aria-hidden="true"
@@ -110,7 +110,7 @@ export function BookmarkAIUsagePanel() {
 					(usage.requestCount > 0 ? (
 						<ModelChart usage={usage} />
 					) : (
-						<p className="py-6 text-center text-muted-foreground text-sm">
+						<p className="text-muted-foreground py-6 text-center text-sm">
 							이번 달 AI 요청이 없습니다. 추천이나 분류를 사용하면 모델별 사용량이 표시됩니다.
 						</p>
 					))}{" "}

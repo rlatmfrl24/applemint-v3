@@ -70,6 +70,19 @@ export class BookmarkService {
 		const source = await this.source(input);
 		return this.store.lookup(normalizeBookmarkUrl(source?.url ?? input.url));
 	}
+	async savedLinks(urls: string[]) {
+		const keysByUrl = new Map<string, string>();
+		for (const url of urls) {
+			try {
+				keysByUrl.set(url, normalizeBookmarkUrl(url));
+			} catch (error) {
+				if (!(error instanceof DomainError) || error.code !== "InvalidInput") throw error;
+			}
+		}
+		if (!keysByUrl.size) return [];
+		const saved = new Set(await this.store.savedUrlKeys([...new Set(keysByUrl.values())]));
+		return [...keysByUrl].filter(([, key]) => saved.has(key)).map(([url]) => url);
+	}
 	async save(input: BookmarkSaveInput) {
 		const source = await this.source(input);
 		return this.store.command(

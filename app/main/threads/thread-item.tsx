@@ -24,11 +24,13 @@ export const DefaultThreadItem = ({
 	threadState,
 	extraButtons,
 	disablePrimaryAction,
+	bookmarkUrls,
 }: {
 	thread: ThreadItemType;
 	threadState: Exclude<ThreadState, "trash">;
 	extraButtons?: React.ReactNode;
 	disablePrimaryAction?: boolean;
+	bookmarkUrls?: string[];
 }) => {
 	const trpc = useTRPCClient();
 	const queryClient = useQueryClient();
@@ -75,6 +77,7 @@ export const DefaultThreadItem = ({
 	return (
 		<ThreadCard
 			thread={thread}
+			showDescription={threadState !== "inbox"}
 			actions={
 				<>
 					{disablePrimaryAction ? null : (
@@ -95,6 +98,7 @@ export const DefaultThreadItem = ({
 					)}
 					{extraButtons}
 					<BookmarkSaveDialog
+						bookmarkUrls={bookmarkUrls}
 						source={{
 							id: normalizeThreadId(thread.id),
 							url: thread.url,

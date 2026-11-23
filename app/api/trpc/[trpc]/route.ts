@@ -1,4 +1,5 @@
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
+import { isBookmarkUrlLookup } from "@/lib/bookmark-links";
 import { DomainError } from "@/server/errors/domain-error";
 import { toTRPCError } from "@/server/errors/error-mapper";
 import { withResponseMetrics } from "@/server/observability/http-request";
@@ -20,7 +21,7 @@ const handler = async (request: Request) => {
 		allowMethodOverride: new URL(request.url).pathname
 			.slice("/api/trpc/".length)
 			.split(",")
-			.every((path) => path === "bookmark.lookup"),
+			.every(isBookmarkUrlLookup),
 		endpoint: "/api/trpc",
 		req: request,
 		router: appRouter,

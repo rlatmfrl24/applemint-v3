@@ -101,7 +101,7 @@ function SourceTrend({ summary }: { summary: CrawlSourceSummary }) {
 
 	return (
 		<div className="mt-4" data-testid={`crawl-trend-${summary.source}`}>
-			<div className="mb-2 flex items-center justify-between text-muted-foreground text-xs">
+			<div className="text-muted-foreground mb-2 flex items-center justify-between text-xs">
 				<span>최근 {summary.trend.length}회 파서 추세</span>
 				<span>유효 / 최소</span>
 			</div>
@@ -118,16 +118,16 @@ function SourceTrend({ summary }: { summary: CrawlSourceSummary }) {
 						const minimumHeight = Math.max(2, (point.parserMinimumCount / maximum) * 100);
 						return (
 							<div
-								className="relative h-full min-w-1 flex-1 rounded-sm bg-muted"
+								className="bg-muted relative h-full min-w-1 flex-1 rounded-sm"
 								key={point.id}
 								title={`${formatDate(point.startedAt)}: ${point.parserValidCount} / ${point.parserMinimumCount}`}
 							>
 								<div
-									className="absolute right-0 bottom-0 left-0 rounded-sm bg-primary/70"
+									className="bg-primary/70 absolute right-0 bottom-0 left-0 rounded-sm"
 									style={{ height: `${validHeight}%` }}
 								/>
 								<div
-									className="absolute right-0 left-0 border-amber-500 border-t-2"
+									className="absolute right-0 left-0 border-t-2 border-amber-500"
 									style={{ bottom: `${minimumHeight}%` }}
 								/>
 							</div>
@@ -169,7 +169,7 @@ function SourceRow({
 								!failed && !warning && "text-emerald-600 dark:text-emerald-400"
 							)}
 						/>
-						<h3 className="font-semibold text-base">{summary.label}</h3>
+						<h3 className="text-base font-semibold">{summary.label}</h3>
 					</div>
 					<div className="mt-2 flex flex-wrap gap-2">
 						{summary.activeAlertCount > 0 ? <Badge variant="destructive">장애 감지</Badge> : null}
@@ -184,32 +184,32 @@ function SourceRow({
 				</div>
 
 				<div className="text-sm">
-					<div className="font-medium text-muted-foreground text-xs xl:hidden">예약 정책</div>
+					<div className="text-muted-foreground text-xs font-medium xl:hidden">예약 정책</div>
 					<div className="mt-1">
 						예약 {summary.scheduleEnabled ? "사용" : "중지"} ·{" "}
 						{formatHours(summary.cooldownSeconds)}
 					</div>
-					<div className="mt-1 text-muted-foreground text-xs">
+					<div className="text-muted-foreground mt-1 text-xs">
 						실행 예산 {summary.runBudgetSeconds}초
 					</div>
 				</div>
 
 				<div className="text-sm">
-					<div className="font-medium text-muted-foreground text-xs xl:hidden">다음 예약 가능</div>
+					<div className="text-muted-foreground text-xs font-medium xl:hidden">다음 예약 가능</div>
 					<div className="mt-1">{formatDate(summary.nextEligibleAt)}</div>
-					<div className="mt-1 text-muted-foreground text-xs">
+					<div className="text-muted-foreground mt-1 text-xs">
 						무성공 감지까지 {formatRemaining(summary.lastSuccessAt, settings.noSuccessSeconds)}
 					</div>
 				</div>
 
 				<div className="text-sm">
-					<div className="font-medium text-muted-foreground text-xs xl:hidden">최근 상태</div>
+					<div className="text-muted-foreground text-xs font-medium xl:hidden">최근 상태</div>
 					<div className="mt-1">마지막 성공 {formatDate(summary.lastSuccessAt)}</div>
-					<div className="mt-1 text-muted-foreground text-xs">
+					<div className="text-muted-foreground mt-1 text-xs">
 						마지막 실패 {formatDate(summary.lastFailureAt)}
 					</div>
 					{summary.latest ? (
-						<div className="mt-2 text-muted-foreground text-xs leading-5">
+						<div className="text-muted-foreground mt-2 text-xs leading-5">
 							최근 {summary.latest.trigger === "scheduled" ? "예약" : "수동"} ·{" "}
 							{summary.latest.extractedCount}건 추출 · {summary.latest.insertedCount}건 저장
 							<br />
@@ -220,13 +220,13 @@ function SourceRow({
 				</div>
 
 				<div>
-					<div className="font-medium text-muted-foreground text-xs xl:hidden">파서 추세</div>
+					<div className="text-muted-foreground text-xs font-medium xl:hidden">파서 추세</div>
 					<SourceTrend summary={summary} />
 				</div>
 			</div>
 
 			{alert ? (
-				<div className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-red-700 text-xs leading-5 dark:bg-red-950/40 dark:text-red-300">
+				<div className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-xs leading-5 text-red-700 dark:bg-red-950/40 dark:text-red-300">
 					<div className="font-medium">활성 장애 신호</div>
 					<ul className="mt-1 list-disc pl-5">
 						{alert.activeSignals.map((signal) => (
@@ -283,7 +283,7 @@ function ActiveAlerts({
 function AlertSettings({ settings }: { settings: CrawlAlertSettings }) {
 	return (
 		<div className="p-5" data-testid="crawl-alert-settings">
-			<h3 className="font-semibold text-sm">장애 감지 기준</h3>
+			<h3 className="text-sm font-semibold">장애 감지 기준</h3>
 			<div className="mt-4 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
 				<div>Parser failure {settings.parserFailureStreak}회 연속</div>
 				<div>
@@ -306,7 +306,7 @@ function AlertSettings({ settings }: { settings: CrawlAlertSettings }) {
 function RuntimeSettings({ dashboard }: { dashboard: CrawlRunsDashboardData }) {
 	return (
 		<div className="p-5" data-testid="crawl-runtime-settings">
-			<h3 className="font-semibold text-sm">수집 실행 정책</h3>
+			<h3 className="text-sm font-semibold">수집 실행 정책</h3>
 			<div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
 				<div>
 					<div className="text-muted-foreground text-xs">최대 동시 소스</div>
@@ -356,46 +356,46 @@ function RunRow({ run, label }: { run: CrawlRun; label: string }) {
 						<strong>{label}</strong>
 						<Badge variant={statusVariant(run.status)}>{STATUS_LABELS[run.status]}</Badge>
 					</div>
-					<div className="mt-1 text-muted-foreground text-xs">
+					<div className="text-muted-foreground mt-1 text-xs">
 						{run.trigger === "scheduled" ? "예약 실행" : "수동 실행"}
 					</div>
 				</div>
 				<div className="text-sm">
 					<div>{formatDate(run.startedAt)}</div>
-					<div className="mt-1 text-muted-foreground text-xs">
+					<div className="text-muted-foreground mt-1 text-xs">
 						소요 {formatDuration(run.durationMs)} · 재시도 {run.retryCount}건 · 복구{" "}
 						{run.recoveredCount}건
 					</div>
 				</div>
 				<div className="grid grid-cols-3 gap-x-4 gap-y-2 text-sm sm:grid-cols-6">
 					<div>
-						<span className="block text-muted-foreground text-xs">요청</span>
+						<span className="text-muted-foreground block text-xs">요청</span>
 						{run.attemptedCount}
 					</div>
 					<div>
-						<span className="block text-muted-foreground text-xs">성공</span>
+						<span className="text-muted-foreground block text-xs">성공</span>
 						{run.succeededCount}
 					</div>
 					<div>
-						<span className="block text-muted-foreground text-xs">저장</span>
+						<span className="text-muted-foreground block text-xs">저장</span>
 						{run.insertedCount}
 					</div>
 					<div>
-						<span className="block text-muted-foreground text-xs">중복</span>
+						<span className="text-muted-foreground block text-xs">중복</span>
 						{run.skippedCount}
 					</div>
 					<div>
-						<span className="block text-muted-foreground text-xs">경고</span>
+						<span className="text-muted-foreground block text-xs">경고</span>
 						{run.warningCount}
 					</div>
 					<div>
-						<span className="block text-muted-foreground text-xs">실패</span>
+						<span className="text-muted-foreground block text-xs">실패</span>
 						{run.failureCount}
 					</div>
 				</div>
 			</div>
 			{run.failureCount > 0 ? (
-				<div className="mt-3 text-muted-foreground text-xs">
+				<div className="text-muted-foreground mt-3 text-xs">
 					network {run.networkFailureCount} · parser {run.parserFailureCount} · timeout{" "}
 					{run.timeoutFailureCount}
 				</div>
@@ -539,7 +539,7 @@ export function CrawlRunsDashboard({ manualCrawlRunning }: { manualCrawlRunning:
 					<ActiveAlerts alerts={dashboard.alerts} labels={labelsBySource} />
 
 					<SettingsSurface className="mt-5" title="소스 상태" contentClassName="divide-y">
-						<div className="hidden bg-muted/35 px-5 py-3 font-medium text-muted-foreground text-xs xl:grid xl:grid-cols-[1.05fr_0.9fr_1fr_1.2fr_1.45fr] xl:gap-4">
+						<div className="bg-muted/35 text-muted-foreground hidden px-5 py-3 text-xs font-medium xl:grid xl:grid-cols-[1.05fr_0.9fr_1fr_1.2fr_1.45fr] xl:gap-4">
 							<span>수집 소스</span>
 							<span>예약 정책</span>
 							<span>다음 예약 가능</span>
@@ -571,7 +571,7 @@ export function CrawlRunsDashboard({ manualCrawlRunning }: { manualCrawlRunning:
 						description={`최대 ${dashboard.runs.length}개의 최근 실행을 표시합니다.`}
 					>
 						{dashboard.runs.length === 0 ? (
-							<div className="px-5 py-10 text-center text-muted-foreground text-sm">
+							<div className="text-muted-foreground px-5 py-10 text-center text-sm">
 								저장된 크롤링 실행 이력이 없습니다.
 							</div>
 						) : (

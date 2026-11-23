@@ -8,6 +8,7 @@ import {
 import type { TRPCClient } from "@trpc/client";
 import { describe, expect, it, vi } from "vitest";
 import type { AppRouter } from "@/server/trpc/router";
+import { threadRow } from "@/test/support/communication";
 import {
 	bulkTrashInboxOptions,
 	threadListOptions,
@@ -60,7 +61,7 @@ describe("thread tRPC query options", () => {
 		const signal = new AbortController().signal;
 		if (typeof options.queryFn !== "function") throw new Error("queryFn이 필요합니다.");
 
-		await options.queryFn({ pageParam: undefined, signal } as never);
+		await options.queryFn({ client: new QueryClient(), pageParam: undefined, signal } as never);
 
 		expect(options.queryKey).toEqual([
 			"threads",
@@ -80,11 +81,19 @@ describe("thread tRPC query options", () => {
 		);
 	});
 
-	it("fresh 상태의 활성 목록도 focus 복귀 시 최신 데이터로 갱신한다", async () => {
+	it("fresh 상태의 활성 목록도 focus 복귀 시 삭제된 글을 갱신한다", async () => {
 		const { client, list } = createClient();
 		list
-			.mockResolvedValueOnce({ items: [{ id: "before" }], nextCursor: null })
-			.mockResolvedValueOnce({ items: [{ id: "after" }], nextCursor: null });
+			.mockResolvedValueOnce({
+				items: [{ ...threadRow, id: "2" }],
+				nextCursor: null,
+				inboxWindow: { cursor: "first-view", hasNew: false },
+			})
+			.mockResolvedValueOnce({
+				items: [{ ...threadRow, id: "1" }],
+				nextCursor: null,
+				inboxWindow: { cursor: "first-view", hasNew: false },
+			});
 		const queryClient = new QueryClient({
 			defaultOptions: { queries: { retry: false } },
 		});
@@ -98,7 +107,7 @@ describe("thread tRPC query options", () => {
 
 		try {
 			await vi.waitFor(() =>
-				expect(observer.getCurrentResult().data?.pages[0]?.items[0]?.id).toBe("before")
+				expect(observer.getCurrentResult().data?.pages[0]?.items[0]?.id).toBe("2")
 			);
 
 			focusManager.setFocused(false);
@@ -106,7 +115,12 @@ describe("thread tRPC query options", () => {
 
 			await vi.waitFor(() => {
 				expect(list).toHaveBeenCalledTimes(2);
-				expect(observer.getCurrentResult().data?.pages[0]?.items[0]?.id).toBe("after");
+				expect(list).toHaveBeenLastCalledWith(
+					expect.objectContaining({ inboxViewCursor: "first-view" }),
+					expect.anything()
+				);
+				expect(observer.getCurrentResult().data?.pages[0]?.items[0]?.id).toBe("1");
+				expect(observer.getCurrentResult().data?.pages[0]?.inboxWindow?.hasNew).toBe(false);
 			});
 		} finally {
 			unsubscribe();

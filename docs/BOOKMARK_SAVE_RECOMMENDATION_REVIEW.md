@@ -36,17 +36,17 @@ Main·Quick의 공통 ‘북마크 저장’ 팝업에서 **‘추천받기’ �
 
 ## 구현 지점
 
-| 영역 | 파일·계약 |
-|---|---|
-| Main·Quick 진입 | `app/main/threads/thread-item.tsx` → `components/bookmark-save-dialog.tsx` |
-| 팝업 지연 로딩 | `components/bookmark-save-form.tsx`; 이벤트 연결 전에는 진입 버튼을 비활성화 |
-| 공통 트리 | `components/bookmark-collection-picker.tsx`; 수정·이동·컬렉션 팝업도 같은 컴포넌트 사용 |
-| 소유자 API | `bookmarkAI.recommend`, `bookmarkAI.recommendation`, 기존 `bookmark.save` |
-| Jev 처리 | `server/bookmarks/recommendation.ts`, 공통 `server/bookmarks/openrouter.ts`, `server/bookmarks/worker.ts` |
-| 비용 없는 호스트 선택 | `lib/bookmark-host.ts`, 기존 `getNormalSiteKey`, 공통 저장 팝업 |
-| 재개·결과 복귀 | `app/main/bookmarks/bookmark-jobs.tsx` |
-| 추가 DB 변경 | 저장 추천·dispatch migration과 `20261014045559_bookmark_openrouter_provider.sql`, `20261014050614_bookmark_openrouter_overrun.sql` |
-| 검증 | 추천 Vitest, worker 실패 검사, 추천 pgTAP 25개·OpenRouter 예산 9개, `e2e/bookmark-recommend.spec.ts` |
+| 영역                  | 파일·계약                                                                                                                          |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Main·Quick 진입       | `app/main/threads/thread-item.tsx` → `components/bookmark-save-dialog.tsx`                                                         |
+| 팝업 지연 로딩        | `components/bookmark-save-form.tsx`; 이벤트 연결 전에는 진입 버튼을 비활성화                                                       |
+| 공통 트리             | `components/bookmark-collection-picker.tsx`; 수정·이동·컬렉션 팝업도 같은 컴포넌트 사용                                            |
+| 소유자 API            | `bookmarkAI.recommend`, `bookmarkAI.recommendation`, 기존 `bookmark.save`                                                          |
+| Jev 처리              | `server/bookmarks/recommendation.ts`, 공통 `server/bookmarks/openrouter.ts`, `server/bookmarks/worker.ts`                          |
+| 비용 없는 호스트 선택 | `lib/bookmark-host.ts`, 기존 `getNormalSiteKey`, 공통 저장 팝업                                                                    |
+| 재개·결과 복귀        | `app/main/bookmarks/bookmark-jobs.tsx`                                                                                             |
+| 추가 DB 변경          | 저장 추천·dispatch migration과 `20261014045559_bookmark_openrouter_provider.sql`, `20261014050614_bookmark_openrouter_overrun.sql` |
+| 검증                  | 추천 Vitest, worker 실패 검사, 추천 pgTAP 25개·OpenRouter 예산 9개, `e2e/bookmark-recommend.spec.ts`                               |
 
 로컬 DB 백업 후 추가 migration만 적용했다. 새 작업의 트리거는 기존 내부 인증 worker 실행을 요청하며 사용자 작업을 새로 만들지 않는다. 일반 tRPC에는 service-role 클라이언트를 넣지 않는다.
 

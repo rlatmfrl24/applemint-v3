@@ -210,7 +210,17 @@ it("rejects a choice that contradicts its probability distribution while settlin
 	expect(result.outputError).toBe("COLLECTION_CHOICE_RANK");
 });
 
-it.each(["topic", "source", "etc", "root-etc", "missing-etc", "duplicate-etc", "invalid-source"])(
+it.each([
+	"topic",
+	"title-topic",
+	"source",
+	"generic-comic",
+	"etc",
+	"root-etc",
+	"missing-etc",
+	"duplicate-etc",
+	"invalid-source",
+])(
 	"resolves a community recommendation for %s after validating the model response",
 	async (scenario) => {
 		vi.stubEnv("OPENROUTER_API_KEY", "fixture-only");
@@ -229,14 +239,27 @@ it.each(["topic", "source", "etc", "root-etc", "missing-etc", "duplicate-etc", "
 			id: "aaaaaaaa-0000-4000-8000-000000000007",
 			name: "arcalive",
 		};
-		const active = [folder, topic, etc, parent];
-		if (scenario === "source") active.push(sourceFolder);
-		if (scenario !== "missing-etc") active.push(nested);
-		if (scenario === "duplicate-etc")
-			active.push({ ...nested, id: "aaaaaaaa-0000-4000-8000-000000000004" });
+		const broad = { ...etc, id: "aaaaaaaa-0000-4000-8000-000000000008", name: "otaku" };
+		const offeredBroad = scenario === "title-topic" || scenario === "generic-comic";
+		const expectsSource = scenario === "source" || scenario === "generic-comic";
+		const duplicate = { ...nested, id: "aaaaaaaa-0000-4000-8000-000000000004" };
+		const optional = [
+			[broad, offeredBroad],
+			[sourceFolder, expectsSource],
+			[nested, scenario !== "missing-etc"],
+			[duplicate, scenario === "duplicate-etc"],
+		] as const;
+		const active = [
+			folder,
+			topic,
+			etc,
+			parent,
+			...optional.filter(([, include]) => include).map(([collection]) => collection),
+		];
 		const request = buildRecommendationRequest(
 			{
 				...source,
+				title: scenario === "title-topic" ? "블아) 팬 만화" : "일상 만화",
 				url:
 					scenario === "root-etc"
 						? "https://example.org/misc"
@@ -248,8 +271,12 @@ it.each(["topic", "source", "etc", "root-etc", "missing-etc", "duplicate-etc", "
 		expect(request.questions.collection.criteria).toEqual({
 			unfiled: "No existing collection fits this bookmark.",
 			[topic.id]: "arcalive / 블루 아카이브",
+			...(offeredBroad && { [broad.id]: "otaku" }),
 		});
-		const chooseTopic = scenario === "topic";
+		const choice = scenario === "topic" ? topic.id : offeredBroad ? broad.id : "unfiled";
+		const probabilities = Object.fromEntries(
+			Object.keys(request.questions.collection.criteria).map((id) => [id, Number(id === choice)])
+		);
 		vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			Response.json({
 				model: "typesafe/jev-1.13-20260917",
@@ -257,9 +284,9 @@ it.each(["topic", "source", "etc", "root-etc", "missing-etc", "duplicate-etc", "
 				answers: {
 					collection: {
 						type: "choice",
-						choice: chooseTopic ? topic.id : "unfiled",
+						choice,
 						confidence: 1,
-						probabilities: { [topic.id]: Number(chooseTopic), unfiled: Number(!chooseTopic) },
+						probabilities,
 					},
 					basis: {
 						type: "choice",
@@ -276,13 +303,15 @@ it.each(["topic", "source", "etc", "root-etc", "missing-etc", "duplicate-etc", "
 		expect(result.chargedNano).toBe(4200);
 		const expectedScopes: Record<string, string> = { etc: "community", "root-etc": "root" };
 		expect(result.etcScope).toBe(expectedScopes[scenario] ?? null);
-		expect(result.sourceRoute?.siteKey).toBe(scenario === "source" ? "arca.live" : undefined);
+		expect(result.sourceRoute?.siteKey).toBe(expectsSource ? "arca.live" : undefined);
 		if (scenario === "invalid-source") {
 			expect(result).toMatchObject({ recommendation: null, outputError: "SOURCE_CHOICE_OPTIONS" });
 		} else {
 			const targets: Record<string, Pick<typeof etc, "id" | "version">> = {
 				topic,
+				"title-topic": topic,
 				source: sourceFolder,
+				"generic-comic": sourceFolder,
 				etc: nested,
 				"root-etc": etc,
 			};

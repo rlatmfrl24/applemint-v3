@@ -46,7 +46,7 @@
 - `BookmarkTopicResolution` is `{ kind: "existing" | "community-etc"; collection: TopicCollection }`, `{ kind: "new"; name: string }`, or `{ kind: "unfiled" | "community-etc-unavailable" }`.
 - Export `bookmarkTopicInstructions` from the policy module for both model adapters. Keep provider-specific output instructions in the respective adapter.
 
-- [ ] **Step 1 — Add policy regressions.** With active rows `Community`, `Community / arcalive`, `Community / 블루 아카이브`, and ` Etc `, assert the eligible IDs equal `[blueArchive.id]`. The following calls use `resolve = resolveBookmarkTopicTarget` bound to the indicated collection list via an inline test helper.
+- [ ] **Step 1 — Add policy regressions.** With active rows `Community`, `Community / arcalive`, `Community / 블루 아카이브`, and `" Etc "`, assert the eligible IDs equal `[blueArchive.id]`. The following calls use `resolve = resolveBookmarkTopicTarget` bound to the indicated collection list via an inline test helper.
 
   ```ts
   expect(resolve(arcaUrl, { ...noMatch, collectionId: blueArchive.id }).kind).toBe("existing");

@@ -10,10 +10,10 @@
 
 ## 수정
 
-| 구성요소 | 변경 | 해소한 감사 항목 |
-| --- | --- | --- |
-| Cheerio의 간접 의존성 `undici` | 7.30.0 → 7.30.1 | 과도한 Content-Encoding 응답으로 발생하는 프로세스 종료(고위험), EventSource 메모리 고갈·SRI 우회(보통 위험 2건) |
-| `vitest`, `@vitest/coverage-v8`, 내부 mocker 계열 | 4.1.11 → 4.1.12 | 수동 mock 등록 코드 주입·Windows 역슬래시 경로 우회(보통 위험 2건) |
+| 구성요소                                          | 변경            | 해소한 감사 항목                                                                                                 |
+| ------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Cheerio의 간접 의존성 `undici`                    | 7.30.0 → 7.30.1 | 과도한 Content-Encoding 응답으로 발생하는 프로세스 종료(고위험), EventSource 메모리 고갈·SRI 우회(보통 위험 2건) |
+| `vitest`, `@vitest/coverage-v8`, 내부 mocker 계열 | 4.1.11 → 4.1.12 | 수동 mock 등록 코드 주입·Windows 역슬래시 경로 우회(보통 위험 2건)                                               |
 
 공식 수정 근거: [Undici 보안 권고](https://github.com/nodejs/undici/security/advisories/GHSA-xjj6-f33q-929c), [7.30.1 릴리스](https://github.com/nodejs/undici/releases/tag/v7.30.1), [Vitest Windows 경로 보안 권고](https://github.com/vitest-dev/vitest/security/advisories/GHSA-xp26-3454-mjgp), [4.1.12 릴리스](https://github.com/vitest-dev/vitest/releases/tag/v4.1.12).
 

@@ -33,10 +33,10 @@ function ImportSettings({
 	});
 	const complete = job?.state === "succeeded";
 	return (
-		<details className="group rounded-xl border bg-card" open={complete ? undefined : true}>
-			<summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-4 text-sm focus-visible:outline focus-visible:outline-ring sm:px-5">
+		<details className="group bg-card rounded-xl border" open={complete ? undefined : true}>
+			<summary className="focus-visible:outline-ring flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-4 text-sm focus-visible:outline sm:px-5">
 				<span className="font-medium">Raindrop 가져오기</span>
-				<span className="flex items-center gap-3 text-muted-foreground text-xs">
+				<span className="text-muted-foreground flex items-center gap-3 text-xs">
 					<span>{complete ? `완료 · ${job.completed.toLocaleString()}개` : "최초 한 번"}</span>
 					<ChevronDown
 						aria-hidden="true"
@@ -45,7 +45,7 @@ function ImportSettings({
 				</span>
 			</summary>
 			<div className="space-y-3 border-t p-4 text-sm sm:p-5">
-				<p className="max-w-prose text-muted-foreground text-xs leading-5">
+				<p className="text-muted-foreground max-w-prose text-xs leading-5">
 					최상위·하위·빈 컬렉션과 미분류를 포함합니다. Raindrop 휴지통은 제외하고 후속 동기화는 하지
 					않습니다.
 				</p>
@@ -165,7 +165,7 @@ export default function BookmarkSettingsPage() {
 			</div>
 			<BookmarkHealthSettingsPanel />
 			<BookmarkScheduledClassificationSettings />
-			<section aria-label="이번 달 AI 사용량" className="min-w-0 rounded-xl border bg-card">
+			<section aria-label="이번 달 AI 사용량" className="bg-card min-w-0 rounded-xl border">
 				<h2 className="sr-only">AI 사용량</h2>
 				<BookmarkAIUsagePanel />
 			</section>
@@ -204,7 +204,7 @@ export default function BookmarkSettingsPage() {
 							</Button>
 						</div>
 					) : (
-						<p role="status" className="p-5 text-muted-foreground text-sm">
+						<p role="status" className="text-muted-foreground p-5 text-sm">
 							관심 주제를 불러오는 중…
 						</p>
 					)}
@@ -212,8 +212,8 @@ export default function BookmarkSettingsPage() {
 			</div>
 			<div className="flex flex-col items-start justify-between gap-3 border-t pt-4 sm:flex-row sm:items-center">
 				<div>
-					<h2 className="m-0 border-0 p-0 font-medium text-sm">작업 기록</h2>
-					<p className="mt-1 text-muted-foreground text-xs">
+					<h2 className="m-0 border-0 p-0 text-sm font-medium">작업 기록</h2>
+					<p className="text-muted-foreground mt-1 text-xs">
 						실패·중단된 작업을 확인하고 같은 작업을 재개합니다.
 					</p>
 				</div>
@@ -231,7 +231,7 @@ export default function BookmarkSettingsPage() {
 					refresh={refresh}
 				/>
 			)}
-			<p className="max-w-prose text-muted-foreground text-xs leading-5">
+			<p className="text-muted-foreground max-w-prose text-xs leading-5">
 				청구 여부가 불명확한 요청은 예약액을 유지합니다. 세금·환율·다른 앱의 사용량은 포함하지
 				않습니다. 내용 점검 시에는 제목·본문 발췌와 검사 지표만 AI에 전송합니다.
 			</p>

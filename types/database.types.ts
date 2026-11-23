@@ -1411,6 +1411,10 @@ export type Database = {
 				Args: { p_bookmark: Database["public"]["Tables"]["bookmarks"]["Row"] };
 				Returns: Json;
 			};
+			bookmark_saved_url_keys: {
+				Args: { p_url_keys: string[] };
+				Returns: string[];
+			};
 			bookmark_scheduled_classification_close: {
 				Args: { p_confirmed: boolean; p_id: string };
 				Returns: Json;

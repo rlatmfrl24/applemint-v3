@@ -26,17 +26,17 @@
 
 ## 2. 핵심 결정
 
-| 결정 | 원칙 |
-| --- | --- |
-| 브라우저 일반 조회·변경 | tRPC를 단일 진입점으로 사용 |
-| 장시간 운영 명령 | 명시적인 전용 REST endpoint 허용 |
-| Supabase Cron·`pg_net` | 내부 REST endpoint 유지 |
-| Supabase Auth callback | 공급자 표준 REST 흐름 유지 |
-| DB transaction·lock·원자성 | Supabase RPC/PostgreSQL이 소유 |
-| 외부 크롤링·YouTube | provider adapter가 소유 |
-| 입력·출력 계약 | Zod schema를 단일 원본으로 사용 |
-| 업무 규칙 | transport와 분리된 application service가 소유 |
-| 전환된 기존 REST | 동일 use case의 중복 계약을 남기지 않고 제거 |
+| 결정                       | 원칙                                          |
+| -------------------------- | --------------------------------------------- |
+| 브라우저 일반 조회·변경    | tRPC를 단일 진입점으로 사용                   |
+| 장시간 운영 명령           | 명시적인 전용 REST endpoint 허용              |
+| Supabase Cron·`pg_net`     | 내부 REST endpoint 유지                       |
+| Supabase Auth callback     | 공급자 표준 REST 흐름 유지                    |
+| DB transaction·lock·원자성 | Supabase RPC/PostgreSQL이 소유                |
+| 외부 크롤링·YouTube        | provider adapter가 소유                       |
+| 입력·출력 계약             | Zod schema를 단일 원본으로 사용               |
+| 업무 규칙                  | transport와 분리된 application service가 소유 |
+| 전환된 기존 REST           | 동일 use case의 중복 계약을 남기지 않고 제거  |
 
 ## 3. 목표 아키텍처
 
@@ -144,14 +144,14 @@ UI / System Caller
 
 새 통신 경계를 추가할 때 다음 순서로 결정합니다.
 
-| 질문 | 선택 |
-| --- | --- |
-| 같은 저장소의 브라우저 UI가 호출하는 일반 조회·변경인가? | tRPC |
-| 장시간 실행되며 전용 timeout·배포 bundle·운영 응답 계약이 필요한가? | 전용 REST 검토 |
-| Supabase Cron, SQL, webhook 또는 비 TypeScript 시스템이 호출하는가? | REST |
-| OAuth redirect/callback처럼 외부 표준 프로토콜인가? | 표준 REST |
-| transaction, lock, dedupe 또는 원자적 상태 전이가 필요한가? | Supabase RPC를 downstream으로 사용 |
-| 외부 서비스 고유 API인가? | External Provider Adapter |
+| 질문                                                                | 선택                               |
+| ------------------------------------------------------------------- | ---------------------------------- |
+| 같은 저장소의 브라우저 UI가 호출하는 일반 조회·변경인가?            | tRPC                               |
+| 장시간 실행되며 전용 timeout·배포 bundle·운영 응답 계약이 필요한가? | 전용 REST 검토                     |
+| Supabase Cron, SQL, webhook 또는 비 TypeScript 시스템이 호출하는가? | REST                               |
+| OAuth redirect/callback처럼 외부 표준 프로토콜인가?                 | 표준 REST                          |
+| transaction, lock, dedupe 또는 원자적 상태 전이가 필요한가?         | Supabase RPC를 downstream으로 사용 |
+| 외부 서비스 고유 API인가?                                           | External Provider Adapter          |
 
 같은 use case에 tRPC와 REST를 영구적으로 동시에 제공하지 않습니다. 예외는 호출자가 서로 다르거나
 운영 계약이 본질적으로 다른 경우에만 허용합니다.
@@ -160,15 +160,15 @@ UI / System Caller
 
 ### 6.1 tRPC procedures
 
-| Procedure | 종류 | 입력 | 출력 | 주요 downstream |
-| --- | --- | --- | --- | --- |
-| `thread.list` | query | `state`, `limit`, `filterType`, `cursor` | `ThreadPage` | `list_threads_page` |
-| `thread.stats` | query | `state`, `filterType` | `ThreadStats` | `get_thread_stats` |
-| `thread.transition` | mutation | `id`, `expectedState`, `destinationState` | `ThreadItem` | `transition_thread_state` |
-| `thread.bulkTrash` | mutation | 없음 | `movedCount` | `bulk_move_inbox_to_trash` |
-| `crawl.runs` | query | `limit`, `trendLimit` | `CrawlRunsDashboard` | `get_crawl_runs_dashboard`, `get_crawl_alerts_dashboard` |
-| `crawlPolicy.get` | query | 없음 | `CrawlPolicySettings` | `get_crawl_source_policy_settings` |
-| `crawlPolicy.update` | mutation | `source`, `scheduleEnabled`, `cooldownSeconds`, `expectedUpdatedAt` | `CrawlPolicySettings` | `update_crawl_source_policy` |
+| Procedure            | 종류     | 입력                                                                | 출력                  | 주요 downstream                                          |
+| -------------------- | -------- | ------------------------------------------------------------------- | --------------------- | -------------------------------------------------------- |
+| `thread.list`        | query    | `state`, `limit`, `filterType`, `cursor`                            | `ThreadPage`          | `list_threads_page`                                      |
+| `thread.stats`       | query    | `state`, `filterType`                                               | `ThreadStats`         | `get_thread_stats`                                       |
+| `thread.transition`  | mutation | `id`, `expectedState`, `destinationState`                           | `ThreadItem`          | `transition_thread_state`                                |
+| `thread.bulkTrash`   | mutation | 없음                                                                | `movedCount`          | `bulk_move_inbox_to_trash`                               |
+| `crawl.runs`         | query    | `limit`, `trendLimit`                                               | `CrawlRunsDashboard`  | `get_crawl_runs_dashboard`, `get_crawl_alerts_dashboard` |
+| `crawlPolicy.get`    | query    | 없음                                                                | `CrawlPolicySettings` | `get_crawl_source_policy_settings`                       |
+| `crawlPolicy.update` | mutation | `source`, `scheduleEnabled`, `cooldownSeconds`, `expectedUpdatedAt` | `CrawlPolicySettings` | `update_crawl_source_policy`                             |
 
 다음 기존 route는 2026-07-28 구현에서 위 procedure로 전환하고 제거했습니다.
 
@@ -182,12 +182,12 @@ UI / System Caller
 
 ### 6.2 유지할 REST endpoints
 
-| Endpoint | 호출자 | 인증 | 유지 근거 |
-| --- | --- | --- | --- |
-| `POST /api/crawl/manual` | 소유자 UI | Supabase cookie + owner | 최대 60초 장시간 실행, 전용 bundle과 `activeRunId` 오류 계약 |
-| `POST /api/crawl/scheduled` | Supabase `pg_net` | internal secret | scheduler 정산, `Retry-After`, fail-closed 운영 계약 |
-| `POST /api/media/youtube/enrich` | Supabase `pg_net` | internal secret | durable queue worker와 provider별 batch 계약 |
-| `GET /auth/callback` | Supabase Auth | authorization code | OAuth/PKCE 표준 redirect 흐름 |
+| Endpoint                         | 호출자            | 인증                    | 유지 근거                                                    |
+| -------------------------------- | ----------------- | ----------------------- | ------------------------------------------------------------ |
+| `POST /api/crawl/manual`         | 소유자 UI         | Supabase cookie + owner | 최대 60초 장시간 실행, 전용 bundle과 `activeRunId` 오류 계약 |
+| `POST /api/crawl/scheduled`      | Supabase `pg_net` | internal secret         | scheduler 정산, `Retry-After`, fail-closed 운영 계약         |
+| `POST /api/media/youtube/enrich` | Supabase `pg_net` | internal secret         | durable queue worker와 provider별 batch 계약                 |
+| `GET /auth/callback`             | Supabase Auth     | authorization code      | OAuth/PKCE 표준 redirect 흐름                                |
 
 수동 크롤링은 브라우저 호출의 예외입니다. 일반 CRUD와 달리 serverless 실행 제한, 무거운 parser
 bundle, 실행 admission과 운영 오류 데이터가 결합돼 있으므로 전용 route를 유지합니다. 향후 비동기
@@ -256,11 +256,11 @@ contracts/
 
 ### 8.2 procedure 종류
 
-| Procedure | 용도 |
-| --- | --- |
-| `publicProcedure` | 인증 전에도 안전한 기능이 생기는 경우에만 사용 |
-| `authenticatedProcedure` | 로그인 사용자 공통 기능 |
-| `ownerProcedure` | 현재 Applemint 업무 데이터 조회·변경 |
+| Procedure                | 용도                                           |
+| ------------------------ | ---------------------------------------------- |
+| `publicProcedure`        | 인증 전에도 안전한 기능이 생기는 경우에만 사용 |
+| `authenticatedProcedure` | 로그인 사용자 공통 기능                        |
+| `ownerProcedure`         | 현재 Applemint 업무 데이터 조회·변경           |
 
 현재 사용자 업무 procedure는 기본적으로 `ownerProcedure`를 사용합니다. 인증 middleware는
 `auth.getUser()`와 `is_applemint_owner` 결과를 확인하고, 실패 종류를 `UNAUTHORIZED`,
@@ -278,17 +278,17 @@ contracts/
 
 service는 HTTP나 tRPC에 종속되지 않은 domain error를 반환하거나 throw합니다.
 
-| Domain error | tRPC code | REST status | 포함 가능한 안전한 복구 데이터 |
-| --- | --- | --- | --- |
-| `InvalidInput` | `BAD_REQUEST` | 400 | field별 validation issue |
-| `Unauthenticated` | `UNAUTHORIZED` | 401 | 없음 |
-| `Forbidden` | `FORBIDDEN` | 403 | 없음 |
-| `NotFound` | `NOT_FOUND` | 404 | resource 종류 |
-| `StateConflict` | `CONFLICT` | 409 | 현재 thread 또는 최신 settings |
-| `CapacityExceeded` | `TOO_MANY_REQUESTS` | 429 | `retryAfterSeconds` |
-| `ConfigurationUnavailable` | `SERVICE_UNAVAILABLE` | 503 | 안전한 reason code |
-| `UpstreamTimeout` | `GATEWAY_TIMEOUT` | 504 | `runId`, stage |
-| `UnexpectedFailure` | `INTERNAL_SERVER_ERROR` | 500 | request ID |
+| Domain error               | tRPC code               | REST status | 포함 가능한 안전한 복구 데이터 |
+| -------------------------- | ----------------------- | ----------- | ------------------------------ |
+| `InvalidInput`             | `BAD_REQUEST`           | 400         | field별 validation issue       |
+| `Unauthenticated`          | `UNAUTHORIZED`          | 401         | 없음                           |
+| `Forbidden`                | `FORBIDDEN`             | 403         | 없음                           |
+| `NotFound`                 | `NOT_FOUND`             | 404         | resource 종류                  |
+| `StateConflict`            | `CONFLICT`              | 409         | 현재 thread 또는 최신 settings |
+| `CapacityExceeded`         | `TOO_MANY_REQUESTS`     | 429         | `retryAfterSeconds`            |
+| `ConfigurationUnavailable` | `SERVICE_UNAVAILABLE`   | 503         | 안전한 reason code             |
+| `UpstreamTimeout`          | `GATEWAY_TIMEOUT`       | 504         | `runId`, stage                 |
+| `UnexpectedFailure`        | `INTERNAL_SERVER_ERROR` | 500         | request ID                     |
 
 다음 규칙을 적용합니다.
 
@@ -352,15 +352,15 @@ tRPC 실패는 fetch adapter의 `onError`에서 한 번만 기록하며, context
 
 ## 12. 테스트 전략
 
-| 계층 | 검증 |
-| --- | --- |
-| Zod contract | 정상·경계·거부 fixture, inferred type 일치 |
-| Application Service | repository/adapter mock 기반 업무 규칙과 domain error |
-| tRPC router | `createCaller` 기반 input/output, 인증과 error data |
-| 내부 REST | 실제 `Request` 기반 status, header, body와 secret 검증 |
-| Supabase RPC | pgTAP 기반 RLS, transaction, lock, concurrency와 반환 shape |
-| Client query | query key, pagination, optimistic update와 rollback |
-| 통합/E2E | 로그인, 목록, 상태 전이, 정책 충돌, 수동 크롤링 주요 흐름 |
+| 계층                | 검증                                                        |
+| ------------------- | ----------------------------------------------------------- |
+| Zod contract        | 정상·경계·거부 fixture, inferred type 일치                  |
+| Application Service | repository/adapter mock 기반 업무 규칙과 domain error       |
+| tRPC router         | `createCaller` 기반 input/output, 인증과 error data         |
+| 내부 REST           | 실제 `Request` 기반 status, header, body와 secret 검증      |
+| Supabase RPC        | pgTAP 기반 RLS, transaction, lock, concurrency와 반환 shape |
+| Client query        | query key, pagination, optimistic update와 rollback         |
+| 통합/E2E            | 로그인, 목록, 상태 전이, 정책 충돌, 수동 크롤링 주요 흐름   |
 
 전환 시 기존 route/client 계약 테스트를 삭제한 뒤 테스트 수만 줄이지 않습니다. 같은 의미를
 Zod, service, router와 client 계층 테스트로 이전한 후 중복된 transport 테스트만 제거합니다.
@@ -425,18 +425,18 @@ app/
 
 ### 14.1 현재 구현 상태
 
-| 영역 | 상태 | 구현 내용 |
-| --- | --- | --- |
-| Zod 계약 | 완료 | thread, crawl run, crawl policy, public error data를 `contracts/`의 단일 원본으로 정의 |
-| 업무 계층 | 완료 | Supabase 호출을 repository로, cursor·통계·정책 충돌·dashboard 조합을 service로 분리 |
-| tRPC 서버 | 완료 | request-scoped context, owner access memoization, domain error mapping, output validation과 구조화 로그 구현 |
-| tRPC client | 완료 | 기존 `QueryClient` 재사용, `httpBatchLink`의 `maxItems = 8`, `maxURLLength = 2048` 적용 |
-| Thread UI | 완료 | infinite query, 30초/5분 stale 정책, AbortSignal, optimistic update와 rollback을 유지한 채 tRPC로 전환 |
-| Crawl UI | 완료 | 실행 dashboard의 5초 active polling과 정책의 60초 polling, 충돌 복구 데이터를 유지한 채 tRPC로 전환 |
-| 기존 REST 정리 | 완료 | 7개 사용자 REST route와 해당 수동 fetch client 제거 |
-| 운영 REST 보존 | 완료 | manual, scheduled, YouTube worker, Auth callback 경계 유지 |
-| DB 무결성 | 완료 | RLS, lock, transaction과 scheduler 의미는 유지하고 thread ID 반환만 migration에서 decimal text로 보강 |
-| 배포 후 측정 | 대기 | p95 latency, batch 비율, 오류율과 production log 검색성 확인 필요 |
+| 영역           | 상태 | 구현 내용                                                                                                    |
+| -------------- | ---- | ------------------------------------------------------------------------------------------------------------ |
+| Zod 계약       | 완료 | thread, crawl run, crawl policy, public error data를 `contracts/`의 단일 원본으로 정의                       |
+| 업무 계층      | 완료 | Supabase 호출을 repository로, cursor·통계·정책 충돌·dashboard 조합을 service로 분리                          |
+| tRPC 서버      | 완료 | request-scoped context, owner access memoization, domain error mapping, output validation과 구조화 로그 구현 |
+| tRPC client    | 완료 | 기존 `QueryClient` 재사용, `httpBatchLink`의 `maxItems = 8`, `maxURLLength = 2048` 적용                      |
+| Thread UI      | 완료 | infinite query, 30초/5분 stale 정책, AbortSignal, optimistic update와 rollback을 유지한 채 tRPC로 전환       |
+| Crawl UI       | 완료 | 실행 dashboard의 5초 active polling과 정책의 60초 polling, 충돌 복구 데이터를 유지한 채 tRPC로 전환          |
+| 기존 REST 정리 | 완료 | 7개 사용자 REST route와 해당 수동 fetch client 제거                                                          |
+| 운영 REST 보존 | 완료 | manual, scheduled, YouTube worker, Auth callback 경계 유지                                                   |
+| DB 무결성      | 완료 | RLS, lock, transaction과 scheduler 의미는 유지하고 thread ID 반환만 migration에서 decimal text로 보강        |
+| 배포 후 측정   | 대기 | p95 latency, batch 비율, 오류율과 production log 검색성 확인 필요                                            |
 
 구현은 브라우저의 일반 업무 통신만 tRPC로 전환했습니다. 수동 크롤링과 내부 worker는 기존 REST
 계약을 유지하고, 일반 tRPC route에는 crawler parser, media worker와 service role 모듈을 import하지
