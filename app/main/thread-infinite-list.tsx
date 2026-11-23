@@ -1,10 +1,10 @@
 "use client";
 
-import { useInfiniteQuery, useQueries } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { type BookmarkAvailability, bookmarkUrlLimit } from "@/lib/bookmark-links";
+import { bookmarkUrlLimit } from "@/lib/bookmark-links";
 import {
 	flattenThreadPages,
 	type ThreadListFilterParam,
@@ -18,35 +18,19 @@ import { ThreadLoading } from "./threads/thread-loading";
 
 const EMPTY_FILTERS: ThreadListFilterParam[] = [];
 
-function useThreadBookmarkAvailability(pages: ThreadPage[] | undefined) {
-	const trpc = useTRPCClient();
-	const batches = useMemo(
-		() =>
-			(pages ?? [])
-				.map(({ items }) =>
-					[...new Set(items.map(({ url }) => url))].filter((url) => url.length <= bookmarkUrlLimit)
-				)
-				.filter((urls) => urls.length > 0),
-		[pages]
-	);
-	const results = useQueries({
-		queries: batches.map((urls) => ({
-			queryKey: ["bookmarks", "saved-links", urls],
-			queryFn: ({ signal }: { signal: AbortSignal }) =>
-				trpc.bookmark.savedLinks.query({ urls }, { signal }),
-			staleTime: 30_000,
-			refetchOnWindowFocus: "always" as const,
-			retry: false,
-		})),
-	});
-	const saved = new Set(results.flatMap((result) => result.data ?? []));
-	const checking = new Set(
-		batches.flatMap((urls, index) => (results[index]?.isPending ? urls : []))
-	);
-	return (url: string): BookmarkAvailability => {
-		if (saved.has(url)) return "saved";
-		return checking.has(url) ? "checking" : "available";
-	};
+function bookmarkBatchesByUrl(pages: ThreadPage[] | undefined) {
+	const batches = new Map<string, string[]>();
+	for (const { items } of pages ?? []) {
+		const urls = [
+			...new Set(
+				items.map(({ url }) => url).filter((url) => url && url.length <= bookmarkUrlLimit)
+			),
+		];
+		for (const url of urls) {
+			if (!batches.has(url)) batches.set(url, urls);
+		}
+	}
+	return batches;
 }
 
 export function ThreadInfiniteList({
@@ -59,7 +43,7 @@ export function ThreadInfiniteList({
 }: {
 	state: ThreadState;
 	filters?: ThreadListFilterParam[];
-	renderItem: (thread: ThreadItemType, bookmark: BookmarkAvailability) => ReactNode;
+	renderItem: (thread: ThreadItemType, bookmarkUrls: string[] | undefined) => ReactNode;
 	loadingCount?: number;
 	onInitialLoadSuccess?: () => void | Promise<void>;
 	emptyState?: ReactNode;
@@ -77,7 +61,10 @@ export function ThreadInfiniteList({
 		threadListOptions(trpc, { state, limit: 24, filterType, filterSite })
 	);
 	const threads = useMemo(() => flattenThreadPages(query.data?.pages), [query.data?.pages]);
-	const bookmarkAvailability = useThreadBookmarkAvailability(query.data?.pages);
+	const bookmarkBatches = useMemo(
+		() => bookmarkBatchesByUrl(query.data?.pages),
+		[query.data?.pages]
+	);
 	const observerRef = useRef<IntersectionObserver | null>(null);
 	const loadMoreRef = useRef<HTMLDivElement | null>(null);
 	const initialSuccessHandledRef = useRef(false);
@@ -155,7 +142,7 @@ export function ThreadInfiniteList({
 			{!query.isLoading && threads.length === 0 ? (emptyState ?? <NoDataBox />) : null}
 			{threads.map((thread) => (
 				<Fragment key={String(thread.id)}>
-					{renderItem(thread, bookmarkAvailability(thread.url))}
+					{renderItem(thread, bookmarkBatches.get(thread.url))}
 				</Fragment>
 			))}
 			<div ref={loadMoreRef} className="h-6 w-full" data-testid={`${state}-load-more-sentinel`} />

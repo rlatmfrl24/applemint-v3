@@ -1,8 +1,9 @@
 "use client";
+import { useQuery } from "@tanstack/react-query";
 import { Bookmark, BookmarkCheck } from "lucide-react";
 import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { BookmarkAvailability } from "@/lib/bookmark-links";
+import { useTRPCClient } from "@/trpc/client";
 import type { Source } from "./bookmark-save-form";
 import { useBookmarkDialogMotion } from "./use-bookmark-dialog-motion";
 
@@ -50,18 +51,30 @@ function SaveLoading({ close, openedAt }: { close: () => void; openedAt: number 
 export function BookmarkSaveDialog({
 	source,
 	recommendationId,
-	availability = "available",
+	bookmarkUrls,
 }: {
 	source: Source;
 	recommendationId?: string;
-	availability?: BookmarkAvailability;
+	bookmarkUrls?: string[];
 }) {
+	const trpc = useTRPCClient();
+	const savedLinks = useQuery({
+		// The cards on a page share this query and select their own saved state.
+		queryKey: ["bookmarks", "saved-links", bookmarkUrls],
+		queryFn: ({ signal }) =>
+			trpc.bookmark.savedLinks.query({ urls: bookmarkUrls ?? [] }, { signal }),
+		enabled: bookmarkUrls !== undefined,
+		select: (urls) => urls.includes(source.url),
+		staleTime: 30_000,
+		refetchOnWindowFocus: "always",
+		retry: false,
+	});
 	const [openedAt, setOpenedAt] = useState<number | null>(null);
 	const [ready, setReady] = useState(false);
 	const [tooltipDismissed, setTooltipDismissed] = useState(false);
 	const tooltipId = useId();
 	const trigger = useRef<HTMLButtonElement>(null);
-	const saved = availability === "saved";
+	const saved = savedLinks.data ?? false;
 	const BookmarkIcon = saved ? BookmarkCheck : Bookmark;
 	useEffect(() => setReady(true), []);
 	return (
@@ -72,7 +85,7 @@ export function BookmarkSaveDialog({
 					variant="outline"
 					size="sm"
 					className="aria-disabled:cursor-default aria-disabled:opacity-55"
-					disabled={!ready || availability === "checking"}
+					disabled={!ready || (bookmarkUrls !== undefined && savedLinks.isPending)}
 					aria-disabled={saved || undefined}
 					aria-describedby={saved ? tooltipId : undefined}
 					onMouseEnter={() => setTooltipDismissed(false)}
