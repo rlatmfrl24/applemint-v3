@@ -53,6 +53,7 @@ export const threadItemSchema = z.object({
 export const threadPageSchema = z.object({
 	items: z.array(threadItemSchema),
 	nextCursor: z.string().nullable(),
+	inboxWindow: z.object({ cursor: z.string().nullable(), hasNew: z.boolean() }).optional(),
 });
 
 const filterTypeSchema = z.string().trim().min(1).max(128).nullable().optional();
@@ -71,6 +72,7 @@ export const threadListInputSchema = z
 		filterType: filterTypeSchema,
 		filterSite: filterSiteSchema,
 		cursor: z.string().max(512).nullable().optional(),
+		inboxViewCursor: z.string().min(1).max(512).optional(),
 	})
 	.strict()
 	.superRefine((value, context) => {
@@ -79,6 +81,13 @@ export const threadListInputSchema = z
 				code: "custom",
 				path: ["filterSite"],
 				message: "Site filters require the normal thread type.",
+			});
+		}
+		if (value.inboxViewCursor && (value.state !== "inbox" || value.cursor)) {
+			context.addIssue({
+				code: "custom",
+				path: ["inboxViewCursor"],
+				message: "An inbox view cursor applies to the first inbox page.",
 			});
 		}
 	});
