@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -52,10 +52,12 @@ export const TypeStats = ({
 	stats,
 	selection,
 	onSelectionChange,
+	newItemsControl,
 }: {
 	stats: ThreadStats | undefined;
 	selection: ThreadFilterSelection;
 	onSelectionChange: (selection: ThreadFilterSelection) => void;
+	newItemsControl?: ReactNode;
 }) => {
 	const orderedTypeCounts = useMemo(() => {
 		if (!stats) return [];
@@ -72,8 +74,9 @@ export const TypeStats = ({
 
 	return (
 		<Card className="w-full border-zinc-200/80 shadow-none dark:border-zinc-800">
-			<CardHeader className="p-3">
+			<CardHeader className="flex-row items-center gap-2 space-y-0 p-3">
 				<ToggleGroup
+					className="min-w-0 flex-1 justify-start overflow-x-auto p-0.5 [scrollbar-width:none]"
 					type="single"
 					variant="outline"
 					size="sm"
@@ -96,10 +99,10 @@ export const TypeStats = ({
 						}
 					}}
 				>
-					<div className="grid w-full grid-cols-2 gap-2 lg:flex lg:flex-wrap">
+					<div className="flex gap-2">
 						<ToggleGroupItem
 							value="all"
-							className="flex justify-between gap-2 px-2"
+							className="flex shrink-0 justify-between gap-2 px-2"
 							disabled={!stats}
 						>
 							<span className="font-medium text-xs sm:text-sm">All</span>
@@ -109,7 +112,7 @@ export const TypeStats = ({
 							<ToggleGroupItem
 								key={type.key}
 								value={`type:${type.key}`}
-								className="flex justify-between gap-2 px-2"
+								className="flex shrink-0 justify-between gap-2 px-2"
 							>
 								<span className="font-medium text-xs sm:text-sm">{type.label}</span>
 								<Badge className="px-1.5 py-0">{type.count}</Badge>
@@ -119,7 +122,7 @@ export const TypeStats = ({
 							<ToggleGroupItem
 								key={siteCount.siteKey}
 								value={siteFilterValue(siteCount.siteKey)}
-								className="flex justify-between gap-2 px-2"
+								className="flex shrink-0 justify-between gap-2 px-2"
 							>
 								<span className="font-medium text-xs sm:text-sm">{siteCount.label}</span>
 								<Badge className="px-1.5 py-0">{siteCount.count}</Badge>
@@ -127,6 +130,7 @@ export const TypeStats = ({
 						))}
 					</div>
 				</ToggleGroup>
+				{newItemsControl}
 			</CardHeader>
 		</Card>
 	);
@@ -166,29 +170,27 @@ export const ThreadList = () => {
 	}, [selectionKey]);
 
 	return (
-		<div className="flex w-full flex-col gap-3">
-			{statsQuery.data &&
-				(statsQuery.data.counts.length > 0 || statsQuery.data.siteCounts.length > 0) && (
-					<TypeStats
-						stats={statsQuery.data}
-						selection={selection}
-						onSelectionChange={setSelection}
-					/>
-				)}
-			<ThreadInfiniteList
-				state="inbox"
-				filters={filterParams}
-				onInitialLoadSuccess={acknowledgeInbox}
-				emptyState={selection.kind === "all" ? <InboxEmptyState /> : undefined}
-				renderItem={(thread, bookmarkUrls) => (
-					<DefaultThreadItem
-						thread={thread}
-						threadState="inbox"
-						bookmarkUrls={bookmarkUrls}
-						extraButtons={<QuickSaveButton thread={thread} />}
-					/>
-				)}
-			/>
-		</div>
+		<ThreadInfiniteList
+			state="inbox"
+			filters={filterParams}
+			onInitialLoadSuccess={acknowledgeInbox}
+			emptyState={selection.kind === "all" ? <InboxEmptyState /> : undefined}
+			renderHeader={(newItemsControl) => (
+				<TypeStats
+					stats={statsQuery.data}
+					selection={selection}
+					onSelectionChange={setSelection}
+					newItemsControl={newItemsControl}
+				/>
+			)}
+			renderItem={(thread, bookmarkUrls) => (
+				<DefaultThreadItem
+					thread={thread}
+					threadState="inbox"
+					bookmarkUrls={bookmarkUrls}
+					extraButtons={<QuickSaveButton thread={thread} />}
+				/>
+			)}
+		/>
 	);
 };

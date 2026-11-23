@@ -48,21 +48,56 @@ describe("ThreadService", () => {
 		expect(() => decodeThreadCursor(overflow, "inbox")).toThrow("올바르지 않은 목록 커서");
 	});
 
-	it("limit+1 결과에서 다음 cursor를 생성한다", async () => {
+	it("limit+1 결과에서 마이크로초를 유지하는 다음 cursor를 생성한다", async () => {
+		const row = { ...threadRow, state_changed_at: "2026-07-09T00:00:00.123456+00:00" };
 		repository.list.mockResolvedValue([
-			{ ...threadRow, id: "3" },
-			{ ...threadRow, id: "2" },
-			{ ...threadRow, id: "1" },
+			{ ...row, id: "3" },
+			{ ...row, id: "2" },
+			{ ...row, id: "1" },
 		]);
 		const result = await service.list({ state: "inbox", limit: 2 });
 
 		expect(result.items.map((item) => item.id)).toEqual(["3", "2"]);
 		expect(result.nextCursor).not.toBeNull();
 		expect(decodeThreadCursor(result.nextCursor ?? "", "inbox")).toEqual({
-			stateChangedAt: threadRow.state_changed_at,
+			stateChangedAt: "2026-07-09T00:00:00.123456Z",
 			id: "2",
 		});
 	});
+
+	it.each([
+		["3", "4", "2026-07-09T00:00:00.123999Z", "4", "2026-07-09T00:00:00.123999Z"],
+		["9223372036854775807", "5", "2026-07-09T00:00:00.124Z", "1", "2026-07-09T00:00:00.124000Z"],
+	])(
+		"새 글이 들어와도 첫 페이지 경계(%s)와 이전 글을 유지한다",
+		async (id, newId, arrivedAt, boundId, boundTime) => {
+			const head = { ...threadRow, id, state_changed_at: "2026-07-09T00:00:00.123999Z" };
+			const older = { ...head, id: "1" };
+			const arrival = { ...threadRow, id: newId, state_changed_at: arrivedAt };
+			repository.list.mockResolvedValueOnce([head, older]);
+			const initial = await service.list({ state: "inbox", limit: 2 });
+			const inboxViewCursor = initial.inboxWindow?.cursor ?? undefined;
+			expect(inboxViewCursor).toBeTruthy();
+
+			repository.list
+				.mockResolvedValueOnce([arrival, head, older])
+				.mockResolvedValueOnce([head, older]);
+			const refreshed = await service.list({ state: "inbox", limit: 2, inboxViewCursor });
+			expect(refreshed).toEqual({
+				items: [head, older],
+				nextCursor: null,
+				inboxWindow: { cursor: inboxViewCursor, hasNew: true },
+			});
+			expect(repository.list).toHaveBeenLastCalledWith(
+				"inbox",
+				expect.objectContaining({ cursor: { id: boundId, stateChangedAt: boundTime } })
+			);
+
+			repository.list.mockResolvedValueOnce([older]);
+			const afterDelete = await service.list({ state: "inbox", limit: 2, inboxViewCursor });
+			expect(afterDelete.inboxWindow).toEqual({ cursor: inboxViewCursor, hasNew: false });
+		}
+	);
 
 	it("입력 cursor를 repository 복합 경계로 전달한다", async () => {
 		repository.list.mockResolvedValue([]);
