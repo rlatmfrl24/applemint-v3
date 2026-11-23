@@ -39,36 +39,38 @@
 
 한 기능의 계약·수집·판정·실행·자동 등록·UI로 이어지는 의존 작업이며 독립 제품으로 분해하지 않는다. Task 1 → 2 → 3 → 4 → 5 → 6 순서로 실행한다. 앞 작업의 독립 테스트 통과는 기능 완성/배포 승인이 아니다. 실제 사용자 흐름은 Task 6까지 연결된 다음 검증한다.
 
-| 생성/변경 대상 | 책임 | 작업 |
-| --- | --- | --- |
-| 새 `contracts/bookmark-health.schema.ts` | 공개 evidence·Settings·시작 결과와 입력 schema | 1 |
-| 변경 `contracts/bookmark.schema.ts` | nullable evidence·reviewType·Settings 확장 | 1 |
-| 새 CLI migration `bookmark_content_health_contract` | 결과·checkpoint·AI key 열과 조회/검토 보호 | 1 |
-| 변경 `types/database.types.ts` | CLI 생성 타입; 직접 편집 금지 | 1/4/5 |
-| 변경 `server/bookmarks/safe-fetch.ts`, `health.ts` | 안전한 bytes 수집·기존 접속 분류·본문 관측 진입 | 2 |
-| 새 `server/bookmarks/health-content.ts`, `health-media.ts` | 범용 본문 추출·제한된 미디어 확인 | 2 |
-| 새 `server/bookmarks/health-decision.ts` | 전용 Jev 질문·응답·근거 key·예약 상한 | 3 |
-| 새 `server/bookmarks/health-worker.ts` | check 단계·lease admission·AI 예약/정산 연결 | 4 |
-| 변경 `server/bookmarks/worker.ts` | check claim schema·전용 처리 위임 | 4 |
-| 새 CLI migration `bookmark_content_health_worker` | host lease·AI 원자적 예약/정산·check commit/복구 | 4 |
-| 새 CLI migration `bookmark_content_health_schedule` | 일일 등록·중복·우선순위·Settings·payload 정리 | 5 |
-| 변경 `server/repositories/bookmark.repository.ts`, `server/services/bookmark.service.ts`, `server/trpc/routers/bookmark.router.ts` | owner API와 명시적 시작 응답 | 5 |
-| 새 `lib/bookmark-health.ts` | 공개 상태를 화면 badge/설명으로 변환 | 6 |
-| 변경 bookmark library/row/detail/jobs/actions·`lib/bookmark-list.ts` | 필터·상태·진행·명시적 evidenceId·갱신 | 6 |
-| 새 `app/main/setting/bookmarks/bookmark-health-settings.tsx`, 변경 같은 폴더 `page.tsx` | 자동 점검 설정·상태 | 6 |
-| 변경 `docs/BOOKMARK_IMPLEMENTATION.md`, 새 `docs/reports/2026-10-22-bookmark-content-health-verification.md` | 최종 동작과 실제 검증 결과/한계 | 6 |
+| 생성/변경 대상                                                                                                                     | 책임                                             | 작업  |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ----- |
+| 새 `contracts/bookmark-health.schema.ts`                                                                                           | 공개 evidence·Settings·시작 결과와 입력 schema   | 1     |
+| 변경 `contracts/bookmark.schema.ts`                                                                                                | nullable evidence·reviewType·Settings 확장       | 1     |
+| 새 CLI migration `bookmark_content_health_contract`                                                                                | 결과·checkpoint·AI key 열과 조회/검토 보호       | 1     |
+| 변경 `types/database.types.ts`                                                                                                     | CLI 생성 타입; 직접 편집 금지                    | 1/4/5 |
+| 변경 `server/bookmarks/safe-fetch.ts`, `health.ts`                                                                                 | 안전한 bytes 수집·기존 접속 분류·본문 관측 진입  | 2     |
+| 새 `server/bookmarks/health-content.ts`, `health-media.ts`                                                                         | 범용 본문 추출·제한된 미디어 확인                | 2     |
+| 새 `server/bookmarks/health-decision.ts`                                                                                           | 전용 Jev 질문·응답·근거 key·예약 상한            | 3     |
+| 새 `server/bookmarks/health-worker.ts`                                                                                             | check 단계·lease admission·AI 예약/정산 연결     | 4     |
+| 변경 `server/bookmarks/worker.ts`                                                                                                  | check claim schema·전용 처리 위임                | 4     |
+| 새 CLI migration `bookmark_content_health_worker`                                                                                  | host lease·AI 원자적 예약/정산·check commit/복구 | 4     |
+| 새 CLI migration `bookmark_content_health_schedule`                                                                                | 일일 등록·중복·우선순위·Settings·payload 정리    | 5     |
+| 변경 `server/repositories/bookmark.repository.ts`, `server/services/bookmark.service.ts`, `server/trpc/routers/bookmark.router.ts` | owner API와 명시적 시작 응답                     | 5     |
+| 새 `lib/bookmark-health.ts`                                                                                                        | 공개 상태를 화면 badge/설명으로 변환             | 6     |
+| 변경 bookmark library/row/detail/jobs/actions·`lib/bookmark-list.ts`                                                               | 필터·상태·진행·명시적 evidenceId·갱신            | 6     |
+| 새 `app/main/setting/bookmarks/bookmark-health-settings.tsx`, 변경 같은 폴더 `page.tsx`                                            | 자동 점검 설정·상태                              | 6     |
+| 변경 `docs/BOOKMARK_IMPLEMENTATION.md`, 새 `docs/reports/2026-10-22-bookmark-content-health-verification.md`                       | 최종 동작과 실제 검증 결과/한계                  | 6     |
 
 테스트 파일은 아래 각 task의 Files에 지정한다. 신규 migration은 해당 task 실행 때 `supabase migration new <정확한 suffix>`로 생성한다. 이 표의 suffix는 확정 이름이며 숫자 timestamp는 CLI 발급값이다. 경로를 미리 꾸며 만들지 않고 생성된 정확한 경로를 task ledger와 commit에 기록한다. CLI 사용 전 `supabase --help`, `supabase migration new --help`, DB 변경 전 해당 명령 `--help`로 설치 버전을 확인한다.
 
 ## Task 1: 증거 계약·저장·서버 필터
 
 **Files:**
+
 - Create: `contracts/bookmark-health.schema.ts`, `contracts/bookmark-health.schema.test.ts`.
 - Modify: `contracts/bookmark.schema.ts`, `contracts/bookmark-manager.test.ts`, `types/database.types.ts`.
 - Create at execution: CLI migration suffix `bookmark_content_health_contract`.
 - Test: 새 `supabase/tests/bookmark-content-health.test.sql`, 기존 `supabase/tests/bookmark-manager.test.sql`.
 
 **Interfaces:**
+
 - Consumes: 기존 `BookmarkItem`, `LinkResult`의 접속 의미, `bookmark_checks`·`bookmark_snapshot`·keep/bulk 명령.
 - Produces in `bookmark-health.schema.ts`: `bookmarkHealthEvidenceSchema`/`BookmarkHealthEvidence`(spec §4), `bookmarkHealthSettingsInputSchema`(enabled/dailyLimit).
 - Produces in `bookmark.schema.ts`, after `bookmarkJobSchema`: `bookmarkHealthSettingsSchema`/`BookmarkHealthSettings`, `bookmarkHealthStartResultSchema`/`BookmarkHealthStartResult`(spec §8/9). 이 응답의 job은 기존 BookmarkJob schema를 직접 참조하며 역방향 import/순환 참조를 만들지 않는다.
@@ -96,11 +98,13 @@
 ## Task 2: 안전한 본문·미디어 관측
 
 **Files:**
+
 - Modify: `server/bookmarks/safe-fetch.ts`, `server/bookmarks/health.ts`, 기존 두 파일의 테스트 및 `server/bookmarks/health-classification.test.ts`.
 - Create: `server/bookmarks/health-content.ts`, `server/bookmarks/health-content.test.ts`, `server/bookmarks/health-media.ts`, `server/bookmarks/health-media.test.ts`.
 - Regression: `server/bookmarks/worker.test.ts`, `app/api/media/youtube/videos-list.test.ts`; 기존 YouTube adapter의 공개 함수/타입을 재사용한다.
 
 **Interfaces:**
+
 - Consumes: Task 1 `BookmarkHealthEvidence`; 기존 `safeFetch`, `normalizeYouTubeUrl`, `listYouTubeVideos`.
 - Produces in `health.ts`: `inspectBookmarkPage(input: HealthInput, io: HealthIO): Promise<HealthObservation>`와 기존 `checkBookmarkLink(url:string):Promise<LinkResult>`의 접속 계약. 주 worker는 inspect를 사용하며 접속과 본문을 두 번 fetch하지 않는다.
 - `HealthInput={bookmarkId:string,url:string,version:number,baseline:HealthBaseline|null,decisionSample:boolean}`.
@@ -131,10 +135,12 @@
 ## Task 3: Jev 질문과 검증·비용 반환
 
 **Files:**
+
 - Create: `server/bookmarks/health-decision.ts`, `server/bookmarks/health-decision.test.ts`.
 - Regression: 기존 `server/bookmarks/openrouter.test.ts`, `server/bookmarks/recommendation.test.ts`.
 
 **Interfaces:**
+
 - Consumes: Task 2 `HealthObservation`, 기존 `openrouter('systemone',request)`와 `openrouterCost`.
 - Produces: `buildHealthDecisionRequest(observation:HealthObservation): HealthDecisionRequest`, `healthDecisionReservation():{tokens:number,nano:number}`, `healthEvidenceKey(observation:HealthObservation):string`, `callHealthDecision(request:HealthDecisionRequest):Promise<HealthDecisionOutcome>`.
 - `HealthDecisionRequest`는 spec §6의 model/provider/state/questions이며 JSON 12000-byte gate를 통과해야 한다. `questionRevision=1`을 key에 포함한다.
@@ -159,12 +165,14 @@
 ## Task 4: 재개 가능한 worker와 항목별 비용·호스트 lease
 
 **Files:**
+
 - Create: `server/bookmarks/health-worker.ts`, `server/bookmarks/health-worker.test.ts`.
 - Modify: `server/bookmarks/worker.ts`, `server/bookmarks/worker.test.ts`, `types/database.types.ts`.
 - Create at execution: CLI migration suffix `bookmark_content_health_worker`.
 - Test: 새 `supabase/tests/bookmark-health-worker.test.sql`, `supabase/tests/bookmark-health-worker-concurrency.test.sql`; 기존 `supabase/tests/bookmark-request-identity.test.sql`, `bookmark-openrouter-budget.test.sql`.
 
 **Interfaces:**
+
 - Consumes: Tasks 1–3의 계약/관측/Jev 함수와 기존 `bookmark_worker_claim/commit`.
 - Produces in `health-worker.ts`: `processHealthClaim(db:AppSupabaseClient,claim:HealthClaim):Promise<HealthCommit>`.
 - `HealthClaim={job:BookmarkJob,item:BookmarkItem&{expected_version:number,work:HealthWork|null},baseline:HealthBaseline|null}`.
@@ -195,11 +203,13 @@
 ## Task 5: 일일 선정·수동 중복·Settings API
 
 **Files:**
+
 - Create at execution: CLI migration suffix `bookmark_content_health_schedule`.
 - Modify: `server/repositories/bookmark.repository.ts`, `server/services/bookmark.service.ts`, `server/trpc/routers/bookmark.router.ts`, 각 기존 테스트, `types/database.types.ts`.
 - Test: 새 `supabase/tests/bookmark-health-schedule.test.sql`, `supabase/tests/bookmark-health-schedule-concurrency.test.sql`.
 
 **Interfaces:**
+
 - Consumes: Task 1 Settings/StartResult, Task 4 stage와 due work.
 - Produces owner API: `bookmarkCheck.settings.query():BookmarkHealthSettings`, `bookmarkCheck.updateSettings.mutate({enabled:boolean,dailyLimit:number}):BookmarkHealthSettings`, `bookmarkCheck.start(BookmarkScope):BookmarkHealthStartResult`.
 - Repository: `healthSettings():Promise<BookmarkHealthSettings>`, `updateHealthSettings(input:{enabled:boolean,dailyLimit:number}):Promise<BookmarkHealthSettings>`, `startHealth(scope:BookmarkScope):Promise<BookmarkHealthStartResult>`; service는 같은 이름/반환을 위임한다. 기존 `start`의 import/AI 작업 반환은 바꾸지 않는다. bookmarkCheck.start의 caller만 startHealth로 바꾼다.
@@ -218,12 +228,14 @@
 ## Task 6: 실제 진입점·상태·필터·직접 정리와 최종 검증
 
 **Files:**
+
 - Create: `lib/bookmark-health.ts`, `lib/bookmark-health.test.ts`, `app/main/setting/bookmarks/bookmark-health-settings.tsx`, `app/main/setting/bookmarks/bookmark-health-settings.test.tsx`.
 - Modify: `app/main/bookmarks/bookmark-library.tsx`, `bookmark-row.tsx`, `bookmark-item-dialog.tsx`, `bookmark-jobs.tsx`, `use-bookmark-actions.ts`, 각 기존 테스트, `lib/bookmark-list.ts`, `lib/bookmark-list.test.ts`, `app/main/setting/bookmarks/page.tsx`.
 - Modify: `server/repositories/bookmark.repository.ts`/테스트의 jobDetails 응답에 phase·실제 available_at·AI 대기 사유; 기존 state enum은 유지.
 - Modify: `docs/BOOKMARK_IMPLEMENTATION.md`; Create: `docs/reports/2026-10-22-bookmark-content-health-verification.md`.
 
 **Interfaces:**
+
 - Consumes: Tasks 1/5의 `BookmarkItem`·Settings·StartResult·추가 reviewType·Task 4 작업/phase 집계.
 - Produces: `healthSummary(item:BookmarkItem):{label:string,detail:string,severity:'neutral'|'warning'|'danger'}|null` in `lib/bookmark-health.ts`; stale/reviewed 근거의 후보 badge는 반환하지 않는다.
 - Produces: `BookmarkHealthSettingsPanel()` in 새 설정 파일; 기존 Setting 페이지에 삽입한다.

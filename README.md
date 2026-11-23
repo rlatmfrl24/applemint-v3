@@ -37,6 +37,7 @@ API 등록과 내부 인증, Main·Quick의 실제 AI 추천·저장·새로고�
 ## 주요 기술 스택
 
 ### Frontend
+
 - `Next.js 16` (App Router)
 - `React 19` + `TypeScript (strict)`
 - `@tanstack/react-query 5.101.4` (목록/무한 스크롤/낙관적 상태 이동)
@@ -44,12 +45,14 @@ API 등록과 내부 인증, Main·Quick의 실제 AI 추천·저장·새로고�
 - `lucide-react`, `sonner`, `vaul`, `next-themes`
 
 ### Backend / Data
+
 - `Supabase Auth` + `@supabase/ssr` (쿠키 기반 SSR 인증)
 - `Supabase Postgres` (`threads`, `crawl-history`, `filter-keyword`, media metadata·durable queue)
 - `Supabase Cron` + `pg_net` 기반 예약 실행
 - `SQL migration` 기반 성능 튜닝 및 원자적 RPC (`transition_thread_state`, `ingest_crawl_items`)
 
 ### Crawling / Parsing
+
 - 표준 `fetch`와 요청별 timeout
 - `cheerio` HTML 파싱
 - `linkifyjs` URL 추출
@@ -57,6 +60,7 @@ API 등록과 내부 인증, Main·Quick의 실제 AI 추천·저장·새로고�
 - DB `crawl_source_registry`가 운영 활성 상태와 표시명을 관리하고, TypeScript `CRAWL_SOURCES`가 설치된 adapter 능력을 검증
 
 ### 품질 / 보안 유지보수
+
 - `Biome 2.5.9` 포맷·린트·정적 검사
 - GitHub PR 필수 검증 (`verify`: Biome, Knip, Vitest, pgTAP, production build)
 - 주간 GitHub `CodeQL`과 일간 `Security Gate` 워크플로우
@@ -223,6 +227,7 @@ erDiagram
 ## 유지보수 가이드
 
 ### 1) 크롤러 소스 추가/변경
+
 - 신규 source는 `registry lifecycle 행 등록 → dormant adapter·parser 구현 → active registry와 CRAWL_SOURCES parity 검증 → 정책 생성·예약 활성화` 순서로 승격
 - adapter 구현 전에는 registry 행을 retired 상태로 두고, 활성화 release에서 DB active 전환과 `CRAWL_SOURCES` 등록을 함께 검증해 불일치 시 fail closed
 - `app/api/crawl/<source>-parser.ts`에 네트워크와 분리된 순수 파서 구현
@@ -236,10 +241,12 @@ erDiagram
 - 소스 장애 대비 재시도/로그 전략 유지 (`retryOperation`, `logger.ts`)
 
 ### 2) 데이터 분류/필터 정책 관리
+
 - 무시·타입 분류 기준은 `app/api/crawl/pipeline-helpers.ts`의 `matchFilteredUrl`에서 처리
 - 무시 키워드/분류 키워드는 DB `filter-keyword` 테이블에서 제어
 
 ### 3) 조회 성능 및 통계 로직
+
 - 상태별 목록 API는 `(state_changed_at, id)` 복합 커서 기반 무한 스크롤 사용
 - 통계는 Postgres RPC `get_thread_stats`를 통해 집계
 - TanStack Query 키는 `threads/list/<state>/<filter>`와 `threads/stats/<state>/<filter>` 계약을 유지
@@ -247,6 +254,7 @@ erDiagram
   함께 수정
 
 ### 4) 보안 운영
+
 - 기준 문서: `SECURITY.md`
 - 로컬 보안 점검:
   - `pnpm security:collect-alerts`
@@ -256,6 +264,7 @@ erDiagram
 - CodeQL은 주간·수동, Security Gate는 일간·수동으로 실행하며 Dependabot 흐름과 함께 지속 점검
 
 ### 5) 코드 컨벤션
+
 - TS strict + 경로 별칭 `@/*`
 - 포맷/린트 규칙은 `biome.json` 기준
 - `pnpm deadcode`로 미사용 파일·의존성·export를 검사
@@ -274,7 +283,7 @@ erDiagram
   - `lib/type-defs.ts`
   - Supabase 관련 쿼리 코드
   - 통계/필터 API 및 UI 표시부
-  를 함께 동기화
+    를 함께 동기화
 
 ## 유지보수용 주요 환경 변수
 

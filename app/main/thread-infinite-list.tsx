@@ -1,10 +1,16 @@
 "use client";
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { flattenThreadPages, type ThreadListFilterParam } from "@/lib/thread-list-contract";
+import { Button } from "@/components/ui/button";
+import { bookmarkUrlLimit } from "@/lib/bookmark-links";
+import {
+	flattenThreadPages,
+	type ThreadListFilterParam,
+	type ThreadPage,
+} from "@/lib/thread-list-contract";
 import { threadListOptions } from "@/lib/thread-query-options";
 import type { ThreadItemType, ThreadState } from "@/lib/type-defs";
 import { useTRPCClient } from "@/trpc/client";
@@ -13,6 +19,21 @@ import { ThreadLoading } from "./threads/thread-loading";
 
 const EMPTY_FILTERS: ThreadListFilterParam[] = [];
 
+function bookmarkBatchesByUrl(pages: ThreadPage[] | undefined) {
+	const batches = new Map<string, string[]>();
+	for (const { items } of pages ?? []) {
+		const urls = [
+			...new Set(
+				items.map(({ url }) => url).filter((url) => url && url.length <= bookmarkUrlLimit)
+			),
+		];
+		for (const url of urls) {
+			if (!batches.has(url)) batches.set(url, urls);
+		}
+	}
+	return batches;
+}
+
 export function ThreadInfiniteList({
 	state,
 	filters = EMPTY_FILTERS,
@@ -20,15 +41,18 @@ export function ThreadInfiniteList({
 	loadingCount = 3,
 	onInitialLoadSuccess,
 	emptyState,
+	renderHeader,
 }: {
 	state: ThreadState;
 	filters?: ThreadListFilterParam[];
-	renderItem: (thread: ThreadItemType) => ReactNode;
+	renderItem: (thread: ThreadItemType, bookmarkUrls: string[] | undefined) => ReactNode;
 	loadingCount?: number;
 	onInitialLoadSuccess?: () => void | Promise<void>;
 	emptyState?: ReactNode;
+	renderHeader?: (newItemsControl: ReactNode) => ReactNode;
 }) {
 	const trpc = useTRPCClient();
+	const queryClient = useQueryClient();
 	const filterType = useMemo(
 		() => filters.find((filter) => filter.key === "filterType")?.value ?? null,
 		[filters]
@@ -37,21 +61,38 @@ export function ThreadInfiniteList({
 		() => filters.find((filter) => filter.key === "filterSite")?.value ?? null,
 		[filters]
 	);
-	const query = useInfiniteQuery(
-		threadListOptions(trpc, { state, limit: 24, filterType, filterSite })
-	);
+	const options = threadListOptions(trpc, { state, limit: 24, filterType, filterSite });
+	const query = useInfiniteQuery(options);
 	const threads = useMemo(() => flattenThreadPages(query.data?.pages), [query.data?.pages]);
+	const inboxWindow = query.data?.pages[0]?.inboxWindow;
+	const bookmarkBatches = useMemo(
+		() => bookmarkBatchesByUrl(query.data?.pages),
+		[query.data?.pages]
+	);
 	const observerRef = useRef<IntersectionObserver | null>(null);
 	const loadMoreRef = useRef<HTMLDivElement | null>(null);
 	const initialSuccessHandledRef = useRef(false);
 
 	const handleLoadMore = useCallback(async () => {
-		if (!query.hasNextPage || query.isFetchingNextPage) {
+		if (!query.hasNextPage || query.isFetching) {
 			return;
 		}
 
-		await query.fetchNextPage();
-	}, [query.fetchNextPage, query.hasNextPage, query.isFetchingNextPage]);
+		await query.fetchNextPage({ cancelRefetch: false });
+	}, [query.fetchNextPage, query.hasNextPage, query.isFetching]);
+
+	const showNewItems = () => {
+		queryClient.setQueryData(options.queryKey, (data) => {
+			if (!data) return data;
+			const [first, ...remaining] = data.pages;
+			if (!first?.inboxWindow?.hasNew) return data;
+			return {
+				...data,
+				pages: [{ ...first, inboxWindow: { cursor: null, hasNew: true } }, ...remaining],
+			};
+		});
+		void query.refetch();
+	};
 
 	useEffect(() => {
 		if (!query.isSuccess || initialSuccessHandledRef.current) return;
@@ -88,24 +129,41 @@ export function ThreadInfiniteList({
 		};
 	}, [handleLoadMore, state]);
 
-	if (query.error) {
-		return (
-			<Alert variant="destructive" className="mb-4">
-				<AlertCircle className="h-4 w-4" />
-				<AlertTitle>에러 발생</AlertTitle>
-				<AlertDescription>
-					데이터를 불러오는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.
-				</AlertDescription>
-			</Alert>
-		);
-	}
+	const newItemsControl = (
+		<div aria-live="polite" className="flex h-9 w-24 shrink-0 items-center justify-end">
+			{inboxWindow?.hasNew && (
+				<Button
+					type="button"
+					size="sm"
+					disabled={inboxWindow.cursor === null && query.isFetching}
+					onClick={showNewItems}
+				>
+					새 글 보기
+				</Button>
+			)}
+		</div>
+	);
 
 	return (
 		<div className="flex w-full flex-col gap-2">
+			{renderHeader?.(newItemsControl)}
+			{query.error && !query.data ? (
+				<Alert variant="destructive" className="mb-4">
+					<AlertCircle className="h-4 w-4" />
+					<AlertTitle>에러 발생</AlertTitle>
+					<AlertDescription>
+						데이터를 불러오는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.
+					</AlertDescription>
+				</Alert>
+			) : null}
 			{query.isLoading ? <ThreadLoading count={loadingCount} /> : null}
-			{!query.isLoading && threads.length === 0 ? (emptyState ?? <NoDataBox />) : null}
+			{query.data && !inboxWindow?.hasNew && threads.length === 0
+				? (emptyState ?? <NoDataBox />)
+				: null}
 			{threads.map((thread) => (
-				<Fragment key={String(thread.id)}>{renderItem(thread)}</Fragment>
+				<Fragment key={String(thread.id)}>
+					{renderItem(thread, bookmarkBatches.get(thread.url))}
+				</Fragment>
 			))}
 			<div ref={loadMoreRef} className="h-6 w-full" data-testid={`${state}-load-more-sentinel`} />
 			{query.isFetchingNextPage ? (

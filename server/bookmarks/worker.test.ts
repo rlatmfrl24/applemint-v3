@@ -273,7 +273,9 @@ it.each(["budget-denied", "excessive-cost"])(
 
 const classificationScenarios = [
 	"topic",
+	"title-topic",
 	"source",
+	"generic-comic",
 	"already-source",
 	"etc",
 	"missing-etc",
@@ -298,6 +300,7 @@ function classificationFixture(origin: string, scenario: string) {
 	const parentId = "aaaaaaaa-0000-4000-8000-000000000014";
 	const rootEtcId = "aaaaaaaa-0000-4000-8000-000000000015";
 	const sourceFolderId = "aaaaaaaa-0000-4000-8000-000000000016";
+	const broadId = "aaaaaaaa-0000-4000-8000-000000000017";
 	const url = classificationScenarioURL(scenario);
 	const collection = (id: string, name: string, parent_id: string | null = null) => ({
 		id,
@@ -311,6 +314,8 @@ function classificationFixture(origin: string, scenario: string) {
 	});
 	const selections: Record<string, string> = {
 		topic: topicId,
+		"title-topic": broadId,
+		"generic-comic": broadId,
 		"already-topic": topicId,
 		uncertain: topicId,
 		"source-folder": sourceId,
@@ -321,6 +326,7 @@ function classificationFixture(origin: string, scenario: string) {
 		"already-topic": topicId,
 	};
 	const selection = selections[scenario] ?? null;
+	const hasBroadCollection = scenario === "title-topic" || scenario === "generic-comic";
 	const modelItem = {
 		id,
 		collectionId: selection,
@@ -355,7 +361,7 @@ function classificationFixture(origin: string, scenario: string) {
 				id,
 				url,
 				url_key: url,
-				title: "블아 공략",
+				title: scenario === "title-topic" ? "블아) 총력전 공략" : "퇴근하고 집에 돌아온 날 만화",
 				description: "",
 				tags: [],
 				note: "",
@@ -380,7 +386,8 @@ function classificationFixture(origin: string, scenario: string) {
 			collection(topicId, "블루 아카이브", sourceId),
 			collection(parentId, "Community"),
 			collection(rootEtcId, "etc"),
-			...(scenario === "source" || scenario === "already-source"
+			...(hasBroadCollection ? [collection(broadId, "otaku")] : []),
+			...(scenario === "source" || scenario === "already-source" || scenario === "generic-comic"
 				? [collection(sourceFolderId, "arcalive", parentId)]
 				: []),
 			...(scenario === "missing-etc" ? [] : [collection(etcId, "etc", parentId)]),
@@ -448,6 +455,9 @@ it.each([
 	const input = JSON.parse(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body)).input);
 	expect(input.collections).toEqual([
 		expect.objectContaining({ id: topicId, path: "arcalive / 블루 아카이브" }),
+		...(["title-topic", "generic-comic"].includes(scenario)
+			? [expect.objectContaining({ path: "otaku" })]
+			: []),
 	]);
 	if (
 		["missing-etc", "already-etc", "already-source", "already-topic", "unfiled"].includes(scenario)
@@ -456,14 +466,21 @@ it.each([
 		expect(charge.items[0]).not.toHaveProperty("proposal");
 		return;
 	}
+	const sourceProposal = {
+		collectionId: sourceFolderId,
+		etcScope: null,
+		sourceRoute: { siteKey: "arca.live" },
+		reason: "맞는 주제 컬렉션이 없어 Community / arcalive로 이동을 제안했습니다.",
+	};
 	const expected = {
 		topic: { collectionId: topicId, etcScope: null, reason: modelItem.reason },
-		source: {
-			collectionId: sourceFolderId,
+		"title-topic": {
+			collectionId: topicId,
 			etcScope: null,
-			sourceRoute: { siteKey: "arca.live" },
-			reason: "맞는 주제 컬렉션이 없어 Community / arcalive로 이동을 제안했습니다.",
+			reason: "제목에서 블루 아카이브 주제를 확인해 이동을 제안했습니다.",
 		},
+		source: sourceProposal,
+		"generic-comic": sourceProposal,
 		etc: {
 			collectionId: etcId,
 			etcScope: "community",

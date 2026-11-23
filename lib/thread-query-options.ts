@@ -1,6 +1,11 @@
-import { infiniteQueryOptions, mutationOptions, queryOptions } from "@tanstack/react-query";
+import {
+	type InfiniteData,
+	infiniteQueryOptions,
+	mutationOptions,
+	queryOptions,
+} from "@tanstack/react-query";
 import type { TRPCClient } from "@trpc/client";
-import type { ThreadTransitionInput } from "@/contracts/thread.schema";
+import type { ThreadPage, ThreadTransitionInput } from "@/contracts/thread.schema";
 import type { AppRouter } from "@/server/trpc/router";
 import {
 	createThreadListFilterKey,
@@ -26,20 +31,27 @@ export const threadListOptions = (
 	{ state, limit = 24, filterType, filterSite }: ThreadListOptionsInput
 ) => {
 	const filterKey = createThreadListFilterKey(filterType, filterSite);
+	const queryKey = threadListQueryKey(state, filterKey);
 
 	return infiniteQueryOptions({
-		queryKey: threadListQueryKey(state, filterKey),
-		queryFn: ({ pageParam, signal }) =>
-			trpc.thread.list.query(
+		queryKey,
+		queryFn: ({ client, pageParam, signal }) => {
+			const previous =
+				state === "inbox" && !pageParam
+					? client.getQueryData<InfiniteData<ThreadPage>>(queryKey)?.pages[0]
+					: undefined;
+			return trpc.thread.list.query(
 				{
 					state,
 					limit,
 					filterType: filterType ?? null,
 					filterSite: filterSite ?? null,
 					cursor: pageParam ?? null,
+					inboxViewCursor: previous?.inboxWindow?.cursor ?? undefined,
 				},
 				{ signal }
-			),
+			);
+		},
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
 		staleTime: 1000 * 30,

@@ -99,6 +99,13 @@ describe("BookmarkCollectionPicker", () => {
 		expect(onChange).toHaveBeenCalledExactlyOnceWith("react");
 	});
 
+	it("finds a collection when the search uses different spacing", () => {
+		const { onChange } = setup();
+		fireEvent.change(screen.getByRole("searchbox"), { target: { value: "GUIDES/ Re act" } });
+		fireEvent.click(screen.getByRole("treeitem", { name: "Work / Guides / React" }));
+		expect(onChange).toHaveBeenCalledExactlyOnceWith("react");
+	});
+
 	it("reports no matches, preserves the root choice, and closes Escape from search", () => {
 		const { onChange, trigger } = setup("react");
 		const search = screen.getByRole("searchbox");

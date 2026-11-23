@@ -118,7 +118,7 @@ export function BookmarkHealthSettingsPanel() {
 					</Button>
 				</div>
 			) : (
-				<p role="status" className="p-5 text-muted-foreground text-sm">
+				<p role="status" className="text-muted-foreground p-5 text-sm">
 					검사 설정을 불러오는 중…
 				</p>
 			)}

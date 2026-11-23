@@ -28,15 +28,15 @@
 
 ## 3. 현재 기반과 필요한 변경
 
-| 현재 근거 | 유지할 것 | 추가할 것 |
-| --- | --- | --- |
-| `server/bookmarks/health.ts` | HTTP/DNS/제한/일시 장애 구분 | 한 번 수집한 문서의 본문·미디어 관측 |
-| `safe-fetch.ts` | GET·10초·redirect 5회·SSRF 방어 | 원시 bytes·잘림 표시·상위 abort·제한된 응답 헤더·호스트 lease hook |
-| `worker.ts` | claim/commit·90초 lease·재개·60초 route | 작은 단계별 checkpoint·항목별 AI 예약 복구 |
-| `bookmark_checks` | 기존 접속 판정·검토 이력 | 검사 URL·버전과 독립된 본문·미디어 증거 |
-| `bookmark_snapshot` | 서버에서 필터·전체 건수·페이지 일치 | 본문·미디어·확인 불가 필터와 요약 |
-| `dispatch_bookmark_worker()` | 설정/Vault·기존 분 단위 cron | 하루 1회 대상 등록, 빈 작업 생성 방지 |
-| 기존 Jev 추천 | OpenRouter System One·비용 장부 | 전용 건강 상태 Choice 질문; 컬렉션 추천 요청은 재사용하지 않음 |
+| 현재 근거                    | 유지할 것                               | 추가할 것                                                          |
+| ---------------------------- | --------------------------------------- | ------------------------------------------------------------------ |
+| `server/bookmarks/health.ts` | HTTP/DNS/제한/일시 장애 구분            | 한 번 수집한 문서의 본문·미디어 관측                               |
+| `safe-fetch.ts`              | GET·10초·redirect 5회·SSRF 방어         | 원시 bytes·잘림 표시·상위 abort·제한된 응답 헤더·호스트 lease hook |
+| `worker.ts`                  | claim/commit·90초 lease·재개·60초 route | 작은 단계별 checkpoint·항목별 AI 예약 복구                         |
+| `bookmark_checks`            | 기존 접속 판정·검토 이력                | 검사 URL·버전과 독립된 본문·미디어 증거                            |
+| `bookmark_snapshot`          | 서버에서 필터·전체 건수·페이지 일치     | 본문·미디어·확인 불가 필터와 요약                                  |
+| `dispatch_bookmark_worker()` | 설정/Vault·기존 분 단위 cron            | 하루 1회 대상 등록, 빈 작업 생성 방지                              |
+| 기존 Jev 추천                | OpenRouter System One·비용 장부         | 전용 건강 상태 Choice 질문; 컬렉션 추천 요청은 재사용하지 않음     |
 
 현재 HTTP 404·410·NXDOMAIN 후보는 1분 후 재확인한다. 이 동작을 유지하되, 본문 삭제와 미디어 실패의 재확인은 별도 간격으로 분리한다. `check` 작업은 현재 AI crash 보호 대상이 아니므로 호출 추가만으로 끝내면 안 된다.
 
@@ -44,14 +44,14 @@
 
 `contracts/bookmark-health.schema.ts`에 아래 evidence와 Settings 입력 Zod schema를 정의한다. `bookmark.schema.ts`는 이를 참조하고 기존 BookmarkJob schema 뒤에 job을 포함한 Settings/시작 응답 schema를 조립한다. 두 파일의 순환 import는 만들지 않는다.
 
-| 필드 | 값 | 의미 |
-| --- | --- | --- |
-| 기존 `status` | `healthy / dead / restricted / temporary / uncheckable` | 접속 관측만 표현 |
-| `evidence.content.status` | `present / deleted_suspected / changed_suspected / restricted / unknown / not_checked` | 본문 판정 |
-| `evidence.media.status` | `present / partial / missing_suspected / none_detected / unknown / not_checked` | 본문 미디어의 검사 결과 |
-| `evidence.coverage` | `complete / limited / unknown` | HTML·추출·미디어 검사 범위; 전체 렌더링을 뜻하지 않음 |
-| `evidence.confirmation` | `not_required / pending / repeated` | 재확인 상태 |
-| `evidence.ai.state` | `not_needed / not_configured / pending / completed / uncertain / failed` | 모델 처리 상태 |
+| 필드                      | 값                                                                                     | 의미                                                  |
+| ------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| 기존 `status`             | `healthy / dead / restricted / temporary / uncheckable`                                | 접속 관측만 표현                                      |
+| `evidence.content.status` | `present / deleted_suspected / changed_suspected / restricted / unknown / not_checked` | 본문 판정                                             |
+| `evidence.media.status`   | `present / partial / missing_suspected / none_detected / unknown / not_checked`        | 본문 미디어의 검사 결과                               |
+| `evidence.coverage`       | `complete / limited / unknown`                                                         | HTML·추출·미디어 검사 범위; 전체 렌더링을 뜻하지 않음 |
+| `evidence.confirmation`   | `not_required / pending / repeated`                                                    | 재확인 상태                                           |
+| `evidence.ai.state`       | `not_needed / not_configured / pending / completed / uncertain / failed`               | 모델 처리 상태                                        |
 
 공개 `BookmarkHealthEvidence`는 `schemaVersion:1`, `observedAt`, `content:{applicable,status,title,textLength,textHash,excerpt,reasonCodes}`, `media:{applicable,status,discovered,checked,reachable,missing,restricted,unknown,excludedCount,duplicateCount,omittedCount,items}`, `coverage`, `confirmation`, `confirmationEvidence:{firstObservedAt,firstFingerprint,confirmedAt}`, `baselineCheckId`, `ai:{state,model,choice,confidence,reservationId}`, `reasonCodes`를 가진다. nullable 값은 확인하지 못했음을 뜻한다. `media.items`는 최대 20개이며 `{kind:'image'|'video'|'embed',label,urlHash,state:'reachable'|'missing'|'restricted'|'unknown',httpStatus,reasonCode}`다. `label`은 query·fragment가 없는 host/path의 160자 이내 표시값이고 원본 주소는 덮어쓰지 않는다.
 
@@ -89,16 +89,16 @@ YouTube는 기존 URL 정규화와 `listYouTubeVideos`의 배치 한도를 재�
 
 ### 5.3 제안 상한
 
-| 항목 | 값 |
-| --- | --- |
-| 원문 wire/decoded body | 각각 524,288 bytes |
-| 미디어 1개 응답 body | 65,536 bytes; HTTP Range를 요청해도 실제 읽기를 강제 제한 |
-| 외부 요청 | 10초, redirect 최대 5회 |
-| HTML+단계별 작업 checkpoint | 최대 65,536 bytes; 원문 전체 저장 금지 |
-| 미디어 참조 보관/검사 | 최대 20개; 넘으면 limited |
-| 한 media claim | 최대 2개; 누적 20초 전에 새 요청 시작 중단 |
-| 같은 host | 동시 1개, 종료 후 최소 2초; 오류 시 Retry-After 우선 |
-| 공개 evidence | 최대 8,192 bytes; 발췌 500자, 미디어 label 160자 |
+| 항목                        | 값                                                        |
+| --------------------------- | --------------------------------------------------------- |
+| 원문 wire/decoded body      | 각각 524,288 bytes                                        |
+| 미디어 1개 응답 body        | 65,536 bytes; HTTP Range를 요청해도 실제 읽기를 강제 제한 |
+| 외부 요청                   | 10초, redirect 최대 5회                                   |
+| HTML+단계별 작업 checkpoint | 최대 65,536 bytes; 원문 전체 저장 금지                    |
+| 미디어 참조 보관/검사       | 최대 20개; 넘으면 limited                                 |
+| 한 media claim              | 최대 2개; 누적 20초 전에 새 요청 시작 중단                |
+| 같은 host                   | 동시 1개, 종료 후 최소 2초; 오류 시 Retry-After 우선      |
+| 공개 evidence               | 최대 8,192 bytes; 발췌 500자, 미디어 label 160자          |
 
 checkpoint에는 발췌·추출 지표·최대 20개 원본 미디어 참조만 둔다. URL 길이 때문에 byte 상한을 넘으면 URL을 자르지 않고 뒤 참조를 제외해 omittedCount/limited를 기록한다. 공개 evidence가 상한을 넘으면 표시 label/발췌를 줄이고 원래 개수·실패·coverage를 유지한다. 이미 완료한 item은 raw 참조를 지우고 공개 evidence와 hash만 남긴다. 기존 `safeFetch.body` 반환을 유지하면서 binary bytes·truncation·retry 정보를 추가하므로 metadata 등 기존 caller를 함께 회귀 검사한다.
 

@@ -140,7 +140,7 @@ export function BookmarkScheduledClassificationSettings() {
 					</Button>
 				</div>
 			) : (
-				<p role="status" className="p-5 text-muted-foreground text-sm">
+				<p role="status" className="text-muted-foreground p-5 text-sm">
 					정기 재분류 설정을 불러오는 중…
 				</p>
 			)}

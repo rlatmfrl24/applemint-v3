@@ -63,6 +63,21 @@ function createService(data: object) {
 	return { service, rpc };
 }
 
+it("checks each normalized URL once and recognizes its original forms", async () => {
+	const { service, rpc } = createService(["https://example.com/"]);
+	await expect(
+		service.savedLinks([
+			"HTTPS://EXAMPLE.com:443",
+			"https://example.com/",
+			"https://example.org/",
+			"ftp://example.com/",
+		])
+	).resolves.toEqual(["HTTPS://EXAMPLE.com:443", "https://example.com/"]);
+	expect(rpc).toHaveBeenCalledExactlyOnceWith("bookmark_saved_url_keys", {
+		p_url_keys: ["https://example.com/", "https://example.org/"],
+	});
+});
+
 it("loads and saves typed scheduling settings and sends confirmation to the closure RPC", async () => {
 	const settings = {
 		enabled: true,

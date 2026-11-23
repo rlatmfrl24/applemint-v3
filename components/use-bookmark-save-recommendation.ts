@@ -189,7 +189,7 @@ export function useBookmarkSaveRecommendation(source: Source, recommendationId?:
 			active = false;
 		};
 	}, [jobId, recommendation.data, cache, trpc, source]);
-	function useManual() {
+	function enterManualMode() {
 		generation.current++;
 		manualRef.current = true;
 		setManual(true);
@@ -226,7 +226,7 @@ export function useBookmarkSaveRecommendation(source: Source, recommendationId?:
 		busy,
 		slow,
 		start,
-		useManual,
+		enterManualMode,
 		changeTitle,
 		choose,
 		recommendation,

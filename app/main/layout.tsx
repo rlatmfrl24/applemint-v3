@@ -9,7 +9,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
 
 	return (
 		<>
-			<nav className="flex w-full justify-center border-b border-b-foreground/10">
+			<nav className="border-b-foreground/10 flex w-full justify-center border-b">
 				<div className="container flex w-full items-center justify-between gap-2 p-3">
 					<div className="flex items-center gap-4 md:gap-6">
 						<MainDrawer />

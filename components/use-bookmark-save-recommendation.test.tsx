@@ -162,7 +162,7 @@ describe("bookmark save recommendation", () => {
 		const { result } = mount();
 		await waitFor(() => expect(backend.client.bookmarkAI.recommend.mutate).toHaveBeenCalled());
 		act(() => {
-			result.current.useManual();
+			result.current.enterManualMode();
 			result.current.choose(collectionA.id);
 		});
 		await act(async () => pending.resolve({ id: jobId }));
@@ -178,7 +178,7 @@ describe("bookmark save recommendation", () => {
 		const { result } = mount(jobId);
 		await waitFor(() => expect(result.current.collections.data).toHaveLength(2));
 		act(() => {
-			result.current.useManual();
+			result.current.enterManualMode();
 			result.current.choose(collectionA.id);
 		});
 		await act(async () => pending.resolve(recommendationStatus()));
@@ -238,7 +238,7 @@ describe("bookmark save recommendation", () => {
 		const { result } = mount();
 		await act(async () => vi.advanceTimersByTimeAsync(30001));
 		expect(result.current.slow).toBe(true);
-		act(() => result.current.useManual());
+		act(() => result.current.enterManualMode());
 		expect(result.current.slow).toBe(false);
 		expect(result.current.busy).toBe(false);
 	});

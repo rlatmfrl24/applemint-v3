@@ -14,15 +14,15 @@
 
 ## 검증 결과
 
-| 검증 | 실제 결과 |
-|---|---|
-| `pnpm typecheck` | PASS (`reports/ux-reviewed-final-types.log`) |
-| `pnpm verify` | PASS: Biome/Knip/DB 타입, Vitest 645 PASS·2 opt-in skip, pgTAP 778 PASS, production build와 server boundary 125파일 |
-| 초기 번들 | `/main` 127.3 KiB gzip, 기존 129.0 KiB 한도 이내. 저장 폼·상세 모델 통계 지연 로딩 유지 |
-| 북마크 전용 Playwright 전체 | 61 PASS·8 explicit opt-in skip, 6.4분 (`reports/ux-e2e-reviewed-final.log`) |
-| 추천 조회 실패 추가 회귀 | 실제 완료 작업의 첫 결과 조회를 실패시킨 뒤 조회만 재시도: PASS, 유료 등록 0, 장부 불변 (`reports/ux-query-retry-final.log`) |
-| 독립 리뷰의 입력 소실 3건 | 각각 RED→GREEN, 전체 suite GREEN. `reports/ux-review-red.log`, `ux-breakpoint-red.log`, `ux-review-green.log` |
-| 실제 화면 | 1440×900 / 1024×768 / 390×844, dark/light, 키보드, 200% 상당 CSS reflow 및 reduced-motion PASS |
+| 검증                        | 실제 결과                                                                                                                    |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm typecheck`            | PASS (`reports/ux-reviewed-final-types.log`)                                                                                 |
+| `pnpm verify`               | PASS: Biome/Knip/DB 타입, Vitest 645 PASS·2 opt-in skip, pgTAP 778 PASS, production build와 server boundary 125파일          |
+| 초기 번들                   | `/main` 127.3 KiB gzip, 기존 129.0 KiB 한도 이내. 저장 폼·상세 모델 통계 지연 로딩 유지                                      |
+| 북마크 전용 Playwright 전체 | 61 PASS·8 explicit opt-in skip, 6.4분 (`reports/ux-e2e-reviewed-final.log`)                                                  |
+| 추천 조회 실패 추가 회귀    | 실제 완료 작업의 첫 결과 조회를 실패시킨 뒤 조회만 재시도: PASS, 유료 등록 0, 장부 불변 (`reports/ux-query-retry-final.log`) |
+| 독립 리뷰의 입력 소실 3건   | 각각 RED→GREEN, 전체 suite GREEN. `reports/ux-review-red.log`, `ux-breakpoint-red.log`, `ux-review-green.log`                |
+| 실제 화면                   | 1440×900 / 1024×768 / 390×844, dark/light, 키보드, 200% 상당 CSS reflow 및 reduced-motion PASS                               |
 
 일반 `pnpm test:e2e`와 실자료 초기화 명령은 실행하지 않았다. 기존 서버와 `playwright.bookmarks.config.ts`를 사용했다. 8개 선택 실행은 유료 AI 분류/검토, 별도 실패 작업 재개·이전 QA 정리, 실제 링크 검사, 과거 이관 자료 상태에 의존하는 시나리오다. 이 전체 실행에서 다시 켜지 않았다. 이번 작업의 Main·Quick 실제 추천·저장은 아래처럼 별도 실행했다.
 
@@ -32,9 +32,9 @@
 
 아래 두 경로는 실제 Main/Quick 카드 → 자동 Jev 추천 → 사용자가 컬렉션 확인/선택 → 저장 → 관리자 → 새로고침 → 소유자 DB·정산 영수증 조회로 검증했다. 실패 주입이나 저장 API 직접 호출로 대체하지 않았다. 기존 저장 대상이 모두 기등록되어, 실제 공개 Next.js 문서에 UUID QA 표식을 붙인 소수의 로컬 원본을 준비했다. 원본 준비만 수집기 바깥에서 수행했다.
 
-| 경로 | 작업 / 저장 ID | 실제 정산 |
-|---|---|---|
-| Main | `560d8b71-c515-4847-a279-b022e571b38a` / `4430934b-88e1-487f-85f4-27f134dff4f7` | 113148 nano, settled |
+| 경로  | 작업 / 저장 ID                                                                  | 실제 정산            |
+| ----- | ------------------------------------------------------------------------------- | -------------------- |
+| Main  | `560d8b71-c515-4847-a279-b022e571b38a` / `4430934b-88e1-487f-85f4-27f134dff4f7` | 113148 nano, settled |
 | Quick | `668cdb6a-9afd-431e-8790-25c243d3ebff` / `7f0c4676-ed0c-4fd3-b37f-d3a439e8e846` | 113106 nano, settled |
 
 합계 **$0.000226254**, `reports/ux-live-save.log`. Quick은 추천과 다른 최종 컬렉션을 직접 선택해 저장값을 확인했다. 다른 기존 CRUD 회귀에서도 자동 추천이 실행되었으므로 이 두 건의 합계를 작업 전체 비용으로 표현하지 않는다.
@@ -56,6 +56,7 @@
 ## 실행 원장
 
 아래는 작업 완료 후 전용 scratch workspace를 제거하기 전에 보존한 실행·판단 기록이다.
+
 # SDD ledger — plan: docs/superpowers/plans/2026-10-15-bookmark-ux-redesign.md
 
 Spec: plan Product Contract; user explicitly requested implementation 2026-10-15.
@@ -65,16 +66,16 @@ Ruling: the user-approved chat plan is the self-contained spec; executable task 
 Ruling: the native worktree starts detached; created codex/bookmark-ux-redesign before editing. Cost if wrong: branch rename only.
 
 Task 1: in progress.
-Task 1: complete (commits 576e1f9..ee8c0a1, tests: pnpm exec vitest run bookmark →    Duration  3.49s (transform 1.64s, setup 0ms, import 6.13s, tests 1.75s, environment 3ms))
+Task 1: complete (commits 576e1f9..ee8c0a1, tests: pnpm exec vitest run bookmark → Duration 3.49s (transform 1.64s, setup 0ms, import 6.13s, tests 1.75s, environment 3ms))
 Task 2: real UI RED (missing anchor/skeleton) → GREEN. Existing manager/navigation + new UX: 23 passed, 2 opt-in skipped; 1440x900 8 rows, mobile no overflow, owner DB collection/selection readback PASS. Initial old edit-dialog assertion failed after intentional panel change; updated that selector.
-Task 2: complete (commits ee8c0a1..7b24179, tests: pnpm exec playwright test --config playwright.bookmarks.config.ts e2e/bookmark-ux.spec.ts →   5 passed (10.4s))
+Task 2: complete (commits ee8c0a1..7b24179, tests: pnpm exec playwright test --config playwright.bookmarks.config.ts e2e/bookmark-ux.spec.ts → 5 passed (10.4s))
 Task 3: identity unit 2 RED→GREEN; automatic lock UI RED→GREEN. Recommendation regression 8 pass; actual Main and Quick Jev→save→owner DB + settled receipts 2 pass ($0.000226254 combined), monthly ledger 9028879 nano/$1. Ruling: all original 22 sources were already bookmarked, so two local QA sources use real Next.js public documentation URLs; only setup bypasses ingestion, all recommendation/save/auth/readback use the intended UI and existing owner APIs. Cost if wrong: two clearly marked QA sources/bookmarks, preserved for reversible cleanup.
-Task 3: complete (commits 7b24179..2527b6b, tests: pnpm exec vitest run lib/bookmark-save-request.test.ts →    Duration  471ms (transform 32ms, setup 0ms, import 159ms, tests 10ms, environment 0ms))
+Task 3: complete (commits 7b24179..2527b6b, tests: pnpm exec vitest run lib/bookmark-save-request.test.ts → Duration 471ms (transform 32ms, setup 0ms, import 159ms, tests 10ms, environment 0ms))
 Task 4: optimistic unit 5 RED→GREEN; real owner UI/DB move/trash/restore/concurrent failure, collection order/tree and 200-item pagination 26/26 PASS; typecheck and scoped Biome PASS. Root causes fixed: late selection reset erased the next selection; pending collection reads hid newly created roots; nested Escape closed its parent dialog. Page arrays/offset stay immutable.
-Task 4: complete (commits 2527b6b..80b8352, tests: pnpm exec vitest run lib/bookmark-optimistic.test.ts →    Duration  425ms (transform 42ms, setup 0ms, import 161ms, tests 10ms, environment 0ms))
+Task 4: complete (commits 2527b6b..80b8352, tests: pnpm exec vitest run lib/bookmark-optimistic.test.ts → Duration 425ms (transform 42ms, setup 0ms, import 161ms, tests 10ms, environment 0ms))
 Task 5: interest optimistic failure and duplicate-candidate/collapsed-stat tests RED→GREEN; settings UI add/edit/remove/reload + owner DB and usage ledger 5/5 PASS. Query display-only observer uses skipToken to avoid console errors. Client navigation stalled even with a trivial target: Next 16.3.8 dev Flight decoding waits for its filtered x-nextjs-request-id debug channel; exact framework transport/trace headers restore navigation, forged owner/subrequest headers still blocked (unit regression).
 Task 5: Ruling: include the existing middleware header allowlist in scope — the approved Next client navigation cannot work without Flight and dev tracing headers; auth validation and forged privilege-header rejection remain intact — cost if wrong: transport-header correction and navigation regression.
-Task 5: complete (commits 80b8352..5de8fa2, tests: pnpm exec playwright test --config playwright.bookmarks.config.ts e2e/bookmark-settings.spec.ts →   5 passed (12.2s))
+Task 5: complete (commits 80b8352..5de8fa2, tests: pnpm exec playwright test --config playwright.bookmarks.config.ts e2e/bookmark-settings.spec.ts → 5 passed (12.2s))
 Task 6: full bookmark regression 54 PASS / 8 explicit opt-in skips before final settings density change; 200→move→trash→300 DB order/unique IDs PASS, code-load skeleton/cancel/focus and 30s manual PASS. Unit stale-conflict refresh RED→GREEN. UI settings priority RED (heading y=664)→GREEN after compacting budget summary. QA comparisons capture exact 1x source pixels with in-app implementation; selected-row and mobile-width P2 fixes passed recapture. Original checkout remains clean.
 Task 6: Ruling: native browser modal is used only while the lazy Radix form code loads — importing the complete Radix shell eagerly exceeds the existing Main bundle budget; native modal supplies focus trapping/Escape/inert background without a new dependency — cost if wrong: the brief loading-state styling/focus needs adjustment.
 Task 6: Ruling: verify 200 percent reflow with CSS 720x450 and DPR 2 plus reduced motion — browser-menu zoom/native mobile keyboard are not exposed by the available automation surface — cost if wrong: a real-device/browser zoom difference remains unverified and is reported.
@@ -90,7 +91,6 @@ Task 6: code fixes committed as 7af63fa. Local cleanup through existing UI moved
 Task 6: complete (commits 5de8fa2..7af63fa, tests: pnpm verify → /main/setting/crawling: PASS 120.8 KiB gzip (-30.9%; 12 assets))
 Final: task-done full pnpm verify PASS on 7af63fa: 645 unit PASS / 2 opt-in skipped, 778 pgTAP PASS, build/Knip/Biome/types/boundary PASS, Main 127.3 KiB. No required work remains except this documentation/ledger closeout.
 Finish: accepted Global Constraints exclude push/merge/deploy. Keep the named branch and managed worktree for review; do not ask again or create external artifacts. Final owner readback has held 0 and only the seven UUID QA sources/bookmarks in trash.
-
 
 정리 제한: 자동 승인 검토가 폴더 삭제를 포함한 마무리 명령을 `blocked by policy`로 거절했고 상세 사유는 반환하지 않았다. 따라서 이 계획의 ignored `.superpowers/sdd/2026-10-15-bookmark-ux-redesign/` 기록 폴더는 보존했다. 제품·검증 결과에는 영향이 없으며 삭제를 다른 방식으로 재시도하지 않았다. 이는 실행 스킬의 scratch 정리 지침에 대한 추가 판단이며, 비용은 작은 임시 파일이 남는 것이다.
 

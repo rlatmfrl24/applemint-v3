@@ -12,7 +12,7 @@ export function BrandLogo({ className, wordmarkClassName }: BrandLogoProps) {
 		<Link
 			aria-label="Applemint 홈"
 			className={cn(
-				"inline-flex shrink-0 items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+				"focus-visible:ring-ring inline-flex shrink-0 items-center gap-2.5 rounded-md focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
 				className
 			)}
 			href="/main"
@@ -35,7 +35,7 @@ export function BrandLogo({ className, wordmarkClassName }: BrandLogoProps) {
 				unoptimized
 				width={38}
 			/>
-			<span className={cn("font-bold text-xl tracking-[-0.04em]", wordmarkClassName)}>
+			<span className={cn("text-xl font-bold tracking-[-0.04em]", wordmarkClassName)}>
 				Applemint
 			</span>
 		</Link>

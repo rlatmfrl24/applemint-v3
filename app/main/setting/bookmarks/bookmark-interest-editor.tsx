@@ -112,26 +112,26 @@ export function BookmarkInterestEditor({
 						{[...new Set(topics)].map((topic) => (
 							<li
 								key={topic}
-								className="flex max-w-full items-center rounded-full border bg-muted/30 text-sm"
+								className="bg-muted/30 flex max-w-full items-center rounded-full border text-sm"
 							>
 								<button
 									type="button"
 									aria-label={`${topic} 수정`}
 									disabled={save.isPending}
-									className="flex min-h-11 min-w-0 items-center gap-2 rounded-l-full px-3 text-left transition-colors duration-150 hover:bg-muted focus-visible:outline focus-visible:outline-ring disabled:opacity-50 motion-reduce:transition-none"
+									className="hover:bg-muted focus-visible:outline-ring flex min-h-11 min-w-0 items-center gap-2 rounded-l-full px-3 text-left transition-colors duration-150 focus-visible:outline disabled:opacity-50 motion-reduce:transition-none"
 									onClick={(event) => {
 										setEditing({ original: topic, trigger: event.currentTarget });
 										setName(topic);
 									}}
 								>
-									<span className="min-w-0 break-words [overflow-wrap:anywhere]">{topic}</span>
-									<Pencil aria-hidden="true" className="size-3 shrink-0 text-muted-foreground" />
+									<span className="min-w-0 [overflow-wrap:anywhere] break-words">{topic}</span>
+									<Pencil aria-hidden="true" className="text-muted-foreground size-3 shrink-0" />
 								</button>
 								<button
 									type="button"
 									aria-label={`${topic} 삭제`}
 									disabled={save.isPending}
-									className="flex size-11 shrink-0 items-center justify-center rounded-r-full text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-destructive focus-visible:outline focus-visible:outline-ring disabled:opacity-50 motion-reduce:transition-none"
+									className="text-muted-foreground hover:bg-muted hover:text-destructive focus-visible:outline-ring flex size-11 shrink-0 items-center justify-center rounded-r-full transition-colors duration-150 focus-visible:outline disabled:opacity-50 motion-reduce:transition-none"
 									onClick={() => changeTopics(topics.filter((entry) => entry !== topic))}
 								>
 									<X aria-hidden="true" className="size-3.5" />
@@ -151,7 +151,7 @@ export function BookmarkInterestEditor({
 						persist(name, editing?.original);
 					}}
 				>
-					<label htmlFor={fieldId} className="block font-medium text-xs">
+					<label htmlFor={fieldId} className="block text-xs font-medium">
 						{editing ? "주제 수정" : "새 관심 주제"}
 					</label>
 					<div className="flex flex-wrap gap-2">
@@ -163,7 +163,7 @@ export function BookmarkInterestEditor({
 							value={name}
 							disabled={save.isPending}
 							placeholder="예: 프런트엔드 개발"
-							className="h-11 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm caret-primary placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-ring disabled:opacity-50"
+							className="bg-background caret-primary placeholder:text-muted-foreground focus-visible:outline-ring h-11 min-w-0 flex-1 rounded-md border px-3 text-sm focus-visible:outline disabled:opacity-50"
 							onChange={(event) => setName(event.target.value)}
 							onKeyDown={(event) => {
 								if (event.key === "Escape" && editing) {
@@ -201,8 +201,8 @@ export function BookmarkInterestEditor({
 			</section>
 			<section aria-label="AI 추천 주제" className="space-y-3 border-t pt-4">
 				<div>
-					<h3 className="m-0 border-0 p-0 font-medium text-sm">AI 추천 주제</h3>
-					<p className="mt-1 text-muted-foreground text-xs">필요한 주제를 선택해 추가하세요.</p>
+					<h3 className="m-0 border-0 p-0 text-sm font-medium">AI 추천 주제</h3>
+					<p className="text-muted-foreground mt-1 text-xs">필요한 주제를 선택해 추가하세요.</p>
 				</div>
 				{candidates.length ? (
 					<div className="flex flex-wrap gap-2">
@@ -213,9 +213,9 @@ export function BookmarkInterestEditor({
 								aria-label={`${topic} 추가`}
 								disabled={save.isPending}
 								onClick={() => persist(topic)}
-								className="flex min-h-11 max-w-full items-center gap-1.5 rounded-full border border-dashed px-3 py-1.5 text-left text-xs transition-colors duration-150 hover:border-solid hover:bg-muted focus-visible:outline focus-visible:outline-ring disabled:opacity-50 motion-reduce:transition-none"
+								className="hover:bg-muted focus-visible:outline-ring flex min-h-11 max-w-full items-center gap-1.5 rounded-full border border-dashed px-3 py-1.5 text-left text-xs transition-colors duration-150 hover:border-solid focus-visible:outline disabled:opacity-50 motion-reduce:transition-none"
 							>
-								<span className="break-words [overflow-wrap:anywhere]">{topic}</span>
+								<span className="[overflow-wrap:anywhere] break-words">{topic}</span>
 								<Plus aria-hidden="true" className="size-3 shrink-0" />
 							</button>
 						))}

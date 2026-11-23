@@ -61,7 +61,7 @@ export function BookmarkRow({
 			draggable={view === "library" && !moving && !selectionDisabled}
 			onDragStart={(event) => startDrag(event, item)}
 			onDragEnd={endDrag}
-			className={`relative isolate grid min-h-[72px] grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 border-b px-3 py-2 text-sm transition-colors duration-150 last:border-b-0 data-[detail-selected=true]:bg-accent data-[detail-selected=true]:hover:bg-accent motion-reduce:transition-none ${styles.row} ${checked ? "bg-accent/60" : "hover:bg-muted/60"}`}
+			className={`data-[detail-selected=true]:bg-accent data-[detail-selected=true]:hover:bg-accent relative isolate grid min-h-[72px] grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 border-b px-3 py-2 text-sm transition-colors duration-150 last:border-b-0 motion-reduce:transition-none ${styles.row} ${checked ? "bg-accent/60" : "hover:bg-muted/60"}`}
 		>
 			<label className="relative z-10 -m-3 flex size-11 items-center justify-center">
 				<input
@@ -76,12 +76,12 @@ export function BookmarkRow({
 			<fieldset className={`m-0 min-w-0 border-0 p-0 ${styles.identity}`} aria-label="링크 정보">
 				<div className="flex min-w-0 items-center gap-2">
 					<h2
-						className={`min-w-0 border-0 p-0 font-semibold text-[15px] leading-5 tracking-normal ${styles.title}`}
+						className={`min-w-0 border-0 p-0 text-[15px] leading-5 font-semibold tracking-normal ${styles.title}`}
 					>
 						<button
 							type="button"
 							aria-label={`${item.title || item.url} 상세 보기`}
-							className="block w-full cursor-pointer text-left after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-ring focus-visible:after:-outline-offset-2"
+							className="focus-visible:after:outline-ring block w-full cursor-pointer text-left after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2"
 							onClick={(event) =>
 								detail({ id: item.id, mode: "details", trigger: event.currentTarget })
 							}
@@ -93,7 +93,7 @@ export function BookmarkRow({
 						<span
 							title={health.detail}
 							data-severity={health.severity}
-							className={`shrink-0 text-muted-foreground text-xs ${styles.inlineHealth}`}
+							className={`text-muted-foreground shrink-0 text-xs ${styles.inlineHealth}`}
 						>
 							{health.label}
 						</span>
@@ -114,7 +114,7 @@ export function BookmarkRow({
 			>
 				{view === "library" && (
 					<GripVertical
-						className="hidden size-4 text-muted-foreground md:block"
+						className="text-muted-foreground hidden size-4 md:block"
 						style={{ cursor: "grab" }}
 						aria-hidden="true"
 					/>
@@ -214,7 +214,7 @@ function BookmarkRowContext({
 	return view === "review" ? (
 		<fieldset aria-label="검토 사유" className={`m-0 border-0 p-0 ${styles.reviewContext}`}>
 			<span
-				className={`inline-flex rounded-md border px-2 py-1 font-medium text-xs ${health?.severity === "danger" ? "border-destructive/30 bg-destructive/10 text-foreground" : "border-border bg-muted/40 text-foreground"}`}
+				className={`inline-flex rounded-md border px-2 py-1 text-xs font-medium ${health?.severity === "danger" ? "border-destructive/30 bg-destructive/10 text-foreground" : "border-border bg-muted/40 text-foreground"}`}
 				title={health?.detail}
 			>
 				{health?.label ??
@@ -223,7 +223,7 @@ function BookmarkRowContext({
 						: "보관 정리")}
 			</span>
 			<p
-				className="m-0 line-clamp-2 break-words text-foreground/70 text-sm leading-5"
+				className="text-foreground/70 m-0 line-clamp-2 text-sm leading-5 break-words"
 				title={reason}
 			>
 				{reason}
@@ -231,7 +231,7 @@ function BookmarkRowContext({
 		</fieldset>
 	) : (
 		item.tags.length > 0 && (
-			<p className="m-0 hidden truncate text-foreground/70 text-xs leading-4 xl:block">
+			<p className="text-foreground/70 m-0 hidden truncate text-xs leading-4 xl:block">
 				{item.tags.join(" · ")}
 			</p>
 		)
@@ -267,7 +267,7 @@ function BookmarkMetadata({
 	const safe = /^https?:\/\//iu.test(item.url);
 	return (
 		<div
-			className={`${review ? "mt-1 space-y-3" : "mt-0.5 space-y-1"} min-w-0 text-foreground/70 text-xs leading-4`}
+			className={`${review ? "mt-1 space-y-3" : "mt-0.5 space-y-1"} text-foreground/70 min-w-0 text-xs leading-4`}
 		>
 			<a
 				draggable={false}
@@ -277,7 +277,7 @@ function BookmarkMetadata({
 				aria-disabled={!safe || undefined}
 				onClick={safe ? onOpen : undefined}
 				title={item.url}
-				className="relative z-10 flex min-h-11 pointer-coarse:min-h-11 w-fit min-w-0 max-w-full items-center gap-1.5 rounded-sm text-[13px] underline decoration-muted-foreground/40 underline-offset-3 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring md:min-h-0"
+				className="decoration-muted-foreground/40 hover:text-foreground focus-visible:outline-ring relative z-10 flex min-h-11 w-fit max-w-full min-w-0 items-center gap-1.5 rounded-sm text-[13px] underline underline-offset-3 focus-visible:outline-2 md:min-h-0 pointer-coarse:min-h-11"
 			>
 				<ExternalLink className="size-3 shrink-0" aria-hidden="true" />
 				<span className="truncate">{item.url.replace(/^https?:\/\//iu, "")}</span>
@@ -286,7 +286,7 @@ function BookmarkMetadata({
 				className={`flex min-w-0 items-center ${review ? "flex-wrap gap-x-3 gap-y-2" : "gap-2"}`}
 			>
 				<span
-					className={`inline-flex min-w-0 max-w-full items-center gap-1 ${review ? "" : "rounded-sm bg-muted px-1.5"}`}
+					className={`inline-flex max-w-full min-w-0 items-center gap-1 ${review ? "" : "bg-muted rounded-sm px-1.5"}`}
 					title={path}
 				>
 					<Folder className="size-3 shrink-0" aria-hidden="true" />

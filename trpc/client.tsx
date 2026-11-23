@@ -4,6 +4,7 @@ import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-
 import { createTRPCClient, httpBatchLink, splitLink } from "@trpc/client";
 import { createTRPCContext } from "@trpc/tanstack-react-query";
 import { useState } from "react";
+import { isBookmarkUrlLookup } from "@/lib/bookmark-links";
 import type { AppRouter } from "@/server/trpc/router";
 import { setupBrowserFocusListener } from "./focus-manager";
 
@@ -19,7 +20,7 @@ export function AppTRPCProvider({ children }: { children: React.ReactNode }) {
 		createTRPCClient<AppRouter>({
 			links: [
 				splitLink({
-					condition: (operation) => operation.path === "bookmark.lookup",
+					condition: (operation) => isBookmarkUrlLookup(operation.path),
 					true: httpBatchLink({
 						url: "/api/trpc",
 						maxItems: 8,

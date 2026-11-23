@@ -128,12 +128,12 @@ export default function DataSettingPage() {
 							<Trash2 aria-hidden="true" className="size-5" />
 						</div>
 						<div>
-							<h3 className="font-semibold text-base">신규 글 일괄 이동</h3>
-							<p className="mt-1 text-muted-foreground text-sm leading-6">
+							<h3 className="text-base font-semibold">신규 글 일괄 이동</h3>
+							<p className="text-muted-foreground mt-1 text-sm leading-6">
 								현재 신규 글 전체를 하나의 작업으로 휴지통에 이동합니다.
 							</p>
 							{stats.data ? (
-								<div className="mt-2 font-medium text-red-700 text-sm dark:text-red-300">
+								<div className="mt-2 text-sm font-medium text-red-700 dark:text-red-300">
 									대상 {stats.data.totalCount.toLocaleString("ko-KR")}개
 								</div>
 							) : null}

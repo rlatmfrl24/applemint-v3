@@ -124,7 +124,7 @@ describe("bookmark save form", () => {
 		const { props } = mount(jobId);
 		await screen.findByText("AI 추천");
 		expect((screen.getByRole("textbox", { name: "URL" }) as HTMLInputElement).readOnly).toBe(true);
-		fireEvent.click(screen.getByText("추가 정보 · 태그와 메모"));
+		expect(screen.queryByText("추가 정보 · 태그와 메모")).toBeNull();
 		fireEvent.change(screen.getByRole("textbox", { name: "태그 (쉼표로 구분)" }), {
 			target: { value: " first, , second , " },
 		});
@@ -181,6 +181,7 @@ describe("bookmark save form", () => {
 			target: { value: "Edited title" },
 		});
 		fireEvent.click(screen.getByRole("button", { name: "컬렉션" }));
+		expect(screen.queryByRole("searchbox", { name: "컬렉션 검색" })).toBeNull();
 		fireEvent.click(screen.getByRole("treeitem", { name: "Research" }));
 		await screen.findByText("직접 선택");
 		fireEvent.click(screen.getByRole("button", { name: "저장" }));
@@ -228,9 +229,9 @@ describe("bookmark save form", () => {
 		).toBe(true);
 		fireEvent.keyDown(screen.getByRole("alertdialog"), { key: "Escape" });
 		expect(props.close).not.toHaveBeenCalled();
-		fireEvent.submit(
-			screen.getByRole("button", { name: "저장 중…" }).closest("form") as HTMLFormElement
-		);
+		const form = (screen.getByRole("button", { name: "저장 중…" }) as HTMLButtonElement).form;
+		if (!form) throw new Error("Save button must be associated with its form");
+		fireEvent.submit(form);
 		expect(backend.client.bookmark.save.mutate).toHaveBeenCalledTimes(1);
 		await act(async () => pending.resolve({ existing: false, item: bookmarkItem() }));
 		await waitFor(() => expect(props.close).toHaveBeenCalled());
