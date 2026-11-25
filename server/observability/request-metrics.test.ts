@@ -43,4 +43,17 @@ describe("RequestMetrics", () => {
 			errorCode: "UnexpectedFailure",
 		});
 	});
+
+	it("취소가 같은 요청의 입력 오류를 덮어쓰지 않는다", () => {
+		const metrics = new RequestMetrics();
+		metrics.recordCancellation("CLIENT_CLOSED_REQUEST");
+		metrics.recordFailure("BAD_REQUEST", "rejected");
+		metrics.recordCancellation("CLIENT_CLOSED_REQUEST");
+
+		expect(metrics.snapshot()).toMatchObject({
+			failureCount: 1,
+			outcome: "rejected",
+			errorCode: "BAD_REQUEST",
+		});
+	});
 });

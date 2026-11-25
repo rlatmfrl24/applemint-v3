@@ -99,6 +99,68 @@ describe("tRPC route", () => {
 		).toBe(2);
 	});
 
+	it.each([
+		["ECONNRESET", Object.assign(new Error("aborted"), { code: "ECONNRESET" })],
+		["AbortError", new DOMException("aborted", "AbortError")],
+	])("본문 읽기 중 %s로 끊어진 요청을 입력 오류로 기록하지 않는다", async (_name, cause) => {
+		const context = createContext();
+		createContextMock.mockResolvedValue(context);
+		const controller = new AbortController();
+		const init = {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			duplex: "half",
+			signal: controller.signal,
+			body: new ReadableStream({
+				pull(stream) {
+					controller.abort();
+					stream.error(cause);
+				},
+			}),
+		};
+		const response = await POST(
+			new Request("http://localhost/api/trpc/bookmark.savedLinks?batch=1", init)
+		);
+		const body = await response.json();
+
+		expect(response.status).toBe(499);
+		expect(body[0].error.data.code).toBe("CLIENT_CLOSED_REQUEST");
+		expect(console.error).not.toHaveBeenCalled();
+		expect(console.info).toHaveBeenCalledWith(
+			expect.objectContaining({
+				operation: "bookmark.savedLinks",
+				outcome: "cancelled",
+				errorCode: "CLIENT_CLOSED_REQUEST",
+			})
+		);
+		expect(context.metrics.snapshot()).toMatchObject({ outcome: "cancelled", failureCount: 0 });
+	});
+
+	it("요청 신호가 취소됐더라도 잘못된 JSON은 400으로 보고한다", async () => {
+		const context = createContext();
+		createContextMock.mockResolvedValue(context);
+		const response = await POST(
+			new Request("http://localhost/api/trpc/bookmark.savedLinks?batch=1", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: '{"0":',
+				signal: AbortSignal.abort(),
+			})
+		);
+		const body = await response.json();
+
+		expect(response.status).toBe(400);
+		expect(body[0].error.data.code).toBe("BAD_REQUEST");
+		expect(console.error).toHaveBeenCalledWith(
+			expect.objectContaining({
+				operation: "bookmark.savedLinks",
+				outcome: "rejected",
+				errorCode: "BAD_REQUEST",
+			})
+		);
+		expect(context.metrics.snapshot()).toMatchObject({ outcome: "rejected", failureCount: 1 });
+	});
+
 	it("context 초기화 오류의 내부 메시지를 숨기고 request ID를 보존한다", async () => {
 		createContextMock.mockRejectedValue(
 			new Error("NEXT_PUBLIC_SUPABASE_URL is not defined. Internal detail.")

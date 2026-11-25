@@ -38,6 +38,19 @@ const handler = async (request: Request) => {
 		onError({ ctx, error, path, type }) {
 			const domainError = error.cause instanceof DomainError ? error.cause : null;
 			const errorCode = domainError?.code ?? error.code;
+			const logFields = {
+				requestId: ctx?.requestId ?? domainError?.data.requestId ?? requestId,
+				transport: "trpc",
+				operation: path ?? "unknown",
+				type,
+				durationMs: Math.round(performance.now() - startedAt),
+				errorCode,
+			};
+			if (error.code === "CLIENT_CLOSED_REQUEST") {
+				context?.metrics.recordCancellation(errorCode);
+				console.info({ ...logFields, outcome: "cancelled" });
+				return;
+			}
 			const outcome = [
 				"BAD_REQUEST",
 				"UNAUTHORIZED",
@@ -49,15 +62,7 @@ const handler = async (request: Request) => {
 				? "rejected"
 				: "failed";
 			context?.metrics.recordFailure(errorCode, outcome);
-			console.error({
-				requestId: ctx?.requestId ?? domainError?.data.requestId ?? requestId,
-				transport: "trpc",
-				operation: path ?? "unknown",
-				type,
-				durationMs: Math.round(performance.now() - startedAt),
-				outcome,
-				errorCode,
-			});
+			console.error({ ...logFields, outcome });
 		},
 	});
 
