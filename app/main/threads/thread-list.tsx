@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -54,12 +54,10 @@ export const TypeStats = ({
 	stats,
 	selection,
 	onSelectionChange,
-	newItemsControl,
 }: {
 	stats: ThreadStats | undefined;
 	selection: ThreadFilterSelection;
 	onSelectionChange: (selection: ThreadFilterSelection) => void;
-	newItemsControl?: ReactNode;
 }) => {
 	const orderedTypeCounts = useMemo(() => {
 		if (!stats) return [];
@@ -134,7 +132,6 @@ export const TypeStats = ({
 						))}
 					</div>
 				</ToggleGroup>
-				{newItemsControl}
 			</CardHeader>
 		</Card>
 	);
@@ -185,14 +182,9 @@ export const ThreadList = () => {
 					</Suspense>
 				) : undefined
 			}
-			renderHeader={(newItemsControl) => (
-				<TypeStats
-					stats={statsQuery.data}
-					selection={selection}
-					onSelectionChange={setSelection}
-					newItemsControl={newItemsControl}
-				/>
-			)}
+			header={
+				<TypeStats stats={statsQuery.data} selection={selection} onSelectionChange={setSelection} />
+			}
 			renderItem={(thread, bookmarkUrls) => (
 				<DefaultThreadItem
 					thread={thread}
