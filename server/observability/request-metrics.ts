@@ -28,7 +28,7 @@ export class RequestMetrics {
 	private downstreamCallCount = 0;
 	private resultCount = 0;
 	private failureCount = 0;
-	private outcome: "succeeded" | "rejected" | "failed" = "succeeded";
+	private outcome: "succeeded" | "cancelled" | "rejected" | "failed" = "succeeded";
 	private errorCode: string | null = null;
 
 	recordAuthCheck(durationMs: number, _outcome: CallOutcome) {
@@ -68,7 +68,15 @@ export class RequestMetrics {
 	recordFailure(errorCode: string, outcome: "rejected" | "failed") {
 		this.failureCount += 1;
 		this.errorCode = errorCode;
-		if (outcome === "failed" || this.outcome === "succeeded") this.outcome = outcome;
+		if (outcome === "failed" || this.outcome === "succeeded" || this.outcome === "cancelled") {
+			this.outcome = outcome;
+		}
+	}
+
+	recordCancellation(errorCode: string) {
+		if (this.outcome !== "succeeded") return;
+		this.outcome = "cancelled";
+		this.errorCode = errorCode;
 	}
 
 	snapshot() {

@@ -60,7 +60,7 @@ describe("ThreadInfiniteList 빈 상태 슬롯", () => {
 
 afterEach(cleanup);
 
-it("삭제 후 조용히 갱신하고 새 글은 보던 페이지를 유지한 채 버튼으로 알린다", async () => {
+it("새 글 알림을 표시하고 갱신이 실패해도 보던 목록을 유지한 채 재시도한다", async () => {
 	const rows = Array.from({ length: 26 }, (_, index) => ({
 		id: String(26 - index),
 		type: "normal",
@@ -79,6 +79,7 @@ it("삭제 후 조용히 갱신하고 새 글은 보던 페이지를 유지한 �
 	const queryKey = threadListQueryKey("inbox");
 	const list = trpcClient.thread.list.query;
 	const refreshResponse = Promise.withResolvers<ThreadPage>();
+	const failedRequest = Promise.withResolvers<ThreadPage>();
 	const visiblePage = { items: remaining, nextCursor: null, inboxWindow };
 	const latestPage = {
 		items: [incoming, ...remaining.slice(0, 23)],
@@ -91,7 +92,6 @@ it("삭제 후 조용히 갱신하고 새 글은 보던 페이지를 유지한 �
 		<QueryClientProvider client={client}>
 			<ThreadInfiniteList
 				state="inbox"
-				renderHeader={(control) => control}
 				renderItem={(thread) => <div data-testid="thread">{thread.title}</div>}
 			/>
 		</QueryClientProvider>
@@ -115,14 +115,29 @@ it("삭제 후 조용히 갱신하고 새 글은 보던 페이지를 유지한 �
 	});
 	await screen.findByText(remaining.at(-1)?.title ?? "");
 	expect(screen.queryByRole("button", { name: "새 글 보기" })).toBeNull();
+	expect(screen.queryByText("새 글이 도착했어요")).toBeNull();
 
 	list.mockResolvedValueOnce({ ...visiblePage, inboxWindow: { ...inboxWindow, hasNew: true } });
 	await act(() => client.invalidateQueries({ queryKey }));
 	const showNew = await screen.findByRole("button", { name: "새 글 보기" });
+	expect(screen.getByRole("status").textContent).toBe("새 글이 도착했어요");
 	expect(list).toHaveBeenLastCalledWith(
 		expect.objectContaining({ inboxViewCursor: inboxWindow.cursor }),
 		expect.anything()
 	);
+	expect(renderedTitles()).toEqual(remaining.map((row) => row.title));
+
+	list.mockReturnValueOnce(failedRequest.promise);
+	const callsBeforeRefresh = list.mock.calls.length;
+	fireEvent.click(showNew);
+	await waitFor(() => expect(showNew).toHaveProperty("disabled", true));
+	fireEvent.click(showNew);
+	expect(list).toHaveBeenCalledTimes(callsBeforeRefresh + 1);
+	await act(async () => {
+		failedRequest.reject(new Error("새 글 조회 실패"));
+	});
+	await waitFor(() => expect(showNew).toHaveProperty("disabled", false));
+	expect(screen.getByRole("status").textContent).toBe("새 글이 도착했어요");
 	expect(renderedTitles()).toEqual(remaining.map((row) => row.title));
 
 	list.mockResolvedValueOnce(latestPage);
@@ -134,5 +149,6 @@ it("삭제 후 조용히 갱신하고 새 글은 보던 페이지를 유지한 �
 	);
 	expect(renderedTitles().slice(0, 2)).toEqual([incoming.title, remaining[0].title]);
 	expect(screen.queryByRole("button", { name: "새 글 보기" })).toBeNull();
+	expect(screen.queryByText("새 글이 도착했어요")).toBeNull();
 	client.clear();
 });

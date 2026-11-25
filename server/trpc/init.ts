@@ -1,4 +1,4 @@
-import { initTRPC } from "@trpc/server";
+import { initTRPC, TRPCError } from "@trpc/server";
 import { publicErrorDataSchema } from "@/contracts/error.schema";
 import { DomainError } from "@/server/errors/domain-error";
 import { toTRPCError } from "@/server/errors/error-mapper";
@@ -23,12 +23,27 @@ const t = initTRPC.context<TRPCContext>().create({
 	},
 });
 
-const errorBoundaryMiddleware = t.middleware(async ({ next }) => {
+const errorBoundaryMiddleware = t.middleware(async ({ next, signal }) => {
 	try {
 		const result = await next();
-		if (!result.ok) throw toTRPCError(result.error);
+		if (!result.ok) throw result.error;
 		return result;
 	} catch (error) {
+		// tRPC wraps request body read failures as BAD_REQUEST, including socket aborts.
+		if (
+			signal?.aborted &&
+			error instanceof TRPCError &&
+			error.code === "BAD_REQUEST" &&
+			error.cause &&
+			(error.cause.name === "AbortError" ||
+				("code" in error.cause && error.cause.code === "ECONNRESET"))
+		) {
+			throw new TRPCError({
+				code: "CLIENT_CLOSED_REQUEST",
+				message: "클라이언트가 요청을 취소했습니다.",
+				cause: error.cause,
+			});
+		}
 		throw toTRPCError(error);
 	}
 });

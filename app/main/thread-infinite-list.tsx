@@ -1,10 +1,11 @@
 "use client";
 
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Download, Loader2 } from "lucide-react";
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { bookmarkUrlLimit } from "@/lib/bookmark-links";
 import {
 	flattenThreadPages,
@@ -41,7 +42,7 @@ export function ThreadInfiniteList({
 	loadingCount = 3,
 	onInitialLoadSuccess,
 	emptyState,
-	renderHeader,
+	header,
 }: {
 	state: ThreadState;
 	filters?: ThreadListFilterParam[];
@@ -49,7 +50,7 @@ export function ThreadInfiniteList({
 	loadingCount?: number;
 	onInitialLoadSuccess?: () => void | Promise<void>;
 	emptyState?: ReactNode;
-	renderHeader?: (newItemsControl: ReactNode) => ReactNode;
+	header?: ReactNode;
 }) {
 	const trpc = useTRPCClient();
 	const queryClient = useQueryClient();
@@ -65,6 +66,8 @@ export function ThreadInfiniteList({
 	const query = useInfiniteQuery(options);
 	const threads = useMemo(() => flattenThreadPages(query.data?.pages), [query.data?.pages]);
 	const inboxWindow = query.data?.pages[0]?.inboxWindow;
+	const hasNewItems = inboxWindow?.hasNew === true;
+	const isLoadingNewItems = inboxWindow?.cursor === null && query.isFetching;
 	const bookmarkBatches = useMemo(
 		() => bookmarkBatchesByUrl(query.data?.pages),
 		[query.data?.pages]
@@ -129,24 +132,42 @@ export function ThreadInfiniteList({
 		};
 	}, [handleLoadMore, state]);
 
-	const newItemsControl = (
-		<div aria-live="polite" className="flex h-9 w-24 shrink-0 items-center justify-end">
-			{inboxWindow?.hasNew && (
-				<Button
-					type="button"
-					size="sm"
-					disabled={inboxWindow.cursor === null && query.isFetching}
-					onClick={showNewItems}
-				>
-					새 글 보기
-				</Button>
-			)}
-		</div>
-	);
-
 	return (
 		<div className="flex w-full flex-col gap-2">
-			{renderHeader?.(newItemsControl)}
+			{header}
+			{state === "inbox" && (
+				<Card
+					className={
+						hasNewItems
+							? "flex min-h-11 items-center justify-between gap-2 border-teal-300 bg-teal-50 px-3 py-1 shadow-none dark:border-teal-400/80 dark:bg-teal-950/40"
+							: "sr-only"
+					}
+				>
+					<div role="status" className="flex min-w-0 items-center gap-2.5">
+						{hasNewItems && (
+							<>
+								<Download
+									aria-hidden="true"
+									className="size-5 shrink-0 text-teal-700 dark:text-teal-400"
+								/>
+								<span className="text-sm font-semibold wrap-anywhere">새 글이 도착했어요</span>
+							</>
+						)}
+					</div>
+					{hasNewItems && (
+						<Button
+							type="button"
+							size="sm"
+							className="shrink-0 bg-teal-700 text-white hover:bg-teal-800 dark:bg-teal-400 dark:text-zinc-950 dark:hover:bg-teal-300"
+							disabled={isLoadingNewItems}
+							aria-busy={isLoadingNewItems}
+							onClick={showNewItems}
+						>
+							새 글 보기
+						</Button>
+					)}
+				</Card>
+			)}
 			{query.error && !query.data ? (
 				<Alert variant="destructive" className="mb-4">
 					<AlertCircle className="h-4 w-4" />
@@ -157,9 +178,7 @@ export function ThreadInfiniteList({
 				</Alert>
 			) : null}
 			{query.isLoading ? <ThreadLoading count={loadingCount} /> : null}
-			{query.data && !inboxWindow?.hasNew && threads.length === 0
-				? (emptyState ?? <NoDataBox />)
-				: null}
+			{query.data && !hasNewItems && threads.length === 0 ? (emptyState ?? <NoDataBox />) : null}
 			{threads.map((thread) => (
 				<Fragment key={String(thread.id)}>
 					{renderItem(thread, bookmarkBatches.get(thread.url))}

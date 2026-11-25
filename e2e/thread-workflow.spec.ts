@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import type { ThreadPage } from "../lib/thread-list-contract";
 import { clearThreadTables, countThreads, getThreadIdByUrl, seedThreads } from "./support/database";
 
 test.beforeEach(async () => {
@@ -28,6 +29,90 @@ test("좁은 모바일 화면에서 모든 필터 칩을 끝까지 보고 선택
 	await siteFilter.click();
 	await expect(siteFilter).toBeChecked();
 	await expect(cards).toHaveCount(12);
+});
+
+test("현재 필터에 새 글이 있을 때만 알림을 표시하고 눌러서 새 글을 본다", async ({
+	page,
+}, testInfo) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.emulateMedia({ colorScheme: "dark" });
+	const [first, second, remaining] = await seedThreads("inbox", 3, { prefix: "alert-normal" });
+	await seedThreads("inbox", 1, { prefix: "alert-arcalive", type: "arcalive" });
+
+	await page.goto("/main");
+	const normal = page.getByRole("radio", { name: /^normal\s*\d+$/u });
+	await normal.click();
+	await expect(normal).toBeChecked();
+
+	const cards = page.getByTestId("thread-card");
+	const notice = page.getByText("새 글이 도착했어요", { exact: true });
+	const showNew = page.getByRole("button", { name: "새 글 보기" });
+	const filterGroup = page.getByRole("radiogroup").filter({ has: normal });
+	const gapAfterFilters = async () => {
+		const filters = await filterGroup.boundingBox();
+		const firstCard = await cards.first().boundingBox();
+		if (!filters || !firstCard) throw new Error("필터와 첫 글이 표시되지 않습니다.");
+		return firstCard.y - (filters.y + filters.height);
+	};
+	await expect(cards).toHaveCount(3);
+	await expect(showNew).toHaveCount(0);
+	const emptyGap = await gapAfterFilters();
+	expect(emptyGap).toBeGreaterThan(0);
+	expect(emptyGap).toBeLessThan(24);
+
+	const trashAndRefresh = async (title: string, hasNew: boolean) => {
+		const refreshed = page.waitForResponse((response) => {
+			const { pathname, searchParams } = new URL(response.url());
+			return (
+				pathname.startsWith("/api/trpc/") &&
+				pathname.slice("/api/trpc/".length).split(",").includes("thread.list") &&
+				searchParams.get("input")?.includes('"filterType":"normal"') === true
+			);
+		});
+		await cards.filter({ hasText: title }).getByRole("button", { name: "Trash" }).click();
+		const response = await refreshed;
+		expect(response.ok()).toBe(true);
+		const procedures = new URL(response.url()).pathname.slice("/api/trpc/".length).split(",");
+		const body: { result?: { data: ThreadPage } }[] = await response.json();
+		expect(body[procedures.indexOf("thread.list")]?.result?.data.inboxWindow?.hasNew).toBe(hasNew);
+	};
+
+	await seedThreads("inbox", 1, { prefix: "alert-other", type: "arcalive" });
+	await trashAndRefresh(first.title, false);
+	await expect(cards).toHaveCount(2);
+	await expect(showNew).toHaveCount(0);
+
+	const [incoming] = await seedThreads("inbox", 1, { prefix: "alert-incoming" });
+	await trashAndRefresh(second.title, true);
+	await expect(notice).toBeInViewport({ ratio: 1 });
+	await expect(showNew).toBeInViewport({ ratio: 1 });
+	await expect(cards).toHaveCount(1);
+	await expect(cards.first()).toContainText(remaining.title);
+	await page.screenshot({ path: testInfo.outputPath("inbox-alert-mobile-dark.png") });
+
+	await page.setViewportSize({ width: 320, height: 800 });
+	await expect(notice).toBeInViewport({ ratio: 1 });
+	await expect(showNew).toBeInViewport({ ratio: 1 });
+	await expect(page.getByRole("radio", { name: /^arcalive\s*2$/u })).toBeInViewport({
+		ratio: 1,
+	});
+
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.emulateMedia({ colorScheme: "light" });
+	await expect(page.locator("html")).toHaveClass(/\blight\b/u);
+	await expect(notice).toBeInViewport({ ratio: 1 });
+	await expect(showNew).toBeInViewport({ ratio: 1 });
+
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.emulateMedia({ colorScheme: "dark" });
+	await expect(page.locator("html")).toHaveClass(/\bdark\b/u);
+	await showNew.click();
+	await expect(cards).toHaveCount(2);
+	await expect(cards.first()).toContainText(incoming.title);
+	await expect(normal).toBeChecked();
+	await expect(showNew).toHaveCount(0);
+	await expect(notice).toHaveCount(0);
+	expect(await gapAfterFilters()).toBeCloseTo(emptyGap, 0);
 });
 
 test("Inbox 페이지네이션과 Main → Quick → Trash → Main 복원을 검증한다", async ({ page }) => {
